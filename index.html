@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>voxiGrof</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+<!-- Opaque from the very first paint, and the FIRST element in the body so it exists before
+     anything else can be shown. The canvas opacity alone was not enough: the browser paints the
+     page before the deferred scripts run, so there was a brief window of raw canvas — chunks
+     mid-generation, then a flash — before startMenuBackdrop() could veil it. This is styled
+     inline so it is black even if the stylesheet has not arrived yet. -->
+<div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
+
+<div id="hud" class="mono"></div>
+<div id="version">alpha 0.7593</div>
+<div id="crosshair"></div>
+<div id="interact"></div>
+<div id="blockname"></div>
+<div id="feed"></div>
+<!-- shown while a seat is being rebound: the game watches every device until one speaks -->
+<div id="inputWait">
+  <div class="iwbox">
+    <div id="inputWaitText"></div>
+    <div id="inputWaitHint"></div>
+    <div class="iwdots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+<div id="worldLoading">
+  <div>
+    <div id="worldLoadingName"></div>
+    <div id="worldLoadingStep"></div>
+    <div class="wl-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+<canvas id="vitals" width="980" height="70"></canvas>
+<div id="xpBar"><div id="xpFill"></div><div id="xpLevel"></div></div>
+<div id="xpPops"></div>
+<div id="deathScreen">
+  <div class="dbox">
+    <h1>You Died</h1>
+    <div id="deathCause"></div>
+    <div id="deathStats"></div>
+    <button id="respawnBtn">Respawn</button>
+    <button id="deathMenuBtn" class="grey">Back to Menu</button>
+  </div>
+</div>
+<div id="hotbar"></div>
+<canvas id="radial" width="360" height="360"></canvas>
+<div id="invWrap">
+  <div id="craftPanel"></div>
+  <div id="inv"></div>
+  <div id="furnacePanel"></div>
+  <div id="chestPanel"></div>
+  <div id="equipPanel"></div>
+  <div id="structPanel"></div>
+</div>
+
+ <!-- starts veiled: the menu rides in with the panorama once it is built (see _menuVeil).
+      Set here rather than by script, because the overlay paints the moment it is parsed —
+      adding the class from JS meant one frame of fully-visible menu before it faded out. -->
+ <div id="overlay" class="veiled">
+  <div class="panel"> 
+    <h1>voxiGrof</h1>
+    <div class="sub" id="menuSub">infinite voxel world &middot; greedy-meshed &middot; worker-generated</div>
+    <div id="menuHome">
+      <div class="seedrow">
+        <button id="worldsBtn" style="min-width:230px">Singleplayer</button>
+      </div>
+      <div class="seedrow">
+        <button id="profilesBtn" class="grey" style="min-width:230px">Profile: <b id="profileNameLbl">—</b></button>
+      </div>
+    </div>
+    <!-- Profiles are local accounts: one per person who plays on this machine. Player one plays
+         as the selected profile; split-screen players are picked from the same list. -->
+    <div id="menuProfiles" style="display:none">
+      <div id="profileFirstNote" class="splitNote" style="display:none">
+        Welcome — create a profile to play as. Everything you build is saved under it.
+      </div>
+      <div id="profileList" class="splitList"></div>
+      <div class="seedrow">
+        <input id="profileNameIn" maxlength="16" spellcheck="false" placeholder="profile name">
+        <button id="profileAddBtn">Create Profile</button>
+        <button id="profilesBackBtn" class="grey">Back</button>
+      </div>
+    </div>
+    <div id="menuWorlds" style="display:none">
+      <div id="worldList" class="wlist"></div>
+      <div class="seedrow">
+        <button id="newWorldBtn">Create New World</button>
+        <button id="worldsBackBtn" class="grey">Back</button>
+      </div>
+    </div>
+    <div id="menuCreate" style="display:none">
+      <div class="seedrow">
+        <input id="worldName" maxlength="24" spellcheck="false" placeholder="world name">
+        <input id="seedInput" class="mono" maxlength="24" spellcheck="false" placeholder="seed (optional)">
+      </div>
+      <div class="seedrow">
+        <select id="newModeSel" style="background:#0b0d16;color:#dfe;border:1px solid #445;border-radius:6px;padding:8px 10px;">
+          <option value="survival">Survival</option>
+          <option value="creative">Creative</option>
+        </select>
+        <select id="newTerrainSel" style="background:#0b0d16;color:#dfe;border:1px solid #445;border-radius:6px;padding:8px 10px;">
+          <option value="default">Default terrain</option>
+          <option value="flat">Flat</option>
+        </select>
+        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;">random tick
+          <input id="tickInput" type="number" min="0" max="20" step="1" value="3" style="width:56px;">
+        </label>
+        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;"
+               title="Let up to four people share this world on one screen. Player 1 uses keyboard and mouse; each other player needs a gamepad. Fixed at creation.">
+          <input id="newSplitChk" type="checkbox"> split screen
+        </label>
+        <button id="createBtn">Create World</button>
+        <button id="createBackBtn" class="grey">Back</button>
+      </div>
+    </div>
+    <div id="menuPause" style="display:none">
+      <!-- roster: only rendered for worlds created with split screen enabled -->
+      <div id="splitPanel" style="display:none">
+        <div class="splitTitle">Players</div>
+        <div id="splitList" class="splitList"></div>
+        <div id="splitAddRow" class="seedrow">
+          <select id="splitProfileSel"></select>
+          <button id="splitAddBtn">Add Player</button>
+        </div>
+        <div id="splitNote" class="splitNote"></div>
+      </div>
+      <div class="seedrow">
+        <button id="resumeBtn">Resume</button>
+        <button id="quitBtn" style="background:#7d5a32">Save &amp; Quit</button>
+      </div>
+    </div>
+    <div id="menuExtras">
+    <div class="opts">
+      <label id="modeLabel">gamemode
+        <select id="modeSel">
+          <option value="creative">Creative</option>
+          <option value="survival">Survival</option>
+        </select>
+      </label>
+      <label title="How split screen divides the window. Four players are always a 2x2 grid.">split
+        <select id="splitDirSel">
+          <option value="h">horizontal (top / bottom)</option>
+          <option value="v">vertical (side by side)</option>
+        </select>
+      </label>
+      <label>fps limit
+        <select id="fpsSel">
+          <option value="0">off</option>
+          <option>30</option><option>60</option><option>90</option><option>120</option><option>144</option>
+        </select>
+      </label>
+      <label>render distance
+        <input id="distInput" type="number" min="4" max="32" step="1">
+      </label>
+      <label title="Chunks that actually tick: mobs, fluids, falling blocks, growth. Capped by render distance.">sim distance
+        <input id="simInput" type="number" min="2" max="16" step="1">
+      </label>
+      <label>shadow dist
+        <select id="shadowSel">
+          <option value="0">off</option>
+          <option value="80">80</option>
+          <option value="110">110</option>
+          <option value="160">160</option>
+          <option value="240">240</option>
+        </select>
+      </label>
+      <label title="Texture quality. Low halves the block atlas and turns off anisotropic filtering: faster on phones and weak GPUs. Auto picks for this device.">textures
+        <select id="texSel">
+          <option value="auto">auto</option>
+          <option value="high">high</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+      <label>sensitivity %
+        <input id="sensInput" type="number" min="10" max="400" step="10">
+      </label>
+      <button id="musicBtn" title="Mute music" style="padding:6px 11px;font-size:14px">&#9834;</button>
+      <button id="sfxBtn" title="Mute sound effects" style="padding:6px 11px;font-size:14px">&#128266;</button>
+      <button id="fsBtn" title="Fullscreen (F1)" style="padding:6px 11px;font-size:14px">&#9974;</button>
+    </div>
+    <div id="hzNote"></div>
+    <div class="controls">
+      <div><b>WASD</b> move &middot; <b>mouse</b> look</div>
+      <div><b>Space / Shift</b> up &middot; down / jump</div>
+      <div><b>2×Space / 2×A</b> toggle flying</div>
+      <div><b>sneak-land</b> also stops flying</div>
+      <div><b>sneak</b> crouches the body (others see it)</div>
+      <div><b>bed</b> lie down &middot; <b>sneak</b> to get up</div>
+      <div><b>LMB / RMB</b> break / place</div>
+      <div><b>1–9 / wheel</b> select block</div>
+      <div><b>Tab</b> inventory</div>
+      <div><b>Ctrl</b> toggle fast move</div>
+      <div><b>[ ]</b> view distance</div>
+      <div><b>Stick L/R</b> move / look</div>
+      <div><b>A / X</b> fly up / down</div>
+      <div><b>RT / LT</b> break / place</div>
+      <div><b>LB / RB</b> cycle block</div>
+      <div><b>hold Y</b> radial picker (aim R-stick)</div>
+      <div><b>L3</b> toggle fast move</div>
+      <div><b>split screen</b> add players in pause menu</div>
+      <div><b>Esc / Start</b> open / close menu</div>
+      <div><b>F1 / Back</b> fullscreen</div>
+      <div><b>F2 / D-pad &larr;</b> change perspective</div>
+      <div><b>F3 / D-pad &uarr;</b> hide debug text</div>
+      <div><b>Y / D-pad &darr;</b> drop item &middot; <b>Shift+Y</b> stack</div>
+      <div><b>inventory: Y / D-pad &darr;</b> drop hovered &middot; <b>Shift+Y / X+&darr;</b> stack &middot; <b>X</b> half</div>
+      <div><b>B</b> close menu &middot; else inventory</div>
+      <div><b>A</b> drag &middot; <b>Y</b> quick-move (inventory)</div>
+      <div><b>sun &amp; moon</b> rise east, set west</div>
+    </div>
+    </div>
+  </div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }
+</script>
+<script type="module">
+/* three.js is ESM-only; expose it as a global for the classic deferred game scripts below.
+   Module scripts and deferred classic scripts share one in-order execution queue, so this
+   is guaranteed to run first. */
+import * as THREE from 'three';
+window.THREE = THREE;
+</script>
+<script defer src="js/00-config.js"></script>
+<script defer src="js/32-sound.js"></script>
+<script defer src="js/01-textures-data.js"></script>
+<script defer src="js/02-voxel-core.js"></script>
+<script defer src="js/03-atlas.js"></script>
+<script defer src="js/04-materials.js"></script>
+<script defer src="js/05-icons.js"></script>
+<script defer src="js/06-renderer.js"></script>
+<script defer src="js/07-sky.js"></script>
+<script defer src="js/08-light-glow.js"></script>
+<script defer src="js/09-light-sky.js"></script>
+<script defer src="js/10-workers.js"></script>
+<script defer src="js/11-chunks.js"></script>
+<script defer src="js/12-player.js"></script>
+<script defer src="js/13-actions.js"></script>
+<script defer src="js/14-mining.js"></script>
+<script defer src="js/15-drops.js"></script>
+<script defer src="js/16-worlds.js"></script>
+<script defer src="js/17-input.js"></script>
+<script defer src="js/18-hud.js"></script>
+<script defer src="js/42-feed.js"></script>
+<script defer src="js/19-vitals.js"></script>
+<script defer src="js/25-crafting.js"></script>
+<script defer src="js/26-furnace.js"></script>
+<script defer src="js/27-doors.js"></script>
+<script defer src="js/29-bed.js"></script>
+<script defer src="js/30-chest.js"></script>
+<script defer src="js/31-armor.js"></script>
+<script defer src="js/33-felling.js"></script>
+<script defer src="js/34-structures.js"></script>
+<script defer src="js/35-leveling.js"></script>
+<script defer src="js/20-inventory-ui.js"></script>
+<script defer src="js/21-spawn.js"></script>
+<script defer src="js/22-main-loop.js"></script>
+<script defer src="js/24-hands.js"></script>
+<script defer src="js/28-entities.js"></script>
+<script defer src="js/38-ranged.js"></script>
+<script defer src="js/39-taming.js"></script>
+<script defer src="js/40-shield.js"></script>
+<script defer src="js/41-backpack.js"></script>
+<!-- last before boot: it snapshots the per-player globals every other file has just declared -->
+<script defer src="js/36-splitscreen.js"></script>
+<script defer src="js/37-profiles.js"></script>
+<script defer src="js/23-boot.js"></script>
+</body>
+</html>
