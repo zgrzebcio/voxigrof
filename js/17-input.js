@@ -114,10 +114,12 @@ function applySplitDir() {
   relayoutSplitScreen();
 }
 splitDirSel.addEventListener('change', applySplitDir);
-document.getElementById('worldsBtn').addEventListener('click', () => refreshMenu('worlds'));
+// Play (0.7594): with no world saved yet there is nothing to pick, so it goes straight to creating one
+document.getElementById('worldsBtn').addEventListener('click', () => refreshMenu(WORLDS.length ? 'worlds' : 'create'));
 document.getElementById('newWorldBtn').addEventListener('click', () => refreshMenu('create'));
 document.getElementById('worldsBackBtn').addEventListener('click', () => refreshMenu('home'));
-document.getElementById('createBackBtn').addEventListener('click', () => refreshMenu('worlds'));
+// ...and Back from there returns home when there is still no world list to go back to
+document.getElementById('createBackBtn').addEventListener('click', () => refreshMenu(WORLDS.length ? 'worlds' : 'home'));
 document.getElementById('createBtn').addEventListener('click', async () => {
   const name = uniqueWorldName(worldNameIn.value);
   const seed = seedInput.value.replace(/[^a-z0-9]/gi, '')
@@ -129,6 +131,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // split screen is fixed at creation too: the save keeps a roster of profiles, and a
               // world that never had one should not sprout half-filled player records later
               split: !!newSplitChk.checked,
+              structures: !!newStructChk.checked,   // villages and dungeons, fixed at creation (0.7594)
               createdVersion: GAME_VERSION, lastVersion: GAME_VERSION,
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);
@@ -248,7 +251,7 @@ document.addEventListener('keydown', (e) => {
     else if (playing && !pointerLocked) setPlaying(false);
     else if (!playing && menuScreen === 'profiles' && !needsFirstProfile())
       refreshMenu(currentWorld ? 'pause' : 'home');
-    else if (!playing && !currentWorld && menuScreen === 'create') refreshMenu('worlds');
+    else if (!playing && !currentWorld && menuScreen === 'create') refreshMenu(WORLDS.length ? 'worlds' : 'home');
     else if (!playing && !currentWorld && menuScreen === 'worlds') refreshMenu('home');
     else if (!playing) setPlaying(true);
     return;

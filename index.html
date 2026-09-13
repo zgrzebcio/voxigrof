@@ -16,7 +16,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.7593</div>
+<div id="version">alpha 0.7594</div>
 <div id="crosshair"></div>
 <div id="interact"></div>
 <div id="blockname"></div>
@@ -64,11 +64,11 @@
       adding the class from JS meant one frame of fully-visible menu before it faded out. -->
  <div id="overlay" class="veiled">
   <div class="panel"> 
-    <h1>voxiGrof</h1>
+    <h1>Voxigrof</h1>
     <div class="sub" id="menuSub">infinite voxel world &middot; greedy-meshed &middot; worker-generated</div>
     <div id="menuHome">
       <div class="seedrow">
-        <button id="worldsBtn" style="min-width:230px">Singleplayer</button>
+        <button id="worldsBtn" style="min-width:230px">Play</button>
       </div>
       <div class="seedrow">
         <button id="profilesBtn" class="grey" style="min-width:230px">Profile: <b id="profileNameLbl">—</b></button>
@@ -114,6 +114,10 @@
         <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;"
                title="Let up to four people share this world on one screen. Player 1 uses keyboard and mouse; each other player needs a gamepad. Fixed at creation.">
           <input id="newSplitChk" type="checkbox"> split screen
+        </label>
+        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;"
+               title="Villages, dungeons and other generated buildings. Fixed at creation.">
+          <input id="newStructChk" type="checkbox" checked> structures
         </label>
         <button id="createBtn">Create World</button>
         <button id="createBackBtn" class="grey">Back</button>

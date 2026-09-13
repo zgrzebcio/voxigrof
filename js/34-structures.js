@@ -986,7 +986,8 @@ function _trySpawnGroups(cx, cz) {
 /* Called once per chunk, right after its terrain lands. Deliberately conservative: one structure
    per chunk at most, and the site must satisfy that prefab's placement mode. */
 function trySpawnStructureInChunk(cx, cz) {
-  if (!STRUCTURES.size || menuScene || !currentWorld) return;
+  // a world created with structures switched off never gets any (0.7594); older worlds have no flag and keep them
+  if (!STRUCTURES.size || menuScene || !currentWorld || currentWorld.structures === false) return;
   // a new chunk may unblock a piece that was waiting on it; the frame loop does the bulk of the
   // draining, so keep this slice small — chunk arrival is already a busy moment
   processPlacementQueue(16);

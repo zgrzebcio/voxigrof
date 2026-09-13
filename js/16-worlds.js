@@ -29,6 +29,7 @@ const worldNameIn = document.getElementById('worldName');
 const newModeSel  = document.getElementById('newModeSel');
 const newTerrainSel = document.getElementById('newTerrainSel');
 const newSplitChk = document.getElementById('newSplitChk');
+const newStructChk = document.getElementById('newStructChk');
 const tickInput   = document.getElementById('tickInput');
 const modeLabel   = document.getElementById('modeLabel');
 
