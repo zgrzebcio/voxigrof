@@ -15,6 +15,8 @@ const TEXTURES = {
   glass:            'textures/Blocks/Decorations/glass.png',
   water:            'textures/Blocks/Natures/water.png',
   glowstone:        'textures/Blocks/Natures/glowstone.png',
+  glow_vine:        'textures/Blocks/Plants/glow_vine.png',            // 0.765
+  glowcrystal:      'textures/Blocks/Decorations/glowcrystal.png',     // 0.765
   clay:             'textures/Blocks/Natures/clay.png',
   snow:             'textures/Blocks/winters/snow.png',
   grass_block_snow: 'textures/Blocks/winters/grass_block_snow.png',
@@ -22,8 +24,40 @@ const TEXTURES = {
   coal_ore:         'textures/Blocks/Ores/coal_ore.png',
   iron_ore:         'textures/Blocks/Ores/iron_ore.png',
   diamond_ore:      'textures/Blocks/Ores/diamond_ore.png',
+  // 0.766: gem ores and the cave cobweb (ruby/sapphire recoloured from emerald)
+  emerald_ore:      'textures/Blocks/Ores/emerald_ore.png',
+  ruby_ore:         'textures/Blocks/Ores/ruby_ore.png',
+  sapphire_ore:     'textures/Blocks/Ores/sapphire_ore.png',
+  // storage blocks (0.768); ruby and sapphire recoloured from emerald
+  coal_block:       'textures/Blocks/Ores/coal_block.png',
+  charcoal_block:   'textures/Blocks/Ores/charcoal_block.png',
+  iron_block:       'textures/Blocks/Ores/iron_block.png',
+  gold_block:       'textures/Blocks/Ores/gold_block.png',
+  tin_block:        'textures/Blocks/Ores/tin_block.png',
+  copper_block:     'textures/Blocks/Ores/copper_block.png',
+  diamond_block:    'textures/Blocks/Ores/diamond_block.png',
+  emerald_block:    'textures/Blocks/Ores/emerald_block.png',
+  ruby_block:       'textures/Blocks/Ores/ruby_block.png',
+  sapphire_block:   'textures/Blocks/Ores/sapphire_block.png',
+  raw_iron_block:   'textures/Blocks/Ores/raw_iron_block.png',
+  raw_gold_block:   'textures/Blocks/Ores/raw_gold_block.png',
+  raw_tin_block:    'textures/Blocks/Ores/raw_tin_ore.png',
+  raw_copper_block: 'textures/Blocks/Ores/raw_copper_block.png',
+  // 0.769: topaz (recoloured from emerald), sandstones, the fiber block and the ladder
+  topaz_ore:            'textures/Blocks/Ores/topaz_ore.png',
+  topaz_block:          'textures/Blocks/Ores/topaz_block.png',
+  sandstone_top:        'textures/Blocks/Sands/sandstone_top.png',
+  sandstone:            'textures/Blocks/Sands/sandstone.png',
+  sandstone_bottom:     'textures/Blocks/Sands/sandstone_bottom.png',
+  red_sandstone_top:    'textures/Blocks/Sands/red_sandstone_top.png',
+  red_sandstone:        'textures/Blocks/Sands/red_sandstone.png',
+  red_sandstone_bottom: 'textures/Blocks/Sands/red_sandstone_bottom.png',
+  fiber_block:          'textures/Blocks/Natures/fiber_block.png',
+  ladder:               'textures/Blocks/Interactables/ladder.png',
+  cobweb:           'textures/Billboards/cobweb.png',
   gravel:           'textures/Blocks/Natures/gravel.png',
   red_mushroom:     'textures/Billboards/Plants/Mushrooms/red_mushroom.png',
+  blue_mushroom:    'textures/Billboards/Plants/Mushrooms/blue_mushroom.png',   // 0.7691
   brown_mushroom:   'textures/Billboards/Plants/Mushrooms/brown_mushroom.png',
   crafting_bench_top:   'textures/Blocks/Interactables/crafting_bench_top.png',
   crafting_bench_front: 'textures/Blocks/Interactables/crafting_bench_front.png',
@@ -116,11 +150,17 @@ const ITEM_TEXTURES = {
   bark:        'textures/Items/Woods/bark.png',
   coal:        'textures/Items/Ores/coal.png',
   coal_chunk:  'textures/Items/Ores/coal_chunk.png',
+  charcoal_chunk: 'textures/Items/Materials/charcoal_chunk.png',   // 0.767
+  milk_bucket: 'textures/Items/Consumables/milk_bucket.png',      // 0.767
   raw_iron:    'textures/Items/Ores/raw_iron.png',
   raw_gold:    'textures/Items/Ores/raw_gold.png',
   raw_tin:     'textures/Items/Ores/raw_tin.png',
   raw_copper:  'textures/Items/Ores/raw_copper.png',
   diamond:     'textures/Items/Ores/diamond.png',
+  emerald:     'textures/Items/Ores/emerald.png',        // 0.766
+  ruby:        'textures/Items/Ores/ruby.png',
+  sapphire:    'textures/Items/Ores/sapphire.png',
+  topaz:       'textures/Items/Ores/topaz.png',          // 0.769
   apple:       'textures/Items/Consumables/apple.png',
   flint:       'textures/Items/Materials/flint.png',
   clay_ball:   'textures/Items/Materials/clay_ball.png',
@@ -181,6 +221,7 @@ const ITEM_TEXTURES = {
   bread:           'textures/Items/Consumables/bread.png',
   golden_apple:    'textures/Items/Consumables/golden_apple.png',
   glow_dust:       'textures/Items/Materials/glow_dust.png',
+  glow_crystals:   'textures/Items/Materials/glow_crystals.png',      // 0.765
   flint_sword:     'textures/Items/Weapons/flint_sword.png',
   stone_sword:     'textures/Items/Weapons/stone_sword.png',
   iron_sword:      'textures/Items/Weapons/iron_sword.png',

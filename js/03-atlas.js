@@ -120,7 +120,15 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'pincushions', 'structure_block'
                      ,'berry_bush_empty', 'berry_bush_fruitling', 'berry_bush_red'
                      ,'flint_rock', 'flint_rock_top'
-                     ,'berry_bush_blue', 'berry_bush_small'];
+                     ,'berry_bush_blue', 'berry_bush_small'
+                     ,'glow_vine', 'glowcrystal'                   // 0.765
+                     ,'cobweb', 'emerald_ore', 'ruby_ore', 'sapphire_ore'     // 0.766
+                     ,'coal_block', 'charcoal_block', 'iron_block', 'gold_block', 'tin_block', 'copper_block'   // 0.768
+                     ,'diamond_block', 'emerald_block', 'ruby_block', 'sapphire_block'
+                     ,'raw_iron_block', 'raw_gold_block', 'raw_tin_block', 'raw_copper_block'
+                     ,'topaz_ore', 'topaz_block', 'sandstone_top', 'sandstone', 'sandstone_bottom'   // 0.769
+                     ,'red_sandstone_top', 'red_sandstone', 'red_sandstone_bottom', 'fiber_block', 'ladder'
+                     ,'blue_mushroom'];                               // 0.7691
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
 
 // glowstone uses the embedded texture if present; otherwise a procedural warm-speckle fallback

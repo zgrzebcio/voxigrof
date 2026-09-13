@@ -240,6 +240,7 @@ function itemTooltipHTML(id, dur) {
                 (p.packSlots || p.beltSlots) ? '' : 'none']);
   }
   if (p.ammo) conds.push(['hit', 'No effect', 'none']);
+  if (p.foodClearEffects) conds.push(['drink', 'Removes all active effects', '']);   // milk (0.767)
   const ed = p.foodEffect && typeof EFFECT_DEFS !== 'undefined' ? EFFECT_DEFS[p.foodEffect] : null;
   if (ed) {
     const ch = p.foodEffectChance;                    // a chance effect says how likely it is (0.761)
@@ -255,6 +256,15 @@ function itemTooltipHTML(id, dur) {
     const maxD = p.durability;
     if (maxD) rows.push(['durability', `${dur != null ? dur : maxD}/${maxD}`]);
     if (p.damage != null) rows.push(['damage', _tipNum(p.damage)]);
+    /* A bow's shot (0.767): what an arrow does from the weakest release that still fires up to a full
+       draw, by the same formula fireRanged uses (strength from gear is added on top of both). */
+    if (p.ranged && typeof rangedProps === 'function' && typeof ammoProps === 'function') {
+      const rp = rangedProps(id), ap = rp && ammoProps(ammoIdsFor(rp)[0]);
+      if (ap) {
+        const shot = (draw) => ap.damage * (0.35 + 0.65 * draw) * (rp.dmgMul || 1);
+        rows.push(['shot damage', `${shot(rp.minDraw || 0).toFixed(1)}–${shot(1).toFixed(1)}`]);
+      }
+    }
     if (p.attackSpeed != null) rows.push(['attack speed', _tipNum(p.attackSpeed)]);
     if (p.toolSpeed != null) rows.push(['mine speed', _tipNum(p.toolSpeed)]);
   }

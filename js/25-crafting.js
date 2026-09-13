@@ -30,18 +30,19 @@ const RECIPES_BASIC = [
   { in: [[V_SLOG, 1]],                                                       out: [B.SPRUCE_PLANKS, 3], timeToCraft: 1, xpToGive: 1 },
   { in: [[V_PLANKS, 1]],                                                     out: [ITEM.STICK, 3], timeToCraft: 1, xpToGive: 1 },
  // { in: [[V_PLANKS, 1]],                                                     out: [B.OAKSLAB, 2] },   // disabled (0.7295)
-  { in: [[ITEM.SNOWBALL, 4]],                                                out: [B.SNOW, 1], timeToCraft: 1.5, xpToGive: 1 },
-  { in: [[ITEM.WHEAT, 9]],                                                   out: [B.HAY, 1], timeToCraft: 3, xpToGive: 1 },
-  { in: [[ITEM.CLAY_BALL, 4]],                                               out: [B.CLAY, 1], timeToCraft: 1.5, xpToGive: 1 },
-  { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 8], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.SNOWBALL, 5]],                                                out: [B.SNOW, 1], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.WHEAT, 10]],                                                  out: [B.HAY, 1], timeToCraft: 3, xpToGive: 1 },   // 10 like every block version (0.768)
+  { in: [[ITEM.CLAY_BALL, 5]],                                               out: [B.CLAY, 1], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 5], timeToCraft: 1, xpToGive: 1 },       // 5 since 0.7691
+  { in: [[ITEM.CHARCOAL, 1]],                                                out: [ITEM.CHARCOAL_CHUNK, 5], timeToCraft: 1, xpToGive: 1 },   // 0.767
   { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1], timeToCraft: 3, xpToGive: 10 },
-  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1]],        out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 1.5, xpToGive: 4 },
+  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1], [B.BLUE_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 1.5, xpToGive: 4 },   // + blue (0.7691)
   { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
-  { in: [[ITEM.GLASS_SHARD, 4]],                                             out: [B.GLASS, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 1.5, xpToGive: 2 },
   { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], timeToCraft: 1, xpToGive: 1 },
   { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1 },
-  { in: [[ITEM.BRICK, 4]],                                                   out: [B.BRICKS, 1], timeToCraft: 1.5, xpToGive: 2 },
-  { in: [[ITEM.STRING, 4]],                                                  out: [B.WOOL, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.BRICK, 5]],                                                   out: [B.BRICKS, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.STRING, 5]],                                                  out: [B.WOOL, 1], timeToCraft: 1.5, xpToGive: 2 },
   { in: [[ITEM.FLINT, 3], [ITEM.STICK, 2], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SWORD, 1], timeToCraft: 4, xpToGive: 6 },
   { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SHOVEL, 1], timeToCraft: 4, xpToGive: 6 },
   { in: [[ITEM.FLINT, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_PICKAXE, 1], timeToCraft: 5, xpToGive: 6 },
@@ -50,20 +51,22 @@ const RECIPES_BASIC = [
   { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6]],                 out: [ITEM.ARROW, 2], timeToCraft: 3, xpToGive: 2 },
 ];
 const RECIPES_ADVANCED = [
-  { in: [[ITEM.COAL_CHUNK, 8]],                                              out: [ITEM.COAL, 1], timeToCraft: 2.5, xpToGive: 1 },
+  { in: [[ITEM.COAL_CHUNK, 5]],                                              out: [ITEM.COAL, 1], timeToCraft: 2.5, xpToGive: 1 },       // 5 since 0.7691
+  { in: [[ITEM.CHARCOAL_CHUNK, 5]],                                          out: [ITEM.CHARCOAL, 1], timeToCraft: 2.5, xpToGive: 1 },   // 0.767
   { in: [[B.STONE, 1], [ITEM.FLINT, 1], [V_COAL, 1]],                     out: [ITEM.GLOW_DUST, 1], timeToCraft: 1.5, xpToGive: 8 },
   // dust packs back into the block it came from, so a light source is craftable rather than found
-  { in: [[ITEM.GLOW_DUST, 4]],                                               out: [B.GLOWSTONE, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.GLOW_DUST, 5]],                                               out: [B.GLOWSTONE, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.GLOW_CRYSTAL, 5]],                                            out: [B.GLOWCRYSTAL_BLOCK, 1], timeToCraft: 2, xpToGive: 4 },   // 0.765
   { in: [[V_PLANKS, 3]],                                                     out: [ITEM.BOWL, 4], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[V_STONE, 12]],                                                     out: [B.FURNACE, 1], timeToCraft: 3.5, xpToGive: 15 },
-  { in: [[ITEM.IRON_INGOT, 1]],                                              out: [ITEM.IRON_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
-  { in: [[ITEM.IRON_NUGGET, 9]],                                             out: [ITEM.IRON_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
-  { in: [[ITEM.GOLD_INGOT, 1]],                                              out: [ITEM.GOLD_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
-  { in: [[ITEM.GOLD_NUGGET, 9]],                                             out: [ITEM.GOLD_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
-  { in: [[ITEM.TIN_INGOT, 1]],                                               out: [ITEM.TIN_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
-  { in: [[ITEM.TIN_NUGGET, 9]],                                              out: [ITEM.TIN_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
-  { in: [[ITEM.COPPER_INGOT, 1]],                                            out: [ITEM.COPPER_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
-  { in: [[ITEM.COPPER_NUGGET, 9]],                                           out: [ITEM.COPPER_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.IRON_INGOT, 1]],                                              out: [ITEM.IRON_NUGGET, 10], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.IRON_NUGGET, 10]],                                             out: [ITEM.IRON_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.GOLD_INGOT, 1]],                                              out: [ITEM.GOLD_NUGGET, 10], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.GOLD_NUGGET, 10]],                                             out: [ITEM.GOLD_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.TIN_INGOT, 1]],                                               out: [ITEM.TIN_NUGGET, 10], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.TIN_NUGGET, 10]],                                              out: [ITEM.TIN_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.COPPER_INGOT, 1]],                                            out: [ITEM.COPPER_NUGGET, 10], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.COPPER_NUGGET, 10]],                                           out: [ITEM.COPPER_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
   { in: [[ITEM.FIBER, 20]],                                                  out: [ITEM.CLOTH, 1], timeToCraft: 5.5, xpToGive: 4 },
   { in: [[V_PLANKS, 10], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 10]],            out: [B.CHEST, 1], timeToCraft: 6, xpToGive: 12 },
   { in: [[B.WOOL, 4], [V_PLANKS, 4], [ITEM.CLOTH, 5], [ITEM.FIBER, 10]],     out: [B.BED, 1], timeToCraft: 6.5, xpToGive: 25 },
@@ -120,6 +123,27 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.IRON_INGOT, 14], [ITEM.FIBER, 7], [ITEM.CLOTH, 2]],           out: [ITEM.IRON_LEGGINGS, 1], timeToCraft: 6.5, xpToGive: 75 },
   { in: [[ITEM.IRON_INGOT, 18], [ITEM.FIBER, 8], [ITEM.CLOTH, 3]],           out: [ITEM.IRON_CHESTPLATE, 1], timeToCraft: 8, xpToGive: 95 },
 ];
+/* Storage blocks (0.768): ten of a material into one block in 2s at the bench, and the block back into
+   ten. Appended to the end of the list so every recipe index a save already holds stays where it was. */
+for (const [mat, block] of [
+  [ITEM.COAL, B.COAL_BLOCK], [ITEM.CHARCOAL, B.CHARCOAL_BLOCK], [ITEM.IRON_INGOT, B.IRON_BLOCK],
+  [ITEM.GOLD_INGOT, B.GOLD_BLOCK], [ITEM.TIN_INGOT, B.TIN_BLOCK], [ITEM.COPPER_INGOT, B.COPPER_BLOCK],
+  [ITEM.DIAMOND, B.DIAMOND_BLOCK], [ITEM.EMERALD, B.EMERALD_BLOCK], [ITEM.RUBY, B.RUBY_BLOCK],
+  [ITEM.SAPPHIRE, B.SAPPHIRE_BLOCK], [ITEM.RAW_IRON, B.RAW_IRON_BLOCK], [ITEM.RAW_GOLD, B.RAW_GOLD_BLOCK],
+  [ITEM.RAW_TIN, B.RAW_TIN_BLOCK], [ITEM.RAW_COPPER, B.RAW_COPPER_BLOCK],
+  [ITEM.TOPAZ, B.TOPAZ_BLOCK],                                                                    // 0.769
+])
+  RECIPES_ADVANCED.push({ in: [[mat, 10]], out: [block, 1], timeToCraft: 2, xpToGive: 2 },
+                        { in: [[block, 1]], out: [mat, 10], timeToCraft: 1, xpToGive: 0 });
+/* 0.769, also appended so saved recipe indices hold: sandstone from 5 sand of its colour, fiber pressed into
+   a block of 10 (and back), and a ladder from 10 sticks. */
+RECIPES_ADVANCED.push(
+  { in: [[B.SAND, 5]],        out: [B.SANDSTONE, 1],     timeToCraft: 2,   xpToGive: 1 },
+  { in: [[B.RED_SAND, 5]],    out: [B.RED_SANDSTONE, 1], timeToCraft: 2,   xpToGive: 1 },
+  { in: [[ITEM.FIBER, 10]],   out: [B.FIBER_BLOCK, 1],   timeToCraft: 2,   xpToGive: 1 },
+  { in: [[B.FIBER_BLOCK, 1]], out: [ITEM.FIBER, 10],     timeToCraft: 1,   xpToGive: 0 },
+  { in: [[ITEM.STICK, 10]],   out: [B.LADDER, 1],        timeToCraft: 2.5, xpToGive: 2 },
+);
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
 var craftMode = 'basic';

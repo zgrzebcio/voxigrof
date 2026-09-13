@@ -76,6 +76,8 @@ const XP_BLOCK = {};
   const set = (id, n) => { XP_BLOCK[id] = n; };
   set(B.COAL_ORE, 14); set(B.IRON_ORE, 22); set(B.COPPER_ORE, 18); set(B.TIN_ORE, 18);
   set(B.GOLD_ORE, 35); set(B.DIAMOND_ORE, 70);
+  set(B.EMERALD_ORE, 60); set(B.RUBY_ORE, 60); set(B.SAPPHIRE_ORE, 60);   // gems (0.766)
+  set(B.TOPAZ_ORE, 60);                                                   // 0.769
   set(B.SULFUR_BLOCK, 8); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 12);
   // scenery is free — you are not going to grind a level out of grass
   set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);

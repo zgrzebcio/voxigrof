@@ -114,6 +114,7 @@ function _cellDrag(val, feetOff) {
   const id = val & 255;
   // a leaf block is a full cell of foliage: the whole CARPET_MAX worth of leaf layers
   if (LEAF_DRAG_IDS.has(id)) return Math.max(DRAG_FLOOR, 1 - DRAG_PER_LEAF * CARPET_MAX);
+  if (id === B.COBWEB) return COBWEB_DRAG;             // caught in a web (0.766)
   const h = _carpetHeight(val);
   if (!h || feetOff >= h) return 1;                    // airborne above a thin layer: no drag
   let snow = 0, leaf = 0;
@@ -149,7 +150,9 @@ function terrainSpeedMul() {
   /* A full leather set blunts the PENALTY, not the speed (0.732): a 40% leaf slowdown becomes 28%
      rather than the player simply moving faster everywhere. Written this way so a resistance of 1
      would remove the slowdown entirely and never overshoot into a speed boost. */
-  const r = typeof playerTerrainDragResist === 'function' ? playerTerrainDragResist() : 0;
+  let r = typeof playerTerrainDragResist === 'function' ? playerTerrainDragResist() : 0;
+  // a web is not ground: leather boots help only half as much against it (0.766)
+  if (r > 0 && playerInCobweb()) r *= COBWEB_RESIST_MUL;
   return r > 0 ? 1 - (1 - raw) * (1 - r) : raw;
 }
 
@@ -168,6 +171,30 @@ function snowJumpMul() {
       if (n > most) most = n;
     }
   return Math.max(0, 1 - JUMP_PER_SNOW * most);
+}
+
+/* Climbing (0.765). A player whose body overlaps a climbable block (glow vine) climbs: forward or jump
+   goes up, sneak holds still, and otherwise they slide down slowly instead of falling. */
+/* Cobweb (0.766): walking speed x0.2 (80% slower), falls and jumps are held back too (22-main-loop.js),
+   and the leather set's ground-drag resistance works at half strength inside one. */
+const COBWEB_DRAG = 0.2, COBWEB_RESIST_MUL = 0.5, COBWEB_VY_MAX = 2.0;
+function playerInCobweb() {
+  const p = player.pos, R = player.R - 0.02;
+  for (let y = Math.floor(p.y); y <= Math.floor(p.y + player.H); y++)
+    for (let z = Math.floor(p.z - R); z <= Math.floor(p.z + R); z++)
+      for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++)
+        if ((getBlock(x, y, z) & 255) === B.COBWEB) return true;
+  return false;
+}
+const CLIMB_SPEED = 2.6, CLIMB_SLIDE = 1.8;
+const CLIMB_LOOK_BONUS = 0.25;           // looking straight up/down: +25% climb/slide speed (0.7652)
+function playerOnClimbable() {
+  const p = player.pos, R = player.R - 0.02;
+  for (let y = Math.floor(p.y); y <= Math.floor(p.y + 1.2); y++)
+    for (let z = Math.floor(p.z - R); z <= Math.floor(p.z + R); z++)
+      for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++)
+        if (PROPS[getBlock(x, y, z) & 255]?.climbable) return true;
+  return false;
 }
 
 function collideAxis(axis, delta) {

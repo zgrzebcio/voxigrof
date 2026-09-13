@@ -372,6 +372,11 @@ function updateEating(dt, wantPlace) {
       }
       /* What the food does beyond filling you (0.758). Its effect lands FIRST, so the heal it carries is
          already boosted by it: a golden apple starts Rapid regen, then its 2 health arrive doubled as 4. */
+      // milk (0.767): washes out every running effect, good or bad, before anything else lands
+      if (ITEM_PROPS[id].foodClearEffects && player.effects && player.effects.length) {
+        player.effects = [];
+        if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
+      }
       const eff = ITEM_PROPS[id].foodEffect;
       // some effects are only a chance: raw food and rotten flesh may or may not turn your stomach (0.761)
       const effChance = ITEM_PROPS[id].foodEffectChance ?? 1;
@@ -977,6 +982,7 @@ function tickPlayer(dt, now, slot) {
   const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
   player._inWater = inWater;               // exposed for fall damage + hand animation
   player.sneaking = !player.flying && !inWater && grounded && dnHeld && !player.dead;
+  const onClimb = !player.flying && !inWater && player.spawned && !menuScene && playerOnClimbable();   // 0.765
   let dy, hSpeed;
   if (player.flying) {
     hSpeed = player.speed * (fast ? player.fastMul : 1);
@@ -1007,10 +1013,21 @@ function tickPlayer(dt, now, slot) {
         if (nearWall) player.vy = 8.0;
         else player.vy = Math.min(player.vy, 3.0);
       }
+    } else if (onClimb) {
+      // on a glow vine (0.765): forward or jump climbs, sneak holds on, otherwise a slow slide down
+      /* Where you look sets the pace (0.7652): straight up climbs CLIMB_LOOK_BONUS faster, straight down
+         slides that much faster, blending smoothly in between; level ground is the normal speed. */
+      const look = Math.max(-1, Math.min(1, player.pitch / (Math.PI / 2)));
+      if (upHeld || fwd > 0.1) player.vy = CLIMB_SPEED * (1 + CLIMB_LOOK_BONUS * Math.max(0, look));
+      else if (dnHeld) player.vy = 0;
+      else player.vy = Math.max(player.vy - 27 * dt, -CLIMB_SLIDE * (1 + CLIMB_LOOK_BONUS * Math.max(0, -look)));
+      player.fallStart = null;                  // a climb is never a fall
     } else {
       // jump strength is a HEIGHT multiplier and height goes with velocity squared, hence the root (0.756)
       if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
       player.vy = Math.max(-58, player.vy - 27 * dt);           // gravity
+      // in a cobweb you sink slowly and barely hop (0.766)
+      if (playerInCobweb()) player.vy = Math.max(-COBWEB_VY_MAX, Math.min(COBWEB_VY_MAX, player.vy));
     }
     dy = player.vy * dt;
     hSpeed = player.walkSpeed * (player.sneaking ? 0.3 : fast ? (inWater ? 1.9 : 1.6) : 1) * (inWater ? 0.45 : 1)

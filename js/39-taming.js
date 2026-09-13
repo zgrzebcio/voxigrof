@@ -37,6 +37,34 @@ const isTameable = (e) => !!tameProps(e);
 
 var _mountCd = 0;                    // short debounce so one click cannot mount and dismount
 
+/* ---- milking (0.767) ----
+   An empty bucket used on a cow fills with milk. Each cow then needs COW_MILK_COOLDOWN seconds before it
+   can be milked again — counted down in updateEntities and kept in the save. */
+const COW_MILK_COOLDOWN = 600;       // 10 minutes
+function tryMilkCow() {
+  if (!playing || menuScene || invOpen || player.dead || player.riding) return false;
+  if (act && act.place) return false;            // fresh presses only
+  const slot = HOTBAR[hotbarSel];
+  if (slotId(slot) !== ITEM.BUCKET) return false;
+  const cow = pickEntity(4.0);
+  if (!cow || cow.kind !== 'cow') return false;
+  // only a female gives milk (0.768)
+  if (cow.gender !== 'F') { feedInfo('Only a female cow can be milked'); return true; }
+  if (cow.milkCd > 0) {
+    const m = Math.ceil(cow.milkCd / 60);
+    feedInfo(`This cow was milked recently: try again in ${m} min`);
+    return true;
+  }
+  cow.milkCd = COW_MILK_COOLDOWN;
+  slot.count--;
+  if (slot.count <= 0) HOTBAR[hotbarSel] = mkSlot(ITEM.MILK_BUCKET, 1);   // the last bucket becomes the milk
+  else if (!tryPickup(ITEM.MILK_BUCKET, null, 'milked')) throwFromPlayer(ITEM.MILK_BUCKET, 1);
+  if (slot.count <= 0 && typeof feedItem === 'function') feedItem(ITEM.MILK_BUCKET, 1, 'milked');
+  saveHotbar(); buildHotbar(); updateHotbar();
+  playSound('fillWater', { gain: 0.8, rate: 1.1, pos: { x: cow.x, y: cow.y + 1, z: cow.z } });
+  return true;
+}
+
 /* ---------------------------------- the interaction ----------------------------------
    Called from _doPlace before anything else looks at blocks, so using an animal always beats
    placing a block behind it. Returns true when it handled the click. */

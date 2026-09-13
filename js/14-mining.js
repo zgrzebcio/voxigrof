@@ -70,7 +70,7 @@ const SOFT_MINE_TYPES = new Set(['wood', 'ground', 'grass']);
 /* Furniture comes apart quicker than the wood it is made of (0.759): a crafting bench, chest or bed
    mines 1.6x faster than it did, so moving house is not a slog. */
 const FURNITURE_MINE_FASTER = 1.6;
-const FURNITURE_IDS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED]);
+const FURNITURE_IDS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.LADDER]);   // a ladder comes down like a bench (0.769)
 function softBlockMineMul(id) {
   const mul = SOFT_MINE_TYPES.has(PROPS[id & 255]?.type) ? SOFT_MINE_MUL : 1;
   return FURNITURE_IDS.has(id & 255) ? mul / FURNITURE_MINE_FASTER : mul;

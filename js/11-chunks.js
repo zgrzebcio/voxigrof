@@ -612,12 +612,23 @@ function setBlock(x, y, z, val) {
       if (!player.canFly)
         for (const d of blockDrop(B.TORCH)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x + dx, y, z + dz);
     }
+  /* A glow vine clings to the block behind it (0.765): take that block away and the vine comes down with
+     it. Nothing harvested it, so it drops nothing. [dx, dz, the variant of a vine whose wall is this cell] */
+  if (newId === B.AIR)
+    for (const [dx, dz, vv] of [[1, 0, 2], [-1, 0, 3], [0, 1, 0], [0, -1, 1]]) {
+      const nv = getBlock(x + dx, y, z + dz);
+      if (PROPS[nv & 255]?.model !== 'wall' || ((nv >> 8) & 3) !== vv) continue;
+      setBlock(x + dx, y, z + dz, B.AIR);
+      // a ladder is something you built: it drops back as a ladder (0.769). A vine just falls apart.
+      if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
+    }
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
   if (newId === B.AIR && y + 1 <= 199) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;
     // ...unless it is a WALL torch, whose support is the wall behind it, not the floor
     const wallTorch = above === B.TORCH && ((aboveVal >> 8) & 7) !== 0;
-    if ((PROPS[above]?.model === 'cross' && !wallTorch) || above === B.CACTUS) {   // cactus columns chain-break upward
+    // a cobweb needs no floor under it (0.766)
+    if ((PROPS[above]?.model === 'cross' && !wallTorch && above !== B.COBWEB) || above === B.CACTUS) {   // cactus columns chain-break upward
       setBlock(x, y + 1, z, B.AIR);
       if (!player.canFly)
         for (const d of blockDrop(above)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);

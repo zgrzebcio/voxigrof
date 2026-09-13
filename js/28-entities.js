@@ -1700,7 +1700,8 @@ function serializeEntities() {
         g: e.gender, lv: e.level, h: +entHunger(e).toFixed(2),
         sz: e.size, tn: e.tintHex,
       } : e.kind === 'sheep' ? { wc: e.woolColor, sz: e.size, g: e.gender, lv: e.level }             // 0.743 fleece, 0.744 size
-        : e.kind === 'cow'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level } // 0.744 size + tints
+        : e.kind === 'cow'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level,  // 0.744 size + tints
+                                 mk: e.milkCd > 0 ? Math.round(e.milkCd) : 0 }                        // 0.767 milk cooldown
         : e.kind === 'npc' ? { g: e.gender, lv: e.level }                    // 0.756 identity
         : 0,
     ]);
@@ -1743,6 +1744,7 @@ function restoreEntities(list) {
         hz: typeof hz === 'number' ? hz : z,
       });
       if (typeof yaw === 'number') c.yaw = yaw;
+      c.milkCd = extra && extra.mk > 0 ? extra.mk : 0;
       continue;
     }
     if (kind === 'sheep') {                    // saves written before sheep existed have no kind
@@ -2257,6 +2259,7 @@ function updateEntities(dt) {
     e.active = true;
     // hunger drains for every simulating entity; only the horse acts on it (see _updateGrazer)
     e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * dt);
+    if (e.milkCd > 0) e.milkCd -= dt;                  // a milked cow refills (0.767, 39-taming.js)
     // a hit is noticed as hp lower than last tick; healing never restarts the no-damage clock (0.757)
     if (e._hpSeen != null && e.hp < e._hpSeen) e._calmT = 0; else e._calmT = (e._calmT || 0) + dt;
     if (e.kind !== 'horse') {

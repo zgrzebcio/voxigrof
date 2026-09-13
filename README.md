@@ -81,6 +81,9 @@ but is most common in its best band.
 | Tin | 40–45 | 10–70 | Stone | Raw tin |
 | Gold | 20–30 | 5–40 | Iron | Raw gold |
 | Diamond | 15–20 | 2–30 | Iron | Diamond |
+| Ruby | 43–47 | 30–70 | Iron | 1–2 rubies |
+| Sapphire | 93–97 | 80–130 | Iron | 1–2 sapphires |
+| Emerald | 150–160 | 120–200 (mountains) | Iron | 1–2 emeralds |
 
 Pickaxe tiers go flint, stone, iron (gold and diamond are iron's tier or better). Mining an ore
 with too weak a pickaxe gives nothing.
@@ -98,7 +101,8 @@ with too weak a pickaxe gives nothing.
 | Raw mutton / raw beef | Cooked mutton / steak |
 | Rotten flesh | Leather |
 
-Fuel lasts: coal 8 items, charcoal 4, a coal chunk 1, a plank less than 1. A lava bucket burns
+Fuel lasts: coal 5 items, charcoal 4, a coal chunk 1, a charcoal chunk 0.8, a plank less than 1. One
+coal or charcoal splits into 5 chunks, and 5 chunks make it back. A lava bucket burns
 for a very long time.
 
 ## Rare and special materials
@@ -110,6 +114,28 @@ for a very long time.
 - **Gunpowder.** 1 charcoal, 2 sulfur and 1 flint make 2 gunpowder. 7 gunpowder and 10 sand make
   TNT.
 - **Glow dust.** 1 stone, 1 flint and 1 coal. 4 glow dust make a glowstone block, a light source.
+- **Glow vines and glow crystals.** Glowing vines hang down cave walls and light the tunnels; you can
+  climb them (walk into the vine or hold jump to go up, sneak to hold still). Breaking one with any
+  tool gives 1–2 glow crystals; by hand it just comes down. 5 glow crystals make a glowcrystal block
+  at the crafting bench, the brightest light in the game. Iron, copper, tin, gold and diamond ore
+  also glow faintly, so they are easier to spot in the dark.
+- **Cobwebs.** Strung in cave corners, on floors, walls and ceilings. Walking into one slows you
+  down by 80% (leather armor helps only half as much there). Cut one with a sword for 1–3 string.
+- **Gems.** Emerald, ruby and sapphire ore glow faintly like diamond ore and need an iron pickaxe;
+  each gives 1–2 gems (see the ore table for where they are).
+- **Storage blocks.** At the crafting bench, 10 coal, charcoal, iron/gold/tin/copper ingots, diamonds,
+  emeralds, rubies, sapphires or raw iron/gold/tin/copper press into one block, and a block breaks back
+  into 10. Coal and charcoal blocks burn in a furnace as long as the ten they were made from.
+- **Topaz.** An orange-yellow gem between y 60 and 100 (most common at 78–82); iron pickaxe, 1–2 topaz.
+- **Sandstone.** 5 sand make sandstone and 5 red sand make red sandstone at the crafting bench.
+- **Fiber block.** 10 fiber pressed into a block (and back), breakable by hand. Very rarely a plains
+  grass block turns out to be one.
+- **Ladder.** 10 sticks at the crafting bench. Place it on a wall and climb it like a glow vine; if the
+  wall is broken the ladder drops.
+- **Block recipes.** Snow, clay, glass, bricks, wool and glowstone take 5 of their material; hay bales,
+  storage blocks and nuggets-to-ingot take 10.
+- **Milk.** Use an empty bucket on a female cow. Each cow refills after 10 minutes. Drinking milk removes
+  every active effect.
 - **Clay.** Found on the bottom of lakes and seas. A clay block breaks into 4 clay balls, which smelt
   into bricks.
 - **Glass shards.** Breaking glass gives 2–4 shards; 4 shards craft back into a glass block.

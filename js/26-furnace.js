@@ -3,7 +3,7 @@
 
    State lives in FURNACES ("x,y,z" -> record), persisted inside the world save.
    slots: [0]=fuel, [1]=input, [2]=output. Fuel is measured in smelt CHARGES:
-   coal = 8 smelts, coal chunk = 1. A charge batch is consumed from the fuel slot
+   coal = 5 smelts (0.7691), coal chunk = 1. A charge batch is consumed from the fuel slot
    when a smelt needs it; each finished smelt burns one charge. The furnace keeps
    smelting while the GUI is closed, and the block's front face swaps to the
    burning texture (variant V.FURNACE_ON) whenever it is actively smelting. */
@@ -22,7 +22,10 @@ const SMELT = { [B.SAND]: B.GLASS, [B.COBBLE]: B.STONE,       // input id -> out
                 [ITEM.PUMPKIN_PIE]: ITEM.COOKED_PUMPKIN_PIE,   // bake the raw pie (0.761)
 };
 const FUEL_SMELTS = {                                          // fuel id -> smelts' worth of burn
-  [ITEM.COAL]: 8, [ITEM.COAL_CHUNK]: 1, [ITEM.CHARCOAL]: 4, [B.PLANKS]: 0.75, [ITEM.STICK]: 0.25,
+  // 0.7691: coal burns 5 smelts and splits into 5 chunks of 1; charcoal still burns 4, so its 5 chunks are 0.8 each
+  [ITEM.COAL]: 5, [ITEM.COAL_CHUNK]: 1, [ITEM.CHARCOAL]: 4, [ITEM.CHARCOAL_CHUNK]: 0.8, [B.PLANKS]: 0.75, [ITEM.STICK]: 0.25,
+  // 8 charcoal chunks = 1 charcoal (0.767); a storage block burns as the ten it was made from (0.768)
+  [B.COAL_BLOCK]: 50, [B.CHARCOAL_BLOCK]: 40,
   // the first-tier tools are knapped stone and fiber since 0.7341, so they no longer burn
   [B.OAK_SAPLING]: 0.5,[B.BIRCH_SAPLING]: 0.5,[B.SPRUCE_SAPLING]: 0.5, [ITEM.LAVA_BUCKET]: 99, [ITEM.BARK]: 0.75,
 };

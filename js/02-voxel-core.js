@@ -42,7 +42,15 @@ function VOXEL_CORE() {
               STRIPPED_SPRUCE_LOG:81, STRIPPED_SPRUCE_LOG_TOP:82, PINCUSHION:83, STRUCTURE_BLOCK:84,
               BERRY_BUSH_EMPTY:85, BERRY_BUSH_FRUITLING:86, BERRY_BUSH_RED:87,
               FLINT_ROCK:88, FLINT_ROCK_TOP:89,
-              BERRY_BUSH_BLUE:90, BERRY_BUSH_SMALL:91 };
+              BERRY_BUSH_BLUE:90, BERRY_BUSH_SMALL:91,
+              GLOW_VINE:92, GLOWCRYSTAL:93,
+              COBWEB:94, EMERALD_ORE:95, RUBY_ORE:96, SAPPHIRE_ORE:97,
+              COAL_BLOCK:98, CHARCOAL_BLOCK:99, IRON_BLOCK:100, GOLD_BLOCK:101, TIN_BLOCK:102, COPPER_BLOCK:103,
+              DIAMOND_BLOCK:104, EMERALD_BLOCK:105, RUBY_BLOCK:106, SAPPHIRE_BLOCK:107,
+              RAW_IRON_BLOCK:108, RAW_GOLD_BLOCK:109, RAW_TIN_BLOCK:110, RAW_COPPER_BLOCK:111,
+              TOPAZ_ORE:112, TOPAZ_BLOCK:113, SANDSTONE_TOP:114, SANDSTONE_SIDE:115, SANDSTONE_BOTTOM:116,
+              RED_SANDSTONE_TOP:117, RED_SANDSTONE_SIDE:118, RED_SANDSTONE_BOTTOM:119, FIBER_BLOCK:120, LADDER:121,
+              BLUE_MUSHROOM:122 };
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, OAKSLAB:12, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -65,7 +73,18 @@ function VOXEL_CORE() {
               REDBERRY_BUSH:82,
               // flint stone (0.732): a dark nodule lying on the turf, picked by hand for flint
               FLINT_ROCK:83,
-              BLUEBERRY_BUSH:84, };
+              BLUEBERRY_BUSH:84,
+              // glow vine hanging on cave walls, and the block its crystals make (0.765)
+              GLOW_VINE:85, GLOWCRYSTAL_BLOCK:86,
+              // cave cobwebs and the three gem ores (0.766)
+              COBWEB:87, EMERALD_ORE:88, RUBY_ORE:89, SAPPHIRE_ORE:90,
+              // storage blocks: ten of a material pressed into one (0.768)
+              COAL_BLOCK:91, CHARCOAL_BLOCK:92, IRON_BLOCK:93, GOLD_BLOCK:94, TIN_BLOCK:95, COPPER_BLOCK:96,
+              DIAMOND_BLOCK:97, EMERALD_BLOCK:98, RUBY_BLOCK:99, SAPPHIRE_BLOCK:100,
+              RAW_IRON_BLOCK:101, RAW_GOLD_BLOCK:102, RAW_TIN_BLOCK:103, RAW_COPPER_BLOCK:104,
+              // topaz, sandstones, the fiber block and the ladder (0.769)
+              TOPAZ_ORE:105, TOPAZ_BLOCK:106, SANDSTONE:107, RED_SANDSTONE:108, FIBER_BLOCK:109, LADDER:110,
+              BLUE_MUSHROOM:111, };                                   // 0.7691
   /* variant byte layout:
      - grass: 1 = snowy sides
      - rot:'side' blocks (furnace, bench): bits 0-1 = facing (0:+Z 1:-Z 2:+X 3:-X);
@@ -219,11 +238,11 @@ function VOXEL_CORE() {
   PROPS[B.BIRCH_LEAF_CARPET]  = { name:'Birch leaf litter', solid:false, opaque:false, raycast:true, pass:1, model:'carpet', topOnly:true, stack:60, hardness:0.1, type:'grass', boxes:CARPET_VAR[0], boxesByVar:CARPET_VAR, faces:[T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES], desc: '' };
   PROPS[B.COBBLE]      = { name:'Cobblestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:[T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE], desc: '' };
   PROPS[B.COAL_ORE]    = { name:'Coal ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:9.0, type:'stone', faces:[T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE], desc: '' };
-  PROPS[B.IRON_ORE]    = { name:'Iron ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:12.0, type:'stone', faces:[T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE], desc: '' };
-  PROPS[B.DIAMOND_ORE] = { name:'Diamond ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:18.0, type:'stone', faces:[T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE], desc: '' };
-  PROPS[B.COPPER_ORE]    = { name:'Copper ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:10.0, type:'stone', faces:[T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE], desc: '' };
-  PROPS[B.TIN_ORE]    = { name:'Tin ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:13.0, type:'stone', faces:[T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE], desc: '' };
-  PROPS[B.GOLD_ORE]    = { name:'Gold ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone',  faces:[T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE], desc: '' };
+  PROPS[B.IRON_ORE]    = { name:'Iron ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:12.0, type:'stone', selfGlow:2, faces:[T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE], desc: '' };
+  PROPS[B.DIAMOND_ORE] = { name:'Diamond ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:18.0, type:'stone', selfGlow:3, faces:[T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE], desc: '' };
+  PROPS[B.COPPER_ORE]    = { name:'Copper ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:10.0, type:'stone', selfGlow:2, faces:[T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE], desc: '' };
+  PROPS[B.TIN_ORE]    = { name:'Tin ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:13.0, type:'stone', selfGlow:2, faces:[T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE], desc: '' };
+  PROPS[B.GOLD_ORE]    = { name:'Gold ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone',  selfGlow:2, faces:[T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE], desc: '' };
   PROPS[B.MARBLE]      = { name:'Marble',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:[T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE], desc: '' };
   PROPS[B.GRANITE]     = { name:'Granite',   solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.5, type:'stone', faces:[T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE], desc: '' };
   PROPS[B.LIMESTONE]   = { name:'Limestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:7.5, type:'stone', faces:[T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE], desc: '' };
@@ -235,6 +254,57 @@ function VOXEL_CORE() {
   // Sulfur tip — single placeable block with rotation via variant (0 = up, 1 = down).
   // Legacy SULFUR_DOWN_TIP kept for storage compatibility, hidden from inventory, drops as SULFUR_UP_TIP.
   PROPS[B.SULFUR_DOWN_TIP] = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', noInv:true, stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0.2,0.2,0.8,1,0.8]], faces:[T.SULFUR_DOWN_TIP], desc: '' };
+  /* Glow vine (0.765): a thin plate against the wall it hangs on, drawn like a carpet turned upright
+     ('wall' model, see the carpet branch of the mesher). Walk-through, climbable, and a light source.
+     Variant = the wall it clings to: 0 -Z, 1 +Z, 2 -X, 3 +X. */
+  const WALL_T = 1 / 16;
+  const WALL_VAR = [[[0, 0, 0, 1, 1, WALL_T]], [[0, 0, 1 - WALL_T, 1, 1, 1]],
+                    [[0, 0, 0, WALL_T, 1, 1]], [[1 - WALL_T, 0, 0, 1, 1, 1]]];
+  PROPS[B.GLOW_VINE] = { name:'Glow vine', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
+                         light:10, stack:60, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
+                         faces:[T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE], desc: '' };
+  // five glow crystals pressed into a block: brighter than glowstone's reach, a real room light (0.765)
+  PROPS[B.GLOWCRYSTAL_BLOCK] = { name:'Glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
+                         light:18, handLight:12, stack:60, hardness:2.5, type:'glass',
+                         faces:[T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL], desc: '' };
+  /* Cobweb (0.766): a billboard strung in cave corners — floor, wall or ceiling, it needs no support.
+     Walking into one slows you by 80% (12-player.js); only a sword cuts the string out of it. */
+  PROPS[B.COBWEB] = { name:'Cobweb', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60,
+                      hardness:0.8, type:'wool', boxes:[[0.05,0,0.05,0.95,1,0.95]],
+                      faces:[T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB], desc: '' };
+  // gem ores (0.766): an iron pickaxe or better, and they glow like diamond ore so they read in the dark
+  PROPS[B.EMERALD_ORE]  = { name:'Emerald ore',  solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE], desc: '' };
+  PROPS[B.RUBY_ORE]     = { name:'Ruby ore',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE], desc: '' };
+  PROPS[B.SAPPHIRE_ORE] = { name:'Sapphire ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE], desc: '' };
+  /* Storage blocks (0.768): ten of a material pressed into one block, and back again at the bench. Plain
+     cubes that drop themselves; the coal and charcoal ones burn in a furnace (26-furnace.js). */
+  for (const [bid, name, tile] of [
+    [B.COAL_BLOCK, 'Block of coal', T.COAL_BLOCK],         [B.CHARCOAL_BLOCK, 'Block of charcoal', T.CHARCOAL_BLOCK],
+    [B.IRON_BLOCK, 'Block of iron', T.IRON_BLOCK],         [B.GOLD_BLOCK, 'Block of gold', T.GOLD_BLOCK],
+    [B.TIN_BLOCK, 'Block of tin', T.TIN_BLOCK],            [B.COPPER_BLOCK, 'Block of copper', T.COPPER_BLOCK],
+    [B.DIAMOND_BLOCK, 'Block of diamond', T.DIAMOND_BLOCK], [B.EMERALD_BLOCK, 'Block of emerald', T.EMERALD_BLOCK],
+    [B.RUBY_BLOCK, 'Block of ruby', T.RUBY_BLOCK],         [B.SAPPHIRE_BLOCK, 'Block of sapphire', T.SAPPHIRE_BLOCK],
+    [B.RAW_IRON_BLOCK, 'Block of raw iron', T.RAW_IRON_BLOCK], [B.RAW_GOLD_BLOCK, 'Block of raw gold', T.RAW_GOLD_BLOCK],
+    [B.RAW_TIN_BLOCK, 'Block of raw tin', T.RAW_TIN_BLOCK],   [B.RAW_COPPER_BLOCK, 'Block of raw copper', T.RAW_COPPER_BLOCK],
+    [B.TOPAZ_BLOCK, 'Block of topaz', T.TOPAZ_BLOCK],                                              // 0.769
+  ])
+    PROPS[bid] = { name, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:6.0, type:'stone',
+                   faces:[tile,tile,tile,tile,tile,tile], desc: '' };
+  // topaz ore (0.769): the fourth gem, same rules as the others
+  PROPS[B.TOPAZ_ORE] = { name:'Topaz ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE], desc: '' };
+  // sandstone (0.769): five sand of its colour, with its own top, side and bottom faces [+X,-X,top,bottom,+Z,-Z]
+  PROPS[B.SANDSTONE]     = { name:'Sandstone',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
+                             faces:[T.SANDSTONE_SIDE,T.SANDSTONE_SIDE,T.SANDSTONE_TOP,T.SANDSTONE_BOTTOM,T.SANDSTONE_SIDE,T.SANDSTONE_SIDE], desc: '' };
+  PROPS[B.RED_SANDSTONE] = { name:'Red sandstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
+                             faces:[T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_TOP,T.RED_SANDSTONE_BOTTOM,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE], desc: '' };
+  // fiber block (0.769): ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
+  PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.8, type:'grass',
+                             faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
+  /* Ladder (0.769): a glow vine made of sticks — the same upright plate on a wall, climbed the same way,
+     but no light. Wood, and it comes down by hand as quickly as a crafting bench does. */
+  PROPS[B.LADDER] = { name:'Ladder', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
+                      stack:60, hardness:4.5, type:'wood', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
+                      faces:[T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER], desc: '' };
   PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
@@ -250,6 +320,8 @@ function VOXEL_CORE() {
   PROPS[B.SUGAR_CANE]    = { name:'Sugar cane',    solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:64, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,1,0.9]], faces:[T.SUGAR_CANE], desc: '' };
   PROPS[B.GRAVEL]      = { name:'Gravel',      solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'ground',  faces:[T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL], desc: '' };
   PROPS[B.RED_MUSHROOM]  = { name:'Red mushroom',  solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.RED_MUSHROOM], desc: '' };
+  // the third mushroom (0.7691): grows wherever the red and brown do, and goes into mushroom stew
+  PROPS[B.BLUE_MUSHROOM] = { name:'Blue mushroom', solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BLUE_MUSHROOM], desc: '' };
   PROPS[B.BROWN_MUSHROOM]= { name:'Brown mushroom',solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BROWN_MUSHROOM], desc: '' };
   PROPS[B.TALLGRASS]     = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
   PROPS[B.POPPY]         = { name:'Poppy',   solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.POPPY], desc: '' };
@@ -309,7 +381,7 @@ function VOXEL_CORE() {
   // Chest: storage with an animated lid, drawn by 30-chest.js (mesher emits nothing).
   // variant byte: bits 0-1 facing. Two chests facing the same way, side by side, form a double.
   PROPS[B.CHEST] = { name:'Chest', solid:true, opaque:false, raycast:true, pass:1, model:'chest', rot:'side',
-                     stack:60, hardness:4.0, type:'wood', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],
+                     stack:60, hardness:4.5, type:'wood', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],   // 4.5 = bench (0.769)
                      faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
   PROPS[B.BED] = { name:'Bed', solid:true, opaque:false, raycast:true, pass:1, model:'bed', rot:'side',
                    stack:1, hardness:1.0, type:'wood', boxes:[[0, 0, 0, 1, 0.5625, 1]],
@@ -952,6 +1024,11 @@ function VOXEL_CORE() {
           [B.COPPER_ORE,   8,    3,   10,     70,     80,      20,      85],
           [B.TIN_ORE,      6,    2,    8,     40,     45,      10,      70],
           [B.GOLD_ORE,     4,    2,    6,     20,     30,       5,      40],
+          // gems (0.766): emerald only in mountain rock, ruby deep, sapphire just below the surface band
+          [B.EMERALD_ORE,  4,    1,    4,    150,    160,     120,     200],
+          [B.RUBY_ORE,     3,    1,    4,     43,     47,      30,      70],
+          [B.SAPPHIRE_ORE, 3,    1,    4,     93,     97,      80,     130],
+          [B.TOPAZ_ORE,    3,    1,    4,     78,     82,      60,     100],   // 0.769
           // big rock patches embedded in stone (chunky blobs, wide depth range)
           [B.MARBLE,       5, 24, 60, 50, 92,  30, 94],
           [B.GRANITE,      5, 24, 60,  6, 55,   2, 60],
@@ -1311,6 +1388,50 @@ function VOXEL_CORE() {
             }
           }
         }
+      }
+
+      /* ---- glow vines (0.765): strands hanging down cave walls, lighting the tunnels. A rare roll
+         per open cave cell picks one side; if that side is rock, a strand of 2-6 hangs down it for
+         as long as the rock face and the open air beside it both last. ---- */
+      {
+        const VINE_WALLS = [[0, -1, 0], [0, 1, 1], [-1, 0, 2], [1, 0, 3]];   // [dx, dz, variant]
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const top = Math.min(H[(x + 2) + (z + 2) * 20] - 6, 90);
+            for (let y = 8; y < top; y++) {
+              if ((data[idx(x, y, z)] & 255) !== B.AIR) continue;
+              if (hash3(cx * 1543 + x, y + 7000, cz * 1327 + z) >= 0.005) continue;   // 0.7651: ~3x as common
+              const w = VINE_WALLS[Math.floor(hash3(cx * 1543 + x, y + 7100, cz * 1327 + z) * 4) & 3];
+              const wx = x + w[0], wz = z + w[1];
+              if (wx < 0 || wx > 15 || wz < 0 || wz > 15) continue;
+              const len = 2 + Math.floor(hash3(cx * 1543 + x, y + 7200, cz * 1327 + z) * 5);
+              for (let k = 0; k < len && y - k > 2; k++) {
+                if ((data[idx(x, y - k, z)] & 255) !== B.AIR || (data[idx(wx, y - k, wz)] & 255) !== B.STONE) break;
+                data[idx(x, y - k, z)] = B.GLOW_VINE | (w[2] << 8);
+              }
+            }
+          }
+      }
+
+      /* ---- cobwebs (0.766): strung in cave corners. A rare roll per open cave cell, kept only where at
+         least two sides are rock, so a web sits in a nook — on the floor, a wall or the ceiling. ---- */
+      {
+        const WEB_NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const top = Math.min(H[(x + 2) + (z + 2) * 20] - 6, 95);
+            for (let y = 4; y < top; y++) {
+              if ((data[idx(x, y, z)] & 255) !== B.AIR) continue;
+              if (hash3(cx * 1601 + x, y + 8000, cz * 1409 + z) >= 0.0025) continue;
+              let rock = 0;
+              for (const [dx, dy, dz] of WEB_NB) {
+                const nx = x + dx, nz = z + dz;
+                if (nx < 0 || nx > 15 || nz < 0 || nz > 15) continue;
+                if ((data[idx(nx, y + dy, nz)] & 255) === B.STONE) rock++;
+              }
+              if (rock >= 2) data[idx(x, y, z)] = B.COBWEB;
+            }
+          }
       }
 
       // ---- sulfur deposits ----
@@ -1743,8 +1864,8 @@ function VOXEL_CORE() {
             if ((data[idx(x, y, z)] & 255) === B.STONE &&
                 (data[idx(x, y + 1, z)] & 255) === B.AIR &&
                 hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.002)
-              data[idx(x, y + 1, z)] = hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 0.5
-                ? B.RED_MUSHROOM : B.BROWN_MUSHROOM;
+              data[idx(x, y + 1, z)] = hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 1 / 3
+                ? B.RED_MUSHROOM : hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 2 / 3 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;   // thirds since 0.7691
           }
           // surface under leaves: air at h+1 with leaves within 2..5 blocks above
           if (h > WATER_LEVEL && h < 120) {
@@ -1756,12 +1877,22 @@ function VOXEL_CORE() {
                 if ((data[idx(x, h + dy, z)] & 255) === B.LEAVES) { hasLeaves = true; break; }
               }
               if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.0007)
-                data[idx(x, h + 1, z)] = hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 0.5
-                  ? B.RED_MUSHROOM : B.BROWN_MUSHROOM;
+                data[idx(x, h + 1, z)] = hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 1 / 3
+                  ? B.RED_MUSHROOM : hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 2 / 3 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;   // thirds since 0.7691
             }
           }
         }
       }
+
+      /* ---- fiber blocks (0.769): very rarely an open-plains grass block is a tuft of packed fiber
+         instead. Same plains test the melons below use: low tree density, no desert, no snow. ---- */
+      for (let z = 0; z < CZ; z++)
+        for (let x = 0; x < CX; x++) {
+          const gi = (x + 2) + (z + 2) * 20, h = H[gi];
+          if (h <= WATER_LEVEL + 1 || h > 146 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5) continue;
+          if ((data[idx(x, h, z)] & 255) !== B.GRASS) continue;
+          if (hash3(cx * 1709 + x, 9100, cz * 1523 + z) < 0.0006) data[idx(x, h, z)] = B.FIBER_BLOCK;
+        }
 
       /* ---- melons: grass surfaces in forest/plains. Plains: 1.5% per attempt, up to 5 in a
          group (r=4). Forest: 0.5% per attempt, up to 3 in a group (r=2). ---- */
@@ -2174,6 +2305,9 @@ function VOXEL_CORE() {
               if (faceVisible(a, gb(npos[0], npos[1], npos[2]), P)) {
                 m = a; any = true;
                 ml = gl(npos[0], npos[1], npos[2]);   // face lit by the transparent cell it faces
+                // a faint glow of its own (ores, 0.765), so it can be spotted in a pitch-black cave
+                const sg = P[a & 255].selfGlow;
+                if (sg && (ml & 15) < sg) ml = (ml & 0xF0) | sg;
               }
             }
             mask[u + v * us] = m;
@@ -2253,27 +2387,32 @@ function VOXEL_CORE() {
     // doubles). Each face's UVs come from the box extents so half faces sample the matching half
     // of the texture. Faces flush with the cell border cull against opaque neighbours.
     // f = 6-tile faces array [+X,-X,+Y(top),-Y(bottom),+Z,-Z] so slabs get real top/bottom textures
-    function emitBoxFaces(x, y, z, b, f) {
+    /* `own` (wall plates, 0.7651): a face that sits INSIDE the cell reads the cell's own light, not the
+       neighbour's. A glow vine's front face faces the cell beyond it, and in a one-block gap that cell
+       is rock with no light of its own, so the vine rendered dark right beside its own glow. */
+    function emitBoxFaces(x, y, z, b, f, own) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       const op = (xx, yy, zz) => P[gb(xx, yy, zz) & 255].opaque;
+      const L = own ? gl(x, y, z) : -1;
+      const lit = (inner, xx, yy, zz) => (inner && L >= 0 ? L : gl(xx, yy, zz));
       if (b[4] < 1 || !op(x, y+1, z))            // top
         quad(0, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
-             [b[0],b[2]],[b[0],b[5]],[b[3],b[5]],[b[3],b[2]], f[2], 255, gl(x, y+1, z));
+             [b[0],b[2]],[b[0],b[5]],[b[3],b[5]],[b[3],b[2]], f[2], 255, lit(b[4] < 1, x, y+1, z));
       if (b[1] > 0 || !op(x, y-1, z))            // bottom
         quad(0, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],
-             [b[0],b[2]],[b[3],b[2]],[b[3],b[5]],[b[0],b[5]], f[3], 140, gl(x, y-1, z));
+             [b[0],b[2]],[b[3],b[2]],[b[3],b[5]],[b[0],b[5]], f[3], 140, lit(b[1] > 0, x, y-1, z));
       if (b[3] < 1 || !op(x+1, y, z))            // +X
         quad(0, [x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],
-             [1-b[2],b[1]],[1-b[2],b[4]],[1-b[5],b[4]],[1-b[5],b[1]], f[0], 178, gl(x+1, y, z));
+             [1-b[2],b[1]],[1-b[2],b[4]],[1-b[5],b[4]],[1-b[5],b[1]], f[0], 178, lit(b[3] < 1, x+1, y, z));
       if (b[0] > 0 || !op(x-1, y, z))            // -X
         quad(0, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],
-             [b[2],b[1]],[b[5],b[1]],[b[5],b[4]],[b[2],b[4]], f[1], 178, gl(x-1, y, z));
+             [b[2],b[1]],[b[5],b[1]],[b[5],b[4]],[b[2],b[4]], f[1], 178, lit(b[0] > 0, x-1, y, z));
       if (b[5] < 1 || !op(x, y, z+1))            // +Z
         quad(0, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
-             [b[0],b[1]],[b[3],b[1]],[b[3],b[4]],[b[0],b[4]], f[4], 216, gl(x, y, z+1));
+             [b[0],b[1]],[b[3],b[1]],[b[3],b[4]],[b[0],b[4]], f[4], 216, lit(b[5] < 1, x, y, z+1));
       if (b[2] > 0 || !op(x, y, z-1))            // -Z
         quad(0, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],
-             [1-b[0],b[1]],[1-b[0],b[4]],[1-b[3],b[4]],[1-b[3],b[1]], f[5], 216, gl(x, y, z-1));
+             [1-b[0],b[1]],[1-b[0],b[4]],[1-b[3],b[4]],[1-b[3],b[1]], f[5], 216, lit(b[2] > 0, x, y, z-1));
     }
     for (let y = 0; y < yCap; y++)
       for (let z = 0; z < 16; z++)
@@ -2293,11 +2432,12 @@ function VOXEL_CORE() {
           else if (PROPS[vid].model === 'stairs')
             for (const bx of stairBoxesAt(gb, x, y, z, val))
               emitBoxFaces(x, y, z, bx, PROPS[vid].faces);
-          else if (PROPS[vid].model === 'carpet') {
+          else if (PROPS[vid].model === 'carpet' || PROPS[vid].model === 'wall') {   // a wall plate is an upright carpet (0.765)
             const va = (val >> 8) & 255;
             const boxes = PROPS[vid].boxesByVar[va] || PROPS[vid].boxesByVar[0];
+            const own = PROPS[vid].model === 'wall';     // lit by its own cell (0.7651)
             for (let bi = 0; bi < boxes.length; bi++)
-              emitBoxFaces(x, y, z, boxes[bi], PROPS[vid].faces);
+              emitBoxFaces(x, y, z, boxes[bi], PROPS[vid].faces, own);
           }
           else if (PROPS[vid].model === 'carpet_stack') {
             /* One box per RUN of same-material layers rather than one per layer: a 6-deep snow
@@ -2690,11 +2830,21 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                // BERRIES (348) stays the RED berry so existing stashes keep their contents
                BLUE_BERRIES: 355,
                BOW: 356, ARROW: 357, BONE: 358, SHIELD: 359, BACKPACK: 360,
-               COOKED_PUMPKIN_PIE: 361 };   // PUMPKIN_PIE (286) is the raw pie since 0.761
+               COOKED_PUMPKIN_PIE: 361, GLOW_CRYSTAL: 362,
+               EMERALD: 363, RUBY: 364, SAPPHIRE: 365,     // 0.766
+               CHARCOAL_CHUNK: 366, MILK_BUCKET: 367,      // 0.767
+               TOPAZ: 368 };                               // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
   [ITEM.FLINT]:         { name: 'Flint',         stack: 99, icon: 'flint', desc: 'Used as crafting ingredient' },
+  // from glow vines, with any tool (0.765); five make a glowcrystal block
+  [ITEM.GLOW_CRYSTAL]:  { name: 'Glow crystal',  stack: 99, icon: 'glow_crystals', desc: 'Used as crafting ingredient' },
+  // gems (0.766): 1-2 from their ores with an iron pickaxe or better
+  [ITEM.EMERALD]:       { name: 'Emerald',       stack: 99, icon: 'emerald',  desc: 'A rare gem from mountain rock' },
+  [ITEM.RUBY]:          { name: 'Ruby',          stack: 99, icon: 'ruby',     desc: 'A rare gem from deep caves' },
+  [ITEM.SAPPHIRE]:      { name: 'Sapphire',      stack: 99, icon: 'sapphire', desc: 'A rare gem found under the hills' },
+  [ITEM.TOPAZ]:         { name: 'Topaz',         stack: 99, icon: 'topaz',    desc: 'A rare gem from the middle depths' },   // 0.769
   [ITEM.CLAY_BALL]:     { name: 'Clay ball',     stack: 99, icon: 'clay_ball', desc: 'Used as crafting ingredient' },
   [ITEM.BOWL]:          { name: 'Bowl',          stack: 30, icon: 'bowl', desc: 'Used to fill with food' },
   [ITEM.GLASS_SHARD]:   { name: 'Glass shard',   stack: 99, icon: 'glass_shard', desc: 'Used as crafting ingredient' },
@@ -2724,8 +2874,10 @@ const ITEM_PROPS = {
   [ITEM.SHIELD]:        { name: 'Shield',        stack: 1,  icon: 'shield', equip: 'offhand', shield: true, durability: 336,
                           desc: 'Equip in the offhand. Hold right click to raise it: stops attacks and arrows from the front' },
 // ores
-  [ITEM.COAL]:          { name: 'Coal',          stack: 99, icon: 'coal', desc: 'Used as fuel for 8 smelt' },
+  [ITEM.COAL]:          { name: 'Coal',          stack: 99, icon: 'coal', desc: 'Used as fuel for 5 smelts' },
   [ITEM.COAL_CHUNK]:    { name: 'Coal chunk',    stack: 99, icon: 'coal_chunk', desc: 'Used as fuel for 1 smelt' },
+  // 0.767: charcoal splits the same way coal does — 8 chunks to a charcoal, half a smelt each
+  [ITEM.CHARCOAL_CHUNK]: { name: 'Charcoal chunk', stack: 99, icon: 'charcoal_chunk', desc: 'Used as fuel for 0.8 of a smelt' },
   [ITEM.RAW_IRON]:      { name: 'Raw iron',      stack: 99, icon: 'raw_iron', desc: 'Can be smelt in furnace to iron ingot' },
   [ITEM.IRON_INGOT]:    { name: 'Iron ingot',    stack: 99, icon: 'iron_ingot', desc: 'Used as crafting ingredient' },
   [ITEM.IRON_NUGGET]:   { name: 'Iron nugget',   stack: 99, icon: 'iron_nugget', desc: 'Used as crafting ingredient' },
@@ -2769,6 +2921,9 @@ const ITEM_PROPS = {
   [ITEM.DIAMOND_HOE]:    { name: 'Diamond hoe',     stack: 1, icon: 'diamond_hoe',    tool: 'hoe',     tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.3,   durability: 750, desc: '' },
 // Useable
   [ITEM.BUCKET]:        { name: 'Bucket',        stack: 20, icon: 'bucket', desc: '' },
+  // 0.767: from a cow (bucket in hand, right-click). Drinking it clears every running effect and hands the bucket back
+  [ITEM.MILK_BUCKET]:   { name: 'Milk bucket',   stack: 1, icon: 'milk_bucket', food: 4, foodSat: 6, foodSatFull: 3,
+                          eatTime: 1.6, drink: true, foodClearEffects: true, foodReturn: 283, desc: '' },
   [ITEM.WATER_BUCKET]:  { name: 'Water Bucket',  stack: 1,  icon: 'water_bucket', desc: '' },
   [ITEM.LAVA_BUCKET]:   { name: 'Lava Bucket',   stack: 1,  icon: 'lava_bucket', desc: '' },
   [ITEM.SNOWBALL]:      { name: 'Snowball',      stack: 30, icon: 'snowball', throwable: true, desc: '' },
@@ -2844,6 +2999,10 @@ const MINE_REQ = {
   [B.TIN_ORE]:     { tool: 'pick', tier: 2 },
   [B.GOLD_ORE]:    { tool: 'pick', tier: 3 },
   [B.DIAMOND_ORE]: { tool: 'pick', tier: 3 },
+  [B.EMERALD_ORE]: { tool: 'pick', tier: 3 },       // gems: iron pickaxe or better (0.766)
+  [B.RUBY_ORE]:    { tool: 'pick', tier: 3 },
+  [B.SAPPHIRE_ORE]:{ tool: 'pick', tier: 3 },
+  [B.COBWEB]:      { tool: 'sword', tier: 0 },      // any sword cuts the string out; anything else just tears it
   [B.OBSIDIAN]: { tool: 'pick', tier: 4 },
   [B.SNOW]:        { tool: 'shovel', tier: 1 },
   [B.SULFUR_BLOCK]:    { tool: 'pick', tier: 2 },
@@ -2852,13 +3011,23 @@ const MINE_REQ = {
   [B.MARBLE]:      { tool: 'pick', tier: 1 },
   [B.GRANITE]:     { tool: 'pick', tier: 1 },
   [B.LIMESTONE]:   { tool: 'pick', tier: 1 },
+  // glow vine: any tool at all harvests its crystals; a bare hand just tears it down (0.765)
+  [B.GLOW_VINE]:   { tool: 'any', tier: 0 },
 };
+// storage blocks (0.768): any pickaxe takes one back up; also on the pickaxe's list and in creative
+const STORAGE_BLOCK_IDS = [B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.TIN_BLOCK, B.COPPER_BLOCK,
+  B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.RUBY_BLOCK, B.SAPPHIRE_BLOCK,
+  B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK, B.TOPAZ_BLOCK];
+for (const id of STORAGE_BLOCK_IDS) MINE_REQ[id] = { tool: 'pick', tier: 1 };
+// 0.769: topaz ore needs iron like the other gems; sandstone any pickaxe
+MINE_REQ[B.TOPAZ_ORE] = { tool: 'pick', tier: 3 };
+MINE_REQ[B.SANDSTONE] = MINE_REQ[B.RED_SANDSTONE] = { tool: 'pick', tier: 1 };
 // does the held item satisfy the block's drop requirement? (hand = tier 0, no tool type)
 function mineDropAllowed(heldId, blockId) {
   const req = MINE_REQ[blockId];
   if (!req) return true;
   const p = heldId != null && heldId >= 256 ? ITEM_PROPS[heldId] : null;
-  return !!(p && p.tool === req.tool && (p.tier || 0) >= req.tier);
+  return !!(p && p.tool && (req.tool === 'any' || p.tool === req.tool) && (p.tier || 0) >= req.tier);
 }
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
@@ -2867,7 +3036,9 @@ const TOOL_BLOCKS = {
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK,
                    B.FURNACE, B.COBBLESLAB, B.BRICKSSLAB, B.BRICKSSTAIRS, B.STONE_BRICKSLAB, B.STONESLAB, B.GRASS, B.GLASSSLAB,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.GLASS,
-                   B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE]),
+                   B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
+                   B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
+                   B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE]),
   hatchet: new Set([B.LOG, B.PLANKS, B.BIRCH_LOG, B.BIRCH_PLANKS, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.SPRUCE_PLANKS,
                     B.MELON, B.PUMPKIN, B.CRAFTING_BENCH, B.DOOR, B.STAIRS, B.OAKSLAB, B.CACTUS]),
   hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY]),
@@ -2875,9 +3046,9 @@ const TOOL_BLOCKS = {
   shears: new Set([B.WOOL, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
                    B.POPPY, B.ORCHID, B.SUGAR_CANE]),
   // a blade cuts soft, fibrous things fast — plants, leaves, melons, cane and webbing-like props
-  sword:  new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY, B.MELON, B.PUMPKIN, B.SUGAR_CANE,
+  sword:  new Set([B.COBWEB, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY, B.MELON, B.PUMPKIN, B.SUGAR_CANE,
                    B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
-                   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.CACTUS]),
+                   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };
 // mining-time divisor for held item vs block: 1.5 when the right tool, 1 otherwise
 function toolFactor(heldId, blockId) {
@@ -2924,11 +3095,11 @@ const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
    35-leveling.js), so hand-breaking them is housekeeping and never a grind. */
-const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY]);
+const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.FIBER_BLOCK, B.LADDER]);   // + fiber block, ladder (0.769)
 function handBreakable(id) {
   const p = PROPS[id & 255];
   if (!p) return false;
-  return p.model === 'cross' || p.model === 'carpet' || p.model === 'carpet_stack'
+  return p.model === 'cross' || p.model === 'carpet' || p.model === 'carpet_stack' || p.model === 'wall'
       || LEAF_BLOCKS.has(id & 255) || HAND_BREAK_BLOCKS.has(id & 255);
 }
 // does what is in hand count as a tool at all? (any tool class — pick, shovel, hatchet, hoe, ...)
@@ -2980,6 +3151,13 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.TIN_ORE)    return [{ id: ITEM.RAW_TIN, count: 1 + Math.floor(Math.random() * 5) }];
   if (blockId === B.GOLD_ORE)    return [{ id: ITEM.RAW_GOLD, count: 1 + Math.floor(Math.random() * 3) }];
   if (blockId === B.DIAMOND_ORE) return [{ id: ITEM.DIAMOND,  count: 1 + Math.floor(Math.random() * 2) }];
+  if (blockId === B.GLOW_VINE) return [{ id: ITEM.GLOW_CRYSTAL, count: 1 + Math.floor(Math.random() * 2) }];   // 0.765
+  // 0.766: a cobweb is string; gem ores give 1-2 gems (the pickaxe gate is MINE_REQ)
+  if (blockId === B.COBWEB)       return [{ id: ITEM.STRING,   count: 1 + Math.floor(Math.random() * 3) }];
+  if (blockId === B.EMERALD_ORE)  return [{ id: ITEM.EMERALD,  count: 1 + Math.floor(Math.random() * 2) }];
+  if (blockId === B.RUBY_ORE)     return [{ id: ITEM.RUBY,     count: 1 + Math.floor(Math.random() * 2) }];
+  if (blockId === B.SAPPHIRE_ORE) return [{ id: ITEM.SAPPHIRE, count: 1 + Math.floor(Math.random() * 2) }];
+  if (blockId === B.TOPAZ_ORE)    return [{ id: ITEM.TOPAZ,    count: 1 + Math.floor(Math.random() * 2) }];   // 0.769
   if (blockId === B.GRAVEL) {
     if (Math.random() < 0.05) return [{ id: ITEM.FLINT, count: 1 }];   
     return [{ id: B.GRAVEL, count: 1 }];
@@ -2990,7 +3168,7 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];
   if (blockId === B.GLASS) return [{ id: ITEM.GLASS_SHARD, count: 2 + Math.floor(Math.random() * 3) }];
-  if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 4 }];
+  if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs (0.769)
   if (blockId === B.SNOW)  return [{ id: ITEM.SNOWBALL,  count: 2 + Math.floor(Math.random() * 3) }];
   // 0.6961: snow carpet never drops itself. A shovel packs a layer into a snowball; anything
   // else (explosions, fluids, bare hands) just destroys it. Handled at the break site.

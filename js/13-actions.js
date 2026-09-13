@@ -68,10 +68,14 @@ const CREATIVE_ORDER = [
   B.SULFUR_BLOCK, B.OBSIDIAN, B.CACTUS,
   B.CRAFTING_BENCH, B.FURNACE, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.STRUCTURE_BLOCK,
   B.MELON, B.PUMPKIN, B.SNOW_CARPET, B.SUGAR_CANE, B.TORCH, B.SULFUR_UP_TIP,
-  B.RED_MUSHROOM, B.BROWN_MUSHROOM,
+  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.FLINT_ROCK,
+  B.GLOW_VINE, B.GLOWCRYSTAL_BLOCK,
+  B.COBWEB, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE,
+  ...STORAGE_BLOCK_IDS,
+  B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.LADDER,
 ];
 function _defaultCreativeInventory() {
   const rank = new Map();
@@ -572,6 +576,8 @@ function _doPlace() {
   if (tryShearSheep()) { handPlaceSwing = true; return; }
   /* Using an ANIMAL beats using the world behind it: feeding, mounting and saddling all come
      before any block interaction, so a horse standing in front of a chest is still a horse. */
+  // a bucket at a cow milks it, ahead of filling from water behind it (0.767)
+  if (typeof tryMilkCow === 'function' && tryMilkCow()) { handPlaceSwing = true; return; }
   if (typeof tryTameInteract === 'function' && tryTameInteract()) { handPlaceSwing = true; return; }
   // empty bucket: fill from open water even when nothing solid is behind it (no block hit needed)
   if (slotId(HOTBAR[hotbarSel]) === ITEM.BUCKET) { useBucket(ITEM.BUCKET, null); return; }
@@ -679,7 +685,11 @@ function _doPlace() {
   // ...except a torch clicked onto the SIDE of a solid block, which hangs on that wall (0.7451)
   const torchWall = id === B.TORCH && hit.ny === 0 && !!(hit.nx || hit.nz) && !ontoPlant
                  && isSolid(hit.x, hit.y, hit.z);
-  if (!torchWall && (PROPS[id].topOnly || PROPS[id].model === 'cross') && !isSolid(px, py - 1, pz)) return;
+  // ...and a cobweb, which can be strung anywhere: floor, wall or ceiling (0.766)
+  if (!torchWall && id !== B.COBWEB && (PROPS[id].topOnly || PROPS[id].model === 'cross') && !isSolid(px, py - 1, pz)) return;
+  // a glow vine only hangs on the SIDE of a solid block (0.765)
+  const vineWall = PROPS[id].model === 'wall';
+  if (vineWall && (hit.ny !== 0 || !(hit.nx || hit.nz) || ontoPlant || !isSolid(hit.x, hit.y, hit.z))) return;
   // flowers and grass plants require a grass block underneath (not any solid — no dirt/stone/etc.)
   if (id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER) {
     if ((getBlock(px, py - 1, pz) & 255) !== B.GRASS) return;
@@ -780,6 +790,8 @@ function _doPlace() {
   let varb = 0;
   // wall torch: its variant is the clicked face's normal — the direction it leans out toward
   if (torchWall) varb = hit.nx === 1 ? 1 : hit.nx === -1 ? 2 : hit.nz === 1 ? 3 : 4;
+  // glow vine: its variant is the wall BEHIND it, the opposite of the clicked face's normal (0.765)
+  if (vineWall) varb = hit.nz === 1 ? 0 : hit.nz === -1 ? 1 : hit.nx === 1 ? 2 : 3;
   const rot = PROPS[id].rot;
   const type = PROPS[id].model;
   // a placed berry bush arrives RIPE, matching the icon that was in the slot — a bare sprout
