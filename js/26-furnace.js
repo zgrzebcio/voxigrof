@@ -19,6 +19,7 @@ const SMELT = { [B.SAND]: B.GLASS, [B.COBBLE]: B.STONE,       // input id -> out
                 [ITEM.CLAY_BALL]: ITEM.BRICK, [ITEM.FLOUR]: ITEM.BREAD,
                 [ITEM.RAW_COPPER]: ITEM.COPPER_INGOT, [ITEM.RAW_TIN]: ITEM.TIN_INGOT,
                 [ITEM.MUTTON]: ITEM.COOKED_MUTTON, [ITEM.BEEF]: ITEM.COOKED_BEEF,
+                [ITEM.PUMPKIN_PIE]: ITEM.COOKED_PUMPKIN_PIE,   // bake the raw pie (0.761)
 };
 const FUEL_SMELTS = {                                          // fuel id -> smelts' worth of burn
   [ITEM.COAL]: 8, [ITEM.COAL_CHUNK]: 1, [ITEM.CHARCOAL]: 4, [B.PLANKS]: 0.75, [ITEM.STICK]: 0.25,

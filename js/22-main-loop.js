@@ -373,7 +373,9 @@ function updateEating(dt, wantPlace) {
       /* What the food does beyond filling you (0.758). Its effect lands FIRST, so the heal it carries is
          already boosted by it: a golden apple starts Rapid regen, then its 2 health arrive doubled as 4. */
       const eff = ITEM_PROPS[id].foodEffect;
-      if (eff && typeof addPlayerEffect === 'function') addPlayerEffect(eff);
+      // some effects are only a chance: raw food and rotten flesh may or may not turn your stomach (0.761)
+      const effChance = ITEM_PROPS[id].foodEffectChance ?? 1;
+      if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff);
       const heal = ITEM_PROPS[id].foodHeal || 0;
       if (heal > 0) player.hp = Math.min(MAX_HP, player.hp + heal * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1));
       slot.count--;
@@ -948,18 +950,19 @@ function tickPlayer(dt, now, slot) {
   const _preYaw = player.yaw, _prePitch = player.pitch;
   const gp = pollGamepad(dt);
   const joining = worldJoining();           // world still loading in: frozen like the dead (0.759)
-  if (player.dead || joining) {             // dead: no look (mouse gated in input, pad undone here),
+  const benching = !!player._benchWork;     // holding E at a crafting bench: nothing else answers (0.76)
+  if (player.dead || joining || benching) {             // dead: no look (mouse gated in input, pad undone here),
     player.yaw = _preYaw; player.pitch = _prePitch;   // no movement, no fly/jump input
     gp.mx = gp.mz = 0; gp.up = gp.dn = false;
   }
-  const kb = kbOwner && playing && !invOpen && !player.dead && !joining;   // keyboard steers when no menu/inventory is open
+  const kb = kbOwner && playing && !invOpen && !player.dead && !joining && !benching;   // keyboard steers when no menu/inventory is open
   let fwd = (kb && keys.KeyW ? 1 : 0) - (kb && keys.KeyS ? 1 : 0) - gp.mz;
   let str = (kb && keys.KeyD ? 1 : 0) - (kb && keys.KeyA ? 1 : 0) + gp.mx;
   const upHeld = (kb && keys.Space) || gp.up;
   const dnHeld = (kb && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
   /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
      which is all a one-frame-late cancel needs. */
-  if (player.blocking || player._eatProg > 0 || player._drawProg > 0) player.fast = false;   // drawing a bow too (0.7592)
+  if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
   const fast   = player.fast;
   const len = Math.hypot(fwd, str);
   if (len > 1) { fwd /= len; str /= len; }
@@ -1015,10 +1018,11 @@ function tickPlayer(dt, now, slot) {
            * terrainSpeedMul()                   // leaves/litter -40%, snow carpet -70%
            * (player.blocking ? SHIELD_MOVE_MUL : 1)    // behind a raised shield (0.745)
            * (player._eatProg > 0 ? EAT_MOVE_MUL : 1)   // mid-bite: as slow as a raised shield (0.7591)
-           * (player._drawProg > 0 ? DRAW_MOVE_MUL : 1); // bow string back: the same again (0.7592)
+           * (player._drawProg > 0 ? DRAW_MOVE_MUL : 1)  // bow string back: the same again (0.7592)
+           * (playerIsCrafting() ? CRAFT_MOVE_MUL : 1);  // crafting queue running (0.76)
   }
   if (!player.spawned) { player.vy = 0; dy = 0; }   // hold still until the spawn chunk exists
-  if (joining) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
+  if (joining || benching) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
   if (menuScene) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // title camera: rotation only
   if (lying) {                                  // asleep: pinned to the mattress, look only
     fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0;
@@ -1109,6 +1113,7 @@ function tickPlayer(dt, now, slot) {
         // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
         player.aliveT = +pr.aliveT || 0; player.dead = !!pr.dead; player._dmgCause = pr.cause || null;
         player._deathDay = typeof pr.deathDay === 'number' ? pr.deathDay : null;
+        player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
         if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_SLOTS) {
           hotbarSel = pr.hotSel; buildHotbar();
         }
@@ -1146,13 +1151,22 @@ function tickPlayer(dt, now, slot) {
     shR = Math.cos(camShake.t * 37) * camShake.amp * 0.6 * k;
     camShake.t -= dt;
   }
+  /* Nausea (0.761): the view rolls from side to side and the heading drifts on its own, slowly
+     turning you one way and then back, for as long as the effect lasts. */
+  if (!menuScene && !player.dead && typeof playerHasEffect === 'function' && playerHasEffect('sway')) {
+    const t = sharedUniforms.uTime.value;
+    // 0.7612: twice as fast, half as far
+    shR += Math.sin(t * 2.3) * 0.11;
+    shP += Math.sin(t * 1.46) * 0.025;
+    player.yaw += Math.sin(t * 0.9) * 0.7 * dt;
+  }
   camera.rotation.set(player.pitch + shP, player.yaw, shR);
   applyCameraView(dt);            // F5 third-person: moves the camera back + shows the body
 
   /* ---- break / place (mouse + gamepad share repeat timing) ---- */
   // in bed you can look around and nothing else — no swinging, no placing, no eating
-  const wantBreak = !lying && !joining && ((mouseBreak && pointerLocked) || act.padBreak);
-  const wantPlace = !lying && !joining && ((mousePlace && pointerLocked) || act.padPlace);
+  const wantBreak = !lying && !joining && !benching && ((mouseBreak && pointerLocked) || act.padBreak);
+  const wantPlace = !lying && !joining && !benching && ((mousePlace && pointerLocked) || act.padPlace);
   // selection highlight
   updateInvCursorVisual(dt);                 // this seat's cursor / drag ghost / hover / tooltip
   const hit = (playing && !invOpen) ? currentRay() : null;
@@ -1182,8 +1196,12 @@ function tickPlayer(dt, now, slot) {
   }
 
   updateInteractPrompt();                   // "(E) to pickup grass" under the crosshair
+  /* Crafting bench (0.76): E works the bench you are looking at, a tap takes what is finished, holding
+     the right button cancels its order. Runs before bush pickup, which it replaces while aimed at one. */
+  const _eHeld = (playing && !invOpen && !menuScene && !joining) && ((kbOwner && !!keys['KeyE']) || act.padPick);
+  updateBenchWork(dt, _eHeld, (playing && !invOpen && !menuScene) && ((mousePlace && pointerLocked) || act.padPlace));
   // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
-  updateBushPickup(dt, (playing && !invOpen && !menuScene) && ((kbOwner && !!keys['KeyE']) || act.padPick));
+  updateBushPickup(dt, _eHeld && !player._benchAim);
 
   // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
   const _didThrow = (wantPlace && !act.place) ? tryThrow() : false;
@@ -1360,6 +1378,7 @@ function tickPlayer(dt, now, slot) {
   const _hereC = getChunk(Math.floor(player.pos.x / 16), Math.floor(player.pos.z / 16));
   if (!menuScene && !joining && _hereC && _hereC.data) updateVitals(dt);
   updateXPBar(dt);
+  updateCraftQueue(dt);                     // this player's crafting queue, and its HUD strip (0.76)
   updateHands(dt, wantBreak, wantPlace, eatProg, drawProg);
   updateShield(dt, wantPlace);              // offhand arm + blocking state (40-shield.js)
 
@@ -1492,6 +1511,7 @@ function runWorldTick(dt, now) {
     updateDoors(dt);
     updateBed(dt);
     updateChests(dt);
+    updateBenchDisplays();                  // the order floating over each busy crafting bench (0.76)
   }
   /* The armour-stand preview is a single WebGL renderer whose canvas can only live in one panel at
      a time. It follows whoever opened their inventory MOST RECENTLY, and the moment they close it

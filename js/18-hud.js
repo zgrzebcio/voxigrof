@@ -51,6 +51,15 @@ var _interactShown = '';
 function updateInteractPrompt() {
   // the name over whatever entity you are looking at (39-taming.js, 0.757): its own spot, never the prompt's
   if (typeof updateEntityHoverTag === 'function') updateEntityHoverTag();
+  // a crafting bench with an order on it says how far along it is and what E does (0.76)
+  if (typeof benchPrompt === 'function') {
+    const a = benchPrompt();
+    if (a) {
+      if (a !== _interactShown) { interactEl.innerHTML = a; _interactShown = a; }
+      interactEl.style.opacity = '1';
+      return;
+    }
+  }
   /* An animal you can do something with speaks first (0.74): a tameable one under the crosshair
      reports what it is, what it is called and what the next step with it would be, because a
      horse you have named is not "a horse" any more and the taming flow is invisible otherwise. */

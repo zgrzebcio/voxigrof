@@ -142,8 +142,9 @@ function playerStrength() { return _equipSum('strength'); }
    what is equipped every time it is asked for. */
 const ARMOR_SET_SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
 const ARMOR_SET_BONUS = {
-  iron:    { name: 'Knockback resistance', knockback: 0.20, good: true,
-             desc: 'Full set: +20% knockback resistance' },
+  // toughness is knockback resistance in percent, 100% = never knocked back (0.7612)
+  iron:    { name: 'Toughness', toughness: 0.20, good: true,
+             desc: 'Full set: +20% toughness' },
   /* Leather does NOT slow you down — it blunts the slowdown the GROUND inflicts. Wading through
      leaf litter and deep snow costs 30% less than it does barefoot, which is what soft boots are
      actually for. It is a multiplier on the penalty, not on your speed. */
@@ -164,10 +165,14 @@ function playerArmorSet() {
 }
 const armorSetBonus = () => ARMOR_SET_BONUS[playerArmorSet()] || null;
 // 0..1 fraction of incoming knockback cancelled (iron set = 0.20)
-function playerKnockbackResist() {
+/* Toughness (0.7612): knockback resistance as a stat. 0% by default, 100% means you are never knocked
+   back. Gear adds a `toughness` field (0.10 = +10%); the iron set bonus adds 20%. */
+function playerToughness() {
   const b = armorSetBonus();
-  return b && b.knockback ? Math.min(1, b.knockback) : 0;
+  return _equipSum('toughness') + (b && b.toughness ? b.toughness : 0);
 }
+// 0..1 fraction of knockback cancelled — the mobs and arrows read this
+function playerKnockbackResist() { return Math.min(1, Math.max(0, playerToughness())); }
 // 0..1 fraction of the terrain slowdown cancelled (leather set = 0.30)
 function playerTerrainDragResist() {
   const b = armorSetBonus();
@@ -178,11 +183,11 @@ function playerTerrainDragResist() {
 function activeEffects() {
   const out = [];
   const b = armorSetBonus();
-  if (b) out.push({ name: b.name, time: Infinity, good: b.good });
+  if (b) out.push({ name: b.name, time: Infinity, good: b.good, desc: b.desc });
   for (const e of PLAYER_EFFECTS) out.push(e);
   for (const e of player.effects || []) {
     const d = EFFECT_DEFS[e.id];
-    if (d) out.push({ name: d.name, time: Math.ceil(e.left), good: d.good });
+    if (d) out.push({ name: d.name, time: Math.ceil(e.left), good: d.good, desc: d.desc });
   }
   return out;
 }
@@ -190,8 +195,20 @@ function activeEffects() {
    seconds remaining. A food with `foodEffect` starts one, and eating another restarts the clock rather
    than stacking a second copy. */
 const EFFECT_DEFS = {
-  rapidRegen: { name: 'Rapid regen', time: 8, good: true, regenMul: 2 },   // golden apple
+  rapidRegen:   { name: 'Rapid regen',   time: 8,  good: true, regenMul: 2,                          // golden apple
+                  desc: 'Health regenerates twice as fast, and food heals twice as much.' },
+  // cooked pumpkin pie (0.761): +20% crafting speed and +5% move speed
+  spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05,
+                  desc: 'Crafting speed +20% and move speed +5%.' },
+  // raw food, rotten flesh (0.761): hunger drains twice as fast and the view sways (22-main-loop.js)
+  nausea:       { name: 'Nausea',        time: 10, good: false, hungerMul: 2, sway: true,
+                  desc: 'Hunger drains twice as fast, and your view sways and drifts.' },
 };
+// sum of one numeric field over this player's running effects (0.761)
+const _effectSum = (field) => (player.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.[field] || 0), 0);
+const playerHasEffect = (field) => (player.effects || []).some(e => EFFECT_DEFS[e.id]?.[field]);
+// multiplier on hunger and saturation drain: 2 while nauseous
+const playerHungerMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT_DEFS[e.id]?.hungerMul || 1), 1);
 function addPlayerEffect(id) {
   const d = EFFECT_DEFS[id];
   if (!d) return;
@@ -219,13 +236,18 @@ const playerRegenMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT
 // multiplier on walking speed; floored so gear can never freeze the player
 const playerMoveSpeedMul = () => {
   const b = armorSetBonus();
-  return Math.max(0.25, 1 + _equipSum('moveSpeed') + (b && b.moveSpeed ? b.moveSpeed : 0));
+  return Math.max(0.25, 1 + _equipSum('moveSpeed') + (b && b.moveSpeed ? b.moveSpeed : 0)
+                          + (typeof _effectSum === 'function' ? _effectSum('moveSpeed') : 0));   // food effects (0.761)
 };
 function playerMoveSpeedPct() { return Math.round(playerMoveSpeedMul() * 100); }
 /* Jump strength (0.756): a multiplier on jump HEIGHT. No gear grants it yet, but it has its own stat line
    and the jump already reads it, so an item only needs a `jumpStrength` field (0.10 = +10%). */
 const playerJumpMul = () => Math.max(0.25, 1 + _equipSum('jumpStrength'));
 function playerJumpPct() { return Math.round(playerJumpMul() * 100); }
+/* Crafting speed (0.76): 1 = 100%, the rate every recipe's timeToCraft is written for; 2 crafts twice as
+   fast; 0 means you cannot craft at all. Gear adds a `craftSpeed` field (0.25 = +25%). Never negative. */
+const playerCraftSpeedMul = () => Math.max(0, 1 + _equipSum('craftSpeed') + _effectSum('craftSpeed'));   // + food effects (0.761)
+function playerCraftSpeedPct() { return Math.round(playerCraftSpeedMul() * 100); }
 // multiplier on swing rate — >1 swings faster, so it DIVIDES the cooldown
 const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed'));
 /* Environmental resistances (0.7295). No item grants either yet and nothing reads them for damage
@@ -477,6 +499,37 @@ function updateEquipPreview(dt) {
 
 /* ---------------------------------- panel ---------------------------------- */
 const TOOL_SLOT_NAMES = ['Map', 'Spyglass', 'Compass', 'Lantern', 'Clock'];
+/* Tooltips for the Stats and Effects lines (0.7611), shown by the inventory cursor — mouse or pad —
+   through nearestElement in 20-inventory-ui.js. Keyed by the line's label as the panel prints it. */
+const STAT_TIPS = {
+  'defense':         'Protection from the armor you wear. Every point takes 4% off the damage you take, up to 80%.',
+  'damage reduced':  'How much of each hit your armor stops, worked out from your armor points.',
+  'move speed':      'How fast you walk. Heavy armor slows you down; some food effects speed you up.',
+  'strength':        'Bonus damage added to every hit you land.',
+  'attack speed':    'How quickly you can swing again. Above 100% the wait between swings is shorter.',
+  'cold resistance': 'How much cold you shrug off. Nothing in the world is cold enough to hurt yet.',
+  'heat resistance': 'How much heat you shrug off. Nothing in the world is hot enough to hurt yet.',
+  'jump strength':   'How high you jump. Standing in snow lowers it.',
+  'crafting speed':  'How fast your crafting runs. 200% crafts twice as fast; at 0% you cannot craft at all.',
+  'toughness':       'How well you stand your ground. It takes that much off every knockback; at 100% nothing moves you.',
+  'hunger depletion': 'How fast you get hungry. 200% means food and saturation drain twice as fast.',
+};
+const _tipTitle = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+function statTipHTML(key) {
+  const d = STAT_TIPS[key];
+  return d ? `<div class="tipName">${_tipTitle(key)}</div><div class="tipDesc">${d}</div>` : '';
+}
+function effectTipHTML(i) {
+  const e = activeEffects()[i];
+  if (!e) return '';
+  const cls = e.good === false ? ' bad' : '';
+  const left = e.time === Infinity ? 'Lasts while the full set is worn' : `${e.time}s left`;
+  return `<div class="tipName">${e.name}</div>` + (e.desc ? `<div class="tipSet${cls}">${e.desc}</div>` : '') +
+         `<div class="tipDesc">${left}</div>`;
+}
+// marks every stat line the tooltips know, by its printed label
+const _tagStatRows = (html) => html.replace(/<div class="stRow([^"]*)"><span>([^<]+)<\/span>/g,
+  (m, cls, label) => (STAT_TIPS[label] ? `<div class="stRow${cls}" data-tip="${label}"><span>${label}</span>` : m));
 // the word under an empty slot (0.758): whole words, shortened only where the full label cannot fit
 const EQUIP_TAG = { helmet: 'Helmet', necklace: 'Neck', chestplate: 'Chest', leggings: 'Legs', boots: 'Boots',
                     back: 'Back', belt: 'Belt', gloves: 'Gloves', accessories: 'Others', offhand: 'Offhand' };
@@ -502,33 +555,44 @@ function buildEquipPanel() {
   };
   let left = '', right = '';
   EQUIP_SLOTS.forEach((s, i) => { (s.col === 'l' ? (left += cell(s, i)) : (right += cell(s, i))); });
-  const pts = playerArmorPoints();
-  const red = Math.round((1 - armorDamageMultiplier()) * 100);
-  const spd = playerMoveSpeedPct();
-  const str = playerStrength();
-  const atk = playerAtkSpeedMul();
-  const sign = (n, unit = '') => (n > 0 ? '+' : '') + (+n.toFixed(2)) + unit;
-  const cold = playerColdResist(), heat = playerHeatResist(), jmp = playerJumpPct();
-  let stats = `<div class="stRow"><span>armor</span><b>${pts}</b></div>` +
-              `<div class="stRow"><span>damage reduced</span><b>${red}%</b></div>` +
-              `<div class="stRow${spd === 100 ? '' : ' bad'}"><span>move speed</span><b>${spd}%</b></div>` +
-              `<div class="stRow${str ? ' good' : ''}"><span>strength</span><b>${sign(str)}</b></div>` +
-              `<div class="stRow${atk === 1 ? '' : (atk > 1 ? ' good' : ' bad')}"><span>attack speed</span>` +
-              `<b>${Math.round(atk * 100)}%</b></div>` +
-              // reserved lines: nothing grants them yet, so they read 0% until gear does
-              `<div class="stRow${cold ? ' good' : ''}"><span>cold resistance</span><b>${cold}%</b></div>` +
-              `<div class="stRow${heat ? ' good' : ''}"><span>heat resistance</span><b>${heat}%</b></div>` +
-              `<div class="stRow${jmp === 100 ? '' : (jmp > 100 ? ' good' : ' bad')}"><span>jump strength</span><b>${jmp}%</b></div>` +
-              '<div class="stRow slotFree"><span>&mdash;</span><b>&mdash;</b></div>';
-  stats += '<div class="ctitle stTitle">Effects</div>';
+  /* Every stat reads to one decimal (0.7612): a percentage as "100.0%", a flat number as "0.0". A line is
+     green when it is better than the default and orange when worse — for hunger depletion, lower is better. */
+  const f1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+  const pct = (mul) => f1(mul * 100) + '%';
+  const tone = (v, base, higherIsGood = true) => {
+    const d = Math.round((v - base) * 1000);
+    return !d ? '' : (d > 0) === higherIsGood ? ' good' : ' bad';
+  };
+  const row = (label, value, cls = '') => `<div class="stRow${cls}"><span>${label}</span><b>${value}</b></div>`;
+  const pts = playerArmorPoints(), red = 1 - armorDamageMultiplier();
+  const spd = playerMoveSpeedMul(), str = playerStrength(), atk = playerAtkSpeedMul();
+  const cold = Math.min(1, Math.max(-1, _equipSum('coldResist'))), heat = Math.min(1, Math.max(-1, _equipSum('heatResist')));
+  const jmp = playerJumpMul(), cft = playerCraftSpeedMul(), tough = playerToughness();
+  const hunger = typeof playerHungerMul === 'function' ? playerHungerMul() : 1;
+  let stats =
+    row('defense', f1(pts)) +
+    row('damage reduced', pct(red)) +
+    row('move speed', pct(spd), tone(spd, 1)) +
+    row('strength', (str > 0 ? '+' : '') + f1(str), tone(str, 0)) +
+    row('attack speed', pct(atk), tone(atk, 1)) +
+    row('toughness', pct(tough), tone(tough, 0)) +
+    row('cold resistance', pct(cold), tone(cold, 0)) +
+    row('heat resistance', pct(heat), tone(heat, 0)) +
+    row('jump strength', pct(jmp), tone(jmp, 1)) +
+    row('crafting speed', pct(cft), tone(cft, 1)) +
+    row('hunger depletion', pct(hunger), tone(hunger, 1, false)) +
+    '<div class="stRow slotFree"><span>&mdash;</span><b>&mdash;</b></div>';   // reserved for the next stat
+  // the stats get the room; effects are a short strip under them (0.7612)
+  stats = '<div class="stGrid">' + _tagStatRows(stats) + '</div>';   // hoverable, with a tooltip each (0.7611)
   const eff = activeEffects();
-  stats += eff.length
-    ? eff.map(e => {
+  stats += '<div class="ctitle stTitle">Effects</div><div class="effList">' + (eff.length
+    ? eff.map((e, i) => {
         // a set bonus lasts as long as the set is worn, so it shows an infinity sign, not a clock
         const t = (e.time === Infinity) ? '&infin;' : e.time + 's';
-        return `<div class="stRow eff${e.good === false ? ' bad' : ''}"><span>${e.name}</span><b>${t}</b></div>`;
+        // data-eff: its index in activeEffects(), read back by the tooltip (0.7611)
+        return `<div class="stRow eff${e.good === false ? ' bad' : ''}" data-eff="${i}"><span>${e.name}</span><b>${t}</b></div>`;
       }).join('')
-    : '<div class="stRow none"><span>no active effects</span></div>';
+    : '<div class="stRow none"><span>no active effects</span></div>') + '</div>';
   // belt row: only present while a belt is worn, sized by that belt's slot count
   const cap = beltCapacity();
   let beltRow = '';

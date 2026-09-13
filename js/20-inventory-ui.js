@@ -241,7 +241,11 @@ function itemTooltipHTML(id, dur) {
   }
   if (p.ammo) conds.push(['hit', 'No effect', 'none']);
   const ed = p.foodEffect && typeof EFFECT_DEFS !== 'undefined' ? EFFECT_DEFS[p.foodEffect] : null;
-  if (ed) conds.push(['eat', `${ed.name} (${ed.time}s)`, ed.good ? '' : 'bad']);
+  if (ed) {
+    const ch = p.foodEffectChance;                    // a chance effect says how likely it is (0.761)
+    const what = `${ed.name} (${ed.time}s)`;          // "50% chance to Nausea (10s)" (0.7611)
+    conds.push(['eat', ch != null && ch < 1 ? `${Math.round(ch * 100)}% chance to ${what}` : what, ed.good ? '' : 'bad']);
+  }
   for (const [c, eff, cls] of conds)
     html += `<div class="tipCond"><div class="tcName">On ${c}:</div>` +
             `<div class="tcEff${cls ? ' ' + cls : ''}">${_tipEsc(eff)}</div></div>`;
@@ -257,7 +261,7 @@ function itemTooltipHTML(id, dur) {
   if (p.equip) {
     const maxD = p.durability;
     if (maxD) rows.push(['durability', `${dur != null ? dur : maxD}/${maxD}`]);
-    if (p.armor != null) rows.push(['armor', _tipNum(p.armor)]);
+    if (p.armor != null) rows.push(['defense', _tipNum(p.armor)]);   // called defense since 0.7612
     // stat modifiers only listed when the piece actually carries them
     if (p.strength) rows.push(['strength', (p.strength > 0 ? '+' : '') + _tipNum(p.strength)]);
     if (p.moveSpeed) rows.push(['move speed', (p.moveSpeed > 0 ? '+' : '') + _tipNum(p.moveSpeed * 100) + '%']);
@@ -327,7 +331,24 @@ function nearestElement(x, y) {
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2, dist = Math.hypot(x - cx, y - cy);
     if (dist < bd) { bd = dist; best = { el: d.el, cx, cy, dist, type: 'craft', title: d.title, id: d.id }; }
   }
+  /* Stat and effect lines in the equipment panel (0.7611). A line is wide and thin, so it is measured to
+     its nearest EDGE rather than its centre: anywhere on the line counts as on it, for the mouse and
+     for the pad cursor's magnet alike. */
+  for (const d of getInfoElements()) {
+    const r = d.el.getBoundingClientRect();
+    const dist = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+    if (dist < bd) { bd = dist; best = { el: d.el, cx: r.left + r.width / 2, cy: r.top + r.height / 2, dist, type: 'info', tip: d.tip }; }
+  }
   return best;
+}
+// the hoverable lines of the equipment panel's Stats and Effects lists, each with its tooltip builder
+function getInfoElements() {
+  const panel = invPanel('equipPanel');
+  if (!panel || panel.style.display === 'none' || typeof statTipHTML !== 'function') return [];
+  const out = [];
+  for (const el of panel.querySelectorAll('.stRow[data-tip]')) out.push({ el, tip: () => statTipHTML(el.dataset.tip) });
+  for (const el of panel.querySelectorAll('.stRow[data-eff]')) out.push({ el, tip: () => effectTipHTML(+el.dataset.eff) });
+  return out;
 }
 
 /* ---- drag / transfer actions, shared by mouse and gamepad ---- */
@@ -820,6 +841,7 @@ function toggleInventory(open, mode) {
   } else {
     cancelDrag();
     activeFurnace = null;                       // closing always detaches the furnace GUI
+    activeBench = null;                         // ...and a crafting bench's recipe list (0.76)
     chestClosedSound();                         // must run BEFORE the key is cleared
     activeChest = activeChest2 = null;          // ...and the chest, which also shuts its lid
     activeStructBlock = null;                   // structure editor closes with the inventory
@@ -874,6 +896,13 @@ function updateInvCursorVisual(dt) {
   const ne = nearestElement(invCursor.x, invCursor.y);
   const tipR = (invCursor.mode === 'pad' ? 60 : 24) * invScale();
   const hovSlot = hov && slotArr(hov.region)[hov.i];
+  // a stat or effect line under the cursor is lit up while its tooltip shows (0.7611)
+  const infoEl = !dragHeld && !hovSlot && ne && ne.type === 'info' && ne.dist < tipR ? ne.el : null;
+  if (infoEl !== player._infoHoverEl) {
+    if (player._infoHoverEl) player._infoHoverEl.classList.remove('tipHover');
+    if (infoEl) infoEl.classList.add('tipHover');
+    player._infoHoverEl = infoEl;
+  }
   if (dragHeld) {
     ctipEl.style.display = 'none';
   } else if (hovSlot) {
@@ -882,6 +911,8 @@ function updateInvCursorVisual(dt) {
     // recipe icons get the same full panel as a real slot (no durability — it isn't an instance)
     showTooltip(Number.isFinite(ne.id) ? itemTooltipHTML(ne.id, null)
                                        : `<div class="tipName">${_tipEsc(ne.title)}</div>`);
+  } else if (infoEl) {
+    showTooltip(ne.tip());                           // what a stat means, or what an effect is doing
   } else {
     ctipEl.style.display = 'none';
   }

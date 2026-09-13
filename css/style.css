@@ -168,16 +168,23 @@
                   border:1px solid rgba(255,255,255,.12); overflow:hidden; flex:0 0 auto; }
   /* flex:1 makes the stat list eat the panel's spare height, so the reserved room lands here
      (under the stats) rather than as a gap somewhere above the equipment grid */
-  /* two columns since 0.758, stats and effects alike; titles and the "no active effects" line span both */
-  #equipStats { display:grid; grid-template-columns:1fr 1fr; column-gap:14px; row-gap:2px; align-content:start;
-                flex:1 1 auto; min-height:150px;
+  /* two columns since 0.758, stats and effects alike. Since 0.7612 the stats get the room and the effects
+     are a short strip under them — smaller text, a few lines tall, scrolling when more than that run */
+  #equipStats { display:flex; flex-direction:column; gap:2px; flex:1 1 auto; min-height:150px;
                 border-top:1px solid rgba(255,255,255,.14); padding-top:5px; }
-  #equipStats .ctitle, #equipStats .stRow.none { grid-column:1 / -1; }
+  #equipStats .stGrid, #equipStats .effList { display:grid; grid-template-columns:1fr 1fr; column-gap:14px;
+                                              row-gap:2px; align-content:start; }
+  #equipStats .effList { max-height:46px; overflow-y:auto; scrollbar-width:thin; }
+  #equipStats .effList .stRow { font-size:9px; }
+  #equipStats .stRow.none { grid-column:1 / -1; }
   #equipStats .ctitle { margin-top:6px; padding-top:5px;
                         border-top:1px solid rgba(255,255,255,.10); }
   /* reserved stat line — a slot with nothing wired to it yet */
   #equipStats .stRow.slotFree span, #equipStats .stRow.slotFree b { color:#5c6675; }
   #equipStats .stRow { display:flex; justify-content:space-between; gap:8px; font-size:10px; }
+  /* a line with a tooltip under the cursor (0.7611) */
+  #equipStats .stRow[data-tip], #equipStats .stRow[data-eff] { pointer-events:auto; border-radius:3px; margin:0 -3px; padding:0 3px; }
+  #equipStats .stRow.tipHover { background:rgba(255,255,255,.08); }
   #equipStats .stRow span { color:#8fa0b4; }
   #equipStats .stRow b { color:#e8eef6; font-weight:600; }
   #equipStats .stRow.eff span { color:#7fd6a0; }
@@ -262,6 +269,32 @@
   .cbtn:hover { background:#4f9440; }
   .cbtn img { width:38px; height:38px; image-rendering:auto; }
   .crow.nocraft .cbtn { background:#333a4a; pointer-events:none; }
+  /* arrow into the output with the craft time under it (0.7601); it takes the push to the right from the button */
+  .crow .ctime { margin-left:auto; display:flex; flex-direction:column; align-items:center; gap:2px;
+                 flex-shrink:0; color:#8fa0b4; pointer-events:none; }
+  .crow .ctime small { font-size:10px; line-height:1; }
+  .crow .ctime + .cbtn { margin-left:2px; }
+  /* ---- personal crafting queue (0.76): five slots under the recipe list ---- */
+  #craftPanel.hasQueue #craftList { height:352px; }
+  .cqPanel { display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255,255,255,.12); }
+  .cqHead { display:flex; align-items:center; justify-content:space-between; }
+  .cqHead .ctitle { color:#9ab; font-size:12px; }
+  .cqHead .cqCancel { pointer-events:auto; background:#2b3346; color:#dfe; border:1px solid rgba(255,255,255,.18);
+                      border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; }
+  .cqHead .cqCancel:hover:not(:disabled) { background:#5a3a3a; border-color:rgba(255,255,255,.32); }
+  .cqHead .cqCancel:disabled { opacity:.4; cursor:default; }
+  .cqRow { display:flex; gap:4px; justify-content:center; }
+  .cqSlot { pointer-events:auto; cursor:pointer; }
+  .cqSlot:hover:not(.empty) { border-color:#e8a06a; }
+  .cqSlot.empty { opacity:.42; border-style:dashed; cursor:default; }
+  .cqSlot img { width:36px; height:36px; image-rendering:auto; }
+  .cqSlot b { position:absolute; right:3px; top:1px; font-size:11px; color:#fff; text-shadow:1px 1px 0 #000; }
+  .cqBar { position:absolute; left:4px; right:4px; bottom:4px; height:4px; border-radius:2px;
+           background:rgba(0,0,0,.6); overflow:hidden; }
+  .cqBar i { display:block; height:100%; width:0; background:#7ee63a; }
+  /* the same row on the HUD while the inventory is closed, half see-through (0.76) */
+  .cqHud { position:fixed; left:12px; bottom:12px; display:flex; gap:4px; opacity:.5; z-index:5; pointer-events:none; }
+  .cqHud .slot { background:rgba(10,10,16,.55); }
   .slot.hover { border-color:#ffd76a !important; background:rgba(255,220,120,.18) !important; }
   /* gamepad virtual cursor + drag ghost (follow the cursor, never intercept input) */
   #vcursor { position:fixed; width:14px; height:14px; margin:-7px 0 0 -7px; z-index:12; pointer-events:none;

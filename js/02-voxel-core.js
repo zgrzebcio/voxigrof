@@ -2689,7 +2689,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                LEATHER: 350, BEEF: 351, COOKED_BEEF: 352, SADDLE: 353, LEATHER_GLOVES: 354,
                // BERRIES (348) stays the RED berry so existing stashes keep their contents
                BLUE_BERRIES: 355,
-               BOW: 356, ARROW: 357, BONE: 358, SHIELD: 359, BACKPACK: 360 };
+               BOW: 356, ARROW: 357, BONE: 358, SHIELD: 359, BACKPACK: 360,
+               COOKED_PUMPKIN_PIE: 361 };   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -2782,16 +2783,18 @@ const ITEM_PROPS = {
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
   [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 1, food: 2,  foodSat: 2,  eatTime: 0.9, desc: '' },
   [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 1, food: 2,  foodSat: 2,  eatTime: 0.9, desc: '' },
-  [ITEM.PUMPKIN_PIE]:   { name: 'Pumpkin Pie',    stack: 10, icon: 'pumpkin_pie',   foodSatFull: 6, food: 10, foodSat: 12, eatTime: 4, foodHeal: 3, desc: '' },
+  // 0.761: the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
+  [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 3, food: 6,  foodSat: 6,  eatTime: 4, foodEffect: 'nausea', foodEffectChance: 0.5, desc: '' },
+  [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 6, food: 10, foodSat: 12, eatTime: 4, foodHeal: 3, foodEffect: 'spicyPumpkin', desc: '' },
   [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 20, icon: 'mushroom_stew', foodSatFull: 5, food: 8,  foodSat: 10, eatTime: 2.2, foodReturn: 265, foodHeal: 1, desc: '' },
   [ITEM.BREAD]:         { name: 'Bread',          stack: 99, icon: 'bread',         foodSatFull: 4, food: 7,  foodSat: 8,  eatTime: 1.7, desc: '' },
   [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 30, icon: 'golden_apple',  foodSatFull: 8, food: 5,  foodSat: 15,  eatTime: 2.0, foodHeal: 2, foodEffect: 'rapidRegen', desc: '' },
-  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 99, icon: 'mutton',        foodSatFull: 1, food: 2,  foodSat: 4,  eatTime: 1.8, desc: '' },
+  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 99, icon: 'mutton',        foodSatFull: 1, food: 2,  foodSat: 4,  eatTime: 1.8, foodEffect: 'nausea', foodEffectChance: 0.5, desc: '' },
   [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 99, icon: 'cooked_mutton', foodSatFull: 4, food: 6,  foodSat: 7,  eatTime: 2.1, desc: '' },
   // beef is the best meat in the game once cooked, which is what makes hunting cows worth it
-  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 99, icon: 'beef',          foodSatFull: 1, food: 3,  foodSat: 4,  eatTime: 1.9, desc: '' },
+  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 99, icon: 'beef',          foodSatFull: 1, food: 3,  foodSat: 4,  eatTime: 1.9, foodEffect: 'nausea', foodEffectChance: 0.5, desc: '' },
   [ITEM.COOKED_BEEF]:   { name: 'Steak',          stack: 99, icon: 'cooked_beef',   foodSatFull: 5, food: 8,  foodSat: 10, eatTime: 2.2, desc: '' },
-  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 99, icon: 'rotten_flesh',  foodSatFull: 0, food: 2,  foodSat: 1,  eatTime: 1.6, desc: 'Edible, but barely' },
+  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 99, icon: 'rotten_flesh',  foodSatFull: 0, food: 2,  foodSat: 1,  eatTime: 1.6, foodEffect: 'nausea', foodEffectChance: 0.9, desc: 'Edible, but barely' },
 // Armor. `equip` names the equipment slot the piece goes into; `armor` is its point value.
 // 20 armor points = a full 10-icon bar. `armorMat` picks both the armor-bar sprite theme and the
 // overlay sheet on the preview (<mat>_tophalf.png / <mat>_downhalf.png).

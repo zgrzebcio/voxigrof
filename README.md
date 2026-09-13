@@ -49,6 +49,25 @@ of the game is about making your first flint tools.
 Watch your hunger and air. Starving and drowning hurt, and drowning hurts more with every hit.
 Zombies and skeletons come out at night and burn up at sunrise.
 
+## Crafting
+
+Crafting takes time. Every recipe has a craft time, and the ingredients are taken the moment you
+commit to it.
+
+- **From the inventory:** clicking a recipe adds one craft to your crafting queue under the recipe
+  list. The queue has 5 slots and each slot is one craft; `Shift+click` fills every empty slot you
+  can afford. The queue keeps working while the
+  inventory is closed (it shows faintly in the bottom-left corner), but you walk slower and cannot
+  sprint until it is done. Click a queued slot to cancel it, or **Cancel all**; unfinished crafts
+  give their ingredients back.
+- **At a crafting bench:** pick a recipe and the bench takes the ingredients. The order floats over
+  the bench with its icon, amount and progress bar. **Hold `E`** at the bench to craft (you cannot
+  move while you do; letting go or getting hit loses the item in progress). **Tap `E`** to take what
+  is finished. **Hold right click** on the bench to cancel the order, which drops everything on the
+  floor. A bench works one recipe at a time; picking the same recipe again adds to its amount.
+- **Crafting speed** is shown in the equipment stats. 100% is normal, 200% is twice as fast, and 0%
+  means you cannot craft.
+
 ## Ores
 
 Sea level is y = 99. Use `F3` to see your coordinates. Each ore can appear anywhere in its range,

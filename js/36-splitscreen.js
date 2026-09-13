@@ -42,7 +42,7 @@ const SWAP_KEYS = [
   'invOpen', 'invWrapEl', 'invEl', 'vcurEl', 'vdragEl', 'ctipEl',
   'invCursor', 'dragFrom', 'dragHeld', 'lastHoverEl', '_invSeq',
   'craftMode', 'craftCat', '_craftScroll',
-  'activeFurnace', 'activeChest', 'activeChest2', 'activeStructBlock',
+  'activeFurnace', 'activeChest', 'activeChest2', 'activeStructBlock', 'activeBench',
   // third-person body + melee pacing
   'camView', '_selfModel', '_selfPhase', '_selfPrevX', '_selfPrevZ', '_selfCrouch', '_selfLie',
   '_selfHeld', '_selfHeldId',
@@ -300,7 +300,7 @@ function _bindPaneDom(pane, g) {
   g.invCursor = { x: innerWidth / 2, y: innerHeight / 2, mode: 'mouse' };
   g.dragFrom = null; g.dragHeld = null; g.lastHoverEl = null; g._invSeq = 0;
   g.craftMode = 'basic'; g.craftCat = 'all'; g._craftScroll = 0;
-  g.activeFurnace = null; g.activeChest = null; g.activeChest2 = null; g.activeStructBlock = null;
+  g.activeFurnace = null; g.activeChest = null; g.activeChest2 = null; g.activeStructBlock = null; g.activeBench = null;
   g.crackMat = newCrackMat();          // this seat mines at its own stage — see 14-mining.js
   g._interactShown = '';
   g.blocknameTimer = 0;
@@ -806,6 +806,7 @@ function _serializeSlot(i) {
     homeSpawn: p.homeSpawn ? p.homeSpawn.toArray() : null,
     spawnBedKey: p.spawnBedKey || null,
     aliveT: +(p.aliveT || 0).toFixed(1), dead: !!p.dead, cause: p._dmgCause || null, deathDay: p._deathDay ?? null,   // 0.757
+    craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken (0.76)
     survHot: g.survStash.hot, survInv: g.survStash.inv, survInv2: g.survStash.inv2,
     survEquip: _packSlots(g.survEquip || []), survBelt: _packSlots(g.survBelt || []),   // packed, as restoreEquip reads it
     xp: g.playerXP,
@@ -933,6 +934,7 @@ function applyExtraPlayerRestore(slot) {
   // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
   player.aliveT = +rec.aliveT || 0; player.dead = !!rec.dead; player._dmgCause = rec.cause || null;
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
+  player.craftQueue = restoreCraftQueue(rec.craftQueue);
   survStash = migrateStash(rec.survHot, rec.survInv, rec.survInv2);
   restoreEquip(rec.survEquip, rec.survBelt);
   loadInventoryForMode(currentInvMode);

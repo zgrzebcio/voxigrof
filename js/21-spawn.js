@@ -26,6 +26,7 @@ function resetWorld(seed, terrainType) {
   clearSimWake();                           // every chunk must be seeded again in the new world
   clearBeds();
   clearChests();
+  clearBenches();
   initWorkers(seed, TERRAIN_TYPE);
   // every split-screen player restarts unspawned; the frame loop re-seats each of them
   for (const p of PLAYERS) {
@@ -33,6 +34,7 @@ function resetWorld(seed, terrainType) {
     p.spawned = false;
     p.pos.set(8.5, 96, 8.5);
     p.vy = 0; p.dead = false; p.sleepingAt = null;
+    p.craftQueue = []; p._benchWork = false;   // a queue belongs to its world (0.76)
     if (p._kick) { p._kick.x = 0; p._kick.z = 0; }
   }
   playerCX = 1e9; playerCZ = 1e9;           // force queue rebuild

@@ -578,7 +578,8 @@ function _doPlace() {
   const hit = currentRay();
   if (!hit) return;
   // survival: right-clicking a crafting bench opens the advanced recipe list instead of placing
-  if (!player.canFly && hit.id === B.CRAFTING_BENCH) { toggleInventory(true, 'advanced'); return; }
+  // a bench with an order on it opens on a TAP instead, so holding the button can cancel the order (0.76)
+  if (!player.canFly && hit.id === B.CRAFTING_BENCH) { if (!benchBusy(hit.x, hit.y, hit.z)) openBench(hit.x, hit.y, hit.z); return; }
   // survival: right-clicking a furnace opens its smelting GUI
   if (!player.canFly && hit.id === B.FURNACE) { openFurnace(hit.x, hit.y, hit.z); return; }
   // doors open/close in any mode

@@ -570,6 +570,8 @@ function setBlock(x, y, z, val) {
   if (oldId === B.BED && newId !== B.BED) bedBroken(x, y, z, oldVal);
   // chest removed/replaced: spill its contents and drop the mesh
   if (oldId === B.CHEST && newId !== B.CHEST) chestBroken(x, y, z, oldVal);
+  // crafting bench removed: its order (finished and unfinished) spills on the floor (0.76)
+  if (oldId === B.CRAFTING_BENCH && newId !== B.CRAFTING_BENCH) benchBroken(x, y, z);
   // structure block gone: forget its size/name settings and drop its outline
   if (oldId === B.STRUCTURE_BLOCK && newId !== B.STRUCTURE_BLOCK) structBlockBroken(x, y, z);
   // placing a solid block against a cactus's side snaps the cactus off (column chain-breaks up).

@@ -168,7 +168,8 @@ const ITEM_TEXTURES = {
   diamond_pickaxe: 'textures/Items/Tools/diamond_pickaxe.png',
   diamond_hatchet: 'textures/Items/Tools/diamond_hatchet.png',
   diamond_hoe:     'textures/Items/Tools/diamond_hoe.png',
-  pumpkin_pie:     'textures/Items/Consumables/pumpkin_pie.png',
+  pumpkin_pie:     'textures/Items/Consumables/raw_pumpkin_pie.png',      // the raw pie since 0.761
+  cooked_pumpkin_pie: 'textures/Items/Consumables/cooked_pumpkin_pie.png',
   gunpowder:       'textures/Items/Materials/gunpowder.png',
   charcoal:        'textures/Items/Materials/charcoal.png',
   sulfur:          'textures/Items/Materials/sulfur.png',

@@ -331,6 +331,8 @@ function updateVitals(dt) {
     totalDrain += FOOD_REGEN_COST_PER_S * dt;
   }
 
+  // nausea doubles every kind of hunger drain (0.761)
+  if (typeof playerHungerMul === 'function') totalDrain *= playerHungerMul();
   // saturation acts as a buffer: drains 3× faster than food, protects food while > 0
   if (player.saturation > 0) {
     const satCost = totalDrain * 3;
@@ -526,6 +528,8 @@ function updateVitals(dt) {
             { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2);
         arr[i] = null;
       }
+    // the crafting queue's ingredients were already taken from you, so they fall with the rest (0.76)
+    if (typeof dropCraftQueueAt === 'function') dropCraftQueueAt(dx0, dy0, dz0);
     saveAll(); buildHotbar();
     if (invOpen) toggleInventory(false);
     showDeathScreen(player._dmgCause || 'died');
@@ -540,6 +544,7 @@ function updateVitals(dt) {
   const lostHp = dmgBase - player.hp;
   if (lostHp >= 0.5 && !player.dead) {
     hurtFlash(lostHp);
+    if (typeof interruptBenchWork === 'function') interruptBenchWork();   // a hit knocks you off the bench (0.76)
     // central hook: every damage source (fall, cactus, lava, drowning, mobs) lands here
     playSound('hit', { gain: 0.9, rate: 0.95 + Math.random() * 0.1,
                        pos: { x: player.pos.x, y: player.pos.y + 1, z: player.pos.z } });

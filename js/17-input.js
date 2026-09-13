@@ -203,7 +203,7 @@ document.addEventListener('pointerlockchange', () => {
   }                                             // (inventory releases the lock on purpose)
 });
 document.addEventListener('mousemove', (e) => {
-  if (!pointerLocked || player.dead || worldJoining()) return;
+  if (!pointerLocked || player.dead || worldJoining() || player._benchWork) return;
   if (e.movementX || e.movementY) lastInputDevice = 'kbd';
   player.yaw   -= e.movementX * 0.0022 * sens;
   player.pitch -= e.movementY * 0.0022 * sens;
@@ -225,6 +225,8 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'F3') { e.preventDefault(); toggleDebugHud(0); return; }   // keyboard is seat one
   // joining a world: no key does anything until its chunks are in (0.759), fullscreen aside
   if (worldJoining()) { e.preventDefault(); return; }
+  // working a crafting bench (0.76): E is the only key that still does anything
+  if (player._benchWork && e.code !== 'KeyE') { e.preventDefault(); return; }
   /* Tab is the inventory key. It has to be handled BEFORE the `!playing` guard below so it also
      closes an open inventory, and it must preventDefault in both directions: left to the browser,
      Tab walks focus out of the canvas onto page chrome, and once focus lands there keystrokes
@@ -277,7 +279,7 @@ document.addEventListener('wheel', (e) => {
   if (e.ctrlKey) e.preventDefault();
 }, { passive: false });
 document.addEventListener('wheel', (e) => {
-  if (!playing || invOpen || player.dead || worldJoining()) return;
+  if (!playing || invOpen || player.dead || worldJoining() || player._benchWork) return;
   hotbarSel = (hotbarSel + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
   updateHotbar();
 });
@@ -397,7 +399,7 @@ function invGamepad(g, dt, btn, edge) {
   if (edge(0) && hov) beginDrag(hov.region, hov.i);              // A press = pick up
   if (edge(0) && !hov) {                                         // A on a craft button = craft
     const el = document.elementFromPoint(invCursor.x, invCursor.y);
-    const b = el && el.closest ? el.closest('.cbtn, .invBtn') : null;   // craft or inventory buttons (0.755)
+    const b = el && el.closest ? el.closest('.cbtn, .invBtn, .cqSlot') : null;   // craft or inventory buttons (0.755)
     if (b) b.click();
   }
   if (pad.prev[0] && !btn(0) && dragHeld) {                      // A release = drop
@@ -440,6 +442,13 @@ function pollGamepad(dt) {
   if (g.buttons.some(b => b.pressed || b.value > 0.5) ||
       g.axes.some(a => Math.abs(a) > 0.35)) lastInputDevice = 'pad';
 
+  // working a crafting bench (0.76): only North (the E of a pad) still answers, so it can keep working
+  if (player._benchWork) {
+    pad.prev = g.buttons.map(b => b.pressed);
+    act.padBreak = act.padPlace = false;
+    act.padPick = btn(3);
+    return { mx: 0, mz: 0, up: false, dn: false };
+  }
   // joining a world (0.759): every pad input is swallowed until its chunks are in
   if (worldJoining()) {
     pad.prev = g.buttons.map(b => b.pressed);

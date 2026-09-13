@@ -140,7 +140,7 @@ function saveWorld(syncToLS = false) {
     [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3)]);
   const data = {
     savedAt: Date.now(),
-    edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(),
+    edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), benches: serializeBenches(),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
     // structures: which chunks were already rolled, unopened loot markers, structure-block setups
     structPlaced: serializeStructPlaced(), structLoot: serializePendingLoot(),
@@ -157,7 +157,8 @@ function saveWorld(syncToLS = false) {
               spawnBedKey: player.spawnBedKey || null,
               // a death survives leaving the world (0.757): how long, which day, and what did it
               aliveT: +(player.aliveT || 0).toFixed(1), dead: !!player.dead,
-              cause: player._dmgCause || null, deathDay: player._deathDay ?? null },
+              cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
+              craftQueue: serializeCraftQueue(player) },                   // 0.76
     /* One record per person who has played this world, tagged with their profile (0.721) — see
        the header of 36-splitscreen.js's persistence section. Player one ALSO keeps writing the
        original top-level fields above, so an older build still opens this save. */
@@ -225,6 +226,7 @@ async function loadWorld(w) {
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
+  restoreBenches(data && data.benches);                                   // crafting bench orders (0.76)
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
   restoreStructPlaced(data && data.structPlaced);
   // same rule for mobs: this must land before any chunk streams in, or it re-rolls its population

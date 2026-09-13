@@ -2,11 +2,14 @@
 /* voxiGrof — list-based crafting system (survival only)
 
    Recipes are a flat list: ingredients on the left, one craft button with the output on
-   the right. `E` opens the BASIC list (pocket crafting); right-clicking a crafting bench
-   opens the ADVANCED list (basic + bench-only recipes). No grid patterns — having the
-   ingredients anywhere in hotbar+inventory is enough. */
+   the right. The inventory (Tab) shows the BASIC list (pocket crafting); right-clicking a crafting
+   bench opens the ADVANCED list (basic + bench-only recipes). No grid patterns — having the
+   ingredients anywhere in hotbar+inventory is enough. Crafting takes time since 0.76: see the
+   CRAFTING TAKES TIME section below for the personal queue and the bench. */
 
-/* recipe: { in: [[id, count], ...], out: [id, count] }
+/* recipe: { in: [[id, count], ...], out: [id, count], timeToCraft: seconds, xpToGive: xp }
+   timeToCraft is at 100% crafting speed; xpToGive is paid as each craft finishes (0.76). Both were
+   first filled from recipe size and the old leveling table, and are meant to be tuned here.
    An ingredient id may also be an ARRAY of interchangeable ids — a variant group. Any mix of
    them satisfies the requirement (4 oak + 5 birch planks crafts a bench), and the row's icon
    cycles through the group every CRAFT_VARIANT_MS so you can see what else is accepted. */
@@ -22,100 +25,100 @@ const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
 const V_NUGGET = [ITEM.IRON_NUGGET, ITEM.TIN_NUGGET, ITEM.COPPER_NUGGET];
 
 const RECIPES_BASIC = [
-  { in: [[V_OLOG, 1]],                                                       out: [B.PLANKS, 3] },
-  { in: [[V_BLOG, 1]],                                                       out: [B.BIRCH_PLANKS, 3] },
-  { in: [[V_SLOG, 1]],                                                       out: [B.SPRUCE_PLANKS, 3] },
-  { in: [[V_PLANKS, 1]],                                                     out: [ITEM.STICK, 3] },
+  { in: [[V_OLOG, 1]],                                                       out: [B.PLANKS, 3], timeToCraft: 1, xpToGive: 1 },
+  { in: [[V_BLOG, 1]],                                                       out: [B.BIRCH_PLANKS, 3], timeToCraft: 1, xpToGive: 1 },
+  { in: [[V_SLOG, 1]],                                                       out: [B.SPRUCE_PLANKS, 3], timeToCraft: 1, xpToGive: 1 },
+  { in: [[V_PLANKS, 1]],                                                     out: [ITEM.STICK, 3], timeToCraft: 1, xpToGive: 1 },
  // { in: [[V_PLANKS, 1]],                                                     out: [B.OAKSLAB, 2] },   // disabled (0.7295)
-  { in: [[ITEM.SNOWBALL, 4]],                                                out: [B.SNOW, 1] },
-  { in: [[ITEM.WHEAT, 9]],                                                   out: [B.HAY, 1] },
-  { in: [[ITEM.CLAY_BALL, 4]],                                               out: [B.CLAY, 1] },
-  { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 8] },
-  { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1] },
-  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1]],        out: [ITEM.MUSHROOM_STEW, 1] },
-  { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4] },
-  { in: [[ITEM.GLASS_SHARD, 4]],                                             out: [B.GLASS, 1] },
-  { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2] },
-  { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1] },
-  { in: [[ITEM.BRICK, 4]],                                                   out: [B.BRICKS, 1] },
-  { in: [[ITEM.STRING, 4]],                                                  out: [B.WOOL, 1] },
-  { in: [[ITEM.FLINT, 3], [ITEM.STICK, 2], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SWORD, 1] },
-  { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SHOVEL, 1] },
-  { in: [[ITEM.FLINT, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_PICKAXE, 1] },
-  { in: [[ITEM.FLINT, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_HATCHET, 1] },
-  { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_HOE, 1] },
-  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6]],                 out: [ITEM.ARROW, 2] },
+  { in: [[ITEM.SNOWBALL, 4]],                                                out: [B.SNOW, 1], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.WHEAT, 9]],                                                   out: [B.HAY, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.CLAY_BALL, 4]],                                               out: [B.CLAY, 1], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 8], timeToCraft: 1, xpToGive: 1 },
+  { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1], timeToCraft: 3, xpToGive: 10 },
+  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1]],        out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 1.5, xpToGive: 4 },
+  { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.GLASS_SHARD, 4]],                                             out: [B.GLASS, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], timeToCraft: 1, xpToGive: 1 },
+  { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.BRICK, 4]],                                                   out: [B.BRICKS, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.STRING, 4]],                                                  out: [B.WOOL, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.FLINT, 3], [ITEM.STICK, 2], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SWORD, 1], timeToCraft: 4, xpToGive: 6 },
+  { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SHOVEL, 1], timeToCraft: 4, xpToGive: 6 },
+  { in: [[ITEM.FLINT, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_PICKAXE, 1], timeToCraft: 5, xpToGive: 6 },
+  { in: [[ITEM.FLINT, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_HATCHET, 1], timeToCraft: 5, xpToGive: 6 },
+  { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_HOE, 1], timeToCraft: 4, xpToGive: 6 },
+  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6]],                 out: [ITEM.ARROW, 2], timeToCraft: 3, xpToGive: 2 },
 ];
 const RECIPES_ADVANCED = [
-  { in: [[ITEM.COAL_CHUNK, 8]],                                              out: [ITEM.COAL, 1] },
-  { in: [[B.STONE, 1], [ITEM.FLINT, 1], [V_COAL, 1]],                     out: [ITEM.GLOW_DUST, 1] },
+  { in: [[ITEM.COAL_CHUNK, 8]],                                              out: [ITEM.COAL, 1], timeToCraft: 2.5, xpToGive: 1 },
+  { in: [[B.STONE, 1], [ITEM.FLINT, 1], [V_COAL, 1]],                     out: [ITEM.GLOW_DUST, 1], timeToCraft: 1.5, xpToGive: 8 },
   // dust packs back into the block it came from, so a light source is craftable rather than found
-  { in: [[ITEM.GLOW_DUST, 4]],                                               out: [B.GLOWSTONE, 1] },
-  { in: [[V_PLANKS, 3]],                                                     out: [ITEM.BOWL, 4] },
-  { in: [[V_STONE, 12]],                                                     out: [B.FURNACE, 1] },
-  { in: [[ITEM.IRON_INGOT, 1]],                                              out: [ITEM.IRON_NUGGET, 9] },
-  { in: [[ITEM.IRON_NUGGET, 9]],                                             out: [ITEM.IRON_INGOT, 1] },
-  { in: [[ITEM.GOLD_INGOT, 1]],                                              out: [ITEM.GOLD_NUGGET, 9] },
-  { in: [[ITEM.GOLD_NUGGET, 9]],                                             out: [ITEM.GOLD_INGOT, 1] },
-  { in: [[ITEM.TIN_INGOT, 1]],                                               out: [ITEM.TIN_NUGGET, 9] },
-  { in: [[ITEM.TIN_NUGGET, 9]],                                              out: [ITEM.TIN_INGOT, 1] },
-  { in: [[ITEM.COPPER_INGOT, 1]],                                            out: [ITEM.COPPER_NUGGET, 9] },
-  { in: [[ITEM.COPPER_NUGGET, 9]],                                           out: [ITEM.COPPER_INGOT, 1] },
-  { in: [[ITEM.FIBER, 20]],                                                  out: [ITEM.CLOTH, 1] },
-  { in: [[V_PLANKS, 10], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 10]],            out: [B.CHEST, 1] },
-  { in: [[B.WOOL, 4], [V_PLANKS, 4], [ITEM.CLOTH, 5], [ITEM.FIBER, 10]],     out: [B.BED, 1] },
-  { in: [[V_PLANKS, 8], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 4]],              out: [B.DOOR, 1] },
-  { in: [[V_PLANKS, 3]],                                                     out: [B.STAIRS, 2] },   // disabled (0.7295)
-  { in: [[ITEM.DIAMOND, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SWORD, 1] },
-  { in: [[ITEM.DIAMOND, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SHOVEL, 1] },
-  { in: [[ITEM.DIAMOND, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_PICKAXE, 1] },
-  { in: [[ITEM.DIAMOND, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_HATCHET, 1] },
-  { in: [[ITEM.DIAMOND, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_HOE, 1] },
-  { in: [[ITEM.GOLD_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SWORD, 1] },
-  { in: [[ITEM.GOLD_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SHOVEL, 1] },
-  { in: [[ITEM.GOLD_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_PICKAXE, 1] },
-  { in: [[ITEM.GOLD_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HATCHET, 1] },
-  { in: [[ITEM.GOLD_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HOE, 1] },
-  { in: [[ITEM.IRON_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SWORD, 1] },
-  { in: [[ITEM.IRON_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SHOVEL, 1] },
-  { in: [[ITEM.IRON_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_PICKAXE, 1] },
-  { in: [[ITEM.IRON_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_HATCHET, 1] },
-  { in: [[ITEM.IRON_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_HOE, 1] },
-  { in: [[ITEM.IRON_INGOT, 2], [ITEM.FIBER, 5]],                             out: [ITEM.IRON_SHEARS, 1] },
+  { in: [[ITEM.GLOW_DUST, 4]],                                               out: [B.GLOWSTONE, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[V_PLANKS, 3]],                                                     out: [ITEM.BOWL, 4], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[V_STONE, 12]],                                                     out: [B.FURNACE, 1], timeToCraft: 3.5, xpToGive: 15 },
+  { in: [[ITEM.IRON_INGOT, 1]],                                              out: [ITEM.IRON_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.IRON_NUGGET, 9]],                                             out: [ITEM.IRON_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.GOLD_INGOT, 1]],                                              out: [ITEM.GOLD_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.GOLD_NUGGET, 9]],                                             out: [ITEM.GOLD_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.TIN_INGOT, 1]],                                               out: [ITEM.TIN_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.TIN_NUGGET, 9]],                                              out: [ITEM.TIN_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.COPPER_INGOT, 1]],                                            out: [ITEM.COPPER_NUGGET, 9], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.COPPER_NUGGET, 9]],                                           out: [ITEM.COPPER_INGOT, 1], timeToCraft: 3, xpToGive: 1 },
+  { in: [[ITEM.FIBER, 20]],                                                  out: [ITEM.CLOTH, 1], timeToCraft: 5.5, xpToGive: 4 },
+  { in: [[V_PLANKS, 10], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 10]],            out: [B.CHEST, 1], timeToCraft: 6, xpToGive: 12 },
+  { in: [[B.WOOL, 4], [V_PLANKS, 4], [ITEM.CLOTH, 5], [ITEM.FIBER, 10]],     out: [B.BED, 1], timeToCraft: 6.5, xpToGive: 25 },
+  { in: [[V_PLANKS, 8], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 4]],              out: [B.DOOR, 1], timeToCraft: 4, xpToGive: 10 },
+  { in: [[V_PLANKS, 3]],                                                     out: [B.STAIRS, 2], timeToCraft: 1.5, xpToGive: 2 },   // disabled (0.7295)
+  { in: [[ITEM.DIAMOND, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SWORD, 1], timeToCraft: 2.5, xpToGive: 80 },
+  { in: [[ITEM.DIAMOND, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SHOVEL, 1], timeToCraft: 2, xpToGive: 80 },
+  { in: [[ITEM.DIAMOND, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_PICKAXE, 1], timeToCraft: 3, xpToGive: 80 },
+  { in: [[ITEM.DIAMOND, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_HATCHET, 1], timeToCraft: 3, xpToGive: 80 },
+  { in: [[ITEM.DIAMOND, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_HOE, 1], timeToCraft: 2.5, xpToGive: 80 },
+  { in: [[ITEM.GOLD_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SWORD, 1], timeToCraft: 2, xpToGive: 40 },
+  { in: [[ITEM.GOLD_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SHOVEL, 1], timeToCraft: 2, xpToGive: 40 },
+  { in: [[ITEM.GOLD_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_PICKAXE, 1], timeToCraft: 3, xpToGive: 40 },
+  { in: [[ITEM.GOLD_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HATCHET, 1], timeToCraft: 2.5, xpToGive: 40 },
+  { in: [[ITEM.GOLD_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HOE, 1], timeToCraft: 2, xpToGive: 40 },
+  { in: [[ITEM.IRON_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SWORD, 1], timeToCraft: 2, xpToGive: 30 },
+  { in: [[ITEM.IRON_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SHOVEL, 1], timeToCraft: 2, xpToGive: 30 },
+  { in: [[ITEM.IRON_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_PICKAXE, 1], timeToCraft: 3, xpToGive: 30 },
+  { in: [[ITEM.IRON_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_HATCHET, 1], timeToCraft: 2.5, xpToGive: 30 },
+  { in: [[ITEM.IRON_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_HOE, 1], timeToCraft: 2, xpToGive: 30 },
+  { in: [[ITEM.IRON_INGOT, 2], [ITEM.FIBER, 5]],                             out: [ITEM.IRON_SHEARS, 1], timeToCraft: 2.5, xpToGive: 20 },
   // a bow is mostly cordage: ten string for the drawstring, five sticks for the limbs, and
   // fiber for the lashings and the grip wrap
-  { in: [[ITEM.STRING, 10], [ITEM.STICK, 5], [ITEM.FIBER, 12]],              out: [ITEM.BOW, 1] },
+  { in: [[ITEM.STRING, 10], [ITEM.STICK, 5], [ITEM.FIBER, 12]],              out: [ITEM.BOW, 1], timeToCraft: 7.5, xpToGive: 2 },
   // shield (0.745): an iron rim and boss on a plank face, lashed with fiber, cloth padding for the arm
-  { in: [[ITEM.IRON_INGOT, 5], [V_PLANKS, 10], [ITEM.FIBER, 20], [ITEM.CLOTH, 1]], out: [ITEM.SHIELD, 1] },
-  { in: [[V_STONE, 3], [ITEM.STICK, 2], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_SWORD, 1] },
-  { in: [[V_STONE, 1], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_SHOVEL, 1] },
-  { in: [[V_STONE, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_PICKAXE, 1] },
-  { in: [[V_STONE, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HATCHET, 1] },
-  { in: [[V_STONE, 2], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HOE, 1] },
-  { in: [[ITEM.IRON_INGOT, 3]],                                              out: [ITEM.BUCKET, 1] },
-  { in: [[ITEM.WHEAT, 3]],                                                   out: [ITEM.FLOUR, 1] },
-  { in: [[ITEM.FLOUR, 3], [B.PUMPKIN, 1]],                                   out: [ITEM.PUMPKIN_PIE, 1] },
-  { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1]],             out: [ITEM.GUNPOWDER, 2] },
-  { in: [[ITEM.GUNPOWDER, 7], [B.SAND, 10]],                                 out: [B.TNT, 1] },
-  { in: [[ITEM.SUGAR_CANE, 3]],                                              out: [ITEM.PAPER, 1] },
-  { in: [[ITEM.GOLD_INGOT, 10], [ITEM.APPLE, 1]],                            out: [ITEM.GOLDEN_APPLE, 1] },
+  { in: [[ITEM.IRON_INGOT, 5], [V_PLANKS, 10], [ITEM.FIBER, 20], [ITEM.CLOTH, 1]], out: [ITEM.SHIELD, 1], timeToCraft: 9.5, xpToGive: 2 },
+  { in: [[V_STONE, 3], [ITEM.STICK, 2], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_SWORD, 1], timeToCraft: 4.5, xpToGive: 12 },
+  { in: [[V_STONE, 1], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_SHOVEL, 1], timeToCraft: 4, xpToGive: 12 },
+  { in: [[V_STONE, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_PICKAXE, 1], timeToCraft: 5, xpToGive: 12 },
+  { in: [[V_STONE, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HATCHET, 1], timeToCraft: 5, xpToGive: 12 },
+  { in: [[V_STONE, 2], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HOE, 1], timeToCraft: 4.5, xpToGive: 12 },
+  { in: [[ITEM.IRON_INGOT, 3]],                                              out: [ITEM.BUCKET, 1], timeToCraft: 1.5, xpToGive: 15 },
+  { in: [[ITEM.WHEAT, 3]],                                                   out: [ITEM.FLOUR, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.FLOUR, 3], [B.PUMPKIN, 1]],                                   out: [ITEM.PUMPKIN_PIE, 1], timeToCraft: 1.5, xpToGive: 8 },
+  { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1]],             out: [ITEM.GUNPOWDER, 2], timeToCraft: 1.5, xpToGive: 6 },
+  { in: [[ITEM.GUNPOWDER, 7], [B.SAND, 10]],                                 out: [B.TNT, 1], timeToCraft: 5, xpToGive: 30 },
+  { in: [[ITEM.SUGAR_CANE, 3]],                                              out: [ITEM.PAPER, 1], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[ITEM.GOLD_INGOT, 10], [ITEM.APPLE, 1]],                            out: [ITEM.GOLDEN_APPLE, 1], timeToCraft: 3.5, xpToGive: 60 },
   /* Leather set — the tier below iron, and the first armour a player can reach: it costs hide off
      cows and bush fiber rather than ore, with a nugget or two for the buckles. The five pieces
      form one rising ladder, cheapest (gloves) to dearest (chestplate), 2-7 leather / 8-18 fiber /
      1-2 nuggets end to end. */
-  { in: [[ITEM.LEATHER, 2], [ITEM.FIBER, 8],  [V_NUGGET, 1]],                out: [ITEM.LEATHER_GLOVES, 1] },
-  { in: [[ITEM.LEATHER, 3], [ITEM.FIBER, 10], [V_NUGGET, 1]],                out: [ITEM.LEATHER_BOOTS, 1] },
-  { in: [[ITEM.LEATHER, 4], [ITEM.FIBER, 12], [V_NUGGET, 1]],                out: [ITEM.LEATHER_HELMET, 1] },
-  { in: [[ITEM.LEATHER, 5], [ITEM.FIBER, 15], [V_NUGGET, 2]],                out: [ITEM.LEATHER_LEGGINGS, 1] },
-  { in: [[ITEM.LEATHER, 7], [ITEM.FIBER, 18], [V_NUGGET, 2]],                out: [ITEM.LEATHER_CHESTPLATE, 1] },
-  { in: [[ITEM.FIBER, 20], [ITEM.LEATHER, 5], [ITEM.IRON_INGOT, 2], [ITEM.IRON_NUGGET, 5]], out: [ITEM.SADDLE, 1] },
+  { in: [[ITEM.LEATHER, 2], [ITEM.FIBER, 8],  [V_NUGGET, 1]],                out: [ITEM.LEATHER_GLOVES, 1], timeToCraft: 3.5, xpToGive: 10 },
+  { in: [[ITEM.LEATHER, 3], [ITEM.FIBER, 10], [V_NUGGET, 1]],                out: [ITEM.LEATHER_BOOTS, 1], timeToCraft: 4, xpToGive: 14 },
+  { in: [[ITEM.LEATHER, 4], [ITEM.FIBER, 12], [V_NUGGET, 1]],                out: [ITEM.LEATHER_HELMET, 1], timeToCraft: 5, xpToGive: 18 },
+  { in: [[ITEM.LEATHER, 5], [ITEM.FIBER, 15], [V_NUGGET, 2]],                out: [ITEM.LEATHER_LEGGINGS, 1], timeToCraft: 6, xpToGive: 25 },
+  { in: [[ITEM.LEATHER, 7], [ITEM.FIBER, 18], [V_NUGGET, 2]],                out: [ITEM.LEATHER_CHESTPLATE, 1], timeToCraft: 7.5, xpToGive: 32 },
+  { in: [[ITEM.FIBER, 20], [ITEM.LEATHER, 5], [ITEM.IRON_INGOT, 2], [ITEM.IRON_NUGGET, 5]], out: [ITEM.SADDLE, 1], timeToCraft: 8.5, xpToGive: 25 },
   // backpack (0.75): a leather shell over a canvas body, lashed with fiber and buckled in copper
-  { in: [[ITEM.LEATHER, 14], [ITEM.CLOTH, 10], [ITEM.FIBER, 8], [ITEM.COPPER_NUGGET, 6]], out: [ITEM.BACKPACK, 1] },
-  { in: [[ITEM.IRON_INGOT, 6],  [ITEM.FIBER, 4], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_GLOVES, 1] },
-  { in: [[ITEM.IRON_INGOT, 8],  [ITEM.FIBER, 5], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_BOOTS, 1] },
-  { in: [[ITEM.IRON_INGOT, 10], [ITEM.FIBER, 6], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_HELMET, 1] },
-  { in: [[ITEM.IRON_INGOT, 14], [ITEM.FIBER, 7], [ITEM.CLOTH, 2]],           out: [ITEM.IRON_LEGGINGS, 1] },
-  { in: [[ITEM.IRON_INGOT, 18], [ITEM.FIBER, 8], [ITEM.CLOTH, 3]],           out: [ITEM.IRON_CHESTPLATE, 1] },
+  { in: [[ITEM.LEATHER, 14], [ITEM.CLOTH, 10], [ITEM.FIBER, 8], [ITEM.COPPER_NUGGET, 6]], out: [ITEM.BACKPACK, 1], timeToCraft: 10, xpToGive: 2 },
+  { in: [[ITEM.IRON_INGOT, 6],  [ITEM.FIBER, 4], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_GLOVES, 1], timeToCraft: 3.5, xpToGive: 35 },
+  { in: [[ITEM.IRON_INGOT, 8],  [ITEM.FIBER, 5], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_BOOTS, 1], timeToCraft: 4, xpToGive: 45 },
+  { in: [[ITEM.IRON_INGOT, 10], [ITEM.FIBER, 6], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_HELMET, 1], timeToCraft: 5, xpToGive: 55 },
+  { in: [[ITEM.IRON_INGOT, 14], [ITEM.FIBER, 7], [ITEM.CLOTH, 2]],           out: [ITEM.IRON_LEGGINGS, 1], timeToCraft: 6.5, xpToGive: 75 },
+  { in: [[ITEM.IRON_INGOT, 18], [ITEM.FIBER, 8], [ITEM.CLOTH, 3]],           out: [ITEM.IRON_CHESTPLATE, 1], timeToCraft: 8, xpToGive: 95 },
 ];
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
@@ -138,8 +141,8 @@ const idName = (id) => id >= 256 ? ITEM_PROPS[id].name : PROPS[id].name;
 // an ingredient entry is either a bare id or a variant group; normalise to a list
 const ingIds = (id) => Array.isArray(id) ? id : [id];
 /* Total count of an id across hotbar + inventory + a worn backpack. The pack counts because a bag
-   you cannot craft out of is a bag you have to unpack first — see doCraft, which drains it last
-   so the slots you can see empty before the ones on your back. */
+   you cannot craft out of is a bag you have to unpack first — see _takeIngredients, which drains
+   it last so the slots you can see empty before the ones on your back. */
 function backpackGrid() {
   const n = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
   return n > 0 ? invSlots2.slice(0, n) : [];
@@ -154,77 +157,476 @@ function invCount(id) {
 }
 const canCraft = (r) => r.in.every(([id, n]) => invCount(id) >= n);
 
-// craft on a cloned inventory, commit only if the output fits (no item loss, no partial state)
-function doCraft(r, quiet) {
-  if (!canCraft(r)) return false;
-  const hot = HOTBAR.map(s => s && { ...s }), inv = invSlots.map(s => s && { ...s });
-  const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
-  const pack = invSlots2 ? invSlots2.slice(0, packN).map(s => s && { ...s }) : [];
-  for (const [id, need] of r.in) {                  // consume ingredients (inventory first)
-    let n = need;
-    const ids = ingIds(id);                         // a variant group drains from any member
-    for (const arr of [inv, hot, pack])
-      for (let i = 0; i < arr.length && n > 0; i++) {
-        const s = arr[i];
-        if (s && ids.includes(s.id)) {
-          const t = Math.min(s.count, n);
-          s.count -= t; n -= t;
-          if (s.count <= 0) arr[i] = null;
-        }
-      }
-  }
-  let [oid, on] = r.out;                            // give output: merge stacks, then empty slots
-  const cap = stackSize(oid);
-  /* Equipment fills itself (0.7521): a torch batch tops up a part-used offhand stack first, and a
-     newly made piece goes straight into its empty slot. Only PLANNED here. Nothing is committed
-     until the grids are known to hold the rest, so a craft that fails on "inventory full" leaves
-     the equipment exactly as it was. */
-  const offTake = typeof offhandRoom === 'function' ? Math.min(on, offhandRoom(oid, null)) : 0;
-  on -= offTake;
-  const eqIdx = on > 0 && typeof autoEquipSlot === 'function' ? autoEquipSlot(oid) : -1;
-  if (eqIdx >= 0) on -= 1;
-  // what comes OUT lands in the visible grids first and only overflows into the pack
-  for (const arr of [hot, inv, pack])
-    for (const s of arr)
-      if (s && s.id === oid && s.count < cap && on > 0) {
-        const t = Math.min(cap - s.count, on);
-        s.count += t; on -= t;
-      }
-  for (const arr of [hot, inv, pack])
-    for (let i = 0; i < arr.length && on > 0; i++)
-      if (arr[i] == null) { const t = Math.min(cap, on); arr[i] = mkSlot(oid, t); on -= t; }
-  if (on > 0) { if (!quiet) toast('inventory full'); return false; }
-  for (let i = 0; i < HOTBAR.length; i++)   HOTBAR[i]   = hot[i] || null;
-  for (let i = 0; i < invSlots.length; i++) invSlots[i] = inv[i] || null;
-  for (let i = 0; i < packN; i++)           invSlots2[i] = pack[i] || null;
-  if (offTake > 0) equipSlots[EQUIP_INDEX.offhand].count += offTake;
-  if (eqIdx >= 0) equipSlots[eqIdx] = mkSlot(oid, 1);
-  if (offTake > 0 || eqIdx >= 0) saveEquip();
-  if (quiet) return true;                          // craftAll refreshes, feeds and pays XP once
-  // the feed shows what you MADE, not the four piles of fiber it cost — that would bury the result
-  if (typeof feedItem === 'function') feedItem(r.out[0], r.out[1], 'crafted');
-  refreshSlotsUI(); updateHotbar();
-  addXP(craftXP(r.out[0]));                         // paid by what you made, not by the click
-  return true;
-}
+/* ================================================================================================
+   CRAFTING TAKES TIME (0.76)
+   ------------------------------------------------------------------------------------------------
+   Every recipe carries `timeToCraft` (seconds at 100% crafting speed) and `xpToGive` (paid as each
+   craft finishes). Committing to a craft takes its ingredients out of your bags straight away, and
+   cancelling gives back everything that was not made yet.
 
-/* ---- craft all (0.7523) ----
-   Holding Shift turns every row into its craft-all version: each count reads "per craft x(how many
-   crafts)", and clicking the button makes that many in one go. The batch stops cleanly the moment the
-   output no longer fits, because doCraft commits nothing it cannot place. */
+   POCKET (the inventory's list): a personal queue of CRAFT_QUEUE_MAX slots under the recipes. Every
+   slot is ONE craft (0.761): a click queues one, Shift+click fills as many empty slots as you can
+   afford, so five is the most ever waiting. The front slot works on its own, inventory open or closed — closed, the
+   row shows on the HUD at half opacity — and while it runs you walk slower and cannot sprint.
+   Clicking a queued slot cancels it; Cancel all empties the queue.
+
+   BENCH: not a queue. A bench holds ONE order — one recipe, any amount — floating over it where it
+   can be read from every side. Choosing a recipe at the bench takes the ingredients and closes the
+   inventory. Hold E at the bench to work it; every other control is locked while you do, and
+   letting go or taking a hit loses the item in progress (never the order). A tap of E takes what is
+   finished. Holding the right button on the bench cancels the order and drops all of it, made and
+   unmade, on the floor. A plain tap of the right button still opens the bench.
+
+   Crafting speed (31-armor.js) scales both: 200% is twice as fast, 0% cannot craft at all.
+   ================================================================================================ */
+const CRAFT_QUEUE_MAX = 5;
+const CRAFT_MOVE_MUL = 0.6;          // walking speed while your personal queue runs
+const BENCH_TAP_TIME = 0.25;         // a right-button press shorter than this opens a busy bench
+const BENCH_CANCEL_HOLD = 0.8;       // held this long, it cancels the bench's order
+
+// one index space over both lists, so a saved queue or bench order can name its recipe
+const recipeIndex = (r) => {
+  const i = RECIPES_BASIC.indexOf(r);
+  return i >= 0 ? i : RECIPES_BASIC.length + RECIPES_ADVANCED.indexOf(r);
+};
+const recipeAt = (i) => (i < RECIPES_BASIC.length ? RECIPES_BASIC[i] : RECIPES_ADVANCED[i - RECIPES_BASIC.length]) || null;
+const craftSpeed = () => (typeof playerCraftSpeedMul === 'function' ? playerCraftSpeedMul() : 1);
+const _cantCraftMsg = 'You cannot craft: crafting speed is 0%';
+
+// how many times this recipe could be crafted from what you are carrying (Shift fills to this)
 function maxCrafts(r) {
   let m = Infinity;
   for (const [id, n] of r.in) m = Math.min(m, Math.floor(invCount(id) / n));
   return Number.isFinite(m) ? m : 0;
 }
-function craftAll(r) {
-  const want = maxCrafts(r);
-  let made = 0;
-  while (made < want && doCraft(r, true)) made++;
-  if (!made) { doCraft(r); return; }             // nothing fitted: the single craft says why
-  if (typeof feedItem === 'function') feedItem(r.out[0], r.out[1] * made, 'crafted');
-  refreshSlotsUI(); updateHotbar();
-  addXP(craftXP(r.out[0]) * made);
+
+/* Take ONE craft's ingredients out of the bags: main grid first, then the hotbar, then the backpack.
+   Returns exactly what was taken as [[id, count], ...] — a variant group can drain several ids — so
+   a refund hands back those same items. null when the craft is not affordable. */
+function _takeIngredients(r) {
+  if (!canCraft(r)) return null;
+  const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+  const taken = new Map();
+  for (const [id, need] of r.in) {
+    let n = need;
+    const ids = ingIds(id);
+    for (const [arr, len] of [[invSlots, invSlots.length], [HOTBAR, HOTBAR.length], [invSlots2, packN]])
+      for (let i = 0; i < len && n > 0; i++) {
+        const s = arr[i];
+        if (!s || !ids.includes(s.id)) continue;
+        const t = Math.min(s.count, n);
+        s.count -= t; n -= t;
+        taken.set(s.id, (taken.get(s.id) || 0) + t);
+        if (s.count <= 0) arr[i] = null;
+      }
+  }
+  return [...taken];
+}
+const _validId = (id) => typeof id === 'number' && !!(id >= 256 ? ITEM_PROPS[id] : PROPS[id]);
+const _validUnit = (u) => Array.isArray(u) && u.every(p => Array.isArray(p) && _validId(p[0]) && p[1] > 0);
+
+/* Hand items to this player. Something you can wear goes straight into its empty slot, a torch tops
+   up the offhand (tryPickup), the rest fills the bags, and whatever does not fit is thrown at your
+   feet rather than lost. `equip` is off for refunds: ingredients coming back are never worn. */
+function _giveItems(id, count, reason, equip) {
+  for (let k = 0; k < count; k++) {
+    const eq = equip && typeof autoEquipSlot === 'function' ? autoEquipSlot(id) : -1;
+    if (eq >= 0) {
+      equipSlots[eq] = mkSlot(id, 1);
+      saveEquip();
+      if (typeof feedItem === 'function') feedItem(id, 1, reason);
+      continue;
+    }
+    if (tryPickup(id, null, reason)) continue;
+    throwFromPlayer(id, 1);
+    if (typeof feedItem === 'function') feedItem(id, 1, 'no room: dropped');
+  }
+}
+
+/* ---------------------------------- the personal queue ---------------------------------- */
+// entries: { ri: recipe index, t: seconds into the front craft, units: [ingredients of one craft, ...] }
+const craftQueue = () => player.craftQueue || (player.craftQueue = []);
+// read by the frame loop: a running queue slows you down and stops sprinting
+const playerIsCrafting = () => !player.canFly && !player.dead
+  && !!(player.craftQueue && player.craftQueue.length) && craftSpeed() > 0;
+
+function queueCraft(r, all) {
+  if (player.canFly) return;
+  if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return; }
+  const q = craftQueue(), ri = recipeIndex(r);
+  const room = CRAFT_QUEUE_MAX - q.length;
+  if (room <= 0) { feedWarn('Crafting queue is full'); return; }
+  // one craft per slot: Shift fills the empty slots, as far as the ingredients go
+  let added = 0;
+  for (let want = all ? room : 1; added < want; added++) {
+    const u = _takeIngredients(r);
+    if (!u) break;
+    q.push({ ri, t: 0, units: [u] });
+  }
+  if (!added) { feedWarn('Missing ingredients'); return; }
+  refreshSlotsUI();
+}
+const _refundEntry = (e) => { for (const u of e.units) for (const [id, c] of u) _giveItems(id, c, 'returned', false); };
+function cancelQueueSlot(i) {
+  const q = craftQueue(), e = q[i];
+  if (!e) return;
+  q.splice(i, 1);
+  _refundEntry(e);
+  refreshSlotsUI();
+}
+function cancelCraftQueue() {
+  const q = craftQueue();
+  if (!q.length) return;
+  for (const e of q.splice(0)) _refundEntry(e);
+  refreshSlotsUI();
+}
+
+// once per frame per seat: advance the front slot, then keep both views of the queue current
+function updateCraftQueue(dt) {
+  const q = player.craftQueue;
+  if (q && q.length && !player.canFly && !player.dead && !worldJoining()) {
+    const e = q[0], r = recipeAt(e.ri);
+    if (!r) {                                          // a recipe that no longer exists: give it all back
+      q.shift(); _refundEntry(e); refreshSlotsUI();
+    } else if (craftSpeed() > 0) {
+      e.t += dt * craftSpeed();
+      if (e.t >= r.timeToCraft) {
+        e.t = 0;
+        e.units.shift();
+        if (!e.units.length) q.shift();
+        _giveItems(r.out[0], r.out[1], 'crafted', true);
+        addXP(r.xpToGive || 0);
+        refreshSlotsUI();
+      }
+    }
+  }
+  _syncQueueHud();
+  _syncQueueBars();
+}
+
+function _queueSlotHtml(e) {
+  const r = e && recipeAt(e.ri);
+  if (!r) return '';
+  const n = e.units.length * r.out[1];
+  return `<img class="i3d" src="${renderBlockIcon(r.out[0])}" alt="">` + (n > 1 ? `<b>${n}</b>` : '') +
+         '<span class="cqBar"><i></i></span>';
+}
+// the queue row built under the recipe list; rebuilt with the panel, so no state of its own
+function _queuePanel() {
+  const q = craftQueue();
+  const wrap = document.createElement('div');
+  wrap.className = 'cqPanel';
+  let slots = '';
+  for (let i = 0; i < CRAFT_QUEUE_MAX; i++) {
+    const r = q[i] && recipeAt(q[i].ri);
+    slots += `<div class="slot cqSlot${r ? '' : ' empty'}" data-cq="${i}"` +
+             (r ? ` title="Click to cancel ${idName(r.out[0])}"` : '') + `>${_queueSlotHtml(q[i])}</div>`;
+  }
+  wrap.innerHTML = `<div class="cqHead"><span class="ctitle">Queue</span>` +
+    `<button class="cqCancel"${q.length ? '' : ' disabled'}>Cancel all</button></div><div class="cqRow">${slots}</div>`;
+  wrap.querySelector('.cqCancel').addEventListener('click', () => { if (!dragHeld) cancelCraftQueue(); });
+  for (const el of wrap.querySelectorAll('.cqSlot:not(.empty)'))
+    el.addEventListener('click', () => { if (!dragHeld) cancelQueueSlot(+el.dataset.cq); });
+  return wrap;
+}
+// the same row on the HUD, half see-through, while the inventory is closed and something is queued
+function _syncQueueHud() {
+  const q = player.craftQueue;
+  const show = !!(q && q.length) && playing && !invOpen && !menuScene && !player.canFly && !player.dead;
+  let el = player._cqHud;
+  if (!show) { if (el) el.style.display = 'none'; return; }
+  if (!el || !el.isConnected) {
+    el = document.createElement('div');
+    el.className = 'cqHud';
+    (hotbarEl && hotbarEl.parentElement || document.body).appendChild(el);   // this seat's HUD pane
+    player._cqHud = el;
+  }
+  const sig = q.map(e => e.ri + ':' + e.units.length).join(',');
+  if (el._sig !== sig) { el._sig = sig; el.innerHTML = q.map(e => `<div class="slot">${_queueSlotHtml(e)}</div>`).join(''); }
+  el.style.display = 'flex';
+}
+// only the front slot is ever in progress, so only its bar moves
+function _syncQueueBars() {
+  const e = player.craftQueue && player.craftQueue[0], r = e && recipeAt(e.ri);
+  const w = r ? Math.min(100, e.t / r.timeToCraft * 100).toFixed(1) + '%' : '0%';
+  const a = invOpen ? invPanel('craftPanel')?.querySelector('.cqSlot[data-cq="0"] .cqBar i') : null;
+  if (a) a.style.width = w;
+  const h = player._cqHud;
+  const b = h && h.style.display !== 'none' ? h.querySelector('.cqBar i') : null;
+  if (b) b.style.width = w;
+}
+
+// saved with the player: the queue holds ingredients already taken out of their bags
+const serializeCraftQueue = (p) => ((p && p.craftQueue) || []).map(e => [e.ri, +e.t.toFixed(2), e.units]);
+function restoreCraftQueue(list) {
+  const out = [];
+  if (!Array.isArray(list)) return out;
+  for (const rec of list) {
+    if (!Array.isArray(rec) || !Array.isArray(rec[2])) continue;
+    const units = rec[2].filter(_validUnit);
+    if (units.length) out.push({ ri: +rec[0] || 0, t: +rec[1] || 0, units });
+    if (out.length >= CRAFT_QUEUE_MAX) break;
+  }
+  return out;
+}
+// death: what the queue was holding falls with everything else you carried
+function dropCraftQueueAt(x, y, z) {
+  for (const e of player.craftQueue || [])
+    for (const u of e.units)
+      for (const [id, c] of u)
+        for (let n = 0; n < c; n++)
+          spawnDrop(id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2);
+  player.craftQueue = [];
+}
+
+/* ---------------------------------- the crafting bench ---------------------------------- */
+const BENCHES = new Map();           // "x,y,z" -> { ri, units, done, t, sprite, canvas, dirty }
+var activeBench = null;              // the bench whose recipe list this seat has open
+const benchKey = (x, y, z) => x + ',' + y + ',' + z;
+const _benchHasOrder = (b) => !!(b && (b.units.length || b.done));
+function benchBusy(x, y, z) { return _benchHasOrder(BENCHES.get(benchKey(x, y, z))); }
+function openBench(x, y, z) { activeBench = benchKey(x, y, z); toggleInventory(true, 'advanced'); }
+
+// a recipe chosen at a bench: one craft (or as many as affordable with Shift) goes on its order
+function benchOrder(r, all) {
+  const key = activeBench;
+  if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return; }
+  const ri = recipeIndex(r);
+  let b = BENCHES.get(key);
+  if (_benchHasOrder(b) && b.ri !== ri) {
+    const cur = recipeAt(b.ri);
+    feedWarn(`This bench is busy${cur ? ' with ' + idName(cur.out[0]) : ''}`);
+    return;
+  }
+  const units = [];
+  for (let k = 0, want = all ? maxCrafts(r) : 1; k < want; k++) {
+    const u = _takeIngredients(r);
+    if (!u) break;
+    units.push(u);
+  }
+  if (!units.length) { feedWarn('Missing ingredients'); return; }
+  if (!b || b.ri !== ri) {
+    if (b) _benchClear(key);
+    b = { ri, units: [], done: 0, t: 0, sprite: null, canvas: null, dirty: true };
+    BENCHES.set(key, b);
+  }
+  b.units.push(...units);
+  b.dirty = true;
+  toggleInventory(false);            // back to the bench itself: the order is worked there
+  refreshSlotsUI();
+}
+// a recipe row's button: the bench's order when one is open, the personal queue otherwise
+function onRecipeClick(r, all) {
+  if (craftMode === 'advanced' && activeBench) benchOrder(r, all);
+  else queueCraft(r, all);
+}
+
+function _aimedBench() {
+  if (!playing || invOpen || menuScene || player.canFly || player.dead || player.riding) return null;
+  const hit = currentRay();
+  return hit && (hit.id & 255) === B.CRAFTING_BENCH ? hit : null;
+}
+/* Once per frame per seat, from the frame loop. `eHeld` is E (or the pad's North button); `rmbHeld` is
+   the raw right button, read even while the bench has the controls locked. */
+function updateBenchWork(dt, eHeld, rmbHeld) {
+  const hit = _aimedBench();
+  const key = hit ? benchKey(hit.x, hit.y, hit.z) : null;
+  const b = key ? BENCHES.get(key) : null;
+  const r = b ? recipeAt(b.ri) : null;
+  player._benchAim = !!hit;
+  const eDown = eHeld && !player._benchE;
+  player._benchE = eHeld;
+  if (!eHeld) player._benchNeedRelease = false;
+
+  // a tap of E takes whatever is finished
+  if (b && eDown && b.done > 0) {
+    if (r) _giveItems(r.out[0], r.out[1] * b.done, 'crafted', true);
+    b.done = 0; b.dirty = true;
+    if (!b.units.length) _benchClear(key);
+    refreshSlotsUI();
+  }
+  // holding E works the order, one craft at a time
+  const wants = !!(r && b.units.length && eHeld && !player._benchNeedRelease);
+  if (wants && craftSpeed() <= 0 && eDown) feedWarn(_cantCraftMsg);
+  if (wants && craftSpeed() > 0) {
+    player._benchWork = key;
+    b.t += dt * craftSpeed();
+    if (b.t >= r.timeToCraft) {
+      b.t = 0;
+      b.units.shift();
+      b.done++;
+      addXP(r.xpToGive || 0);
+      b.dirty = true;
+    }
+    const step = Math.floor(b.t / r.timeToCraft * 40);   // redraw the floating bar in 40 steps, not every frame
+    if (step !== b._step) { b._step = step; b.dirty = true; }
+  } else if (player._benchWork) {
+    interruptBenchWork(false);                           // let go, looked away, or nothing left to make
+  }
+
+  // the right button on a busy bench: a short tap opens it, a long hold cancels its order
+  if (_benchHasOrder(b) && rmbHeld) {
+    if (player._benchRmbKey !== key) { player._benchRmbKey = key; player._benchRmbT = 0; player._benchRmbDone = false; }
+    player._benchRmbT = (player._benchRmbT || 0) + dt;
+    if (player._benchRmbT >= BENCH_CANCEL_HOLD && !player._benchRmbDone) {
+      player._benchRmbDone = true;
+      cancelBench(key);
+    }
+  } else if (!rmbHeld) {
+    const t = player._benchRmbT || 0;
+    if (t > 0 && t < BENCH_TAP_TIME && !player._benchRmbDone && hit && player._benchRmbKey === key) openBench(hit.x, hit.y, hit.z);
+    player._benchRmbT = 0; player._benchRmbDone = false; player._benchRmbKey = null;
+  }
+}
+/* Stop working a bench. The craft in progress is lost — the order, and what is already finished, are
+   not. After a HIT (`needRelease`) E has to be let go before it counts again, so a mob cannot be
+   out-crafted by simply holding the key through the blow. Called from 19-vitals.js on damage. */
+function interruptBenchWork(needRelease = true) {
+  if (!player._benchWork) return;
+  const b = BENCHES.get(player._benchWork);
+  if (b) { b.t = 0; b._step = 0; b.dirty = true; }
+  player._benchWork = false;
+  if (needRelease) player._benchNeedRelease = true;
+}
+// everything on a bench's order, made and unmade, dropped at that bench
+function _benchSpill(b, x, y, z) {
+  const r = recipeAt(b.ri);
+  if (r) for (let n = 0; n < r.out[1] * b.done; n++) spawnDrop(r.out[0], x, y, z);
+  for (const u of b.units) for (const [id, c] of u) for (let n = 0; n < c; n++) spawnDrop(id, x, y, z);
+}
+function _benchClear(key) {
+  const b = BENCHES.get(key);
+  if (b && b.sprite) { scene.remove(b.sprite); b.sprite.material.map?.dispose(); b.sprite.material.dispose(); }
+  BENCHES.delete(key);
+  for (const p of PLAYERS) if (p._benchWork === key) p._benchWork = false;
+}
+function cancelBench(key) {
+  const b = BENCHES.get(key);
+  if (!_benchHasOrder(b)) return;
+  const [x, y, z] = key.split(',').map(Number);
+  _benchSpill(b, x, y + 1, z);
+  _benchClear(key);
+  feedInfo('Crafting cancelled: everything dropped at the bench');
+}
+// the bench block went away (11-chunks.js): its order spills where it stood
+function benchBroken(x, y, z) {
+  const key = benchKey(x, y, z), b = BENCHES.get(key);
+  if (!b) return;
+  if (!menuScene) _benchSpill(b, x, y, z);
+  _benchClear(key);
+  // a seat with this bench's recipe list open loses it: activeBench is per seat, swapped with the HUD
+  if (activeBench === key) activeBench = null;
+  if (typeof forEachPlayerState === 'function') forEachPlayerState((g) => { if (g.activeBench === key) g.activeBench = null; });
+}
+function clearBenches() { for (const k of [...BENCHES.keys()]) _benchClear(k); }
+function serializeBenches() {
+  const out = [];
+  for (const [k, b] of BENCHES) if (_benchHasOrder(b)) out.push([k, b.ri, b.done, b.units]);
+  return out;
+}
+function restoreBenches(list) {
+  if (!Array.isArray(list)) return;
+  for (const rec of list) {
+    if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[3])) continue;
+    const b = { ri: +rec[1] || 0, done: Math.max(0, rec[2] | 0), units: rec[3].filter(_validUnit),
+                t: 0, sprite: null, canvas: null, dirty: true };
+    if (_benchHasOrder(b)) BENCHES.set(rec[0], b);
+  }
+}
+
+/* The order over a bench: the output's icon, how many are still to make, a green count of what is ready
+   to take, and the progress of the one being made. A sprite, so it faces you from every side. Drawn
+   to its own small canvas and only redrawn when something on it changed. */
+const BENCH_TAG_W = 128, BENCH_TAG_H = 150;
+const _benchIcons = new Map();       // item id -> loaded Image of its 3D icon
+function _benchIcon(id) {
+  let im = _benchIcons.get(id);
+  if (!im) {
+    const src = renderBlockIcon(id);
+    if (!src) return null;
+    im = new Image();
+    im.src = src;
+    _benchIcons.set(id, im);
+  }
+  return im.complete && im.naturalWidth ? im : null;
+}
+function _drawBenchTag(b) {
+  const r = recipeAt(b.ri);
+  const W = BENCH_TAG_W, H = BENCH_TAG_H;
+  if (!b.canvas) { b.canvas = document.createElement('canvas'); b.canvas.width = W; b.canvas.height = H; }
+  const g = b.canvas.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(12,14,24,0.8)';
+  g.strokeStyle = 'rgba(255,255,255,0.25)';
+  g.lineWidth = 2;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(3, 3, W - 6, H - 6, 12); else g.rect(3, 3, W - 6, H - 6);
+  g.fill(); g.stroke();
+  const icon = r && _benchIcon(r.out[0]);
+  if (icon) g.drawImage(icon, 26, 10, 76, 76);
+  else if (r) b.dirty = true;                          // icon still loading: try again next frame
+  const per = r ? r.out[1] : 1;
+  g.textAlign = 'center';
+  g.fillStyle = '#ffffff';
+  g.font = '700 22px system-ui, sans-serif';
+  g.fillText(b.units.length ? `×${b.units.length * per}` : 'done', W / 2, 110);
+  if (b.done) {
+    g.fillStyle = '#9ee07f';
+    g.font = '700 16px system-ui, sans-serif';
+    g.textAlign = 'right';
+    g.fillText(`${b.done * per} ready`, W - 12, 26);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.6)';
+  g.fillRect(16, 124, W - 32, 12);
+  const pct = r && b.units.length ? Math.min(1, b.t / r.timeToCraft) : (b.done ? 1 : 0);
+  g.fillStyle = '#7ee63a';
+  g.fillRect(16, 124, (W - 32) * pct, 12);
+}
+// once per frame for the world: make, redraw and retire the floating orders
+function updateBenchDisplays() {
+  for (const [key, b] of BENCHES) {
+    if (!_benchHasOrder(b)) { _benchClear(key); continue; }
+    if (!b.sprite) {
+      _drawBenchTag(b);
+      const tex = new THREE.CanvasTexture(b.canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      s.renderOrder = 10;
+      s.layers.set(1);                                 // the no-shadow layer the name tags use
+      const [x, y, z] = key.split(',').map(Number);
+      s.position.set(x + 0.5, y + 1.6, z + 0.5);
+      s.scale.set(0.7, 0.7 * BENCH_TAG_H / BENCH_TAG_W, 1);
+      scene.add(s);
+      b.sprite = s;
+      b.dirty = false;
+      continue;
+    }
+    if (b.dirty) { b.dirty = false; _drawBenchTag(b); b.sprite.material.map.needsUpdate = true; }
+  }
+}
+// what the crosshair says while you look at a bench with an order on it (18-hud.js)
+function benchPrompt() {
+  const hit = _aimedBench();
+  const b = hit && BENCHES.get(benchKey(hit.x, hit.y, hit.z));
+  if (!_benchHasOrder(b)) return null;
+  const r = recipeAt(b.ri), per = r ? r.out[1] : 1;
+  const pad = lastInputDevice === 'pad';
+  const E = pad ? padNorthLabel() : 'E', RMB = pad ? 'LT' : 'RMB';
+  const rows = [];
+  if (b.units.length) rows.push(`(Hold <b>${E}</b>) craft ${r ? idName(r.out[0]) : 'unknown recipe'} · ${b.units.length * per} left`);
+  if (b.done) rows.push(`(<b>${E}</b>) take ${b.done * per}`);
+  rows.push(`(Hold <b>${RMB}</b>) cancel`);
+  return rows.join('<br>');
+}
+/* The small arrow between a recipe's ingredients and its output, with how long ONE craft takes under
+   it (0.7601). The time is already divided by your crafting speed, so it is the wait you will get. */
+const _fmtCraftTime = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${+s.toFixed(1)}s`);
+function _craftTimeHtml(r) {
+  const spd = craftSpeed();
+  const t = spd > 0 ? _fmtCraftTime(r.timeToCraft / spd) : '—';
+  return '<span class="ctime"><svg viewBox="0 0 16 10" width="16" height="10" aria-hidden="true">' +
+         '<path d="M1 5h11M8.5 1.5 12.5 5 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+         `stroke-linecap="round" stroke-linejoin="round"/></svg><small>${t}</small></span>`;
 }
 const _craftBadge = (n, m) => craftShift ? `<b>${n}×(${m})</b>` : (n > 1 ? `<b>${n}</b>` : '');
 var craftShift = false;
@@ -255,7 +657,7 @@ function cycleCraftCategory(dir) {         // dir = +1 (RB) / -1 (LB); wraps
   _craftScroll = 0;
   buildCraftPanel();
 }
-var _craftScroll = 0;                       // saved scroll position preserved across doCraft rebuild
+var _craftScroll = 0;                       // saved scroll position preserved across a panel rebuild
 
 /* Variant cycling: rather than rebuilding the panel (which would fight the scroll position),
    a ticker rewrites the icon and tooltip of every ingredient that has a variant group. */
@@ -308,7 +710,9 @@ function buildCraftPanel() {
   });
   for (const r of recs) {
     const ok = canCraft(r);
-    const m = craftShift ? maxCrafts(r) : 0;          // Shift: every count becomes craft-all
+    // Shift: every count becomes craft-all — capped by the queue's empty slots when crafting from the pocket (0.761)
+    const m = !craftShift ? 0 : (craftMode === 'advanced' && activeBench) ? maxCrafts(r)
+            : Math.min(maxCrafts(r), CRAFT_QUEUE_MAX - craftQueue().length);
     const row = document.createElement('div');
     row.className = 'crow' + (ok ? '' : ' nocraft');
     let html = '';
@@ -321,14 +725,20 @@ function buildCraftPanel() {
       html += `<span class="cing${have ? '' : ' miss'}" data-name="${idName(shown)}" data-id="${shown}"${attr}>` +
               `<img src="${renderBlockIcon(shown)}" alt="">${_craftBadge(n, m)}</span>`;
     }
+    html += _craftTimeHtml(r);                        // arrow + craft time, left of the output (0.7601)
     const [oid, on] = r.out;
     html += `<button class="cbtn" data-name="${idName(oid)}" data-id="${oid}">` +
             `<img src="${renderBlockIcon(oid)}" alt="">${_craftBadge(on, m)}</button>`;
     row.innerHTML = html;
-    row.querySelector('.cbtn').addEventListener('click', (ev) => (ev.shiftKey ? craftAll(r) : doCraft(r)));
+    // Shift+click commits as many as you can afford (0.76: into the queue, or onto the bench's order)
+    row.querySelector('.cbtn').addEventListener('click', (ev) => onRecipeClick(r, ev.shiftKey));
     list.appendChild(row);
   }
   panel.appendChild(list);
+  // the personal queue sits under the list; a bench works its own single order instead (0.76)
+  const withQueue = !(craftMode === 'advanced' && activeBench);
+  panel.classList.toggle('hasQueue', withQueue);
+  if (withQueue) panel.appendChild(_queuePanel());
   list.scrollTop = _craftScroll;             // restore scroll position after any rebuild
   list.addEventListener('scroll', () => { _craftScroll = list.scrollTop; });
   for (const tab of panel.querySelectorAll('.ctab'))

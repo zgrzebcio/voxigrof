@@ -82,54 +82,15 @@ const XP_BLOCK = {};
   set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0);
   set(B.CARPET, 0); set(B.SNOW_CARPET, 0); set(B.COBBLESTONE, 0); set(B.STONE_BRICK, 0);
   // furniture breaks by hand since 0.7442 (see HAND_BREAK_BLOCKS) — moving your own bed or
-  // chest is housekeeping, so it pays nothing. Crafting them still pays, via XP_CRAFT below.
+  // chest is housekeeping, so it pays nothing. Crafting them still pays: each recipe's xpToGive (25-crafting.js).
   set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.BED, 0); set(B.HAY, 0);
 }
 const XP_MOB = 25;                 // a kill — a fight is worth a good few ore veins' worth of swing
 const XP_HARVEST = 1;              // a bush pickup that actually yielded something
 const XP_SMELT = 3;                // one item out of a furnace
 
-/* Crafting pays by what you MADE. Converting a log into planks is not an accomplishment; forging
-   a diamond pickaxe or a chestplate is. Anything not listed falls back to XP_CRAFT_DEFAULT. The
-   bulk shape-changers below still pay 1 — a token for the work — which is small enough that
-   looping them is a far worse rate than simply mining. */
-const XP_CRAFT_DEFAULT = 2;
-const XP_CRAFT = {};
-{
-  const set = (id, n) => { XP_CRAFT[id] = n; };
-  // pure conversions / bulk: a token point each
-  set(B.PLANKS, 1); set(B.BIRCH_PLANKS, 1); set(B.SPRUCE_PLANKS, 1);
-  set(ITEM.STICK, 1); set(B.OAKSLAB, 1); set(B.STONE_BRICK, 1);
-  set(ITEM.IRON_NUGGET, 1); set(ITEM.IRON_INGOT, 1); set(ITEM.GOLD_NUGGET, 1);
-  set(ITEM.GOLD_INGOT, 1); set(ITEM.TIN_NUGGET, 1); set(ITEM.TIN_INGOT, 1);
-  set(ITEM.COPPER_NUGGET, 1); set(ITEM.COPPER_INGOT, 1); set(ITEM.COAL_CHUNK, 1);
-  set(ITEM.COAL, 1); set(B.SNOW, 1); set(B.CLAY, 1); set(B.HAY, 1);
-  // simple goods
-  set(B.TORCH, 1); set(ITEM.BOWL, 1); set(ITEM.PAPER, 1); set(ITEM.SUGAR, 1);
-  set(ITEM.FLOUR, 2); set(ITEM.CLOTH, 4); set(B.GLASS, 2); set(B.BRICKS, 2);
-  // stations and furniture: a real milestone the first time
-  set(B.CRAFTING_BENCH, 10); set(B.FURNACE, 15); set(B.CHEST, 12);
-  set(B.BED, 25); set(B.DOOR, 10); set(B.TNT, 30);
-  // tools, by tier — the shape of your progression, so the payout follows it
-  const toolTier = (n, ...ids) => { for (const i of ids) set(i, n); };
-  toolTier(6,  ITEM.FLINT_SWORD, ITEM.FLINT_SHOVEL, ITEM.FLINT_PICKAXE, ITEM.FLINT_HATCHET, ITEM.FLINT_HOE);
-  toolTier(12, ITEM.STONE_SWORD, ITEM.STONE_SHOVEL, ITEM.STONE_PICKAXE, ITEM.STONE_HATCHET, ITEM.STONE_HOE);
-  toolTier(30, ITEM.IRON_SWORD, ITEM.IRON_SHOVEL, ITEM.IRON_PICKAXE, ITEM.IRON_HATCHET, ITEM.IRON_HOE);
-  toolTier(40, ITEM.GOLDEN_SWORD, ITEM.GOLDEN_SHOVEL, ITEM.GOLDEN_PICKAXE, ITEM.GOLDEN_HATCHET, ITEM.GOLDEN_HOE);
-  toolTier(80, ITEM.DIAMOND_SWORD, ITEM.DIAMOND_SHOVEL, ITEM.DIAMOND_PICKAXE, ITEM.DIAMOND_HATCHET, ITEM.DIAMOND_HOE);
-  set(ITEM.IRON_SHEARS, 20); set(ITEM.BUCKET, 15);
-  // armor scales with how much iron went into it
-  set(ITEM.IRON_GLOVES, 35); set(ITEM.IRON_BOOTS, 45); set(ITEM.IRON_HELMET, 55);
-  set(ITEM.IRON_LEGGINGS, 75); set(ITEM.IRON_CHESTPLATE, 95);
-  // leather: the tier below, so roughly a third of the iron payout
-  set(ITEM.LEATHER_GLOVES, 10); set(ITEM.LEATHER_BOOTS, 14); set(ITEM.LEATHER_HELMET, 18);
-  set(ITEM.LEATHER_LEGGINGS, 25); set(ITEM.LEATHER_CHESTPLATE, 32);
-  set(ITEM.SADDLE, 25);
-  // food
-  set(ITEM.MUSHROOM_STEW, 4); set(ITEM.PUMPKIN_PIE, 8); set(ITEM.GOLDEN_APPLE, 60);
-  set(ITEM.GUNPOWDER, 6); set(ITEM.GLOW_DUST, 8);
-}
-const craftXP = (outId) => (XP_CRAFT[outId] != null ? XP_CRAFT[outId] : XP_CRAFT_DEFAULT);
+/* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its
+   `timeToCraft` (25-crafting.js), so what a craft pays is written where the recipe is. */
 
 /* Loot chests pay by TABLE, not by what happened to roll out of it — the reward is for finding
    and opening the thing. A table declares its own `xp: [min, max]` (supply crate = 4..10); one
