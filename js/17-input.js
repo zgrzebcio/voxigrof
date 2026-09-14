@@ -392,14 +392,17 @@ function invGamepad(g, dt, btn, edge) {
      either/or is enough — and the palette had no pad scroll at all before 0.704. */
   const ry = padAxis(g.axes[3] || 0);
   if (Math.abs(ry) > 0.01) {
-    const list = invPanel('craftList') || document.querySelector('#inv .invScroll');
+    // ...and the furnace book's list while it is open (0.7762)
+    const list = invPanel('craftList') || (activeFurnace && invWrapEl.querySelector('#furnacePanel .fbList'))
+              || document.querySelector('#inv .invScroll');
     if (list) list.scrollTop += ry * 700 * dt;
   }
   const hov = hoveredSlot();
   if (edge(0) && hov) beginDrag(hov.region, hov.i);              // A press = pick up
   if (edge(0) && !hov) {                                         // A on a craft button = craft
     const el = document.elementFromPoint(invCursor.x, invCursor.y);
-    const b = el && el.closest ? el.closest('.cbtn, .invBtn, .cqSlot') : null;   // craft or inventory buttons (0.755)
+    // craft or inventory buttons (0.755), the furnace book and its tabs (0.775)
+    const b = el && el.closest ? el.closest('.cbtn, .invBtn, .cqSlot, .fbookBtn, #furnTabs .ctab') : null;
     if (b) b.click();
   }
   if (pad.prev[0] && !btn(0) && dragHeld) {                      // A release = drop
@@ -418,6 +421,9 @@ function invGamepad(g, dt, btn, edge) {
   if (invPanel('craftTabs')) {
     if (edge(4)) cycleCraftCategory(-1);
     if (edge(5)) cycleCraftCategory(+1);
+  } else if (invPanel('furnTabs')) {               // ...or the furnace book's tabs (0.775)
+    if (edge(4)) cycleFurnBookCategory(-1);
+    if (edge(5)) cycleFurnBookCategory(+1);
   }
 }
 function pollGamepad(dt) {

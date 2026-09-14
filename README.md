@@ -55,7 +55,7 @@ Crafting takes time. Every recipe has a craft time, and the ingredients are take
 commit to it.
 
 - **From the inventory:** clicking a recipe adds one craft to your crafting queue under the recipe
-  list. The queue has 5 slots and each slot is one craft; `Shift+click` fills every empty slot you
+  list. The queue has 6 slots and each slot is one craft; `Shift+click` fills every empty slot you
   can afford. The queue keeps working while the
   inventory is closed (it shows faintly in the bottom-left corner), but you walk slower and cannot
   sprint until it is done. Click a queued slot to cancel it, or **Cancel all**; unfinished crafts
@@ -65,6 +65,10 @@ commit to it.
   move while you do; letting go or getting hit loses the item in progress). **Tap `E`** to take what
   is finished. **Hold right click** on the bench to cancel the order, which drops everything on the
   floor. A bench works one recipe at a time; picking the same recipe again adds to its amount.
+- **With a chest open** (both halves of a double chest), crafting from the inventory also uses what is
+  in the chest. Your own inventory is used first. If your inventory is full when a craft finishes, the
+  item goes into the open chest instead of onto the floor. The feed shows both ("used from chest",
+  "crafted to chest").
 - **Crafting speed** is shown in the equipment stats. 100% is normal, 200% is twice as fast, and 0%
   means you cannot craft.
 
@@ -80,30 +84,36 @@ but is most common in its best band.
 | Iron | 50–65 | 15–130 | Stone | Raw iron |
 | Tin | 40–45 | 10–70 | Stone | Raw tin |
 | Gold | 20–30 | 5–40 | Iron | Raw gold |
-| Diamond | 15–20 | 2–30 | Iron | Diamond |
-| Ruby | 43–47 | 30–70 | Iron | 1–2 rubies |
-| Sapphire | 93–97 | 80–130 | Iron | 1–2 sapphires |
-| Emerald | 150–160 | 120–200 (mountains) | Iron | 1–2 emeralds |
+| Diamond | 15–20 | 2–30 | Bronze | Diamond |
+| Ruby | 43–47 | 30–70 | Bronze | 1–2 rubies |
+| Sapphire | 93–97 | 80–130 | Bronze | 1–2 sapphires |
+| Emerald | 150–160 | 120–200 (mountains) | Bronze | 1–2 emeralds |
 
-Pickaxe tiers go flint, stone, iron (gold and diamond are iron's tier or better). Mining an ore
+Pickaxe tiers go flint, stone, iron (gold is the same tier), bronze, then diamond. Diamond and every gem ore need bronze or better. Mining an ore
 with too weak a pickaxe gives nothing.
 
 ## Smelting
 
-| Put in | Get out |
-|---|---|
-| Raw iron / gold / copper / tin | Iron / gold / copper / tin ingot |
-| Sand | Glass |
-| Cobblestone | Stone |
-| Log | Charcoal |
-| Clay ball | Brick |
-| Flour | Bread |
-| Raw mutton / raw beef | Cooked mutton / steak |
-| Rotten flesh | Leather |
+The book button in the furnace's corner lists every smelt with its time, fuel and XP.
 
-Fuel lasts: coal 5 items, charcoal 4, a coal chunk 1, a charcoal chunk 0.8, a plank less than 1. One
-coal or charcoal splits into 5 chunks, and 5 chunks make it back. A lava bucket burns
-for a very long time.
+| Put in | Get out | Time |
+|---|---|---|
+| Raw iron / gold / copper / tin | Iron / gold / copper / tin ingot | 8 s |
+| Iron / gold / copper / tin / bronze powder | Ingot | 6 s |
+| Sand | Glass | 5 s |
+| Cobblestone | Stone | 5 s |
+| Log | Charcoal | 5 s |
+| Clay ball | Brick | 5 s |
+| Flour | Bread | 5 s |
+| Raw mutton / raw beef / raw pumpkin pie | Cooked mutton / steak / pumpkin pie | 5 s |
+| Rotten flesh | Leather | 5 s |
+
+XP from smelting waits in the furnace and goes to whoever takes the output.
+
+Fuel burns in fuel points of 5 seconds each: a coal chunk is 1, coal 5, charcoal 4, a charcoal chunk 0.8,
+a plank 0.75. One coal or charcoal splits into 5 chunks, and 5 chunks make it back. A lava bucket burns
+for a very long time. Every 8 fuel points burnt (two charcoal) leave one ash in the slot under the
+output; each ash gives 1 XP when you take it. Lava leaves no ash.
 
 ## Rare and special materials
 
@@ -121,12 +131,12 @@ for a very long time.
   also glow faintly, so they are easier to spot in the dark.
 - **Cobwebs.** Strung in cave corners, on floors, walls and ceilings. Walking into one slows you
   down by 80% (leather armor helps only half as much there). Cut one with a sword for 1–3 string.
-- **Gems.** Emerald, ruby and sapphire ore glow faintly like diamond ore and need an iron pickaxe;
+- **Gems.** Emerald, ruby and sapphire ore glow faintly like diamond ore and need a bronze pickaxe;
   each gives 1–2 gems (see the ore table for where they are).
 - **Storage blocks.** At the crafting bench, 10 coal, charcoal, iron/gold/tin/copper ingots, diamonds,
   emeralds, rubies, sapphires or raw iron/gold/tin/copper press into one block, and a block breaks back
   into 10. Coal and charcoal blocks burn in a furnace as long as the ten they were made from.
-- **Topaz.** An orange-yellow gem between y 60 and 100 (most common at 78–82); iron pickaxe, 1–2 topaz.
+- **Topaz.** An orange-yellow gem between y 60 and 100 (most common at 78–82); bronze pickaxe, 1–2 topaz.
 - **Sandstone.** 5 sand make sandstone and 5 red sand make red sandstone at the crafting bench.
 - **Fiber block.** 10 fiber pressed into a block (and back), breakable by hand. Very rarely a plains
   grass block turns out to be one.
@@ -134,6 +144,16 @@ for a very long time.
   wall is broken the ladder drops.
 - **Block recipes.** Snow, clay, glass, bricks, wool and glowstone take 5 of their material; hay bales,
   storage blocks and nuggets-to-ingot take 10.
+- **Mortar and pestle.** 20 granite, 1 bone, 2 flint and 1 fiber block at the crafting bench; breaks by
+  hand. It works like a crafting bench (pick a recipe, hold `E` to grind, tap `E` to take) but only
+  makes powders: glow dust, gunpowder, flour and sugar are made here and nowhere else. The pestle
+  circles the bowl while you grind.
+- **Bronze.** At the mortar, 2 copper powder and 1 tin powder make 2 bronze powder, which smelts into
+  bronze ingots (10 bronze nuggets make an ingot). Bronze tools sit between iron and diamond, and a
+  bronze pickaxe is needed for diamond and gem ores.
+- **Metal powder.** At the mortar, 1 raw iron, tin, copper or gold grinds into 2 powder (a raw ore
+  block gives 20, but takes ten times as long). Each powder smelts into one ingot, so grinding doubles
+  your metal. Bronze and steel powder exist for a future update.
 - **Milk.** Use an empty bucket on a female cow. Each cow refills after 10 minutes. Drinking milk removes
   every active effect.
 - **Clay.** Found on the bottom of lakes and seas. A clay block breaks into 4 clay balls, which smelt

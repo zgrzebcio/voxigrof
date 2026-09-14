@@ -137,7 +137,8 @@ function saveWorld(syncToLS = false) {
     +r.vx.toFixed(2), +r.vy.toFixed(2), +r.vz.toFixed(2),
     Math.round(r.age * 10) / 10, Math.max(0, +(r.pickupDelay || 0).toFixed(2))]);
   const furnaces = [...FURNACES].map(([k, f]) =>
-    [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3)]);
+    [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3),
+     +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP (0.775)
   const data = {
     savedAt: Date.now(),
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), benches: serializeBenches(),
@@ -212,10 +213,13 @@ async function loadWorld(w) {
     for (const rec of data.furnaces) {
       if (!Array.isArray(rec) || typeof rec[0] !== 'string') continue;
       const f = mkFurnace();
-      f.slots = _validArr(rec[1], 3);
+      f.slots = _validArr(rec[1], 4);                // the ash slot is new in 0.775; older saves leave it empty
       f.burn = Math.max(0, +rec[2] || 0);
       f.burnMax = Math.max(1, +rec[3] || 1);
       f.progress = Math.min(1, Math.max(0, +rec[4] || 0));
+      f.ash = Math.min(ASH_FUEL, Math.max(0, +rec[5] || 0));
+      f.xp = Math.max(0, +rec[6] || 0);
+      f.ashy = rec[7] !== 0;
       // saved edits may carry the lit-front variant; claiming "lit" here forces the first
       // tick to write the correct variant either way (same-value writes are no-ops)
       f.lit = true;

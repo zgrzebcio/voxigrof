@@ -324,7 +324,7 @@ function processGrassSpread(dt) {
 
 /* ---- throwing ---- */
 // blocks whose right-click opens a GUI or actuates something; throwing must yield to them
-const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.FURNACE, B.CHEST, B.DOOR, B.BED,
+const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.DOOR, B.BED,
                                   B.STRUCTURE_BLOCK]);
 function tryThrow() {
   if (!playing || player.canFly || invOpen || menuScene) return false;

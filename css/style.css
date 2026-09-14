@@ -227,12 +227,13 @@
   #craftPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
 
   /* ---- furnace GUI (survival) — replaces the crafting panel while a furnace is open ---- */
-  #furnacePanel { display:none; flex-direction:column; gap:6px;
+  #furnacePanel { display:none; flex-direction:column; gap:6px; width:215px;   /* as wide as the book (0.7761) */
                   position:relative;
                   background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
                   border-radius:10px; padding:14px 18px; }
   #furnacePanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
-  #furnGrid { display:flex; gap:16px; align-items:flex-start; margin-top:8px; }
+  #furnGrid { display:flex; gap:16px; align-items:flex-start; justify-content:center; margin-top:8px; }
+  #furnacePanel.bookOpen { border-top-left-radius:0; border-top-right-radius:0; }
   #furnGrid .fcol { display:flex; flex-direction:column; gap:10px; align-items:center; }
   #furnGrid .slot { pointer-events:auto; }
   #furnGrid .fout { margin-top:2px; }
@@ -244,6 +245,38 @@
   .fbar .ffill { position:absolute; left:0; bottom:0; width:100%; height:0%; overflow:hidden; }
   .fbar .ffill img { position:absolute; left:0; bottom:0; }
   .fbar.rot { transform:rotate(90deg); margin-top:5px; }
+  /* ash meter between the output and the ash slot (0.775) */
+  .fash { width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+  .fash span { width:34px; height:6px; border-radius:3px; background:rgba(0,0,0,.6);
+               border:1px solid rgba(255,255,255,.14); overflow:hidden; }
+  .fash i { display:block; height:100%; width:0; background:#b9b4aa; }
+  /* smelting book (0.775): read-only rows in the crafting list's look */
+  #furnacePanel .fbookBtn { position:absolute; top:8px; right:10px; width:30px; height:30px; padding:2px;
+                            pointer-events:auto; cursor:pointer; background:#0b0d16; border:1px solid #334; border-radius:6px; }
+  #furnacePanel .fbookBtn:hover, #furnacePanel .fbookBtn.sel { background:#1c243a; border-color:#4a5f8a; }
+  #furnacePanel .fbookBtn img { width:24px; height:24px; display:block; image-rendering:pixelated; }
+  /* sits on top of the furnace panel (0.776), joined to it and just as wide (0.7761), so opening it
+     never moves the slots; the panel's top border is the seam between them */
+  .fbook { position:absolute; left:-1px; right:-1px; bottom:calc(100% + 1px);
+           display:flex; flex-direction:column; padding:10px 10px 6px;
+           background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15); border-bottom:none;
+           border-radius:10px 10px 0 0; }
+  #furnTabs { display:flex; gap:4px; padding:0 2px; }
+  #furnTabs .ctab { pointer-events:auto; }
+  .fbList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:320px; scrollbar-width:none; pointer-events:auto; }
+  .fbHead { color:#9ab; font-size:10px; margin:4px 2px 0; text-transform:uppercase; letter-spacing:.5px; }
+  .fbRow { gap:2px; justify-content:space-between; }
+  .fbRow .cing.out, .fbNone { width:46px; height:46px; flex-shrink:0; }
+  .fbRow .cing.out img { width:38px; height:38px; }
+  .fbNone { display:flex; align-items:center; justify-content:center; color:#6b7789; font-size:14px; }
+  .fbTime { display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:46px; padding:3px 0;
+            background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.1); border-radius:6px; }
+  .fbTime b { color:#e8eef6; font-size:11px; font-weight:600; }
+  .fbTime small { color:#8fa0b4; font-size:9px; }
+  .fbArrow { color:#8fa0b4; flex-shrink:0; }
+  .fbXp { display:flex; align-items:center; gap:2px; flex-shrink:0; width:32px; color:#7ee63a; font-size:11px; font-weight:600; }
+  .fbXp img { width:14px; height:14px; image-rendering:pixelated; }
+  .fbHint { color:#6b7789; font-size:9px; margin-top:6px; text-align:center; }
   #craftTabs { display:flex; gap:4px; padding:0 2px; }
   .ctab { flex:1; height:36px; display:flex; align-items:center; justify-content:center;
           background:#0b0d16; border:1px solid #334; border-radius:6px 6px 0 0;
@@ -252,10 +285,12 @@
   .ctab.sel { background:#1c243a; border-color:#4a5f8a; }
   .ctab img { width:26px; height:26px; image-rendering:auto; }
   .ctab .tlabel { color:#dfe; font-size:12px; font-weight:600; letter-spacing:0.5px; }
-  #craftList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:430px;
-               padding-right:4px; }
-  .crow { display:flex; align-items:center; gap:5px; background:#0b0d16; border:1px solid #334;
-          border-radius:8px; padding:5px 7px; }
+  /* no visible scrollbar (0.777): the wheel and the right stick scroll it, and the rows get its width */
+  #craftList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:430px; scrollbar-width:none; }
+  #craftList::-webkit-scrollbar, .fbList::-webkit-scrollbar { display:none; }
+  /* ingredients sit almost touching (0.777) to leave room for the XP column */
+  .crow { display:flex; align-items:center; gap:2px; background:#0b0d16; border:1px solid #334;
+          border-radius:8px; padding:5px 5px; }
   .cing { position:relative; width:40px; height:40px; flex-shrink:0; background:rgba(0,0,0,.35);
           border:1px solid rgba(255,255,255,.14); border-radius:4px;
           display:flex; align-items:center; justify-content:center; }
@@ -263,7 +298,7 @@
   .cing b, .cbtn b { position:absolute; right:1px; bottom:-1px; font-size:11px; color:#fff;
           text-shadow:1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
   .cing.miss { border-color:#7d3232; }
-  .cbtn { position:relative; margin-left:auto; width:46px; height:46px; flex-shrink:0;
+  .cbtn { position:relative; margin-left:auto; width:44px; height:44px; flex-shrink:0;
           background:#3f7d32; border:1px solid rgba(255,255,255,.25); border-radius:6px;
           cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
   .cbtn:hover { background:#4f9440; }
@@ -272,9 +307,13 @@
   /* arrow into the output with the craft time under it (0.7601); it takes the push to the right from the button */
   .crow .ctime { margin-left:auto; display:flex; flex-direction:column; align-items:center; gap:2px;
                  flex-shrink:0; color:#8fa0b4; pointer-events:none; }
-  .crow .ctime small { font-size:10px; line-height:1; }
-  .crow .ctime + .cbtn { margin-left:2px; }
-  /* ---- personal crafting queue (0.76): five slots under the recipe list ---- */
+  .crow .ctime small { font-size:9px; line-height:1; }
+  .crow .ctime + .cbtn { margin-left:1px; }
+  /* sized so a five-ingredient recipe still fits beside it (0.7771) */
+  .cxp { display:flex; align-items:center; gap:1px; flex-shrink:0; width:26px; margin-left:2px;
+         color:#7ee63a; font-size:11px; font-weight:600; }
+  .cxp img { width:14px; height:14px; image-rendering:pixelated; }
+  /* ---- personal crafting queue (0.76): six slots under the recipe list (five before 0.778) ---- */
   #craftPanel.hasQueue #craftList { height:352px; }
   .cqPanel { display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255,255,255,.12); }
   .cqHead { display:flex; align-items:center; justify-content:space-between; }

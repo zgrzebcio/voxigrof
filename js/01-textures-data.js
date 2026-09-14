@@ -161,6 +161,16 @@ const ITEM_TEXTURES = {
   ruby:        'textures/Items/Ores/ruby.png',
   sapphire:    'textures/Items/Ores/sapphire.png',
   topaz:       'textures/Items/Ores/topaz.png',          // 0.769
+  // metal powders ground in the mortar (0.773), recoloured from ashes.png
+  iron_powder:   'textures/Items/Materials/iron_powder.png',
+  tin_powder:    'textures/Items/Materials/tin_powder.png',
+  copper_powder: 'textures/Items/Materials/copper_powder.png',
+  gold_powder:   'textures/Items/Materials/gold_powder.png',
+  bronze_powder: 'textures/Items/Materials/bronze_powder.png',
+  steel_powder:  'textures/Items/Materials/steel_powder.png',
+  ashes:         'textures/Items/Materials/ashes.png',             // 0.775, from the furnace
+  bronze_nugget: 'textures/Items/Ores/bronze_nugget.png',          // 0.774
+  bronze_ingot:  'textures/Items/Ores/bronze_ingot.png',           // 0.774, recoloured from the iron ingot
   apple:       'textures/Items/Consumables/apple.png',
   flint:       'textures/Items/Materials/flint.png',
   clay_ball:   'textures/Items/Materials/clay_ball.png',
@@ -200,6 +210,11 @@ const ITEM_TEXTURES = {
   stone_pickaxe:   'textures/Items/Tools/stone_pickaxe.png',
   stone_hatchet:   'textures/Items/Tools/stone_hatchet.png',
   stone_hoe:       'textures/Items/Tools/stone_hoe.png',
+  // bronze tools (0.774), recoloured from the stone ones
+  bronze_shovel:   'textures/Items/Tools/bronze_shovel.png',
+  bronze_pickaxe:  'textures/Items/Tools/bronze_pickaxe.png',
+  bronze_hatchet:  'textures/Items/Tools/bronze_hatchet.png',
+  bronze_hoe:      'textures/Items/Tools/bronze_hoe.png',
   golden_pickaxe:  'textures/Items/Tools/golden_pickaxe.png',
   golden_hatchet:  'textures/Items/Tools/golden_hatchet.png',
   golden_shovel:   'textures/Items/Tools/golden_shovel.png',
@@ -224,6 +239,7 @@ const ITEM_TEXTURES = {
   glow_crystals:   'textures/Items/Materials/glow_crystals.png',      // 0.765
   flint_sword:     'textures/Items/Weapons/flint_sword.png',
   stone_sword:     'textures/Items/Weapons/stone_sword.png',
+  bronze_sword:    'textures/Items/Weapons/bronze_sword.png',        // 0.774
   iron_sword:      'textures/Items/Weapons/iron_sword.png',
   golden_sword:    'textures/Items/Weapons/golden_sword.png',
   diamond_sword:   'textures/Items/Weapons/diamond_sword.png',

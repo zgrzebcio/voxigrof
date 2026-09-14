@@ -84,7 +84,8 @@ function VOXEL_CORE() {
               RAW_IRON_BLOCK:101, RAW_GOLD_BLOCK:102, RAW_TIN_BLOCK:103, RAW_COPPER_BLOCK:104,
               // topaz, sandstones, the fiber block and the ladder (0.769)
               TOPAZ_ORE:105, TOPAZ_BLOCK:106, SANDSTONE:107, RED_SANDSTONE:108, FIBER_BLOCK:109, LADDER:110,
-              BLUE_MUSHROOM:111, };                                   // 0.7691
+              BLUE_MUSHROOM:111,                                      // 0.7691
+              MORTAR:112, };                                          // 0.77
   /* variant byte layout:
      - grass: 1 = snowy sides
      - rot:'side' blocks (furnace, bench): bits 0-1 = facing (0:+Z 1:-Z 2:+X 3:-X);
@@ -305,6 +306,27 @@ function VOXEL_CORE() {
   PROPS[B.LADDER] = { name:'Ladder', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
                       stack:60, hardness:4.5, type:'wood', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                       faces:[T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER], desc: '' };
+  /* Mortar and pestle (0.77): a carved stone bowl with its pestle, built from a voxel model
+     (mortar_voxels.json, with its top rim ring trimmed off). MORTAR_VOX holds the model as greedy-merged
+     boxes in voxel units, seven numbers each: x0,y0,z0,x1,y1,z1,material (1 bowl, 2 ground powder,
+     3 pestle). 27 voxels make one block, so the pestle's tip still sits inside the cell. Drawn by the
+     mesher's 'voxel' branch, which is also what gives it a real 3D icon, drop and held item. */
+  const MORTAR_VOX = [8,0,4,14,1,18,1,6,0,5,8,1,17,1,14,0,5,16,1,17,1,5,0,6,6,1,16,1,16,0,6,17,1,16,1,4,0,8,5,1,14,1,17,0,8,18,1,14,1,11,1,4,12,2,17,1,8,1,5,11,2,17,1,12,1,5,15,2,16,1,6,1,6,8,2,16,1,15,1,6,16,2,16,1,5,1,8,6,2,14,1,16,1,8,17,2,14,1,12,1,16,14,2,17,1,10,2,5,12,3,17,1,7,2,6,10,3,15,1,12,2,6,14,12,16,1,6,2,7,7,3,14,1,14,2,7,16,3,15,1,5,2,9,6,3,12,1,16,2,10,17,3,13,1,8,2,15,10,6,16,1,14,2,15,15,3,16,1,8,3,6,12,6,15,1,7,3,7,8,14,15,1,14,3,7,15,14,15,1,6,3,8,7,14,14,1,15,3,8,16,6,14,1,10,3,15,12,15,16,1,9,6,6,12,12,15,1,8,6,7,9,13,15,1,15,6,9,16,15,14,1,9,6,15,10,15,16,1,8,7,5,14,15,6,1,7,7,6,9,15,7,1,14,7,6,15,16,7,1,6,7,7,7,16,8,1,15,7,7,16,15,9,1,5,7,8,6,15,14,1,16,7,9,17,15,14,1,6,7,14,7,16,15,1,15,7,14,16,16,15,1,7,7,15,9,15,16,1,14,7,15,15,16,16,1,8,7,16,14,15,17,1,9,8,4,13,17,5,1,7,8,5,8,17,6,1,14,8,5,15,17,6,1,6,8,6,7,16,7,1,15,8,6,16,16,7,1,5,8,7,6,17,8,1,16,8,7,17,16,9,1,4,8,9,5,17,13,1,17,8,9,18,17,13,1,5,8,14,6,17,15,1,16,8,14,17,17,15,1,6,8,15,7,16,16,1,15,8,15,16,16,16,1,7,8,16,8,17,17,1,14,8,16,15,16,17,1,9,8,17,13,17,18,1,7,9,4,9,17,5,1,13,9,4,14,17,5,1,6,9,5,7,17,6,1,15,9,5,16,17,6,1,5,9,6,6,17,7,1,16,9,6,17,17,7,1,4,9,8,5,17,9,1,17,9,8,18,17,9,1,4,9,13,5,17,15,1,17,9,13,18,17,15,1,5,9,15,6,17,16,1,16,9,15,17,17,16,1,6,9,16,7,17,17,1,15,9,16,16,17,17,1,7,9,17,9,17,18,1,13,9,17,14,17,18,1,8,10,3,14,18,4,1,14,10,4,16,18,5,1,5,10,5,6,18,6,1,16,10,5,17,18,6,1,17,10,6,18,18,8,1,4,10,7,5,18,8,1,18,10,8,19,18,14,1,3,10,9,4,18,14,1,5,10,16,6,18,17,1,16,10,16,17,18,17,1,14,10,17,15,17,18,1,8,10,18,14,18,19,1,7,11,3,8,19,4,1,14,11,3,15,18,4,1,6,11,4,7,18,5,1,4,11,6,5,18,7,1,3,11,7,4,18,9,1,18,11,7,19,19,8,1,3,11,14,4,19,15,1,18,11,14,19,18,15,1,4,11,15,5,18,16,1,17,11,15,18,18,16,1,6,11,17,7,18,18,1,15,11,17,16,18,18,1,7,11,18,8,19,19,1,14,11,18,15,19,19,1,8,12,2,14,19,3,1,6,12,3,7,19,4,1,15,12,3,16,19,4,1,5,12,4,6,19,5,1,16,12,4,17,19,5,1,4,12,5,5,19,6,1,17,12,5,18,19,6,1,3,12,6,4,19,7,1,9,12,6,14,13,9,1,18,12,6,19,19,7,1,2,12,8,3,19,14,1,19,12,8,20,19,14,1,9,12,9,10,13,10,1,10,12,9,12,15,13,2,12,12,9,14,13,10,1,9,12,10,10,15,12,2,12,12,10,13,15,12,2,13,12,10,14,13,16,1,9,12,12,10,13,15,1,12,12,12,13,13,16,1,10,12,13,12,13,15,1,3,12,15,4,19,16,1,18,12,15,19,19,16,1,4,12,16,5,19,17,1,17,12,16,18,19,17,1,5,12,17,6,19,18,1,16,12,17,17,19,18,1,6,12,18,7,19,19,1,15,12,18,16,19,19,1,8,12,19,14,19,20,1,7,13,2,8,19,3,1,14,13,2,15,19,3,1,5,13,3,6,19,4,1,16,13,3,17,19,4,1,4,13,4,5,19,5,1,17,13,4,18,19,5,1,3,13,5,4,19,6,1,18,13,5,19,19,6,1,9,13,6,14,14,8,1,2,13,7,3,19,8,1,8,13,7,9,14,9,1,19,13,7,20,19,8,1,10,13,8,12,15,9,2,13,13,8,14,14,9,1,9,13,9,10,15,10,2,12,13,9,13,15,10,2,8,13,10,9,15,12,2,13,13,10,14,15,12,2,8,13,12,9,14,13,3,9,13,12,10,15,13,2,12,13,12,13,15,13,2,8,13,13,9,14,15,1,9,13,13,10,14,14,3,10,13,13,12,15,14,2,13,13,13,14,14,16,1,2,13,14,3,19,15,1,9,13,14,13,14,15,1,19,13,14,20,19,15,1,12,13,15,13,15,16,1,3,13,16,4,19,17,1,18,13,16,19,19,17,1,4,13,17,5,19,18,1,17,13,17,18,19,18,1,5,13,18,6,19,19,1,16,13,18,17,19,19,1,7,13,19,8,19,20,1,14,13,19,15,19,20,1,8,14,1,14,19,2,1,6,14,2,7,19,3,1,15,14,2,16,19,3,1,3,14,4,4,19,5,1,18,14,4,19,19,5,1,2,14,6,3,19,7,1,9,14,6,14,15,7,1,19,14,6,20,19,7,1,7,14,7,8,15,8,1,9,14,7,13,15,8,2,14,14,7,15,15,8,1,6,14,8,7,15,11,1,8,14,8,10,15,9,2,12,14,8,14,15,9,2,20,14,8,21,19,14,1,1,14,9,2,19,13,1,7,14,9,9,15,10,2,13,14,9,15,15,10,2,7,14,10,8,15,13,2,14,14,10,15,15,13,2,6,14,12,7,15,14,1,8,14,12,9,15,14,2,13,14,12,14,15,14,2,9,14,13,10,15,15,2,12,14,13,13,15,15,2,7,14,14,8,15,15,1,10,14,14,12,15,15,2,14,14,14,15,15,15,1,2,14,15,3,19,16,1,13,14,15,14,15,16,1,19,14,15,20,19,16,1,6,14,19,7,19,20,1,15,14,19,16,19,20,1,8,14,20,14,19,21,1,7,15,1,8,19,2,1,14,15,1,15,19,2,1,5,15,2,6,19,3,1,16,15,2,17,19,3,1,4,15,3,5,19,4,1,17,15,3,18,19,4,1,2,15,5,3,19,6,1,8,15,5,10,16,6,1,12,15,5,14,16,6,1,19,15,5,20,19,6,1,7,15,6,8,16,7,1,1,15,7,2,19,9,1,15,15,7,16,16,8,1,20,15,7,21,19,8,1,5,15,8,6,16,10,1,16,15,9,17,16,10,1,10,15,10,11,16,14,3,5,15,11,6,16,14,1,8,15,11,10,16,14,3,11,15,11,12,19,13,3,16,15,11,17,16,14,1,1,15,13,2,19,15,1,20,15,14,21,19,15,1,7,15,15,8,16,16,1,2,15,16,3,19,17,1,8,15,16,11,16,17,1,12,15,16,14,16,17,1,19,15,16,20,19,17,1,3,15,17,4,19,18,1,18,15,17,19,19,18,1,4,15,18,5,19,19,1,17,15,18,18,19,19,1,5,15,19,6,19,20,1,16,15,19,17,19,20,1,7,15,20,8,19,21,1,14,15,20,15,19,21,1,16,16,7,17,17,8,1,10,16,10,12,18,11,3,9,16,11,11,17,13,3,12,16,11,13,21,12,3,12,17,10,14,21,11,3,10,17,11,11,18,13,3,13,17,11,14,21,12,3,12,17,12,13,19,13,3,3,18,7,4,19,8,1,12,18,9,14,20,10,3,11,18,10,12,20,11,3,10,18,11,11,19,12,3,14,19,9,15,22,12,3,11,19,11,12,20,12,3,13,20,9,14,22,10,3,15,20,9,16,24,11,3,15,21,8,16,24,9,3,16,21,9,17,24,11,3,13,21,10,14,22,11,3,16,22,8,18,27,9,3,14,22,9,15,23,11,3,17,22,9,18,27,10,3,17,23,7,19,27,8,3,18,23,8,20,27,9,3,18,23,9,19,27,10,3,17,23,10,18,27,11,3,18,24,6,20,27,7,3,16,24,7,17,27,8,3,19,24,7,21,27,8,3,20,24,8,21,27,10,3,16,24,9,17,26,10,3,19,24,9,20,27,10,3,18,24,10,19,27,11,3,17,25,6,18,27,7,3,19,25,10,20,27,11,3];
+  const MORTAR_S = 1 / 27, MORTAR_C = 11;                 // voxel size, and the model's centre column
+  // bowl in plain stone (grey, like gen_mortar.py's palette), powder as sand, pestle in pale marble
+  const MORTAR_FACES = { 1: [T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE],
+                         2: [T.SAND,T.SAND,T.SAND,T.SAND,T.SAND,T.SAND],
+                         3: [T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE] };
+  const MORTAR_BOXES = [];
+  for (let i = 0; i + 6 < MORTAR_VOX.length; i += 7) {
+    const v = MORTAR_VOX, at = (n) => (n - MORTAR_C) * MORTAR_S + 0.5;
+    MORTAR_BOXES.push([at(v[i]), v[i + 1] * MORTAR_S, at(v[i + 2]), at(v[i + 3]), v[i + 4] * MORTAR_S, at(v[i + 5]), v[i + 6]]);
+  }
+  PROPS[B.MORTAR] = { name:'Mortar and pestle', solid:true, opaque:false, raycast:true, pass:0, model:'voxel',
+                      stack:10, hardness:3.0, type:'stone',
+                      boxes:[[0.13, 0, 0.13, 0.87, 0.71, 0.87]],   // the bowl; the pestle is not in the way
+                      voxBoxes: MORTAR_BOXES, matFaces: MORTAR_FACES, animMat: 3,   // the pestle moves (0.772)
+                      faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
   PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
@@ -2439,6 +2461,15 @@ function VOXEL_CORE() {
             for (let bi = 0; bi < boxes.length; bi++)
               emitBoxFaces(x, y, z, boxes[bi], PROPS[vid].faces, own);
           }
+          else if (PROPS[vid].model === 'voxel') {
+            // a voxel model (0.77): every box in its own material, lit from its own cell like a wall plate
+            // variant 1 leaves out the animated part, variant 2 is that part alone (0.772, the grinding pestle)
+            const vp = PROPS[vid], va = (val >> 8) & 255;
+            for (const bx of vp.voxBoxes) {
+              if ((va === 1 && bx[6] === vp.animMat) || (va === 2 && bx[6] !== vp.animMat)) continue;
+              emitBoxFaces(x, y, z, bx, vp.matFaces[bx[6]] || vp.faces, true);
+            }
+          }
           else if (PROPS[vid].model === 'carpet_stack') {
             /* One box per RUN of same-material layers rather than one per layer: a 6-deep snow
                drift is one quad set, and only a genuine material change costs an extra box. */
@@ -2833,7 +2864,13 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                COOKED_PUMPKIN_PIE: 361, GLOW_CRYSTAL: 362,
                EMERALD: 363, RUBY: 364, SAPPHIRE: 365,     // 0.766
                CHARCOAL_CHUNK: 366, MILK_BUCKET: 367,      // 0.767
-               TOPAZ: 368 };                               // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+               TOPAZ: 368,
+               IRON_POWDER: 369, TIN_POWDER: 370, COPPER_POWDER: 371, GOLD_POWDER: 372,   // 0.773
+               BRONZE_POWDER: 373, STEEL_POWDER: 374,
+               // bronze (0.774): the tier between iron and diamond
+               BRONZE_INGOT: 375, BRONZE_NUGGET: 376, BRONZE_SWORD: 377, BRONZE_SHOVEL: 378,
+               BRONZE_PICKAXE: 379, BRONZE_HATCHET: 380, BRONZE_HOE: 381,
+               ASHES: 382 };   // 0.775                               // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -2845,6 +2882,19 @@ const ITEM_PROPS = {
   [ITEM.RUBY]:          { name: 'Ruby',          stack: 99, icon: 'ruby',     desc: 'A rare gem from deep caves' },
   [ITEM.SAPPHIRE]:      { name: 'Sapphire',      stack: 99, icon: 'sapphire', desc: 'A rare gem found under the hills' },
   [ITEM.TOPAZ]:         { name: 'Topaz',         stack: 99, icon: 'topaz',    desc: 'A rare gem from the middle depths' },   // 0.769
+  // metal powders (0.773): a mortar grinds one raw ore into two, and each smelts into an ingot
+  [ITEM.IRON_POWDER]:   { name: 'Iron powder',   stack: 99, icon: 'iron_powder',   desc: 'Can be smelt in furnace to iron ingot' },
+  [ITEM.TIN_POWDER]:    { name: 'Tin powder',    stack: 99, icon: 'tin_powder',    desc: 'Can be smelt in furnace to tin ingot' },
+  [ITEM.COPPER_POWDER]: { name: 'Copper powder', stack: 99, icon: 'copper_powder', desc: 'Can be smelt in furnace to copper ingot' },
+  [ITEM.GOLD_POWDER]:   { name: 'Gold powder',   stack: 99, icon: 'gold_powder',   desc: 'Can be smelt in furnace to gold ingot' },
+  // not made or used by anything yet: reserved for bronze and steel (0.773)
+  [ITEM.BRONZE_POWDER]: { name: 'Bronze powder', stack: 99, icon: 'bronze_powder', desc: 'Can be smelt in furnace to bronze ingot' },   // 0.774
+  [ITEM.STEEL_POWDER]:  { name: 'Steel powder',  stack: 99, icon: 'steel_powder',  desc: 'For steel, in a future update' },
+  // burnt fuel leaves ashes in the furnace's fourth slot (0.775)
+  [ITEM.ASHES]:         { name: 'Ashes',         stack: 99, icon: 'ashes',         desc: 'Left in a furnace by burnt fuel' },
+  // bronze metal (0.774): copper and tin powder ground together, smelted into ingots
+  [ITEM.BRONZE_INGOT]:  { name: 'Bronze ingot',  stack: 99, icon: 'bronze_ingot',  desc: 'Used as crafting ingredient' },
+  [ITEM.BRONZE_NUGGET]: { name: 'Bronze nugget', stack: 99, icon: 'bronze_nugget', desc: 'Used as crafting ingredient' },
   [ITEM.CLAY_BALL]:     { name: 'Clay ball',     stack: 99, icon: 'clay_ball', desc: 'Used as crafting ingredient' },
   [ITEM.BOWL]:          { name: 'Bowl',          stack: 30, icon: 'bowl', desc: 'Used to fill with food' },
   [ITEM.GLASS_SHARD]:   { name: 'Glass shard',   stack: 99, icon: 'glass_shard', desc: 'Used as crafting ingredient' },
@@ -2914,6 +2964,12 @@ const ITEM_PROPS = {
   [ITEM.GOLDEN_PICKAXE]: { name: 'Golden pickaxe',  stack: 1, icon: 'golden_pickaxe', tool: 'pick',    tier: 3, toolSpeed: 14,   damage: 4,   attackSpeed: 1.6,   durability: 60, desc: '' },
   [ITEM.GOLDEN_HATCHET]: { name: 'Golden hatchet',  stack: 1, icon: 'golden_hatchet', tool: 'hatchet', tier: 3, toolSpeed: 14,   damage: 5,   attackSpeed: 1.4,   durability: 60, desc: '' },
   [ITEM.GOLDEN_HOE]:     { name: 'Golden hoe',      stack: 1, icon: 'golden_hoe',     tool: 'hoe',     tier: 3, toolSpeed: 14,   damage: 3,   attackSpeed: 2.4,   durability: 45, desc: '' },
+  // bronze tools (0.774): tier 4, halfway between iron and diamond in every stat; the gem ores need one
+  [ITEM.BRONZE_SWORD]:   { name: 'Bronze sword',    stack: 1, icon: 'bronze_sword',   tool: 'sword',   tier: 4, toolSpeed: 4,    damage: 6.5, attackSpeed: 1.95,  durability: 300, desc: '' },
+  [ITEM.BRONZE_SHOVEL]:  { name: 'Bronze shovel',   stack: 1, icon: 'bronze_shovel',  tool: 'shovel',  tier: 4, toolSpeed: 8,    damage: 3,   attackSpeed: 1.15,  durability: 600, desc: '' },
+  [ITEM.BRONZE_PICKAXE]: { name: 'Bronze pickaxe',  stack: 1, icon: 'bronze_pickaxe', tool: 'pick',    tier: 4, toolSpeed: 8,    damage: 3.5, attackSpeed: 1.15,  durability: 600, desc: '' },
+  [ITEM.BRONZE_HATCHET]: { name: 'Bronze hatchet',  stack: 1, icon: 'bronze_hatchet', tool: 'hatchet', tier: 4, toolSpeed: 8,    damage: 7.5, attackSpeed: 0.85,  durability: 600, desc: '' },
+  [ITEM.BRONZE_HOE]:     { name: 'Bronze hoe',      stack: 1, icon: 'bronze_hoe',     tool: 'hoe',     tier: 4, toolSpeed: 8,    damage: 3.5, attackSpeed: 1.25,  durability: 450, desc: '' },
   [ITEM.DIAMOND_SWORD]:  { name: 'Diamond sword',   stack: 1, icon: 'diamond_sword',  tool: 'sword',   tier: 5, toolSpeed: 5,    damage: 7,   attackSpeed: 2.0,   durability: 500, desc: '' },
   [ITEM.DIAMOND_SHOVEL]: { name: 'Diamond shovel',  stack: 1, icon: 'diamond_shovel', tool: 'shovel',  tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.2,   durability: 1000, desc: '' },
   [ITEM.DIAMOND_PICKAXE]:{ name: 'Diamond pickaxe', stack: 1, icon: 'diamond_pickaxe',tool: 'pick',    tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.2,   durability: 1000, desc: '' },
@@ -2998,12 +3054,13 @@ const MINE_REQ = {
   [B.IRON_ORE]:    { tool: 'pick', tier: 2 },
   [B.TIN_ORE]:     { tool: 'pick', tier: 2 },
   [B.GOLD_ORE]:    { tool: 'pick', tier: 3 },
-  [B.DIAMOND_ORE]: { tool: 'pick', tier: 3 },
-  [B.EMERALD_ORE]: { tool: 'pick', tier: 3 },       // gems: iron pickaxe or better (0.766)
-  [B.RUBY_ORE]:    { tool: 'pick', tier: 3 },
-  [B.SAPPHIRE_ORE]:{ tool: 'pick', tier: 3 },
+  // diamond and every gem need a bronze pickaxe (tier 4) or better since 0.774
+  [B.DIAMOND_ORE]: { tool: 'pick', tier: 4 },
+  [B.EMERALD_ORE]: { tool: 'pick', tier: 4 },
+  [B.RUBY_ORE]:    { tool: 'pick', tier: 4 },
+  [B.SAPPHIRE_ORE]:{ tool: 'pick', tier: 4 },
   [B.COBWEB]:      { tool: 'sword', tier: 0 },      // any sword cuts the string out; anything else just tears it
-  [B.OBSIDIAN]: { tool: 'pick', tier: 4 },
+  [B.OBSIDIAN]: { tool: 'pick', tier: 5 },          // still diamond only now that bronze is tier 4 (0.774)
   [B.SNOW]:        { tool: 'shovel', tier: 1 },
   [B.SULFUR_BLOCK]:    { tool: 'pick', tier: 2 },
   [B.SULFUR_DOWN_TIP]: { tool: 'pick', tier: 2 },
@@ -3020,7 +3077,7 @@ const STORAGE_BLOCK_IDS = [B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_
   B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK, B.TOPAZ_BLOCK];
 for (const id of STORAGE_BLOCK_IDS) MINE_REQ[id] = { tool: 'pick', tier: 1 };
 // 0.769: topaz ore needs iron like the other gems; sandstone any pickaxe
-MINE_REQ[B.TOPAZ_ORE] = { tool: 'pick', tier: 3 };
+MINE_REQ[B.TOPAZ_ORE] = { tool: 'pick', tier: 4 };   // bronze, like the other gems (0.774)
 MINE_REQ[B.SANDSTONE] = MINE_REQ[B.RED_SANDSTONE] = { tool: 'pick', tier: 1 };
 // does the held item satisfy the block's drop requirement? (hand = tier 0, no tool type)
 function mineDropAllowed(heldId, blockId) {
@@ -3095,7 +3152,8 @@ const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
    35-leveling.js), so hand-breaking them is housekeeping and never a grind. */
-const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.FIBER_BLOCK, B.LADDER]);   // + fiber block, ladder (0.769)
+const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.FIBER_BLOCK, B.LADDER,   // + fiber block, ladder (0.769)
+                                   B.MORTAR]);                                                         // + mortar (0.77)
 function handBreakable(id) {
   const p = PROPS[id & 255];
   if (!p) return false;

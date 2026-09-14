@@ -85,6 +85,7 @@ function softBlockMineMul(id) {
 const HOE_GRASS = new Set([B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER]);
 const HOE_WIDTH = {
   [ITEM.FLINT_HOE]: 1, [ITEM.STONE_HOE]: 3, [ITEM.IRON_HOE]: 5, [ITEM.GOLDEN_HOE]: 5, [ITEM.DIAMOND_HOE]: 9,
+  [ITEM.BRONZE_HOE]: 7,                                            // 0.774
 };
 function heldHoeWidth() {
   if (typeof player === 'undefined' || player.canFly || typeof HOTBAR === 'undefined') return 0;

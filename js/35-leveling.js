@@ -89,7 +89,7 @@ const XP_BLOCK = {};
 }
 const XP_MOB = 25;                 // a kill — a fight is worth a good few ore veins' worth of swing
 const XP_HARVEST = 1;              // a bush pickup that actually yielded something
-const XP_SMELT = 3;                // one item out of a furnace
+// smelting XP lives on each furnace recipe since 0.775 (SMELT_RECIPES, 26-furnace.js), paid on taking the output
 
 /* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its
    `timeToCraft` (25-crafting.js), so what a craft pays is written where the recipe is. */

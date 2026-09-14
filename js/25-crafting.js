@@ -39,7 +39,7 @@ const RECIPES_BASIC = [
   { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1], [B.BLUE_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 1.5, xpToGive: 4 },   // + blue (0.7691)
   { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 1.5, xpToGive: 2 },
-  { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], timeToCraft: 1, xpToGive: 1 },
+  { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], station: 'mortar', timeToCraft: 1, xpToGive: 1 },
   { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1 },
   { in: [[ITEM.BRICK, 5]],                                                   out: [B.BRICKS, 1], timeToCraft: 1.5, xpToGive: 2 },
   { in: [[ITEM.STRING, 5]],                                                  out: [B.WOOL, 1], timeToCraft: 1.5, xpToGive: 2 },
@@ -53,7 +53,7 @@ const RECIPES_BASIC = [
 const RECIPES_ADVANCED = [
   { in: [[ITEM.COAL_CHUNK, 5]],                                              out: [ITEM.COAL, 1], timeToCraft: 2.5, xpToGive: 1 },       // 5 since 0.7691
   { in: [[ITEM.CHARCOAL_CHUNK, 5]],                                          out: [ITEM.CHARCOAL, 1], timeToCraft: 2.5, xpToGive: 1 },   // 0.767
-  { in: [[B.STONE, 1], [ITEM.FLINT, 1], [V_COAL, 1]],                     out: [ITEM.GLOW_DUST, 1], timeToCraft: 1.5, xpToGive: 8 },
+  { in: [[B.STONE, 1], [ITEM.FLINT, 1], [V_COAL, 1]],                     out: [ITEM.GLOW_DUST, 1], station: 'mortar', timeToCraft: 1.5, xpToGive: 8 },
   // dust packs back into the block it came from, so a light source is craftable rather than found
   { in: [[ITEM.GLOW_DUST, 5]],                                               out: [B.GLOWSTONE, 1], timeToCraft: 1.5, xpToGive: 2 },
   { in: [[ITEM.GLOW_CRYSTAL, 5]],                                            out: [B.GLOWCRYSTAL_BLOCK, 1], timeToCraft: 2, xpToGive: 4 },   // 0.765
@@ -99,9 +99,9 @@ const RECIPES_ADVANCED = [
   { in: [[V_STONE, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HATCHET, 1], timeToCraft: 5, xpToGive: 12 },
   { in: [[V_STONE, 2], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HOE, 1], timeToCraft: 4.5, xpToGive: 12 },
   { in: [[ITEM.IRON_INGOT, 3]],                                              out: [ITEM.BUCKET, 1], timeToCraft: 1.5, xpToGive: 15 },
-  { in: [[ITEM.WHEAT, 3]],                                                   out: [ITEM.FLOUR, 1], timeToCraft: 1.5, xpToGive: 2 },
+  { in: [[ITEM.WHEAT, 3]],                                                   out: [ITEM.FLOUR, 1], station: 'mortar', timeToCraft: 1.5, xpToGive: 2 },
   { in: [[ITEM.FLOUR, 3], [B.PUMPKIN, 1]],                                   out: [ITEM.PUMPKIN_PIE, 1], timeToCraft: 1.5, xpToGive: 8 },
-  { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1]],             out: [ITEM.GUNPOWDER, 2], timeToCraft: 1.5, xpToGive: 6 },
+  { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1]],             out: [ITEM.GUNPOWDER, 2], station: 'mortar', timeToCraft: 1.5, xpToGive: 6 },
   { in: [[ITEM.GUNPOWDER, 7], [B.SAND, 10]],                                 out: [B.TNT, 1], timeToCraft: 5, xpToGive: 30 },
   { in: [[ITEM.SUGAR_CANE, 3]],                                              out: [ITEM.PAPER, 1], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[ITEM.GOLD_INGOT, 10], [ITEM.APPLE, 1]],                            out: [ITEM.GOLDEN_APPLE, 1], timeToCraft: 3.5, xpToGive: 60 },
@@ -143,6 +143,29 @@ RECIPES_ADVANCED.push(
   { in: [[ITEM.FIBER, 10]],   out: [B.FIBER_BLOCK, 1],   timeToCraft: 2,   xpToGive: 1 },
   { in: [[B.FIBER_BLOCK, 1]], out: [ITEM.FIBER, 10],     timeToCraft: 1,   xpToGive: 0 },
   { in: [[ITEM.STICK, 10]],   out: [B.LADDER, 1],        timeToCraft: 2.5, xpToGive: 2 },
+  // mortar and pestle (0.77; carved from granite with a bone pestle since 0.771)
+  { in: [[B.GRANITE, 20], [ITEM.BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 4, xpToGive: 5 },
+  /* 0.773, at the mortar: grinding doubles ore. A raw ore gives 2 powder; a raw ore block (ten ores) gives
+     20 and takes ten times as long. Each powder smelts into one ingot (26-furnace.js). */
+  { in: [[ITEM.RAW_IRON, 1]],        out: [ITEM.IRON_POWDER, 2],    station: 'mortar', timeToCraft: 2,  xpToGive: 1 },
+  { in: [[B.RAW_IRON_BLOCK, 1]],     out: [ITEM.IRON_POWDER, 20],   station: 'mortar', timeToCraft: 20, xpToGive: 10 },
+  { in: [[ITEM.RAW_TIN, 1]],         out: [ITEM.TIN_POWDER, 2],     station: 'mortar', timeToCraft: 2,  xpToGive: 1 },
+  { in: [[B.RAW_TIN_BLOCK, 1]],      out: [ITEM.TIN_POWDER, 20],    station: 'mortar', timeToCraft: 20, xpToGive: 10 },
+  { in: [[ITEM.RAW_COPPER, 1]],      out: [ITEM.COPPER_POWDER, 2],  station: 'mortar', timeToCraft: 2,  xpToGive: 1 },
+  { in: [[B.RAW_COPPER_BLOCK, 1]],   out: [ITEM.COPPER_POWDER, 20], station: 'mortar', timeToCraft: 20, xpToGive: 10 },
+  { in: [[ITEM.RAW_GOLD, 1]],        out: [ITEM.GOLD_POWDER, 2],    station: 'mortar', timeToCraft: 2,  xpToGive: 1 },
+  { in: [[B.RAW_GOLD_BLOCK, 1]],     out: [ITEM.GOLD_POWDER, 20],   station: 'mortar', timeToCraft: 20, xpToGive: 10 },
+  /* 0.774, bronze: 2 copper powder and 1 tin powder ground together make 2 bronze powder, which smelts into
+     bronze ingots. Nuggets and ingots trade 10 to 1 like the other metals; the tools sit between iron and
+     diamond, and a bronze pickaxe is what the diamond and gem ores need. */
+  { in: [[ITEM.COPPER_POWDER, 2], [ITEM.TIN_POWDER, 1]], out: [ITEM.BRONZE_POWDER, 2], station: 'mortar', timeToCraft: 3, xpToGive: 2 },
+  { in: [[ITEM.BRONZE_INGOT, 1]],    out: [ITEM.BRONZE_NUGGET, 10], timeToCraft: 1,   xpToGive: 1 },
+  { in: [[ITEM.BRONZE_NUGGET, 10]],  out: [ITEM.BRONZE_INGOT, 1],   timeToCraft: 3,   xpToGive: 1 },
+  { in: [[ITEM.BRONZE_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_SWORD, 1],   timeToCraft: 2.5, xpToGive: 55 },
+  { in: [[ITEM.BRONZE_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_SHOVEL, 1],  timeToCraft: 2.5, xpToGive: 55 },
+  { in: [[ITEM.BRONZE_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_PICKAXE, 1], timeToCraft: 3.5, xpToGive: 55 },
+  { in: [[ITEM.BRONZE_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HATCHET, 1], timeToCraft: 3,   xpToGive: 55 },
+  { in: [[ITEM.BRONZE_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 2.5, xpToGive: 55 },
 );
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
@@ -156,10 +179,16 @@ const _recipeEnabled = (r) => isObtainable(r.out[0]);
    with basic recipes first they used to sit above every stone, iron and diamond tool. The pocket
    list (E) keeps them where they were. */
 const _isFlintTool = (r) => r.out[0] >= 256 && !!ITEM_PROPS[r.out[0]]?.tool && r.in.some(([id]) => id === ITEM.FLINT);
+/* Stations (0.771): a recipe tagged `station: 'mortar'` (the powders: glow dust, gunpowder, flour) is
+   ground at a mortar and pestle and nowhere else. It stays where it is in RECIPES_ADVANCED, so every
+   recipe index a save holds still points at the same recipe; the lists are simply filtered. */
+// ...and since 0.772 a station can take a basic recipe too (sugar): it leaves the pocket list as well
 const craftRecipes = () =>
-  (craftMode === 'advanced'
-    ? [...RECIPES_BASIC.filter(r => !_isFlintTool(r)), ...RECIPES_ADVANCED, ...RECIPES_BASIC.filter(_isFlintTool)]
-    : RECIPES_BASIC).filter(_recipeEnabled);
+  (craftMode === 'mortar' ? [...RECIPES_BASIC, ...RECIPES_ADVANCED].filter(r => r.station === 'mortar')
+   : craftMode === 'advanced'
+    ? [...RECIPES_BASIC.filter(r => !r.station && !_isFlintTool(r)), ...RECIPES_ADVANCED.filter(r => !r.station),
+       ...RECIPES_BASIC.filter(r => !r.station && _isFlintTool(r))]
+    : RECIPES_BASIC.filter(r => !r.station)).filter(_recipeEnabled);
 const idName = (id) => id >= 256 ? ITEM_PROPS[id].name : PROPS[id].name;
 
 // an ingredient entry is either a bare id or a variant group; normalise to a list
@@ -177,7 +206,23 @@ function invCount(id) {
   for (const s of HOTBAR)   if (s && ids.includes(s.id)) n += s.count;
   for (const s of invSlots) if (s && ids.includes(s.id)) n += s.count;
   for (const s of backpackGrid()) if (s && ids.includes(s.id)) n += s.count;
+  for (const g of _openChestGrids()) for (const s of g) if (s && ids.includes(s.id)) n += s.count;
   return n;
+}
+/* An open chest is a second store for crafting (0.779), both halves of a double one: ingredients come
+   out of your bags first and only the rest out of the chest, and something crafted or handed back that
+   finds your bags full goes into the chest before it would be thrown on the floor. */
+function _openChestGrids() {
+  const out = [];
+  if (typeof activeChest === 'undefined' || !activeChest) return out;
+  for (const k of [activeChest, activeChest2]) { const c = k && CHESTS.get(k); if (c) out.push(c.slots); }
+  return out;
+}
+function _putInOpenChest(id) {
+  const grids = _openChestGrids(), cap = stackSize(id);
+  for (const g of grids) for (const s of g) if (s && s.id === id && s.dur == null && s.count < cap) { s.count++; return true; }
+  for (const g of grids) for (let i = 0; i < g.length; i++) if (!g[i]) { g[i] = mkSlot(id, 1); return true; }
+  return false;
 }
 const canCraft = (r) => r.in.every(([id, n]) => invCount(id) >= n);
 
@@ -203,7 +248,7 @@ const canCraft = (r) => r.in.every(([id, n]) => invCount(id) >= n);
 
    Crafting speed (31-armor.js) scales both: 200% is twice as fast, 0% cannot craft at all.
    ================================================================================================ */
-const CRAFT_QUEUE_MAX = 5;
+const CRAFT_QUEUE_MAX = 6;                   // 5 until 0.778; the slimmer rows left room for a sixth slot
 const CRAFT_MOVE_MUL = 0.6;          // walking speed while your personal queue runs
 const BENCH_TAP_TIME = 0.25;         // a right-button press shorter than this opens a busy bench
 const BENCH_CANCEL_HOLD = 0.8;       // held this long, it cancels the bench's order
@@ -230,20 +275,26 @@ function maxCrafts(r) {
 function _takeIngredients(r) {
   if (!canCraft(r)) return null;
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
-  const taken = new Map();
+  const taken = new Map(), fromChest = new Map();
+  const grids = [[invSlots, invSlots.length], [HOTBAR, HOTBAR.length], [invSlots2, packN]];
+  const chests = _openChestGrids();                     // after every bag, so the inventory has priority (0.779)
+  for (const g of chests) grids.push([g, g.length]);
   for (const [id, need] of r.in) {
     let n = need;
     const ids = ingIds(id);
-    for (const [arr, len] of [[invSlots, invSlots.length], [HOTBAR, HOTBAR.length], [invSlots2, packN]])
+    for (const [arr, len] of grids)
       for (let i = 0; i < len && n > 0; i++) {
         const s = arr[i];
         if (!s || !ids.includes(s.id)) continue;
         const t = Math.min(s.count, n);
         s.count -= t; n -= t;
         taken.set(s.id, (taken.get(s.id) || 0) + t);
+        if (chests.includes(arr)) fromChest.set(s.id, (fromChest.get(s.id) || 0) + t);
         if (s.count <= 0) arr[i] = null;
       }
   }
+  // what the chest gave shows in the feed; your own bags stay quiet as before
+  if (typeof feedItem === 'function') for (const [id, c] of fromChest) feedItem(id, -c, 'used from chest');
   return [...taken];
 }
 const _validId = (id) => typeof id === 'number' && !!(id >= 256 ? ITEM_PROPS[id] : PROPS[id]);
@@ -262,6 +313,10 @@ function _giveItems(id, count, reason, equip) {
       continue;
     }
     if (tryPickup(id, null, reason)) continue;
+    if (_putInOpenChest(id)) {                               // bags full, chest open: into the chest (0.779)
+      if (typeof feedItem === 'function') feedItem(id, 1, reason + ' to chest');
+      continue;
+    }
     throwFromPlayer(id, 1);
     if (typeof feedItem === 'function') feedItem(id, 1, 'no room: dropped');
   }
@@ -409,7 +464,11 @@ var activeBench = null;              // the bench whose recipe list this seat ha
 const benchKey = (x, y, z) => x + ',' + y + ',' + z;
 const _benchHasOrder = (b) => !!(b && (b.units.length || b.done));
 function benchBusy(x, y, z) { return _benchHasOrder(BENCHES.get(benchKey(x, y, z))); }
-function openBench(x, y, z) { activeBench = benchKey(x, y, z); toggleInventory(true, 'advanced'); }
+/* Which recipe list each station opens (0.771). A mortar works exactly like a bench — one order floating
+   over it, hold E to work it, tap E to take, hold the right button to cancel — only its list differs. */
+const STATION_MODE = { [B.CRAFTING_BENCH]: 'advanced', [B.MORTAR]: 'mortar' };
+const isStation = (id) => STATION_MODE[id & 255] != null;
+function openBench(x, y, z, mode = 'advanced') { activeBench = benchKey(x, y, z); toggleInventory(true, mode); }
 
 // a recipe chosen at a bench: one craft (or as many as affordable with Shift) goes on its order
 function benchOrder(r, all) {
@@ -441,14 +500,14 @@ function benchOrder(r, all) {
 }
 // a recipe row's button: the bench's order when one is open, the personal queue otherwise
 function onRecipeClick(r, all) {
-  if (craftMode === 'advanced' && activeBench) benchOrder(r, all);
+  if (craftMode !== 'basic' && activeBench) benchOrder(r, all);
   else queueCraft(r, all);
 }
 
 function _aimedBench() {
   if (!playing || invOpen || menuScene || player.canFly || player.dead || player.riding) return null;
   const hit = currentRay();
-  return hit && (hit.id & 255) === B.CRAFTING_BENCH ? hit : null;
+  return hit && isStation(hit.id) ? hit : null;          // a bench or a mortar (0.771)
 }
 /* Once per frame per seat, from the frame loop. `eHeld` is E (or the pad's North button); `rmbHeld` is
    the raw right button, read even while the bench has the controls locked. */
@@ -458,6 +517,9 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
   const b = key ? BENCHES.get(key) : null;
   const r = b ? recipeAt(b.ri) : null;
   player._benchAim = !!hit;
+  // a mortar saved mid-grind comes back without its pestle drawn: put it back the moment it is looked at (0.772)
+  if (hit && (hit.id & 255) === B.MORTAR && !(b && b.pestle) && ((getBlock(hit.x, hit.y, hit.z) >> 8) & 255))
+    setBlock(hit.x, hit.y, hit.z, B.MORTAR);
   const eDown = eHeld && !player._benchE;
   player._benchE = eHeld;
   if (!eHeld) player._benchNeedRelease = false;
@@ -498,7 +560,7 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
     }
   } else if (!rmbHeld) {
     const t = player._benchRmbT || 0;
-    if (t > 0 && t < BENCH_TAP_TIME && !player._benchRmbDone && hit && player._benchRmbKey === key) openBench(hit.x, hit.y, hit.z);
+    if (t > 0 && t < BENCH_TAP_TIME && !player._benchRmbDone && hit && player._benchRmbKey === key) openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]);
     player._benchRmbT = 0; player._benchRmbDone = false; player._benchRmbKey = null;
   }
 }
@@ -521,6 +583,7 @@ function _benchSpill(b, x, y, z) {
 function _benchClear(key) {
   const b = BENCHES.get(key);
   if (b && b.sprite) { scene.remove(b.sprite); b.sprite.material.map?.dispose(); b.sprite.material.dispose(); }
+  if (b && b.pestle) _stopPestle(key, b);             // a mortar's pestle goes back in its bowl (0.772)
   BENCHES.delete(key);
   for (const p of PLAYERS) if (p._benchWork === key) p._benchWork = false;
 }
@@ -607,9 +670,46 @@ function _drawBenchTag(b) {
   g.fillRect(16, 124, (W - 32) * pct, 12);
 }
 // once per frame for the world: make, redraw and retire the floating orders
+/* The pestle at work (0.772). While someone holds E at a mortar its pestle leaves the chunk mesh — the block
+   switches to variant 1, drawn without it — and a loose copy (variant 2, the pestle alone, built the way a
+   dropped block is and lit by its cell the same way) circles the bowl with a small bob, as a pestle is
+   ground round. Letting go, finishing, cancelling or breaking the mortar puts the block back as it was. */
+const PESTLE_SPEED = 3.2;                               // radians per second round the bowl
+function _startPestle(key, b) {
+  const [x, y, z] = key.split(',').map(Number);
+  const g = new THREE.Group();
+  for (const { p, geo } of buildDropGeom(B.MORTAR, 2)) {
+    const m = new THREE.Mesh(geo, _dropMat(p));
+    m.onBeforeRender = _dropLightHook;
+    m.renderOrder = p;
+    g.add(m);
+  }
+  g.position.set(x + 0.5, y + 0.5, z + 0.5);           // drop geometry is centred on its cell
+  scene.add(g);
+  b.pestle = g;
+  setBlock(x, y, z, B.MORTAR | (1 << 8));
+}
+function _stopPestle(key, b) {
+  scene.remove(b.pestle);
+  b.pestle = null;
+  const [x, y, z] = key.split(',').map(Number);
+  if ((getBlock(x, y, z) & 255) === B.MORTAR) setBlock(x, y, z, B.MORTAR);
+}
+function _animatePestle(key, b) {
+  const working = PLAYERS.some(p => p._benchWork === key);
+  if (working && !b.pestle) {
+    const [x, y, z] = key.split(',').map(Number);
+    if ((getBlock(x, y, z) & 255) === B.MORTAR) _startPestle(key, b);
+  } else if (!working && b.pestle) _stopPestle(key, b);
+  if (!b.pestle) return;
+  const t = performance.now() / 1000, y0 = +key.split(',')[1];
+  b.pestle.rotation.y = t * PESTLE_SPEED;
+  b.pestle.position.y = y0 + 0.5 + Math.abs(Math.sin(t * PESTLE_SPEED * 2)) * 0.02;
+}
 function updateBenchDisplays() {
   for (const [key, b] of BENCHES) {
     if (!_benchHasOrder(b)) { _benchClear(key); continue; }
+    _animatePestle(key, b);                              // only a mortar being worked does anything (0.772)
     if (!b.sprite) {
       _drawBenchTag(b);
       const tex = new THREE.CanvasTexture(b.canvas);
@@ -648,7 +748,7 @@ const _fmtCraftTime = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s %
 function _craftTimeHtml(r) {
   const spd = craftSpeed();
   const t = spd > 0 ? _fmtCraftTime(r.timeToCraft / spd) : '—';
-  return '<span class="ctime"><svg viewBox="0 0 16 10" width="16" height="10" aria-hidden="true">' +
+  return '<span class="ctime"><svg viewBox="0 0 16 10" width="12" height="8" aria-hidden="true">' +   // smaller since 0.7771
          '<path d="M1 5h11M8.5 1.5 12.5 5 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.8" ' +
          `stroke-linecap="round" stroke-linejoin="round"/></svg><small>${t}</small></span>`;
 }
@@ -721,7 +821,7 @@ function buildCraftPanel() {
     tabsHtml += `<div class="ctab${sel}" data-cat="${c.key}" title="${c.label}">${inner}</div>`;
   }
   tabsHtml += '</div>';
-  panel.innerHTML = `<div class="ctitle">${craftMode === 'advanced' ? 'Crafting Bench' : 'Crafting'}</div>` + tabsHtml;
+  panel.innerHTML = `<div class="ctitle">${craftMode === 'mortar' ? 'Mortar and Pestle' : craftMode === 'advanced' ? 'Crafting Bench' : 'Crafting'}</div>` + tabsHtml;
   const list = document.createElement('div');
   list.id = 'craftList';
   // filter by category, then sort so craftable rows float to the top (stable within each group)
@@ -735,7 +835,7 @@ function buildCraftPanel() {
   for (const r of recs) {
     const ok = canCraft(r);
     // Shift: every count becomes craft-all — capped by the queue's empty slots when crafting from the pocket (0.761)
-    const m = !craftShift ? 0 : (craftMode === 'advanced' && activeBench) ? maxCrafts(r)
+    const m = !craftShift ? 0 : (craftMode !== 'basic' && activeBench) ? maxCrafts(r)
             : Math.min(maxCrafts(r), CRAFT_QUEUE_MAX - craftQueue().length);
     const row = document.createElement('div');
     row.className = 'crow' + (ok ? '' : ' nocraft');
@@ -753,6 +853,8 @@ function buildCraftPanel() {
     const [oid, on] = r.out;
     html += `<button class="cbtn" data-name="${idName(oid)}" data-id="${oid}">` +
             `<img src="${renderBlockIcon(oid)}" alt="">${_craftBadge(on, m)}</button>`;
+    // what one craft pays, right of the output, the same way the furnace book shows it (0.777)
+    html += `<span class="cxp">${r.xpToGive ? `<img src="textures/Items/Useables/experience_bottle.png" alt="">${r.xpToGive}` : ''}</span>`;
     row.innerHTML = html;
     // Shift+click commits as many as you can afford (0.76: into the queue, or onto the bench's order)
     row.querySelector('.cbtn').addEventListener('click', (ev) => onRecipeClick(r, ev.shiftKey));
@@ -760,7 +862,7 @@ function buildCraftPanel() {
   }
   panel.appendChild(list);
   // the personal queue sits under the list; a bench works its own single order instead (0.76)
-  const withQueue = !(craftMode === 'advanced' && activeBench);
+  const withQueue = !(craftMode !== 'basic' && activeBench);
   panel.classList.toggle('hasQueue', withQueue);
   if (withQueue) panel.appendChild(_queuePanel());
   list.scrollTop = _craftScroll;             // restore scroll position after any rebuild

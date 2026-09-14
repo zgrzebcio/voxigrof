@@ -75,7 +75,7 @@ const CREATIVE_ORDER = [
   B.GLOW_VINE, B.GLOWCRYSTAL_BLOCK,
   B.COBWEB, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE,
   ...STORAGE_BLOCK_IDS,
-  B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.LADDER,
+  B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.LADDER, B.MORTAR,
 ];
 function _defaultCreativeInventory() {
   const rank = new Map();
@@ -585,7 +585,8 @@ function _doPlace() {
   if (!hit) return;
   // survival: right-clicking a crafting bench opens the advanced recipe list instead of placing
   // a bench with an order on it opens on a TAP instead, so holding the button can cancel the order (0.76)
-  if (!player.canFly && hit.id === B.CRAFTING_BENCH) { if (!benchBusy(hit.x, hit.y, hit.z)) openBench(hit.x, hit.y, hit.z); return; }
+  // ...and a mortar and pestle works the same way with its own list (0.771)
+  if (!player.canFly && isStation(hit.id)) { if (!benchBusy(hit.x, hit.y, hit.z)) openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]); return; }
   // survival: right-clicking a furnace opens its smelting GUI
   if (!player.canFly && hit.id === B.FURNACE) { openFurnace(hit.x, hit.y, hit.z); return; }
   // doors open/close in any mode

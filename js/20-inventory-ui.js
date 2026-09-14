@@ -317,16 +317,34 @@ function showTooltip(html) {
 // crafting icons: get all .cing (ingredients) and .cbtn (output) with title attributes for tooltips
 function getCraftingElements() {
   const out = [];
+  /* the furnace's smelting book shows the same icons, read-only (0.775). Type 'book' gives them, the
+     tabs and the book button their own stronger pad magnet (0.7762); rows scrolled out of the list are skipped. */
+  const fp = invPanel('furnacePanel');
+  if (fp && fp.style.display !== 'none') {
+    for (const el of fp.querySelectorAll('.fbookBtn, #furnTabs .ctab')) out.push({ el, title: '', type: 'book' });
+    _pushListIcons(out, fp.querySelector('.fbList'), '.cing', 'book');
+  }
   const cp = invPanel('craftPanel');
   if (!cp || cp.style.display === 'none') return out;
   // data-id carries the real block/item so the tooltip can show the full stat panel, not just a name
-  const ings = cp.querySelectorAll('.cing');
-  for (const el of ings)
-    out.push({ el, title: el.dataset.name || '', id: +el.dataset.id, type: 'craft' });
-  for (const btn of cp.querySelectorAll('.cbtn'))
-    out.push({ el: btn, title: btn.dataset.name || '', id: +btn.dataset.id, type: 'craft' });
+  _pushListIcons(out, cp.querySelector('#craftList'), '.cing, .cbtn', 'craft');
+  for (const el of cp.querySelectorAll('.cing, .cbtn'))
+    if (!el.closest('#craftList')) out.push({ el, title: el.dataset.name || '', id: +el.dataset.id, type: 'craft' });
   return out;
 }
+/* Icons in a scrolling list (recipe list, furnace book) count only while their centre is in view, and
+   carry the list's box as `clip` so a tooltip also needs the cursor inside it — a row scrolled away
+   under the edge must not answer for the slot next to it (0.7763). */
+function _pushListIcons(out, list, sel, type) {
+  if (!list) return;
+  const lr = list.getBoundingClientRect();
+  for (const el of list.querySelectorAll(sel)) {
+    const r = el.getBoundingClientRect(), cy = r.top + r.height / 2;
+    if (!r.height || cy < lr.top || cy > lr.bottom) continue;
+    out.push({ el, title: el.dataset.name || '', id: +el.dataset.id, type, clip: lr });
+  }
+}
+const _inClip = (c) => !c || (invCursor.x >= c.left && invCursor.x <= c.right && invCursor.y >= c.top && invCursor.y <= c.bottom);
 
 // nearest interactive element: slots or crafting icons, used for cursor magnet + tooltip
 function nearestElement(x, y) {
@@ -339,7 +357,7 @@ function nearestElement(x, y) {
   for (const d of getCraftingElements()) {
     const r = d.el.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2, dist = Math.hypot(x - cx, y - cy);
-    if (dist < bd) { bd = dist; best = { el: d.el, cx, cy, dist, type: 'craft', title: d.title, id: d.id }; }
+    if (dist < bd) { bd = dist; best = { el: d.el, cx, cy, dist, type: d.type, title: d.title, id: d.id, clip: d.clip }; }
   }
   /* Stat and effect lines in the equipment panel (0.7611). A line is wide and thin, so it is measured to
      its nearest EDGE rather than its centre: anywhere on the line counts as on it, for the mouse and
@@ -368,6 +386,7 @@ function pickUp(region, i, take = 'all') {
   const arr = slotArr(region), s = arr[i];
   if (s == null) return;
   const n = Math.min(s.count, take === 'all' ? s.count : take === 'half' ? Math.ceil(s.count / 2) : 1);
+  if (region === 'fur') furnaceTakeXP(i, n);        // the smelt XP goes to whoever takes it (0.775)
   dragHeld = carrySlot(s, n);
   s.count -= n;
   if (s.count <= 0) arr[i] = null;
@@ -385,7 +404,7 @@ function _syncWornGrids() {
 function placeInto(region, i, n = 'all') {
   if (!dragHeld) return;
   if (region === 'fur') {
-    if (i === 2) return;                                     // output: take-only
+    if (i === 2 || i === ASH_SLOT) return;                   // output and ashes: take-only
     if (i === 0 && !FUEL_SMELTS[dragHeld.id]) return;        // fuel slot: coal / coal chunk only
   }
   // equipment: each slot only takes its own piece; the reserved slots take nothing yet
@@ -542,6 +561,7 @@ function transferOne(region, i) {
   for (const g of dests) { const p = _gridPartial(g, s.id, cap); if (p) { p.count++; placed = true; break; } }
   if (!placed) for (const g of dests) { const f = _gridEmpty(g); if (f >= 0) { g[f] = carrySlot(s, 1); placed = true; break; } }
   if (!placed) { toast('no space'); return; }
+  if (region === 'fur') furnaceTakeXP(i, 1);
   s.count--;
   if (s.count <= 0) arr[i] = null;
   if (region === 'equip') _syncWornGrids();
@@ -815,8 +835,12 @@ function instantTransfer(region, i) {           // shove the whole stack across 
   if (remaining > 0) {
     let landed = false;
     for (const g of dests) { const f = _gridEmpty(g); if (f >= 0) { g[f] = carrySlot(s, remaining); remaining = 0; landed = true; break; } }
-    if (!landed) { s.count = remaining; refreshSlotsUI(); toast('no space'); return; }
+    if (!landed) {
+      if (region === 'fur') furnaceTakeXP(i, s.count - remaining);
+      s.count = remaining; refreshSlotsUI(); toast('no space'); return;
+    }
   }
+  if (region === 'fur') furnaceTakeXP(i, s.count);
   arr[i] = null;
   if (region === 'equip') _syncWornGrids();         // a pack or belt taken off gives its contents back
   refreshSlotsUI();
@@ -867,7 +891,14 @@ function toggleInventory(open, mode) {
 // per-frame: clamp + magnet the pad cursor, position the cursor/ghost, and highlight the hover
 function invBounds() {
   const a = invWrapEl.getBoundingClientRect(), b = hotbarEl.getBoundingClientRect();
-  return { l: Math.min(a.left, b.left) - 8, r: Math.max(a.right, b.right) + 8, t: a.top - 8, bm: b.bottom + 8 };
+  const out = { l: Math.min(a.left, b.left) - 8, r: Math.max(a.right, b.right) + 8, t: a.top - 8, bm: b.bottom + 8 };
+  // the furnace book floats above the panel, outside the wrapper's box — the cursor has to reach it (0.7762)
+  const bk = invOpen && activeFurnace ? invWrapEl.querySelector('#furnacePanel .fbook') : null;
+  if (bk) {
+    const c = bk.getBoundingClientRect();
+    out.l = Math.min(out.l, c.left - 8); out.r = Math.max(out.r, c.right + 8); out.t = Math.min(out.t, c.top - 8);
+  }
+  return out;
 }
 var lastHoverEl = null;
 var _invSeq = 0;                    // when this seat opened its inventory — see toggleInventory
@@ -883,9 +914,11 @@ function updateInvCursorVisual(dt) {
   if (invCursor.mode === 'pad') {                // magnet snaps to nearest element, but ONLY when
     const n = nearestElement(invCursor.x, invCursor.y);   // the stick is idle — so an active push can
     // crafting icons are small, so they get a wider capture radius and a harder pull
-    const snapR = (n && n.type === 'craft' ? 120 : 80) * invScale();
+    // and the furnace book's icons and tabs pull hardest still, so a pad lands on one exact icon (0.7762)
+    const book = n && n.type === 'book';
+    const snapR = (book ? 150 : n && n.type === 'craft' ? 120 : 80) * invScale();
     if (n && n.dist < snapR && (pad.invStick || 0) < 0.2) {
-      const k = Math.min(1, dt * (n.type === 'craft' ? 30 : 20));
+      const k = Math.min(1, dt * (book ? 50 : n.type === 'craft' ? 30 : 20));
       invCursor.x += (n.cx - invCursor.x) * k;
       invCursor.y += (n.cy - invCursor.y) * k;
     }
@@ -917,7 +950,7 @@ function updateInvCursorVisual(dt) {
     ctipEl.style.display = 'none';
   } else if (hovSlot) {
     showTooltip(itemTooltipHTML(hovSlot.id, hovSlot.dur));
-  } else if (ne && ne.type === 'craft' && ne.dist < tipR && ne.title) {
+  } else if (ne && (ne.type === 'craft' || ne.type === 'book') && ne.dist < tipR && ne.title && _inClip(ne.clip)) {
     // recipe icons get the same full panel as a real slot (no durability — it isn't an instance)
     showTooltip(Number.isFinite(ne.id) ? itemTooltipHTML(ne.id, null)
                                        : `<div class="tipName">${_tipEsc(ne.title)}</div>`);
