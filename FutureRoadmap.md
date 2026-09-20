@@ -83,7 +83,7 @@ legends: B = big update, M= medium update, S = small update
 81. S: ~~updating furnace recipes~~ 0.775
 82. M: ~~add chisel and make different type blocks, slab, stairs, pane, fences, hollow log~~s. v0.78
 83. S: ~~pig, fat, pork and food spoiling~~  v0.789
-84. M: skill tree — spend levels. v0.79
+84. M: ~~skill tree — spend levels~~. v0.79
 85. S: updating ui, adding simple quest to give xp v0.795
 86. B: Particles system v0.8
 
