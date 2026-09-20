@@ -1,0 +1,670 @@
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000;
+               font-family:'Segoe UI', system-ui, sans-serif; user-select:none; }
+  #game { display:block; width:100%; height:100%; }
+  .mono { font-family:Consolas, 'Courier New', monospace; }
+
+  /* ---- split screen (0.72) ----
+     One pane per player, parked over that player's viewport. `.hudScale` carries a transform,
+     which makes it the containing block for its `position:fixed` children — so every HUD rule
+     below keeps its existing offsets and simply resolves against the pane instead of the window.
+     Nothing else in this file had to change. */
+  .hudPane { position:fixed; overflow:hidden; pointer-events:none; z-index:5; }
+  .hudScale { position:absolute; left:0; top:0; transform-origin:0 0; }
+  .paneTag { position:absolute; top:4px; right:8px; color:#cfe0ff; font-size:11px; opacity:.55;
+             font-family:Consolas, 'Courier New', monospace; letter-spacing:1px;
+             text-shadow:0 1px 2px rgba(0,0,0,.9); display:none; }
+  body.split .paneTag { display:block; }
+  /* a hairline between viewports so the seam reads as deliberate */
+  body.split .hudPane { box-shadow:inset 0 0 0 1px rgba(255,255,255,.10); }
+
+  /* ---- HUD ---- */
+  #hud { position:fixed; top:10px; left:10px; color:#fff; font-size:13px; line-height:1.45;
+         text-shadow:0 1px 2px rgba(0,0,0,.9); pointer-events:none; z-index:5; }
+  /* build version — bump on every change (see FutureRoadmap.txt for the 1.0 plan) */
+  #version { position:fixed; top:18px; right:10px; color:#cfd8e0; font-size:11px;
+             font-family:Consolas, 'Courier New', monospace; letter-spacing:0.5px;
+             text-shadow:0 1px 2px rgba(0,0,0,.9); pointer-events:none; z-index:11; opacity:0.85; }
+  #crosshair { position:fixed; left:50%; top:50%; width:18px; height:18px; margin:-9px 0 0 -9px;
+               pointer-events:none; z-index:5; mix-blend-mode:difference; }
+  #crosshair::before, #crosshair::after { content:''; position:absolute; background:#fff; }
+  #crosshair::before { left:8px; top:0; width:2px; height:18px; }
+  #crosshair::after  { left:0; top:8px; width:18px; height:2px; }
+
+  #hotbar { position:fixed; left:50%; bottom:6px; transform:translateX(-50%); display:flex; gap:3px;
+            padding:2px; background:rgba(10,10,16,.55); border:1px solid rgba(255,255,255,.18);
+            border-radius:6px; z-index:5; pointer-events:none; }
+  /* survival vitals: 10 hearts (=20HP) + 10 drumsticks (=20 hunger) row above the hotbar.
+     the canvas bitmap stays 452×20; CSS width is 10% larger so icons render slightly bigger. */
+  /* canvas bitmap stays native 36px sprites (780×74); CSS shows it at half size so the
+     browser downscales the whole supersampled bitmap smoothly — crisp icons, no pixel loss */
+  /* bottom:78px clears the XP bar + its level number, which sit at 58..~82, without floating */
+  /* Title reveal: the panorama fades up once it is fully built, and the menu rides in just behind
+     it — see _menuVeil in 16-worlds.js. The panel is offset slightly further and eased with a
+     soft overshoot curve so the two do not move as one flat sheet. */
+  #game { transition:opacity .45s ease; }
+  /* the boot cover fades out with the reveal, then stops intercepting anything */
+  #bootCover { transition:opacity .4s ease; }
+  #bootCover.gone { opacity:0; }
+  #overlay { transition:opacity .5s ease; }
+  #overlay.veiled { opacity:0; pointer-events:none; }
+  #overlay > .panel { transition:transform .55s cubic-bezier(.16,.84,.28,1), opacity .5s ease; }
+  #overlay.veiled > .panel { transform:translateY(18px) scale(.97); opacity:0; }
+  #vitals { position:fixed; left:50%; bottom:78px; transform:translateX(-50%); z-index:5;
+            pointer-events:none; image-rendering:auto; display:none;
+            width:535px; height:40px; }
+  /* ---- experience bar (0.7) ----
+     Minecraft's slot — a strip above the hotbar with the level number centred on it — but a
+     plain smooth bar instead of the segmented sprite. Light-green fill on a dark track. */
+  #xpBar { position:fixed; left:50%; bottom:63px; transform:translateX(-50%); z-index:5;   /* 62px until 0.791 */
+           pointer-events:none; display:none; width:470px; height:9px;
+           background:rgba(8,10,14,.72); border:1px solid rgba(255,255,255,.16);
+           border-radius:5px; overflow:visible; }
+  #xpFill { height:100%; width:0%; border-radius:4px;
+            background:linear-gradient(180deg,#b6ff6a,#7ee63a 60%,#5cc523);
+            box-shadow:0 0 6px rgba(140,255,90,.55); transition:width .12s linear; }
+  #xpLevel { position:absolute; left:0; right:0; bottom:9px; text-align:center;
+             font:700 15px/1 system-ui,sans-serif; color:#b6ff6a;
+             text-shadow:0 0 3px #000,1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000; }
+  #xpBar.flash #xpFill { box-shadow:0 0 14px rgba(180,255,120,.95); }
+  #xpBar.flash #xpLevel { color:#e6ffcf; }
+  /* "+N" gain popups: they rise off the RIGHT end of the bar, clear of the hotbar and the
+     level number, so a gain is readable without covering anything you were looking at */
+  #xpPops { position:fixed; left:50%; bottom:62px; margin-left:243px; width:0; height:0;
+            z-index:6; pointer-events:none; display:none; }
+  .xpPop { position:absolute; left:0; bottom:0; white-space:nowrap;
+           font:700 15px/1 system-ui,sans-serif; color:#b6ff6a;
+           text-shadow:0 0 4px rgba(120,255,60,.6),1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+           animation:xpPopRise 1.2s ease-out forwards; }
+  /* --dy0 is the popup's rung on the stagger ladder, so simultaneous gains never overlap */
+  @keyframes xpPopRise {
+    0%   { opacity:0; transform:translate(var(--dx,0),calc(6px  - var(--dy0,0px))) scale(.85); }
+    14%  { opacity:1; transform:translate(var(--dx,0),calc(0px  - var(--dy0,0px))) scale(1.08); }
+    28%  { transform:translate(var(--dx,0),calc(-4px  - var(--dy0,0px))) scale(1); }
+    100% { opacity:0; transform:translate(var(--dx,0),calc(-46px - var(--dy0,0px))) scale(1); }
+  }
+  .slot { width:46px; height:46px; border:2px solid rgba(255,255,255,.22); border-radius:5px;
+          background:rgba(0,0,0,.35); position:relative; display:flex; align-items:center; justify-content:center; }
+  .slot img { width:40px; height:40px; image-rendering:pixelated; }
+  .slot img.i3d { image-rendering:auto; }   /* 3D icons are supersampled — smooth downscale */
+
+  /* ---- inventory wrapper (centers both panels side-by-side) ---- */
+  /* gap 12 -> 6: the crafting and equipment wings sit right against the grid, so the whole thing
+     reads as one panel and takes less width in a split-screen viewport */
+  /* pointer-events:auto is REQUIRED (0.7293), not cosmetic: since 0.728 the panel lives inside a
+     .hudPane, and that pane is pointer-events:none so the HUD never eats clicks meant for the
+     world. Slot drag survived because it is coordinate-based (slotAtPoint on document events), but
+     the crafting output is a real <button> click — and elementFromPoint, which the gamepad path
+     uses, skips pointer-events:none subtrees entirely. So crafting was dead on both devices. */
+  #invWrap { position:fixed; left:50%; bottom:184px; transform:translateX(-50%); z-index:8;   /* 200px until 0.7812 */
+             display:none; flex-direction:row; gap:6px; align-items:flex-end;
+             pointer-events:auto; }
+
+  /* ---- inventory (4x8 since 0.7292, slot 0 = bottom-left) ---- */
+  #inv { background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15); border-radius:10px;
+         padding:12px; display:flex; flex-direction:column; gap:8px; }
+  #inv .title { color:#9ab; font-size:12px; text-align:center; }
+  #inv .ctitle { color:#9ab; font-size:12px; text-align:center; }   /* backpack row heading */
+  #inv .packHead { display:flex; align-items:center; justify-content:center; gap:8px; }   /* name + Pull all */
+  #inv .packHead .invBtn { padding:2px 8px; font-size:11px; }
+  #inv .grid { display:flex; flex-direction:column-reverse; gap:4px; }   /* row 0 at the bottom */
+  #inv .grid + .grid { padding-top:8px; border-top:1px solid rgba(255,255,255,.12); }  /* split 2nd/main grid */
+  /* Creative overflow palette: a fixed viewport that scrolls, so extra rows never grow the panel.
+     10 rows since 0.7346 (46px slot + 4px gap each, minus the trailing gap = 496px), which is one
+     more than the 9 the 72-slot palette actually fills — so the scrollbar is there for a future
+     block rather than for every session. */
+  #inv .invScroll { max-height:496px; overflow-y:auto; overflow-x:hidden; pointer-events:auto;
+                    padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.12);
+                    scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.30) transparent; }
+  #inv .invScroll::-webkit-scrollbar { width:8px; }
+  #inv .invScroll::-webkit-scrollbar-track { background:rgba(255,255,255,.05); border-radius:4px; }
+  #inv .invScroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.28); border-radius:4px; }
+  #inv .invScroll::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.42); }
+  #inv .invScroll .grid { padding-top:0; border-top:none; }
+  #inv .row { display:flex; gap:4px; }
+  #inv .slot { pointer-events:auto; }
+  /* contain:inline-size (0.7531): the hint wraps to the grid's width instead of setting the panel's.
+     Its one long line used to widen the whole inventory past its eight columns. */
+  #inv .hint { color:#7d8ba0; font-size:11px; text-align:center; margin:-2px 0 2px;
+               contain:inline-size; align-self:stretch; }
+  /* sort / transfer / pull / quick stack row under the slots (0.755); contained like the hint, so it
+     wraps inside the grid's width instead of widening the panel */
+  #inv .invActions, #chestPanel .invActions { display:flex; flex-wrap:wrap; justify-content:center; gap:6px;
+                     contain:inline-size; align-self:stretch; margin-top:2px; }
+  #inv .invBtn, #chestPanel .invBtn { pointer-events:auto; background:#2b3346; color:#dfe; border:1px solid rgba(255,255,255,.18);
+                 border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
+  #inv .invBtn:hover:not(:disabled), #chestPanel .invBtn:hover:not(:disabled) { background:#3a4560; border-color:rgba(255,255,255,.32); }
+  #inv .invBtn:disabled, #chestPanel .invBtn:disabled { opacity:.4; cursor:default; }
+
+  /* ---- equipment (right of the inventory) ----
+     two columns of five slots flanking a live player preview, stats underneath */
+  /* min-height (0.7295): the panel used to end wherever the stat list happened to stop, so it
+     grew and shrank as effects came and went and the whole row of panels jumped with it. It is
+     now tall enough for the full stat block plus a few active effects, and stays that size. */
+  /* 0.7576: +66 for the preview matching the slot columns, +56 for the reserved tool row */
+  #equipPanel { display:none; flex-direction:column; gap:6px; min-height:614px;
+                background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+                border-radius:10px; padding:12px; }
+  #equipPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+  #equipPanel .stTitle { margin-top:2px; }
+  /* belt quick-access row — only rendered while a belt is worn */
+  #beltRow { display:flex; gap:4px; justify-content:center; padding-bottom:6px;
+             border-bottom:1px solid rgba(255,255,255,.14); }
+  #equipPanel .slot.belt { pointer-events:auto; opacity:.55; border-style:dashed; }
+  #equipBody { display:flex; gap:10px; align-items:flex-start; }
+  #equipPanel .eqCol { display:flex; flex-direction:column; gap:4px; }
+  #equipPanel .slot.eq { pointer-events:auto; }
+  /* reserved slots read as inactive until their items exist */
+  #equipPanel .slot.eq.ph { opacity:.42; border-style:dashed; }
+  /* reserved tool row under the body (0.7576): map, spyglass, compass, lantern, clock — not wired yet */
+  #toolRow { display:flex; gap:4px; justify-content:center; }
+  #toolRow .slot.tool { opacity:.42; border-style:dashed; }
+  #equipPanel .eqTag { position:absolute; bottom:1px; left:0; right:0; text-align:center;
+                       font-size:10px; letter-spacing:0; color:#7d8ba0; pointer-events:none; }
+  #equipPanel .eqTag.l7 { font-size:9px; }   /* Offhand, Compass, Lantern */
+  #equipPanel .eqTag.l8 { font-size:8px; }   /* Spyglass */
+  /* as tall as a column of five slots (5 x 50 + 4 x 4) since 0.7576, and a little wider */
+  #equipPreview { width:150px; height:266px; border-radius:6px;
+                  background:linear-gradient(180deg, rgba(60,72,104,.55), rgba(18,22,36,.75));
+                  border:1px solid rgba(255,255,255,.12); overflow:hidden; flex:0 0 auto; }
+  /* flex:1 makes the stat list eat the panel's spare height, so the reserved room lands here
+     (under the stats) rather than as a gap somewhere above the equipment grid */
+  /* two columns since 0.758, stats and effects alike. Since 0.7612 the stats get the room and the effects
+     are a short strip under them — smaller text, a few lines tall, scrolling when more than that run */
+  #equipStats { display:flex; flex-direction:column; gap:2px; flex:1 1 auto; min-height:150px;
+                border-top:1px solid rgba(255,255,255,.14); padding-top:5px; }
+  #equipStats .stGrid, #equipStats .effList { display:grid; grid-template-columns:1fr 1fr; column-gap:14px;
+                                              row-gap:2px; align-content:start; }
+  #equipStats .effList { max-height:46px; overflow-y:auto; scrollbar-width:thin; }
+  #equipStats .effList .stRow { font-size:9px; }
+  #equipStats .stRow.none { grid-column:1 / -1; }
+  #equipStats .ctitle { margin-top:6px; padding-top:5px;
+                        border-top:1px solid rgba(255,255,255,.10); }
+  /* reserved stat line — a slot with nothing wired to it yet */
+  #equipStats .stRow.slotFree span, #equipStats .stRow.slotFree b { color:#5c6675; }
+  #equipStats .stRow { display:flex; justify-content:space-between; gap:8px; font-size:10px; }
+  /* a line with a tooltip under the cursor (0.7611) */
+  #equipStats .stRow[data-tip], #equipStats .stRow[data-eff] { pointer-events:auto; border-radius:3px; margin:0 -3px; padding:0 3px; }
+  #equipStats .stRow.tipHover { background:rgba(255,255,255,.08); }
+  #equipStats .stRow span { color:#8fa0b4; }
+  #equipStats .stRow b { color:#e8eef6; font-weight:600; }
+  #equipStats .stRow.eff span { color:#7fd6a0; }
+  #equipStats .stRow.eff.bad span, #equipStats .stRow.eff.bad b { color:#e8a06a; }   /* a penalty */
+  #equipStats .stRow.good b { color:#7fd6a0; }     /* buff */
+  #equipStats .stRow.bad b  { color:#e8a06a; }     /* penalty, e.g. armor weight */
+  #equipStats .stRow.none span { color:#6b7789; font-style:italic; }
+
+  /* ---- chest storage (right of the inventory) ----
+     A single chest is 5 rows x 7 cols; a double stacks a second grid above it for 10 x 7, which
+     still fits on screen, so there is no scroller. */
+  #chestPanel { display:none; flex-direction:column; gap:6px;
+                background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+                border-radius:10px; padding:12px; }
+  #chestPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+  #chestPanel .grid { display:flex; flex-direction:column-reverse; gap:4px; }  /* row 0 at the bottom */
+  #chestPanel .grid + .grid { margin-bottom:4px; }
+  #chestPanel .row { display:flex; gap:4px; }
+  #chestPanel .slot { pointer-events:auto; }
+
+  /* structure block editor — sits in the same right-hand column as the chest/furnace GUIs */
+  #structPanel { display:none; flex-direction:column; gap:8px; width:220px;
+                 background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+                 border-radius:10px; padding:12px; pointer-events:auto; }
+  #structPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+  #structPanel label { display:flex; align-items:center; justify-content:space-between;
+                       gap:8px; color:#9ab; font-size:12px; }
+  #structPanel input { width:96px; background:#0b0d16; color:#dfe;
+                       border:1px solid #445; border-radius:6px; padding:5px 7px; font-size:12px; }
+  #structPanel .strow { display:flex; gap:6px; }
+  #structPanel .strow button { flex:1; padding:6px 8px; font-size:13px; }
+  #structPanel #stMsg { color:#7c9; font-size:11px; min-height:14px; text-align:center; }
+
+  /* ---- crafting recipe list (survival) — separate panel ---- */
+  /* no left offset since 0.7576: the list keeps the same 6px gap to the grid as equipment does */
+  #craftPanel { display:none; flex-direction:column; gap:6px; width:320px;
+                position:relative;
+                background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+                border-radius:10px; padding:12px; }
+  #craftPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+
+  /* ---- furnace GUI (survival) — replaces the crafting panel while a furnace is open ---- */
+  #furnacePanel { display:none; flex-direction:column; gap:6px; width:215px;   /* as wide as the book (0.7761) */
+                  position:relative;
+                  background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+                  border-radius:10px; padding:14px 18px; }
+  #furnacePanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+  #furnGrid { display:flex; gap:16px; align-items:flex-start; justify-content:center; margin-top:8px; }
+  #furnacePanel.bookOpen { border-top-left-radius:0; border-top-right-radius:0; }
+  #furnGrid .fcol { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  #furnGrid .slot { pointer-events:auto; }
+  #furnGrid .fout { margin-top:2px; }
+  /* progress bars built from Lit_progress.png: dim base sprite + bright fill clipped from the
+     bottom. Fuel drains top-to-bottom; the rotated (.rot) copy fills left-to-right for smelt time. */
+  .fbar { position:relative; width:40px; height:40px; flex-shrink:0; }
+  .fbar img { width:40px; height:40px; image-rendering:pixelated; display:block; }
+  .fbar .fbase { filter:grayscale(1) brightness(.35); }
+  .fbar .ffill { position:absolute; left:0; bottom:0; width:100%; height:0%; overflow:hidden; }
+  .fbar .ffill img { position:absolute; left:0; bottom:0; }
+  .fbar.rot { transform:rotate(90deg); margin-top:5px; }
+  /* ash meter between the output and the ash slot (0.775) */
+  .fash { width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+  .fash span { width:34px; height:6px; border-radius:3px; background:rgba(0,0,0,.6);
+               border:1px solid rgba(255,255,255,.14); overflow:hidden; }
+  .fash i { display:block; height:100%; width:0; background:#b9b4aa; }
+  /* smelting book (0.775): read-only rows in the crafting list's look */
+  #furnacePanel .fbookBtn { position:absolute; top:8px; right:10px; width:30px; height:30px; padding:2px;
+                            pointer-events:auto; cursor:pointer; background:#0b0d16; border:1px solid #334; border-radius:6px; }
+  #furnacePanel .fbookBtn:hover, #furnacePanel .fbookBtn.sel { background:#1c243a; border-color:#4a5f8a; }
+  #furnacePanel .fbookBtn img { width:24px; height:24px; display:block; image-rendering:pixelated; }
+  /* sits on top of the furnace panel (0.776), joined to it and just as wide (0.7761), so opening it
+     never moves the slots; the panel's top border is the seam between them */
+  .fbook { position:absolute; left:-1px; right:-1px; bottom:calc(100% + 1px);
+           display:flex; flex-direction:column; padding:10px 10px 6px;
+           background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15); border-bottom:none;
+           border-radius:10px 10px 0 0; }
+  #furnTabs { display:flex; gap:4px; padding:0 2px; }
+  #furnTabs .ctab { pointer-events:auto; }
+  .fbList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:320px; scrollbar-width:none; pointer-events:auto; }
+  .fbHead { color:#9ab; font-size:10px; margin:4px 2px 0; text-transform:uppercase; letter-spacing:.5px; }
+  .fbRow { gap:2px; justify-content:space-between; }
+  .fbRow .cing.out, .fbNone { width:46px; height:46px; flex-shrink:0; }
+  .fbRow .cing.out img { width:38px; height:38px; }
+  .fbNone { display:flex; align-items:center; justify-content:center; color:#6b7789; font-size:14px; }
+  .fbTime { display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:46px; padding:3px 0;
+            background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.1); border-radius:6px; }
+  .fbTime b { color:#e8eef6; font-size:11px; font-weight:600; }
+  .fbTime small { color:#8fa0b4; font-size:9px; }
+  .fbArrow { color:#8fa0b4; flex-shrink:0; }
+  .fbXp { display:flex; align-items:center; gap:2px; flex-shrink:0; width:32px; color:#7ee63a; font-size:11px; font-weight:600; }
+  .fbXp img { width:14px; height:14px; image-rendering:pixelated; }
+  .fbHint { color:#6b7789; font-size:9px; margin-top:6px; text-align:center; }
+  /* ---- chisel (0.78): the picked shape right of the hotbar, and the hold-to-pick radial above it ---- */
+  #hotbar .chiselSlot { position:absolute; left:calc(100% + 9px); bottom:2px; background:rgba(10,10,16,.55); }
+  /* pie-slice wedges since 0.781; the 440px box and the radii must match CHISEL_RAD in 43-chisel.js */
+  .chiselRadial { position:absolute; left:50%; bottom:calc(100% + 70px); width:440px; height:440px; margin-left:-220px;
+                  pointer-events:none; z-index:6; }
+  .chiselRadial svg { position:absolute; left:0; top:0; }
+  .chiselRadial .crSeg { fill:rgba(10,12,20,.74); stroke:rgba(255,255,255,.18); stroke-width:1.5; stroke-linejoin:round;
+                         transition:fill .08s; }
+  .chiselRadial .crSeg.soon { fill:rgba(10,12,20,.5); }
+  .chiselRadial .crSeg.cur { stroke:#7ee63a; stroke-width:2.5; }
+  .chiselRadial .crSeg.hov { fill:rgba(255,220,120,.3); stroke:#ffd76a; stroke-width:3; }
+  .chiselRadial .crHub { fill:rgba(10,12,20,.82); stroke:rgba(255,255,255,.18); stroke-width:1.5; }
+  .chiselRadial .crIcon { position:absolute; width:70px; height:70px; margin:-35px 0 0 -35px;
+                          display:flex; align-items:center; justify-content:center; transition:transform .08s; }
+  .chiselRadial .crIcon img { width:70px; height:70px; }
+  .chiselRadial .crIcon.soon { color:#8a96a8; font-size:13px; font-weight:600; line-height:1.15; text-align:center;
+                               flex-direction:column; }
+  .chiselRadial .crIcon.soon small { color:#6b7789; font-size:9px; font-weight:400; font-style:italic; }
+  /* an empty advanced slot: no name above the line, so give the line the room instead (0.7892) */
+  .chiselRadial .crIcon.soon small:only-child { font-size:11px; font-style:normal; color:#78859a; }
+  .chiselRadial .crIcon.hov { transform:scale(1.15); }
+  /* The hub (0.7892): the pointed-at shape's name, and under it one line saying what it does.
+     Width is the hub circle's inner span less a margin, so the text never runs over the ring. */
+  .chiselRadial .crHubText { position:absolute; left:50%; top:50%; width:152px; transform:translate(-50%,-50%);
+                             display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center; }
+  .chiselRadial .crName { color:#e8eef6; font-size:14px; font-weight:600; line-height:1.15;
+                          text-shadow:0 1px 2px #000; }
+  .chiselRadial .crDesc { color:#9fb0c4; font-size:10.5px; font-weight:400; line-height:1.25;
+                          text-shadow:0 1px 2px #000; }
+  #craftTabs { display:flex; gap:4px; padding:0 2px; }
+  .ctab { flex:1; height:36px; display:flex; align-items:center; justify-content:center;
+          background:#0b0d16; border:1px solid #334; border-radius:6px 6px 0 0;
+          border-bottom-color:transparent; cursor:pointer; transition:background 0.1s; }
+  .ctab:hover { background:#161b2b; }
+  .ctab.sel { background:#1c243a; border-color:#4a5f8a; }
+  .ctab img { width:26px; height:26px; image-rendering:auto; }
+  .ctab .tlabel { color:#dfe; font-size:12px; font-weight:600; letter-spacing:0.5px; }
+  /* no visible scrollbar (0.777): the wheel and the right stick scroll it, and the rows get its width */
+  #craftList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:430px; scrollbar-width:none; }
+  #craftList::-webkit-scrollbar, .fbList::-webkit-scrollbar { display:none; }
+  /* ingredients sit almost touching (0.777) to leave room for the XP column */
+  .crow { display:flex; align-items:center; gap:2px; background:#0b0d16; border:1px solid #334;
+          border-radius:8px; padding:5px 5px; }
+  .cing { position:relative; width:40px; height:40px; flex-shrink:0; background:rgba(0,0,0,.35);
+          border:1px solid rgba(255,255,255,.14); border-radius:4px;
+          display:flex; align-items:center; justify-content:center; }
+  .cing img { width:34px; height:34px; image-rendering:auto; }
+  .cing b, .cbtn b { position:absolute; right:1px; bottom:-1px; font-size:11px; color:#fff;
+          text-shadow:1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000; }
+  .cing.miss { border-color:#7d3232; }
+  .cbtn { position:relative; margin-left:auto; width:44px; height:44px; flex-shrink:0;
+          background:#3f7d32; border:1px solid rgba(255,255,255,.25); border-radius:6px;
+          cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+  .cbtn:hover { background:#4f9440; }
+  .cbtn img { width:38px; height:38px; image-rendering:auto; }
+  .crow.nocraft .cbtn { background:#333a4a; pointer-events:none; }
+  /* arrow into the output with the craft time under it (0.7601); it takes the push to the right from the button */
+  .crow .ctime { margin-left:auto; display:flex; flex-direction:column; align-items:center; gap:2px;
+                 flex-shrink:0; color:#8fa0b4; pointer-events:none; }
+  .crow .ctime small { font-size:9px; line-height:1; }
+  .crow .ctime + .cbtn { margin-left:1px; }
+  /* sized so a five-ingredient recipe still fits beside it (0.7771) */
+  .cxp { display:flex; align-items:center; gap:1px; flex-shrink:0; width:26px; margin-left:2px;
+         color:#7ee63a; font-size:11px; font-weight:600; }
+  .cxp img { width:14px; height:14px; image-rendering:pixelated; }
+  /* ---- personal crafting queue (0.76): six slots under the recipe list (five before 0.778) ---- */
+  #craftPanel.hasQueue #craftList { height:352px; }
+  .cqPanel { display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255,255,255,.12); }
+  .cqHead { display:flex; align-items:center; justify-content:space-between; }
+  .cqHead .ctitle { color:#9ab; font-size:12px; }
+  .cqHead .cqCancel { pointer-events:auto; background:#2b3346; color:#dfe; border:1px solid rgba(255,255,255,.18);
+                      border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; }
+  .cqHead .cqCancel:hover:not(:disabled) { background:#5a3a3a; border-color:rgba(255,255,255,.32); }
+  .cqHead .cqCancel:disabled { opacity:.4; cursor:default; }
+  .cqRow { display:flex; gap:4px; justify-content:center; }
+  .cqSlot { pointer-events:auto; cursor:pointer; }
+  .cqSlot:hover:not(.empty) { border-color:#e8a06a; }
+  .cqSlot.empty { opacity:.42; border-style:dashed; cursor:default; }
+  .cqSlot img { width:36px; height:36px; image-rendering:auto; }
+  .cqSlot b { position:absolute; right:3px; top:1px; font-size:11px; color:#fff; text-shadow:1px 1px 0 #000; }
+  .cqBar { position:absolute; left:4px; right:4px; bottom:4px; height:4px; border-radius:2px;
+           background:rgba(0,0,0,.6); overflow:hidden; }
+  .cqBar i { display:block; height:100%; width:0; background:#7ee63a; }
+  /* the same row on the HUD while the inventory is closed, half see-through (0.76) */
+  /* inside #hotbar since 0.791, anchored by its right edge just left of the offhand slot (or of the hotbar
+     itself while the offhand is empty) — syncQueueHud sets `right` — so it grows away from the bar */
+  .cqHud { position:absolute; bottom:2px; display:flex; gap:4px; opacity:.5; z-index:5; pointer-events:none; }
+  .cqHud .slot { background:rgba(10,10,16,.55); }
+  .slot.hover { border-color:#ffd76a !important; background:rgba(255,220,120,.18) !important; }
+  /* gamepad virtual cursor + drag ghost (follow the cursor, never intercept input) */
+  #vcursor { position:fixed; width:14px; height:14px; margin:-7px 0 0 -7px; z-index:12; pointer-events:none;
+             display:none; border:2px solid #ffd76a; border-radius:3px; box-shadow:0 0 6px rgba(0,0,0,.7); }
+  #vdrag { position:fixed; width:42px; height:42px; margin:-21px 0 0 -21px; z-index:13; pointer-events:none; display:none; }
+  /* floating item-name tooltip (follows the inventory cursor over crafting icons) */
+  /* item tooltip: shrinks to its content (a bare name stays tiny) but never grows past max-width;
+     longer descriptions wrap instead of stretching the panel */
+  #ctip { position:fixed; z-index:14; pointer-events:none; display:none;
+          background:rgba(12,14,22,.94); border:1px solid rgba(255,255,255,.22); border-radius:6px;
+          padding:5px 8px; color:#fff; font-size:12px;
+          width:max-content; max-width:190px;
+          text-shadow:0 1px 2px #000; box-shadow:0 3px 10px rgba(0,0,0,.6); }
+  #ctip .tipName { font-weight:700; font-size:13px; line-height:1.25; white-space:nowrap; }
+  #ctip .tipDesc { color:#9fb0c4; font-size:11px; line-height:1.35; margin-top:3px; font-style:italic; }
+  /* armour set bonus: green when it helps, orange when it costs you, grey when it doesn't apply */
+  #ctip .tipSet { color:#7fd6a0; font-size:11px; line-height:1.35; margin-top:3px; }
+  #ctip .tipSet.bad  { color:#e8a06a; }
+  #ctip .tipSet.none { color:#6b7789; font-style:italic; }
+  /* "On {condition}:" with what happens indented under it (0.7592) */
+  #ctip .tipCond { font-size:11px; line-height:1.35; margin-top:4px; }
+  #ctip .tipCond .tcName { color:#9fb0c4; }
+  #ctip .tipCond .tcEff { padding-left:10px; color:#7fd6a0; }
+  #ctip .tipCond .tcEff.bad  { color:#e8a06a; }
+  #ctip .tipCond .tcEff.none { color:#6b7789; font-style:italic; }
+  #ctip .tipStats { margin-top:6px; padding-top:5px; border-top:1px solid rgba(255,255,255,.14);
+                    display:flex; flex-direction:column; gap:2px; }
+  #ctip .tipRow { display:flex; justify-content:space-between; gap:10px; font-size:11px; }
+  #ctip .tipRow span { color:#8fa0b4; }
+  #ctip .tipRow b { color:#e8eef6; font-weight:600; }
+  #vdrag img { width:42px; height:42px; image-rendering:auto; filter:drop-shadow(0 3px 5px rgba(0,0,0,.7)); }
+  .slot .key { position:absolute; top:1px; left:3px; font-size:9px; color:#ccc; text-shadow:0 1px 1px #000; }
+  /* stack-count badge (bottom-right, MC-style). Only rendered when count > 1. */
+  .slot .cnt, #vdrag .cnt { position:absolute; right:3px; bottom:0px; font-size:13px; font-weight:bold; z-index:1;   /* over the bar (0.791) */
+               color:#fff; text-shadow:1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+               font-family:'Segoe UI', system-ui, sans-serif; pointer-events:none; }
+  /* tool durability bar (bottom of slot); inner <i> width/colour set inline per wear level */
+  .slot .dur, #vdrag .dur { position:absolute; left:4px; right:4px; bottom:3px; height:2px;   /* 3px until 0.791 */
+               background:rgba(0,0,0,.75); border-radius:1px; pointer-events:none; }
+  .slot .dur i, #vdrag .dur i { display:block; height:100%; border-radius:1px; }
+  .slot.sel { border-color:#fff; background:rgba(255,255,255,.14); box-shadow:0 0 8px rgba(255,255,255,.35); }
+  /* interact prompt: sits just under the crosshair. Small, but a solid shadow keeps it readable
+     against grass and sky alike. The key glyph is bright, the sentence around it a little dimmer. */
+  #interact { position:fixed; left:50%; top:50%; margin-top:18px; transform:translateX(-50%);
+              color:rgba(255,255,255,.82); font-size:12px; letter-spacing:.2px; white-space:nowrap;
+              text-shadow:0 1px 3px #000, 0 0 6px rgba(0,0,0,.8); z-index:5; pointer-events:none;
+              opacity:0; transition:opacity .12s; }
+  #interact b { color:#fff; font-weight:600; }
+  /* held-item name sits ABOVE the vitals row (78 + 40 tall), where the hearts used to be */
+  #blockname { position:fixed; left:50%; bottom:124px; transform:translateX(-50%); color:#fff; font-size:14px;
+               text-shadow:0 1px 3px #000; z-index:5; pointer-events:none;
+               opacity:0; transition:opacity .25s; }
+
+  /* ---- hurt vignette: red edge blur, opacity driven from JS per hit strength ---- */
+  #hurtOverlay { position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0;
+                 background:radial-gradient(ellipse at center,
+                   rgba(180,0,0,0) 40%, rgba(180,0,0,.35) 75%, rgba(150,0,0,.75) 100%); }
+
+  /* ---- death screen ---- */
+  #deathScreen { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center;
+                 background:rgba(80,10,10,.55); backdrop-filter:blur(2px); }
+  #deathScreen .dbox { text-align:center; color:#fff; }
+  #deathScreen h1 { font-size:52px; margin:0 0 10px; text-shadow:0 3px 8px #000; letter-spacing:2px; }
+  #deathCause { font-size:17px; color:#ffd9d9; text-shadow:0 2px 4px #000; margin-bottom:8px; }
+  #deathStats { font-size:14px; color:#e8b9b9; text-shadow:0 2px 4px #000; margin-bottom:24px; }
+  /* The death screen lives inside the split-screen .hudPane, which is pointer-events:none so the HUD never
+     eats clicks, and that made Respawn and Back to Menu impossible to click (0.756), the same trap the
+     inventory hit in 0.728. The two buttons also share one look now: Back to Menu only carried the pause
+     menu's `grey` class, which is styled under #overlay alone, so here it fell back to a bare browser button. */
+  #deathScreen { pointer-events:auto; }
+  #respawnBtn, #deathMenuBtn { font-size:18px; padding:10px 34px; border-radius:8px; border:1px solid #a55;
+                background:#3a1414; color:#fff; cursor:pointer; margin:0 6px; }
+  #respawnBtn:hover, #deathMenuBtn:hover { background:#552020; }
+
+  /* ---- radial picker ---- */
+  #radial { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:8; display:none; }
+
+  /* ---- start / pause overlay ---- */
+  #overlay { position:fixed; inset:0; background:rgba(8,10,18,.42); backdrop-filter:blur(2px);
+             display:flex; align-items:center; justify-content:center; z-index:10; }
+  /* wider (0.7148): the world rows carry two timestamps and a version pair now, and the pause
+     menu's option row was wrapping. min-width keeps the title and pause screens from collapsing
+     to the width of their few buttons. */
+  #overlay .panel { background:rgba(16,18,30,.92); border:1px solid rgba(255,255,255,.15); border-radius:12px;
+                    padding:28px 36px; color:#eee; text-align:center;
+                    width:min(1040px, 92vw); max-width:1040px; min-width:min(680px, 92vw);
+                    box-sizing:border-box; }
+  #overlay h1 { margin:0 0 4px; font-size:34px; letter-spacing:2px; color:#9fd58a; text-shadow:0 2px 0 #2a4a20; }
+  #overlay .sub { color:#9aa; margin-bottom:16px; font-size:13px; }
+  #overlay .seedrow { display:flex; gap:8px; justify-content:center; margin-bottom:14px; }
+  #overlay input { background:#0b0d16; color:#dfe; border:1px solid #445; border-radius:6px;
+                   padding:8px 10px; font-size:14px; width:200px; text-align:center; }
+  #overlay .opts { display:flex; gap:18px; justify-content:center; align-items:flex-end;
+                   margin-bottom:14px; color:#9ab; font-size:12px; }
+  #overlay .opts label { display:flex; flex-direction:column; gap:4px; align-items:center; }
+  #overlay .opts select, #overlay .opts input { background:#0b0d16; color:#dfe; border:1px solid #445;
+                   border-radius:6px; padding:5px 8px; font-size:13px; width:92px; text-align:center; }
+  #hzNote { font-size:11px; color:#789; margin:-6px 0 12px; }
+  /* Item feed (0.751) — replaces the old single-line #toast. Newest row on top, so your eye stays
+     in one place while the list grows downward under it. */
+  #feed { position:fixed; left:50%; top:56px; transform:translateX(-50%); z-index:9;
+          display:flex; flex-direction:column; align-items:center; gap:4px;
+          pointer-events:none; width:max-content; max-width:min(520px, 92vw); }
+  .feedRow { display:flex; align-items:center; gap:9px; box-sizing:border-box;
+             background:rgba(12,14,22,.85); border:1px solid rgba(255,255,255,.12);
+             border-left:3px solid rgba(255,255,255,.28);
+             color:#fff; padding:5px 12px 5px 9px; border-radius:8px; font-size:13px;
+             max-width:100%; max-height:40px; overflow:hidden;
+             /* max-height and the margin animate too, so a leaving row collapses and the ones
+                under it slide up into the gap instead of snapping. */
+             transition:opacity .3s, transform .3s, max-height .3s .02s, margin-top .3s .02s,
+                        padding .3s .02s, border-width .3s .02s; }
+  .feedRow.gain { border-left-color:#5fbf52; }
+  .feedRow.loss { border-left-color:#c8683f; }
+  .feedRow.info { border-left-color:#5b8fd6; }
+  .feedRow.warn { border-left-color:#d8a33a; }
+  .feedRow.crit { border-left-color:#d8503a; }
+  .feedRow.crit .fIcon { color:#f07a66; }
+  .feedRow.level { border-left-color:#e7b53c; }
+  .feedRow.level .fIcon, .feedRow.level .fAmt { color:#f2c14e; }
+  /* offhand beside the hotbar (0.7523): its own little frame just left of the bar, same height */
+  #hotbar .offSlot { position:absolute; right:calc(100% + 9px); bottom:2px; background:rgba(10,10,16,.55);
+                     outline:1px solid rgba(255,255,255,.18); outline-offset:2px; }
+  /* enter: drops in from just above, which is where the list grows from */
+  .feedRow.in  { opacity:0; transform:translateY(-10px); }
+  /* leave: fades up and folds flat */
+  .feedRow.out { opacity:0; transform:translateY(-8px); max-height:0; margin-top:-4px;
+                 padding-top:0; padding-bottom:0; border-top-width:0; border-bottom-width:0; }
+  .feedRow .fIcon { display:flex; width:22px; height:22px; flex:0 0 22px;
+                    align-items:center; justify-content:center; }
+  .feedRow .fIcon img { width:22px; height:22px; image-rendering:auto; }
+  .feedRow.info .fIcon { color:#7fb0ee; }
+  .feedRow.warn .fIcon { color:#eec35c; }
+  .feedRow .fTxt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .feedRow .fAmt { font-variant-numeric:tabular-nums; }
+  .feedRow.gain .fAmt { color:#8ee07f; }
+  .feedRow.loss .fAmt { color:#f0a07a; }
+  .feedRow .fWhy, .feedRow .fMul { color:#9ab; font-size:11px; flex:0 0 auto; }
+  .feedRow .fWhy:empty, .feedRow .fMul:empty { display:none; }
+  /* a row that just counted up pulses, so a stack you are adding to is the one that catches
+     your eye rather than quietly changing its number */
+  .feedRow.bump { animation:feedBump .26s ease-out; }
+  @keyframes feedBump { 0% { transform:scale(1); } 38% { transform:scale(1.06); }
+                        100% { transform:scale(1); } }
+  #overlay button { background:#3f7d32; color:#fff; border:none; border-radius:6px; padding:9px 22px;
+                    font-size:15px; cursor:pointer; }
+  #overlay button:hover { background:#4f9440; }
+  #overlay .controls { text-align:left; font-size:12px; color:#bcc; columns:2; column-gap:28px; margin-top:6px; }
+  #overlay .controls b { color:#fff; }
+  #overlay .controls div { margin-bottom:3px; }
+
+  /* ---- world list (main menu) ---- */
+  #overlay .wlist { max-height:468px; overflow-y:auto; margin-bottom:16px; display:flex;
+                    flex-direction:column; gap:8px; padding-right:4px; }
+  #overlay button.grey { background:#4a4f66; }
+  #overlay button.grey:hover { background:#5b6180; }
+  /* The save's screenshot is the row's own background now, so there is no thumbnail column and
+     the row only has to be as tall as two lines of text. `position:relative` anchors the scrim. */
+  #overlay .wrow { position:relative; display:flex; flex-direction:row; align-items:center;
+                   background:#0b0d16; background-size:cover; background-position:center 40%;
+                   border:1px solid #334; border-radius:10px; overflow:hidden;
+                   min-height:52px; text-align:left; }
+  /* scrim: without it the white name vanishes over a snowy or sandy screenshot */
+  #overlay .wrow .wshade { position:absolute; inset:0; pointer-events:none; }
+  #overlay .wrow.has-thumb .wshade {
+    background:linear-gradient(90deg, rgba(8,10,18,.92) 0%, rgba(8,10,18,.82) 55%, rgba(8,10,18,.62) 100%); }
+  #overlay .wrow > .wbody, #overlay .wrow > .wbtns { position:relative; z-index:1; }
+  #overlay .wbody { flex:1; display:flex; flex-direction:column; justify-content:center;
+                    padding:7px 14px; min-width:0; }
+  #overlay .wrow .winfo { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  #overlay .wrow .winfo b { font-size:17px; color:#dfe; overflow:hidden; text-overflow:ellipsis;
+                            white-space:nowrap; text-shadow:0 1px 3px #000; }
+  /* the whole world summary on one line; ellipsis rather than wrapping keeps every row equal */
+  #overlay .wrow .winfo .wseed { font-size:12.5px; color:#9ab; white-space:nowrap;
+                                 overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000; }
+  /* created + last played sit side by side rather than stacking, so the row keeps its height */
+  /* (.wtime / .wthumb rules removed in 0.7149 — the stamps live in the one-line summary now,
+     and the screenshot is the row background rather than a column of its own) */
+  #overlay .wrow .wbtns { display:flex; gap:7px; align-items:center; flex-shrink:0; padding:0 14px; }
+  #overlay .wrow .wbtns button { padding:6px 20px; font-size:15px; }
+  #overlay .wrow .wdel { background:#7d3232; flex:0 0 auto; padding:6px 11px; }
+  #overlay .wrow .wdel:hover { background:#944040; }
+  #overlay .wempty { color:#789; font-size:13px; padding:10px 0 14px; }
+
+  /* ---- profile list + split-screen roster (0.721) ----
+     Same visual language as the world rows, one size down: these are short lists of people, not
+     save files with screenshots. */
+  #overlay .splitTitle { color:#9fd58a; font-size:15px; font-weight:600; letter-spacing:.5px;
+                        margin:0 0 8px; text-align:center; }
+  #overlay .splitList { max-height:230px; overflow-y:auto; margin-bottom:12px;
+                       display:flex; flex-direction:column; gap:6px; }
+  #overlay .srow { display:flex; align-items:center; justify-content:space-between; gap:10px;
+                  background:rgba(12,16,26,.72); border:1px solid #2c3446; border-radius:7px;
+                  padding:8px 10px 8px 13px; }
+  #overlay .srow.sel { border-color:#4f7a4a; background:rgba(18,30,20,.72); }
+  #overlay .srow .sname { display:flex; flex-direction:column; gap:1px; min-width:0;
+                         color:#dfe; font-size:15px; text-align:left; }
+  #overlay .srow .ssub { font-size:12px; color:#8a9bb0; }
+  #overlay .srow .sbtns { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+  #overlay .srow .sbtns button { padding:5px 14px; font-size:13.5px; }
+  #overlay .srow .wdel { background:#7d3232; padding:5px 10px; }
+  #overlay .srow .wdel:hover { background:#944040; }
+  #overlay .splitNote { color:#789; font-size:12.5px; margin:-4px 0 14px; }
+  #overlay #splitProfileSel, #overlay #profileNameIn, #overlay #splitNameIn {
+    background:#0b0d16; color:#dfe; border:1px solid #445; border-radius:6px; padding:8px 10px; }
+  #overlay #splitPanel { border-bottom:1px solid #2c3446; margin-bottom:14px; padding-bottom:4px; }
+
+  /* ---- "waiting for input" (0.722) ----
+     Sits above the pause menu (z 21) because it is opened FROM it, and swallows nothing: the
+     capture itself is what stops the pressed button reaching the game. */
+  #inputWait { position:fixed; inset:0; z-index:21; display:none;
+              align-items:center; justify-content:center; background:rgba(4,6,12,.78);
+              backdrop-filter:blur(3px); }
+  #inputWait .iwbox { background:rgba(12,16,26,.96); border:1px solid #3a4458;
+                     border-radius:10px; padding:22px 30px; text-align:center; max-width:460px; }
+  #inputWaitText { color:#9fd58a; font-size:20px; font-weight:600; letter-spacing:.4px; }
+  #inputWaitHint { color:#9ab; font-size:13px; margin-top:8px; line-height:1.5; }
+  #inputWait .iwdots { display:flex; justify-content:center; gap:9px; margin-top:16px; }
+  #inputWait .iwdots span { width:8px; height:8px; background:#4a7060; border-radius:50%;
+                           animation:wlb 1.2s infinite ease-in-out; }
+  #inputWait .iwdots span:nth-child(2) { animation-delay:.2s; }
+  #inputWait .iwdots span:nth-child(3) { animation-delay:.4s; }
+
+  /* ---- world loading screen (below overlay at z:10, shown during chunk generation) ---- */
+  /* solid black since 0.759: nothing of the half-loaded world shows through */
+  #worldLoading { position:fixed; inset:0; background:#000;
+                 align-items:center; justify-content:center; z-index:9; display:none; }
+  #worldLoadingName { font-size:22px; font-weight:600; letter-spacing:0.5px; color:#9fd58a;
+                     margin-bottom:8px; text-align:center;
+                     font-family:'Segoe UI', system-ui, sans-serif; }
+  /* says WHICH wait you are in, so a slow texture fetch does not read as a frozen screen */
+  #worldLoadingStep { font-size:13px; color:#7c8f84; margin-bottom:18px; text-align:center;
+                     font-family:'Segoe UI', system-ui, sans-serif; min-height:16px; }
+  .wl-dots { display:flex; justify-content:center; gap:10px; }
+  .wl-dots span { width:9px; height:9px; background:#4a7060; border-radius:50%;
+                 animation:wlb 1.2s infinite ease-in-out; }
+  .wl-dots span:nth-child(2) { animation-delay:.2s; }
+  .wl-dots span:nth-child(3) { animation-delay:.4s; }
+  @keyframes wlb { 0%,80%,100%{transform:scale(.5);opacity:.3} 40%{transform:scale(1);opacity:1} }
+
+/* The shape radial's page label (0.7892; above the ring since 0.7893): which ring you are on, and how
+   to move. Anchored by its BOTTOM edge just clear of the outer rim, so a taller label grows upward. */
+.chiselRadial .crPage{
+  position:absolute; left:50%; top:calc(50% - 222px); transform:translate(-50%,-100%);
+  pointer-events:none; text-align:center; white-space:nowrap;
+  font:600 13px/1.25 system-ui,sans-serif; color:#cfe0f5; text-shadow:0 1px 3px #000;
+}
+.chiselRadial .crPage small{ display:block; font-weight:400; font-size:11px; color:#8fa3bb; }
+
+/* ---- skill tree (0.79) ----
+   Replaces every other panel in the inventory window while it is up (see syncSkillView). Nodes are
+   absolutely placed by skillLayout; the SVG under them carries the requirement lines. */
+#skillPanel { display:none; flex-direction:column; gap:8px; min-width:560px;
+              min-height:680px; max-height:calc(100vh - 196px); overflow-y:auto; box-sizing:border-box;   /* 774px in 0.791 */
+              background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
+              border-radius:10px; padding:12px; color:#dfe; }
+#skillPanel .skHead { display:flex; align-items:center; gap:10px; }
+#skillPanel .skHead .ctitle { flex:1; color:#cfe0f5; font-size:14px; font-weight:600; text-align:center; }
+#skillPanel .skPts { font-size:12px; color:#9ab; white-space:nowrap; }
+#skillPanel .skPts b { color:#ffd76a; font-size:15px; }
+#skillPanel .skPts small { display:block; text-align:right; color:#6f7f94; font-size:10.5px; }
+#skillPanel .invBtn, #equipPanel .invBtn { pointer-events:auto; background:#2b3346; color:#dfe;
+              border:1px solid rgba(255,255,255,.18); border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
+#skillPanel .invBtn:hover, #equipPanel .invBtn:hover { background:#3a4560; border-color:rgba(255,255,255,.32); }
+#skillPanel .skTabs { display:flex; gap:4px; justify-content:center; }
+#skillPanel .skTab { pointer-events:auto; background:#1f2636; color:#9ab; border:1px solid rgba(255,255,255,.12);
+              border-radius:6px; padding:5px 12px; font-size:12px; cursor:pointer; }
+#skillPanel .skTab small { color:#6f7f94; margin-left:3px; }
+#skillPanel .skTab.on { background:#34405a; color:#eaf2ff; border-color:rgba(255,255,255,.3); }
+#skillPanel .skTab:hover:not(.on) { background:#283247; }
+#skillPanel .skTree { position:relative; align-self:center; margin:auto 0; flex:none; }
+#skillPanel .skTree svg { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; }
+#skillPanel .skLink { fill:none; stroke:rgba(255,255,255,.18); stroke-width:2; }
+#skillPanel .skLink.lit { stroke:#7ee63a; }
+#skillPanel .skNode { position:absolute; box-sizing:border-box; pointer-events:auto; cursor:pointer;
+              display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+              border-radius:8px; border:2px solid rgba(255,255,255,.16); background:#171c29;
+              text-align:center; padding:4px 6px; transition:transform .08s, border-color .08s; }
+#skillPanel .skNode b { font-size:12px; font-weight:600; line-height:1.15; }
+#skillPanel .skNode small { font-size:10px; color:#8fa3bb; }
+#skillPanel .skNode:hover, #skillPanel .skNode.hover { transform:scale(1.05); }
+#skillPanel .skNode.owned { background:#1d3320; border-color:#7ee63a; }
+#skillPanel .skNode.owned small { color:#9fe07a; }
+#skillPanel .skNode.ready { border-color:#ffd76a; }
+#skillPanel .skNode.ready small { color:#ffd76a; }
+#skillPanel .skNode.armed { background:#3d3418; border-color:#ffe9a8; box-shadow:0 0 0 2px rgba(255,215,106,.35); }
+#skillPanel .skNode.poor { opacity:.75; }
+#skillPanel .skNode.poor small { color:#e0a05a; }
+#skillPanel .skNode.locked { opacity:.45; }
+#skillPanel .skHint { font-size:11px; color:#6f7f94; text-align:center; }
+#equipPanel .skOpenRow { display:flex; justify-content:center; }
+#equipPanel .skOpenBtn.hasPts { border-color:#ffd76a; color:#ffe9a8; }
+/* the skill tooltip's requirement ticks */
+#ctip .skOk { color:#9fe07a; }
+#ctip .skNo { color:#e07a6a; }
+
+/* a broken tool kept by Mender (0.79): a red wash and a slash across the slot, so it reads at a glance */
+.slot .brk { position:absolute; inset:2px; pointer-events:none; border-radius:4px;
+             background:linear-gradient(135deg, transparent 46%, rgba(230,70,60,.85) 46%, rgba(230,70,60,.85) 54%, transparent 54%),
+                        rgba(160,30,30,.28); }
+/* a repair waiting in the crafting queue */
+.cqSlot .cqRep, .cqHud .cqRep { position:absolute; right:2px; top:0; font-size:13px; color:#ffd76a;
+             text-shadow:0 1px 2px #000; pointer-events:none; }

@@ -1,0 +1,616 @@
+'use strict';
+/* voxiGrof — hearts/drumsticks canvas + survival vitals tick */
+
+/* ---------------------------------- survival vitals HUD ---------------------------------- */
+// 10 hearts on the left (each = 2HP), 10 drumsticks on the right (each = 2 food). Food
+// depletes over time; saturation (gold outline) drains 3× faster first. Icons are drawn
+// pixel-by-pixel into the canvas with a 16x16 stamp for the icon shape (Minecraft-style silhouette).
+var vitalsEl = document.getElementById('vitals');
+var vctx = vitalsEl.getContext('2d');
+vctx.imageSmoothingEnabled = false;
+
+// pre-render the 4 icon variants (full/half/empty × heart/drumstick) into offscreen buffers
+const ICON_SZ = 16, ICON_SCALE = 1;         // stamps are 16px drawn 1:1 (fits above the hotbar)
+const GUI_SZ = 36;                           // sprite display size: native 36px, no downscaling
+function makeIconCanvas() {
+  const c = document.createElement('canvas'); c.width = c.height = ICON_SZ; return c;
+}
+// mask: 16×16 heart silhouette (# = filled cell). Padded to 16 rows AND 16 cols.
+const _padMask = (rows) => {
+  const out = rows.map(r => r.padEnd(16, ' '));
+  while (out.length < 16) out.push(' '.repeat(16));
+  return out;
+};
+const HEART_MASK = _padMask([
+  '                ',
+  '                ',
+  '  ###    ###    ',
+  ' ##### ######   ',
+  ' ############   ',
+  ' ############   ',
+  '  ##########    ',
+  '   ########     ',
+  '    ######      ',
+  '     ####       ',
+  '      ##        ',
+]);
+// mask: 16×16 air bubble (round, drawn above the drumsticks while diving)
+const BUBBLE_MASK = _padMask([
+  '                ',
+  '     ######     ',
+  '    ########    ',
+  '   ##########   ',
+  '   ##########   ',
+  '  ############  ',
+  '  ############  ',
+  '  ############  ',
+  '  ############  ',
+  '   ##########   ',
+  '   ##########   ',
+  '    ########    ',
+  '     ######     ',
+]);
+// mask: 16×16 drumstick silhouette (meaty bulb top-left, thin bone bottom-right)
+const DRUM_MASK = _padMask([
+  '                ',
+  '  ####          ',
+  ' ######         ',
+  ' #######        ',
+  ' ########       ',
+  '  ########      ',
+  '   ########     ',
+  '     ######     ',
+  '       #####    ',
+  '         ####   ',
+  '          ####  ',
+  '           #### ',
+  '            ####',
+  '            ####',
+  '             ###',
+  '             ###',
+]);
+
+// draw one masked icon at (dx,dy) in the vitals canvas, filling only cells where
+// `fillFn(mx,my)` returns true (used for half-drumstick progress top-left → bottom-right)
+// colorFn(x,y,edge) overrides per-pixel color when provided (used for food+saturation blended drumstick)
+function drawStamp(mask, dx, dy, colorFill, colorOutline, fillFn, colorFn) {
+  for (let y = 0; y < ICON_SZ; y++) for (let x = 0; x < ICON_SZ; x++) {
+    if (mask[y][x] !== '#') continue;
+    let edge = false;
+    for (const [ox, oy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + ox, ny = y + oy;
+      if (nx < 0 || nx >= ICON_SZ || ny < 0 || ny >= ICON_SZ || mask[ny][nx] !== '#') { edge = true; break; }
+    }
+    if (colorFn) {
+      vctx.fillStyle = colorFn(x, y, edge);
+    } else {
+      const filled = !fillFn || fillFn(x, y);
+      vctx.fillStyle = edge ? colorOutline : (filled ? colorFill : '#4a1f1f');
+      if (!filled && !edge) vctx.fillStyle = '#3a1414';
+    }
+    vctx.fillRect(dx + x * ICON_SCALE, dy + y * ICON_SCALE, ICON_SCALE, ICON_SCALE);
+  }
+}
+
+function paintVitals() {
+  const w = vitalsEl.width, h = vitalsEl.height;
+  vctx.clearRect(0, 0, w, h);
+  // shadow slots (empty background) first, then filled state on top — HP left, food right
+  // 10 hearts + 10 drumsticks each take 10 icons; canvas width = 20*step covers both rows
+  const iconStep = GUI_SZ + 2;                     // 38px per slot (36 native + 2 gap)
+  /* Both rows pulled in off the canvas edges (0.7295) so hearts and food sit closer to the
+     crosshair instead of hugging the far ends of the hotbar. Canvas pixels, and the canvas is
+     drawn at 535/980 scale, so a real on-screen pixel costs ~1.83 here. Armor rides on hpX and
+     the oxygen bubbles on hunX, so all four rows move together.
+     0.732: 40 -> 47, another ~4 screen pixels inward per side. */
+  const EDGE_INSET = 47;
+  const hpX = EDGE_INSET, hunX = w - iconStep * 10 + 2 - EDGE_INSET;
+  const ROW_Y = GUI_SZ + 2;                       // bubble row + gap
+  const spriteW = GUI_SZ;                         // 36px native, drawn 1:1
+
+  // oxygen bubbles — show instantly when underwater; each slot = 1 air bubble
+  if (player._eyeUnder || player.air < MAX_AIR - 0.01) {
+    for (let i = 0; i < 10; i++) {
+      const bx = hunX + i * iconStep, by = 0;
+      const slot = 9 - i;                         // slot 9 leftmost, slot 0 rightmost
+      if (player.air >= slot + 1) {
+        // full bubble
+        if (GUI_IMG.airFull) vctx.drawImage(GUI_IMG.airFull, bx, by, spriteW, spriteW);
+        else drawStamp(BUBBLE_MASK, bx, by, '#54b8ff', '#1d5c94');
+      } else if (player.air > slot) {
+        // partially drained — use bursting sprite
+        if (GUI_IMG.airBursting) vctx.drawImage(GUI_IMG.airBursting, bx, by, spriteW, spriteW);
+        else drawStamp(BUBBLE_MASK, bx, by, '#a8d8ff', '#1d5c94');
+      } else {
+        // empty
+        if (GUI_IMG.airEmpty) vctx.drawImage(GUI_IMG.airEmpty, bx, by, spriteW, spriteW);
+        // empty slots: draw nothing if no texture (invisible)
+      }
+    }
+  }
+
+  /* armor row — sits directly above the hearts (the oxygen row shares this band on the right).
+     20 armor points = 10 full icons, so each icon is worth 2 points, same scale as hearts.
+     The sprite set is chosen per material so other tiers can theme their own row later; any
+     material without its own art falls back to the iron sprites. */
+  const armorMats = typeof playerArmorPointMats === 'function' ? playerArmorPointMats() : [];
+  if (armorMats.length > 0) {
+    /* Each icon covers TWO points, and the two can be different materials — the whole reason the
+       art ships a left half and a right half per tier. So the icon is composed rather than
+       picked: same material on both points draws the one full sprite, a mismatch (or a lone
+       leftover point) draws the halves that are actually there. Any tier without its own art
+       falls back to the iron sprites so a new material can never blank the row. */
+    const full  = (m) => GUI_IMG['armor' + m + 'Full']      || GUI_IMG.armorIronFull;
+    const left  = (m) => GUI_IMG['armor' + m + 'Half']      || GUI_IMG.armorIronHalf;
+    const right = (m) => GUI_IMG['armor' + m + 'HalfRight'] || GUI_IMG.armorIronHalfRight;
+    for (let i = 0; i < 10; i++) {
+      const ax = hpX + i * iconStep;
+      const l = armorMats[i * 2] || null, r = armorMats[i * 2 + 1] || null;
+      if (!l && !r) { if (GUI_IMG.armorEmpty) vctx.drawImage(GUI_IMG.armorEmpty, ax, 0, spriteW, spriteW); continue; }
+      if (GUI_IMG.armorEmpty) vctx.drawImage(GUI_IMG.armorEmpty, ax, 0, spriteW, spriteW);
+      if (l && l === r) {
+        const f = full(l);
+        if (f) vctx.drawImage(f, ax, 0, spriteW, spriteW);
+        continue;
+      }
+      /* Each half is CLIPPED to its own side of the icon. The tiers do not agree on what a half
+         sprite contains — iron's carries the empty socket on its far side, leather's is a clean
+         50% crop — so drawing them one over the other let iron's empty side paint straight over
+         the leather next to it. Clipping makes the composite work whatever the art does; the
+         empty socket underneath is already painted. */
+      const half = spriteW / 2;
+      const clipDraw = (img, x0, w) => {
+        if (!img) return;
+        vctx.save();
+        vctx.beginPath();
+        vctx.rect(x0, 0, w, spriteW);
+        vctx.clip();
+        vctx.drawImage(img, ax, 0, spriteW, spriteW);
+        vctx.restore();
+      };
+      if (l) clipDraw(left(l),  ax,        half);
+      if (r) clipDraw(right(r), ax + half, spriteW - half);
+    }
+  }
+
+  // one heart per 2 HP: sprite-based — container bg, then full/half overlay
+  const drawHeart = (i) => {
+    const hpFrac = Math.ceil(Math.max(0, Math.min(2, player.hp - i * 2)));   // ceil so tiny drain doesn't flip icon
+    const hx = hpX + i * iconStep;
+    if (GUI_IMG.heartContainer) {
+      vctx.drawImage(GUI_IMG.heartContainer, hx, ROW_Y, spriteW, spriteW);
+      if (hpFrac >= 2 && GUI_IMG.heartFull)      vctx.drawImage(GUI_IMG.heartFull,      hx, ROW_Y, spriteW, spriteW);
+      else if (hpFrac >= 1 && GUI_IMG.heartHalf) vctx.drawImage(GUI_IMG.heartHalf,      hx, ROW_Y, spriteW, spriteW);
+    } else {
+      // fallback procedural while textures load
+      drawStamp(HEART_MASK, hx, ROW_Y, '#e14343', '#4a1414',
+                hpFrac === 0 ? (() => false) : hpFrac >= 2 ? null : (x) => x < ICON_SZ / 2);
+    }
+  };
+  /* A raised ceiling (Thick Skin, 0.79) draws its extra hearts on past the tenth, into the gap between
+     the heart and food rows — there is room for three there before they would touch the food. */
+  for (let i = 10, n = Math.ceil(playerMaxHP() / 2); i < n; i++) drawHeart(i);
+  for (let i = 0; i < 10; i++) {
+    drawHeart(i);
+    // food: sprite-based. Rightmost icon (i=9) drains first → invI=9-i maps i=9→invI=0
+    const invI = 9 - i;
+    const invFrac    = Math.ceil(Math.max(0, Math.min(2, player.food       - invI * 2)));
+    const invSatFrac = Math.ceil(Math.max(0, Math.min(2, player.saturation - invI * 2)));
+    const fx = hunX + i * iconStep;
+    if (GUI_IMG.foodEmpty) {
+      vctx.drawImage(GUI_IMG.foodEmpty, fx, ROW_Y, spriteW, spriteW);
+      // food state drawn first so saturation overlays on top of it
+      if (invFrac >= 2 && GUI_IMG.foodFull)
+        vctx.drawImage(GUI_IMG.foodFull, fx, ROW_Y, spriteW, spriteW);
+      else if (invFrac >= 1 && GUI_IMG.foodHalf)
+        vctx.drawImage(GUI_IMG.foodHalf, fx, ROW_Y, spriteW, spriteW);
+      // saturation overlay (PNG alpha lets drumstick show through)
+      if (invSatFrac >= 2 && GUI_IMG.foodSaturation)
+        vctx.drawImage(GUI_IMG.foodSaturation, fx, ROW_Y, spriteW, spriteW);
+      else if (invSatFrac >= 1 && GUI_IMG.foodSaturationHalf)
+        vctx.drawImage(GUI_IMG.foodSaturationHalf, fx, ROW_Y, spriteW, spriteW);
+    } else {
+      // fallback procedural while textures load
+      const invFracN = invFrac / 2;
+      const invSatFracN = invSatFrac / 2;
+      if (!paintVitals._drumSort) {
+        const list = [];
+        for (let yy = 0; yy < ICON_SZ; yy++) for (let xx = 0; xx < ICON_SZ; xx++)
+          if (DRUM_MASK[yy][xx] === '#') list.push([xx, yy, xx + yy]);
+        list.sort((a, b) => b[2] - a[2]);
+        paintVitals._drumSort = list; paintVitals._drumTotal = list.length;
+      }
+      const cutoff = Math.round(paintVitals._drumTotal * invFracN);
+      const lit = new Set();
+      for (let k = 0; k < cutoff; k++) { const p = paintVitals._drumSort[k]; lit.add(p[0] + p[1] * ICON_SZ); }
+      drawStamp(DRUM_MASK, fx, ROW_Y, '#c9873c', invSatFracN > 0 ? '#ffd700' : '#5a3410',
+                invFracN === 1 ? null : (x, y) => lit.has(x + y * ICON_SZ));
+    }
+  }
+}
+var vitalsDirty = true, vitalsShown = false;
+
+// GUI sprite textures — loaded async on world entry; vitalsDirty set per load to force a repaint
+const GUI_IMG = {};
+let ensureVitalsSprites = () => {};
+{
+  const _p = {
+    heartContainer:      'textures/Gui/Vitals/Heart/container.png',
+    heartFull:           'textures/Gui/Vitals/Heart/full.png',
+    heartHalf:           'textures/Gui/Vitals/Heart/half.png',
+    airFull:             'textures/Gui/Vitals/Oxygen/air.png',
+    airBursting:         'textures/Gui/Vitals/Oxygen/air_bursting.png',
+    airEmpty:            'textures/Gui/Vitals/Oxygen/air_empty.png',
+    foodEmpty:           'textures/Gui/Vitals/Food/food_empty.png',
+    foodFull:            'textures/Gui/Vitals/Food/food_full.png',
+    foodHalf:            'textures/Gui/Vitals/Food/food_half.png',
+    foodSaturation:      'textures/Gui/Vitals/Food/food_Saturation.png',
+    foodSaturationHalf:  'textures/Gui/Vitals/Food/food_Saturation_half.png',
+    /* armor bar — one sprite set per material so each tier themes its own row. Halves come in
+       BOTH directions (0.73): the row fills left to right, so a single leftover point draws the
+       LEFT half; the right-half art is what a right-anchored row (the oxygen side) would need.
+       The old single `iron_armor_half.png` no longer exists, which is why an odd armor total used
+       to draw an empty socket where the half icon belongs. */
+    armorEmpty:            'textures/Gui/Vitals/Armor/armor_empty.png',
+    armorIronFull:         'textures/Gui/Vitals/Armor/iron_armor_full.png',
+    armorIronHalf:         'textures/Gui/Vitals/Armor/iron_armor_lefthalf.png',
+    armorIronHalfRight:    'textures/Gui/Vitals/Armor/iron_armor_righthalf.png',
+    armorLeatherFull:      'textures/Gui/Vitals/Armor/leather_armor_full.png',
+    armorLeatherHalf:      'textures/Gui/Vitals/Armor/leather_armor_lefthalf.png',
+    armorLeatherHalfRight: 'textures/Gui/Vitals/Armor/leather_armor_righthalf.png',
+  };
+  /* Requested on world load, not at boot (0.7147). Fourteen more HTTP requests for a bar that is
+     only ever drawn in survival, behind a menu that never shows it — and on a slow static server
+     each request is another slot in the browser's six-per-origin queue that a block texture could
+     have used. paintVitals already falls back to its procedural stamps for any sprite that has
+     not landed, so an early frame is still correct, just plainer. */
+  ensureVitalsSprites = function () {
+    ensureVitalsSprites = () => {};              // once
+    let pending = Object.keys(_p).length;
+    for (const [k, src] of Object.entries(_p)) {
+      const img = new Image();
+      const done = () => { if (--pending <= 0) { vitalsSpritesReady = true; vitalsDirty = true; } };
+      img.onload = () => { GUI_IMG[k] = img; vitalsDirty = true; done(); };
+      img.onerror = done;                    // a missing file must not block the bar forever
+      img.src = src;
+    }
+  };
+}
+/* The procedural stamps are a fallback for sprites that never arrive, and they draw smaller than
+   the real 36px art. Deferring the sprite load to world entry (0.7147) meant every join showed
+   the small stamped hearts for a moment and then swapped to the proper ones — a visible resize.
+   The bar now simply waits: hidden until the sprites land, or until a second has passed, after
+   which the stamps are better than nothing. */
+let vitalsSpritesReady = false;
+let _vitalsWaitT = 0;
+// per-frame: survival only. Depletes food by activity, regenerates HP when well-fed (which
+// costs food fast), starves at empty food, kills+respawns at 0 HP. Fall damage kept from
+// the previous pass. Sprint/jump ARE the main food consumers — idle is very slow (per user).
+function updateVitals(dt) {
+  _vitalsWaitT += dt;
+  const artReady = vitalsSpritesReady || _vitalsWaitT > 1.0;
+  const survival = !player.canFly && player.spawned && artReady;
+  if (survival !== vitalsShown) {
+    vitalsShown = survival;
+    vitalsEl.style.display = survival ? 'block' : 'none';
+    vitalsDirty = true;
+  }
+  // hurt vignette fade-out (runs in any mode so it never sticks)
+  if (_hurtA > 0) {
+    _hurtA = Math.max(0, _hurtA - dt * 1.6);
+    hurtEl.style.opacity = _hurtA.toFixed(3);
+  }
+  if (!survival) return;
+  if (!player.dead) player.aliveT = (player.aliveT || 0) + dt;   // survival stopwatch for the death screen
+  const prevFood = player.food, prevHp = player.hp, prevSat = player.saturation;
+  /* The damage baseline is the HP this player had when updateVitals LAST FINISHED, not the HP it
+     has on entry (0.7293).
+
+     Mobs hit in updateEntities, which is part of the world tick and therefore runs AFTER every
+     player's updateVitals. Diffing within the call could only ever see damage the call inflicted
+     itself — fall, cactus, drowning, starvation — so a mob landing a blow produced no red flash,
+     no camera kick, no hit sound, and (worse) skipped the armour soak entirely, since that used
+     the same in-call baseline. Carrying the value across the frame boundary catches both. */
+  const dmgBase = (typeof player._hpLast === 'number') ? player._hpLast : player.hp;
+
+  // food drain: idle baseline, sprint multiplier, and a discrete tick per jump edge.
+  // sprinting only counts when actually moving on the ground (not fly-fast, not falling)
+  const grounded = onGround();
+  const moving = (player._movingH || 0) > 0.001;
+  const isSprinting = player.fast && moving && grounded && !player.flying;
+  const drainMul = isSprinting ? FOOD_SPRINT_MULT : 1;
+  let totalDrain = FOOD_IDLE_PER_S * drainMul * dt;
+
+  // jump edge: discrete food cost
+  if (player.prevOnGround && !grounded && player.vy > 0.1 && !player.flying)
+    totalDrain += FOOD_JUMP_COST * (isSprinting ? 0.4 : 1);
+  player.prevOnGround = grounded;
+
+  // timed effects count down first, so one that runs out this frame no longer boosts it (0.758)
+  if (typeof tickPlayerEffects === 'function') tickPlayerEffects(dt);
+  // regen: kicks in above 12 food, doubles above 18; Rapid regen doubles it again
+  if (player.hp < playerMaxHP() && player.food > REGEN_FOOD_MIN) {
+    const rate = REGEN_HP_PER_S * (player.food > REGEN_FAST_FOOD ? 2 : 1)
+               * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1);
+    player.hp = Math.min(playerMaxHP(), player.hp + rate * dt);
+    totalDrain += FOOD_REGEN_COST_PER_S * dt;
+  }
+
+  // nausea doubles every kind of hunger drain (0.761)
+  if (typeof playerHungerMul === 'function') totalDrain *= playerHungerMul();
+  // saturation acts as a buffer: drains 3× faster than food, protects food while > 0
+  if (player.saturation > 0) {
+    const satCost = totalDrain * 3;
+    if (player.saturation >= satCost) {
+      player.saturation -= satCost;
+      totalDrain = 0;
+    } else {
+      totalDrain -= player.saturation / 3;
+      player.saturation = 0;
+    }
+  }
+  player.food = Math.max(0, player.food - totalDrain);
+  /* Low-hunger warning (0.756): once, when the bar drops under 4 drumsticks (8 of 20). It re-arms only
+     after you have eaten back above that, so it cannot repeat while you hover at the line. */
+  if (!player.canFly) {
+    if (player.food < 8 && !player._warnFood) {
+      player._warnFood = true;
+      if (typeof feedWarn === 'function') feedWarn('Hungry: under 4 hunger left, eat something');
+    } else if (player.food >= 8) player._warnFood = false;
+  }
+
+  // starve: HP drains when food is empty
+  /* Starving hurts in HITS (0.7572): 1 health every 4s, the same 0.25/s it always drained, but in steps big
+     enough to set off the red flash, the hit sound and a feed warning. The old smooth drip slipped under
+     the hit threshold below, so health just went down with no sign of why. */
+  if (player.food <= 0) {
+    player._starveT = (player._starveT || 0) + dt;
+    if (player._starveT >= 1 / STARVE_HP_PER_S) {
+      player._starveT = 0;
+      player.hp = Math.max(0, player.hp - 1);
+      player._dmgCause = 'starved to death';
+      if (typeof feedCrit === 'function') feedCrit('Starving: losing health, eat something');
+    }
+  } else player._starveT = 0;
+
+  /* Fall damage: track apex → landing (walking mode only); water cancels any fall.
+     The landing test is `onGround()` since 0.7341, not `vy >= 0`. Velocity is a poor proxy for
+     having landed: a fall that ends on a slab, a stair or any partial box can leave vy negative
+     for several frames while the body settles, and the hit only registered once something else
+     happened to push it back up — which is the damage that "arrived late". Standing on ground is
+     unambiguous and true on the very frame you touch down. `vy > 0` still clears the fall too, so
+     jumping out of a descent is not banked and charged to you on the next landing. */
+  if (!player.flying) {
+    if (player._inWater) player.fallStart = null;
+    if (player.vy < -0.1 && player.fallStart == null) player.fallStart = player.pos.y;
+    else if ((onGround() || player.vy > 0) && player.fallStart != null) {
+      const fell = player.fallStart - player.pos.y;
+      // hay bale fully absorbs fall damage when you land on it
+      const landOn = getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1), Math.floor(player.pos.z)) & 255;
+      // half a block more slack before it counts (0.7148): the free-fall allowance is 3.5 blocks
+      // and damage is measured past that, so a drop that only just exceeds it costs nothing
+      if (fell > 4.0 && landOn !== B.HAY) { player.hp = Math.max(0, player.hp - (fell - 3.5) * skillHazardMul()); player._dmgCause = 'fell from a high place'; }   // 1 HP per block past 3.5
+      player.fallStart = null;
+    }
+  } else player.fallStart = null;
+
+  // cactus: any contact hurts (1 HP / 0.8s) and knocks you away — small hop plus a horizontal
+  // shove away from the cactus centre, applied through collision over a short burst
+  if (!player.flying) {
+    const p = player.pos, CR = player.R + 0.08;                // slightly expanded AABB = touch range
+    let cactX = null, cactZ = null;
+    const yLo = Math.floor(p.y - 0.1), yHi = Math.floor(p.y + player.H);
+    outer:
+    for (let yy = yLo; yy <= yHi; yy++)
+      for (let xx = Math.floor(p.x - CR); xx <= Math.floor(p.x + CR); xx++)
+        for (let zz = Math.floor(p.z - CR); zz <= Math.floor(p.z + CR); zz++)
+          if ((getBlock(xx, yy, zz) & 255) === B.CACTUS) { cactX = xx; cactZ = zz; break outer; }
+    if (cactX !== null) {
+      updateVitals._cactusT = (updateVitals._cactusT || 0) - dt;
+      if (updateVitals._cactusT <= 0) {
+        updateVitals._cactusT = 0.8;
+        player.hp = Math.max(0, player.hp - 1 * skillHazardMul());   // Hazard Hide (0.79)
+        player._dmgCause = 'was pricked by a cactus';
+        player.vy = Math.max(player.vy, 5.5);
+        let kx = p.x - (cactX + 0.5), kz = p.z - (cactZ + 0.5);
+        const len = Math.hypot(kx, kz);
+        if (len < 0.05) { const a = Math.random() * Math.PI * 2; kx = Math.cos(a); kz = Math.sin(a); }
+        else { kx /= len; kz /= len; }
+        player._kbx = kx * 10; player._kbz = kz * 10; player._kbT = 0.35;   // strong enough to beat walk speed
+      }
+    } else updateVitals._cactusT = 0;
+  }
+  // lava: 2 HP per 0.5s while feet or body are inside lava
+  if (!player.flying) {
+    const p = player.pos;
+    const feetId  = getBlock(Math.floor(p.x), Math.floor(p.y - 0.1), Math.floor(p.z)) & 255;
+    const bodyId  = getBlock(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)) & 255;
+    if (feetId === B.LAVA || bodyId === B.LAVA) {
+      updateVitals._lavaT = (updateVitals._lavaT || 0) - dt;
+      if (updateVitals._lavaT <= 0) {
+        updateVitals._lavaT = 0.5;
+        player.hp = Math.max(0, player.hp - 2 * skillHazardMul());   // Hazard Hide (0.79)
+        player._dmgCause = 'burned to death';
+      }
+    } else updateVitals._lavaT = 0;
+  }
+  if (player._kbT > 0) {
+    player._kbT -= dt;
+    collideAxis(0, player._kbx * dt);
+    collideAxis(2, player._kbz * dt);
+  }
+
+  // oxygen: eyes underwater drain air over ~15s; at 0 drowning ticks 1 heart/s; refills fast in air
+  const prevAir = player.air;
+  const eyeUnder = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + player.EYE),
+                             Math.floor(player.pos.z)) & 255) === B.WATER;
+  if (eyeUnder !== player._eyeUnder) vitalsDirty = true;
+  player._eyeUnder = eyeUnder;
+  /* The armor row used to ride on the HP/food repaint, which happened to be often enough to hide
+     the gap. It cannot now: swapping an iron chestplate for a leather one changes the icons
+     without changing the point TOTAL, so the mix itself is what the bar watches. Per player, on
+     the player, because this runs once per seat. */
+  if (typeof armorBarSignature === 'function') {
+    const sig = armorBarSignature();
+    if (sig !== player._armorSig) { player._armorSig = sig; vitalsDirty = true; }
+  }
+  // the offhand beside the hotbar follows whatever the offhand holds, however it changed (0.7523)
+  if (typeof syncOffhandSlot === 'function') syncOffhandSlot();
+  /* The drowning clock lives ON THE PLAYER (0.734). It used to be `updateVitals._drownT`, a single
+     value on the function object — but updateVitals runs once PER SEAT, so the first player who
+     was not underwater reset it, every frame, for everyone who was. The result was that nobody
+     drowned unless EVERY player was under at once. Same trap as the 0.729 footstep accumulator:
+     per-frame state in a per-player function must not be module-level. */
+  if (eyeUnder && !player.flying) {
+    player.air = Math.max(0, player.air - dt * (MAX_AIR / 15) * playerAirMul());   // Slow Burner (0.7911)
+    // low-oxygen warning (0.756): once per dive, when under 3 of 10 bubbles are left
+    if (player.air < 3 && !player._warnAir && !player.canFly) {
+      player._warnAir = true;
+      if (typeof feedWarn === 'function') feedWarn('Low oxygen: under 3 left, get to the surface');
+    }
+    if (player.air <= 0) {
+      player._drownT = (player._drownT || 0) + dt;
+      /* Drowning gets WORSE the longer it goes on (0.7573): 2 damage on the first hit, then 1 more on each
+         hit after it (2, 3, 4...). The count only resets once you are out of the water. */
+      if (player._drownT >= 1) {
+        player._drownT -= 1;
+        const hit = DROWN_DMG_BASE + (player._drownHits || 0) * DROWN_DMG_STEP;
+        player._drownHits = (player._drownHits || 0) + 1;
+        player.hp = Math.max(0, player.hp - hit); player._dmgCause = 'drowned';
+        if (typeof feedCrit === 'function') feedCrit('Drowning: losing health, get to the surface');
+      }
+    }
+  } else {
+    /* Oxygen comes back gradually (0.7573): fast while you are empty, easing off as the bar fills, so a
+       full refill takes about 6.7s instead of the 2s it used to snap back in. */
+    const airK = player.air / MAX_AIR;
+    player.air = Math.min(MAX_AIR, player.air + dt * (AIR_REGEN_EMPTY + (AIR_REGEN_FULL - AIR_REGEN_EMPTY) * airK));
+    player._drownHits = 0;
+    if (player.air >= 3) player._warnAir = false;
+    player._drownT = 0;
+  }
+  if (Math.ceil(player.air) !== Math.ceil(prevAir) ||
+      (prevAir < MAX_AIR && player.air >= MAX_AIR)) vitalsDirty = true;
+
+  /* Armor soak. Damage arrives from many places (fall, cactus, lava, drowning, mobs) as direct
+     `player.hp -= n` writes, so rather than threading a helper through all of them the whole
+     frame's loss is reduced here — before the death check, so armor can actually save you.
+     The 0.5 floor keeps the slow starvation drip from counting as a hit. */
+  {
+    const lost = dmgBase - player.hp;      // cross-frame, so a mob's blow is soaked too (0.7293)
+    if (lost >= 0.5 && !player.dead) {
+      const mult = armorDamageMultiplier();
+      if (mult < 1) player.hp = Math.min(playerMaxHP(), dmgBase - lost * mult);
+      damageArmorDurability(lost);             // wear follows how hard the hit was (0.756)
+    }
+  }
+  // void death
+  if (player.pos.y < -30) { player.hp = 0; player._dmgCause = 'fell into the void'; }
+  // death: drop everything around the body, freeze input, show the death screen —
+  // respawn happens when the player clicks Respawn (respawnPlayer below)
+  if (player.hp <= 0 && !player.dead) {
+    player.dead = true;
+    player.effects = [];                         // death ends every timed effect (0.758)
+    // the feed is one strip for the whole screen: it clears once nobody is left alive to read it (0.7576)
+    if (typeof clearFeed === 'function' && PLAYERS.every(p => !p.spawned || p.dead)) clearFeed();
+    player._deathDay = worldDay;                 // the day on the death screen, kept through a save (0.757)
+    if (player.sleepingAt) leaveBed(player);     // dying in your sleep still gets you out of it
+    playSound('death', { gain: 1 });
+    const dx0 = Math.floor(player.pos.x), dy0 = Math.floor(player.pos.y + 0.5), dz0 = Math.floor(player.pos.z);
+    /* Everything carried — worn gear included, and everything the belt and the backpack hold: a
+       bag on your back is not a safe (0.75). The backpack is bounded by what the worn pack
+       actually opened, so creative's block palette, which lives in that same array, is never
+       touched. Read before equipSlots is emptied, since that is where the pack itself sits. */
+    const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+    for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length],
+                              [equipSlots, equipSlots.length], [beltSlots, beltSlots.length],
+                              [invSlots2, packN]])
+      for (let i = 0; i < len; i++) {
+        const s = arr[i];
+        if (!s) continue;
+        for (let n = 0; n < s.count; n++)
+          spawnDrop(s.id, dx0, dy0, dz0,
+            { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
+            s.dur ?? null, slotMeta(s));   // falls as it was: wear and extras kept, no free repair by dying (0.79)
+        arr[i] = null;
+      }
+    // the crafting queue's ingredients were already taken from you, so they fall with the rest (0.76)
+    if (typeof dropCraftQueueAt === 'function') dropCraftQueueAt(dx0, dy0, dz0);
+    saveAll(); buildHotbar();
+    if (invOpen) toggleInventory(false);
+    showDeathScreen(player._dmgCause || 'died');
+  }
+  if (player.dead) for (const k in keys) keys[k] = false;   // no wandering while dead
+  // a death loaded from a save reopens its own screen, with the saved time, day and cause (0.757)
+  if (player.dead && deathEl && deathEl.style.display !== 'flex') showDeathScreen(player._dmgCause || 'died');
+  // ...and a living player never keeps one left over from another world (0.758)
+  else if (!player.dead && deathEl && deathEl.style.display === 'flex') deathEl.style.display = 'none';
+  // discrete hit this frame (fall / cactus / drown — slow starve drain stays below threshold):
+  // red flash + camera kick, both scaled by how hard the hit was
+  const lostHp = dmgBase - player.hp;
+  if (lostHp >= 0.5 && !player.dead) {
+    hurtFlash(lostHp);
+    if (typeof interruptBenchWork === 'function') interruptBenchWork();   // a hit knocks you off the bench (0.76)
+    // central hook: every damage source (fall, cactus, lava, drowning, mobs) lands here
+    playSound('hit', { gain: 0.9, rate: 0.95 + Math.random() * 0.1,
+                       pos: { x: player.pos.x, y: player.pos.y + 1, z: player.pos.z } });
+  }
+  player._hpLast = player.hp;                 // baseline for whatever hurts them before next tick
+  if (Math.floor(player.hp * 2) !== Math.floor(dmgBase * 2)     // dmgBase: sees mob hits too
+      || Math.floor(player.food * 2) !== Math.floor(prevFood * 2)
+      || Math.floor(player.saturation * 2) !== Math.floor(prevSat * 2)) vitalsDirty = true;
+  if (vitalsDirty) { paintVitals(); vitalsDirty = false; }
+}
+
+/* ---- hurt feedback: red vignette (strength scales with damage) + camera kick ---- */
+var camShake = { t: 0, dur: 0.25, amp: 0 };
+/* The red damage vignette is per player: it is created here but PLACED by 36-splitscreen.js,
+   inside the owning player's HUD pane, so only the player who got hit sees red. */
+var hurtEl = document.createElement('div');
+hurtEl.id = 'hurtOverlay';
+var _hurtA = 0;
+function hurtFlash(lost) {
+  _hurtA = Math.min(0.9, 0.3 + lost * 0.09);
+  camShake.t = camShake.dur;
+  camShake.amp = Math.min(0.06, 0.015 + lost * 0.007);
+  hurtEl.style.opacity = _hurtA.toFixed(3);
+}
+
+/* ---- death screen ----
+   `deathEl` and friends are per-player pane elements, swapped with the rest of the HUD, so a
+   player dying in split screen darkens only their own quarter of the screen. The pointer lock is
+   released only when the player who died is the one holding the mouse (player one). */
+var deathEl = null, deathCauseEl = null, deathStatsEl = null;
+function showDeathScreen(cause) {
+  if (!deathEl) return;
+  if (deathCauseEl) deathCauseEl.textContent = 'You ' + cause;
+  const t = Math.floor(player.aliveT || 0);
+  const tStr = t >= 60 ? `${Math.floor(t / 60)}m ${t % 60}s` : `${t}s`;
+  if (deathStatsEl) deathStatsEl.textContent = `Survived ${tStr} · Day ${(player._deathDay ?? worldDay) + 1}`;
+  deathEl.style.display = 'flex';
+  if (player === PLAYERS[0] && document.pointerLockElement) document.exitPointerLock();
+}
+function respawnPlayer() {
+  player.hp = playerMaxHP(); player.food = MAX_FOOD; player.saturation = 0; player.air = MAX_AIR;
+  player._hpLast = player.hp;                    // a respawn is not a heal — don't diff across it
+  player.effects = [];
+  if (player.sleepingAt) leaveBed(player);     // never respawn still flagged as in a bed
+  player.vy = 0; player.fallStart = null; player._kbT = 0; player._dmgCause = null; player.aliveT = 0; player._deathDay = null;
+  const s = findValidSpawn();
+  if (s) {
+    player.pos.set(s.x, s.y, s.z);
+    if (!player.spawnPos) player.spawnPos = player.pos.clone();
+    if (!player.homeSpawn) player.homeSpawn = player.pos.clone();
+  } else if (player.spawnPos) {
+    player.pos.copy(player.spawnPos);
+  } else {
+    const sy = surfaceY(Math.floor(player.pos.x), Math.floor(player.pos.z));
+    player.pos.y = Math.max(sy + 2, WATER_Y + 3);
+  }
+  player.dead = false;
+  if (deathEl) deathEl.style.display = 'none';
+  paintVitals();
+  // only player one owns the mouse, so only their respawn re-grabs the pointer lock
+  if (playing && player === PLAYERS[0]) { lockTries = 0; tryPointerLock(); }
+}
+

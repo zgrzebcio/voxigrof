@@ -1,0 +1,11 @@
+desktop.ini
+.idea
+.DS_Store
+xd.txt
+*.txt
+*.ini
+*.zip
+.codegraph
+.claude
+.mcp.json
+toolsrc

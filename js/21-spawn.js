@@ -1,0 +1,87 @@
+'use strict';
+/* voxiGrof — world reset, surface scan, valid spawn search */
+
+/* ---------------------------------- world reset (new seed) ---------------------------------- */
+function resetWorld(seed, terrainType) {
+  SEED = seed;
+  TERRAIN_TYPE = terrainType || 'default';
+  mainGen = CORE.makeGen(seed, TERRAIN_TYPE);
+  history.replaceState(null, '', '?seed=' + encodeURIComponent(seed));
+  genQueue.length = 0; meshQueue.length = 0; meshResults.length = 0; genFinishQueue.length = 0;
+  for (const [, c] of chunks) disposeChunkMeshes(c);
+  chunks.clear();
+  editStore.clear();
+  glowClear();
+  _plyGlows.fill(null);
+  clearDrops();
+  clearFallingLeaves();
+  clearFelling();
+  clearLitterRot();
+  clearSnowMelt();
+  clearBerryGrow();
+  restoreXP(null);                          // loadWorld restores the real total right after this
+  clearStructureState();
+  clearEntities();
+  restoreEntChunks(null);                   // loadWorld restores the real roll ledger right after
+  clearSimWake();                           // every chunk must be seeded again in the new world
+  clearBeds();
+  clearChests();
+  clearBenches();
+  initWorkers(seed, TERRAIN_TYPE);
+  // every split-screen player restarts unspawned; the frame loop re-seats each of them
+  for (const p of PLAYERS) {
+    p.spawnPos = null; p.homeSpawn = null; p.spawnBedKey = null;
+    p.spawned = false;
+    p.pos.set(8.5, 96, 8.5);
+    p.vy = 0; p.dead = false; p.sleepingAt = null;
+    p.craftQueue = []; p._benchWork = false;   // a queue belongs to its world (0.76)
+    p.skills = new Set(); p._skillView = false; // ...and so do skills, like the XP that bought them (0.79)
+    if (p._kick) { p._kick.x = 0; p._kick.z = 0; }
+  }
+  playerCX = 1e9; playerCZ = 1e9;           // force queue rebuild
+  for (const pc of PLAYER_CHUNKS) { pc[0] = 1e9; pc[1] = 1e9; }
+}
+
+// scan a column for the highest solid block (used by spawn + void teleport)
+function surfaceY(x, z) {
+  for (let y = 199; y >= 0; y--) {
+    const b = getBlock(x, y, z) & 255;
+    if (b !== B.AIR && b !== B.WATER && b !== B.LAVA) return y;
+  }
+  return WATER_Y;
+}
+
+// find a valid spawn (x,z): surface must not be water/log/leaves, chunk must be loaded.
+// spiral out from (0,0) up to radius 100. returns {x,z,y} or null if nothing loaded/valid yet.
+function findValidSpawn() {
+  const isValidTop = (id) => id !== B.WATER && id !== B.LAVA && id !== B.LOG && id !== B.LEAVES && id !== B.AIR;
+  const check = (x, z) => {
+    const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
+    if (!c || !c.data) return null;
+    const y = surfaceY(x, z);
+    if (Math.abs(y - mainGen.heightAt(x, z)) > 3) return null;   // cave entrance hole — not real surface
+    /* Never below sea level (0.7571). A low open pit or sunken hollow could pass the height check and put
+       a new player at the bottom of what reads as a cave; the ground has to be at least level with the
+       water surface. Flat worlds put their water far below WATER_Y and have no caves, so they skip it. */
+    if (TERRAIN_TYPE !== 'flat' && y < WATER_Y) return null;
+    const top = getBlock(x, y, z) & 255;
+    if (!isValidTop(top)) return null;
+    // surfaceY skips water, so an ocean floor still reports its sand top — require open air above
+    if ((getBlock(x, y + 1, z) & 255) !== B.AIR || (getBlock(x, y + 2, z) & 255) !== B.AIR) return null;
+    return { x: x + 0.5, y: y + 2, z: z + 0.5 };
+  };
+  const first = check(0, 0);
+  if (first) return first;
+  for (let r = 1; r <= 100; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const hit1 = check(dx,  r); if (hit1) return hit1;
+      const hit2 = check(dx, -r); if (hit2) return hit2;
+    }
+    for (let dz = -r + 1; dz <= r - 1; dz++) {
+      const hit1 = check( r, dz); if (hit1) return hit1;
+      const hit2 = check(-r, dz); if (hit2) return hit2;
+    }
+  }
+  return null;
+}
+
