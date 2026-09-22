@@ -24,13 +24,15 @@ var playerXP = 0;                  // total experience points earned this world,
 var playerLevel = 0;               // derived from playerXP; cached so the HUD needn't recompute
 var playerXPInLevel = 0, playerXPNeeded = 40;  // progress within the current level
 
-const XP_LEVEL_BASE = 40, XP_LEVEL_MUL = 3;
+const XP_LEVEL_BASE = 30, XP_LEVEL_MUL = 3;   // 40 until 0.7992
+const XP_LEVEL_MAX = 50;                      // the last level there is (0.7992)
 // points needed to go from `lvl` to `lvl + 1`: 40, 120, 360, 1080, ...
 function xpToNext(lvl) { return XP_LEVEL_BASE * Math.pow(XP_LEVEL_MUL, lvl); }
 // recompute level + in-level progress from the running total
 function _recalcLevel() {
   let lvl = 0, rest = playerXP;
   for (;;) {
+    if (lvl >= XP_LEVEL_MAX) { rest = 0; break; }      // level 50 is the top (0.7992)
     const need = xpToNext(lvl);
     if (rest < need) break;
     rest -= need; lvl++;

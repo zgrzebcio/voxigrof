@@ -19,7 +19,8 @@
 
    Spoilage is a cost of CARRYING food. Chests are not ticked: what is in storage keeps. */
 
-const spoilMax = (id) => (id != null && id >= 256 && ITEM_PROPS[id]?.spoil) || 0;
+// blocks can carry a clock too since 0.7992 (the pumpkin)
+const spoilMax = (id) => (id == null ? 0 : ((id >= 256 ? ITEM_PROPS[id]?.spoil : PROPS[id]?.spoil) || 0));
 const isPerishable = (id) => spoilMax(id) > 0;
 // the clock a slot is on right now, full if it somehow has none (an older save, a hand-made slot)
 const slotFresh = (s) => (s && s.fresh != null) ? s.fresh : spoilMax(s && s.id);
@@ -56,6 +57,9 @@ function tickSpoilage(dt) {
 
   let hotPaint = false, invPaint = false, offPaint = false;
   let hotLost = false, invLost = false, offLost = false;
+  // what the lost items leave behind (0.7992): milk turns into its bucket, meat into rotten flesh.
+  // Collected and handed over AFTER the sweep, so a pickup cannot write into a slot being drained.
+  const leftovers = [];
   // returns 0 = not food, 1 = clock moved, 2 = an item was lost
   const rate = spoilRate();
   const drain = (slot, onEmpty) => {
@@ -66,6 +70,8 @@ function tickSpoilage(dt) {
     slot.fresh = Math.max(0, f);
     if (!lost) return 1;
     slot.count -= lost;
+    const into = (slot.id >= 256 ? ITEM_PROPS[slot.id] : PROPS[slot.id])?.spoilInto;
+    if (into != null) for (let k = 0; k < lost; k++) leftovers.push(into);
     if (typeof feedItem === 'function') feedItem(slot.id, -lost, 'spoiled');
     if (slot.count <= 0) onEmpty();
     return 2;
@@ -98,6 +104,12 @@ function tickSpoilage(dt) {
     if (r === 2) offLost = true;
   }
 
+  // what the spoiled food left behind goes into your hands, or on the floor if there is no room (0.7992)
+  for (const id of leftovers) {
+    if (typeof tryPickup === 'function' && tryPickup(id, null, 'left over')) continue;
+    if (typeof spawnDrop === 'function' && typeof player !== 'undefined')
+      spawnDrop(id, Math.floor(player.pos.x), Math.floor(player.pos.y + 0.5), Math.floor(player.pos.z));
+  }
   if (hotLost && typeof saveHotbar === 'function') saveHotbar();
   if (invLost && typeof saveInv === 'function') saveInv();
   if (offLost && typeof saveEquip === 'function') saveEquip();

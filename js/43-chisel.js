@@ -87,8 +87,11 @@ function chiselShapedPlace(id) {
 // the variant a block is drawn in, in a slot or in the hand: its shape while the chisel would place it so
 const chiselHeldVariant = (id) => { const s = chiselShapedPlace(id); return s ? CHISEL_ICON_VAR[s.key] : 0; };
 // a slot's icon. Icons are cached per id and variant, so each shaped icon renders once, then only swaps.
+// ...and in its picked variant (0.794): every stone you carry shows as brick while brick is picked
 function chiselSlotIcon(id) {
-  const v = chiselHeldVariant(id);
+  const bits = typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(id) : 0;   // a cluster's bed (0.7948)
+  if (typeof heldBlockOf === 'function') id = heldBlockOf(id);
+  const v = chiselHeldVariant(id) || bits;
   return v ? renderBlockIcon(id, v) : renderBlockIcon(id);
 }
 // one point of wear per shaped placement, survival only; at 0 the tool breaks

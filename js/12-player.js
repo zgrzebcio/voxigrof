@@ -61,6 +61,8 @@ const FOOD_REGEN_COST_PER_S = 1 / 4;        // regen costs 1 food per 4s while h
 const REGEN_FOOD_MIN       = 12;            // regen kicks in above this food (per user)
 const REGEN_FAST_FOOD      = 18;            // above this the regen is 2x fast (per user)
 const REGEN_HP_PER_S       = 0.5;           // slow tier rate; 2x above REGEN_FAST_FOOD
+// how long healing waits after a hit (0.7992), and the shorter wait while Rapid regen runs
+const REGEN_HIT_WAIT = 5, REGEN_HIT_WAIT_FAST = 2;
 const STARVE_HP_PER_S      = 0.25;          // HP drain when food is 0
 const DROWN_DMG_BASE = 2, DROWN_DMG_STEP = 1;    // first drowning hit, and what each further one adds (0.7573)
 const AIR_REGEN_EMPTY = 3, AIR_REGEN_FULL = 0.6; // bubbles/s refilled when empty, easing down to this near full (0.7573)

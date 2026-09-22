@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.792';
+const GAME_VERSION = '0.7947';   // 0.7943 brick textures; 0.7945/0.7946 gem clusters; 0.7947 yellow berries: cached art must go
 const CHUNK_X = 16, CHUNK_Y = 200, CHUNK_Z = 16;
 const WATER_Y = 99;                       // top water surface fills up to this y
 const DEFAULT_VIEW_DIST = 10;             // in chunks (radius)

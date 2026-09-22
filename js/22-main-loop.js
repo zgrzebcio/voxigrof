@@ -380,7 +380,7 @@ function processHollowMushrooms(dt) {
 /* ---- throwing ---- */
 // blocks whose right-click opens a GUI or actuates something; throwing must yield to them
 const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.DOOR, B.BED,
-                                  B.STRUCTURE_BLOCK]);
+                                  B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR]);   // mortar variants 0.7945
 function tryThrow() {
   if (!playing || player.canFly || invOpen || menuScene) return false;
   const slot = HOTBAR[hotbarSel];
@@ -1371,7 +1371,10 @@ function tickPlayer(dt, now, slot) {
               // leaf litter yields exactly what its leaves yield, never a block of leaves
               for (const drop of blockDrop(L, false))
                 for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-            } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand/gravel/fiber layer gives nothing (0.786)
+            } else if (L === B.GRAVEL) {
+              // a gravel layer gives no gravel, but its flint as often as a gravel block does (0.799)
+              if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, mx, my, mz);
+            } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand/fiber layer gives nothing (0.786)
           }
         } else {
           setBlock(mx, my, mz, B.AIR);
@@ -1458,6 +1461,9 @@ function tickPlayer(dt, now, slot) {
   /* The chisel's shape slot and radial, in both modes. Moved out of updateVitals in 0.7844: that one waits
      for the chunk you stand in to be loaded, and until then a radial opened by Q was never drawn. */
   if (!menuScene && typeof syncChiselHud === 'function') syncChiselHud();
+  if (!menuScene && typeof syncVariantHud === 'function') syncVariantHud();   // 0.794
+  if (!menuScene && typeof syncEffectBar === 'function') syncEffectBar();     // running effects beside the hotbar (0.797)
+  if (typeof updateQuests === 'function') updateQuests(dt);                   // the starter quest, top right (0.798)
   // food rots in your hands, a second at a time (0.789, 44-spoil.js)
   if (!menuScene && typeof tickSpoilage === 'function') tickSpoilage(dt);
   if (!menuScene && !joining && _hereC && _hereC.data) updateVitals(dt);

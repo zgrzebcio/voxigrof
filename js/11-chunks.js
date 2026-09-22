@@ -165,7 +165,10 @@ function tryQueueMesh(c, d2, front) {
    grass added in 0.6855 never appeared in an existing save. Bump it whenever worldgen starts
    emitting something new that old worlds should get. Regenerating is safe — same seed, same
    terrain — and player edits are stored separately and replayed on top. */
-const TERRAIN_KEY = 'terrain786:';          // 0.785 layer stacks; 0.786 dunes, gravel and fiber layers
+/* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
+   0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
+   0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
+const TERRAIN_KEY = 'terrain7992:';
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
@@ -572,7 +575,7 @@ function setBlock(x, y, z, val) {
   if (oldId === B.CHEST && newId !== B.CHEST) chestBroken(x, y, z, oldVal);
   // crafting bench removed: its order (finished and unfinished) spills on the floor (0.76)
   if (oldId === B.CRAFTING_BENCH && newId !== B.CRAFTING_BENCH) benchBroken(x, y, z);
-  if (oldId === B.MORTAR && newId !== B.MORTAR) benchBroken(x, y, z);         // a mortar's order spills too (0.771)
+  if (PROPS[oldId]?.mortar && newId !== oldId) benchBroken(x, y, z);          // a mortar's order spills too (0.771; any variant 0.7945)
   // structure block gone: forget its size/name settings and drop its outline
   if (oldId === B.STRUCTURE_BLOCK && newId !== B.STRUCTURE_BLOCK) structBlockBroken(x, y, z);
   // placing a solid block against a cactus's side snaps the cactus off (column chain-breaks up).
@@ -658,6 +661,19 @@ function setBlock(x, y, z, val) {
         for (const d of blockDrop(B.SULFUR_UP_TIP)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y - 1, z);
     }
   }
+  /* A gem cluster grows out of the block behind it (0.7945): take that block away and the cluster comes off
+     as an ITEM, not as gems — so breaking the stone behind it with a poor pickaxe cannot skip the tier a
+     cluster needs. It sits at this cell + CLUSTER_DIRS[o], pointing along that same direction. */
+  if (newId === B.AIR)
+    for (let o = 0; o < 6; o++) {
+      const [dx, dy, dz] = CORE.CLUSTER_DIRS[o];
+      const nv = getBlock(x + dx, y + dy, z + dz);
+      if (PROPS[nv & 255]?.model !== 'cluster' || ((nv >> 8) & 7) !== o) continue;
+      setBlock(x + dx, y + dy, z + dz, B.AIR);
+      // a plain-stone variant comes off as its gem's own cluster item (0.7947): variant blocks are never items
+      const item = (typeof variantBaseOf === 'function' ? variantBaseOf(nv & 255) : null) ?? (nv & 255);
+      if (!player.canFly) spawnDrop(item, x + dx, y + dy, z + dz);
+    }
   // gravity: clear below a gravity block → it falls; gravity block placed above air → also falls
   if (newId === B.AIR && y + 1 <= 199) scheduleFall(x, y + 1, z);
   // a stack of snow, leaves, sand, gravel or fiber falls too (0.785)

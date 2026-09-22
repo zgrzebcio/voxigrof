@@ -441,6 +441,17 @@ async function loadStructures() {
     if (!members.length) _structReport('error', 'manifest.json', `group "${name}" has no prefabs — no file sets "group": "${name}"`);
     else console.log(`[structure] group "${name}" (${g.type}): ${members.map(p => p.id).join(', ')}`);
   }
+  /* ...and now the chunks that arrived while this was loading get their one try after all (0.799).
+     Only the ones still in memory: an unloaded chunk is stamped when it streams back in. */
+  if (_structWaiting.size) {
+    const waited = [..._structWaiting];
+    _structWaiting.clear();
+    for (const k of waited) {
+      const [wx, wz] = k.split(',').map(Number);
+      const c = typeof getChunk === 'function' ? getChunk(wx, wz) : null;
+      if (c && c.data) trySpawnStructureInChunk(wx, wz);
+    }
+  }
   // the mirror case: a prefab claiming a group the manifest never declares would never spawn
   for (const p of STRUCTURES.values())
     if (p.group && !STRUCT_GROUPS.has(p.group))
@@ -542,6 +553,7 @@ function stampStructure(prefab, ox, oy, oz) {
    chunk unloads and streams back in — the blocks themselves persist as edits, so a second stamp
    would just be wasted work, and would re-arm loot in a chest the player already emptied. */
 const _structPlaced = new Set();
+const _structWaiting = new Set();    // chunks that landed before the prefabs did (0.799)
 function structChunkKey(cx, cz) { return cx + ',' + cz; }
 
 // cheap deterministic hash of (seed, chunk, salt) -> 0..1
@@ -1008,7 +1020,14 @@ function _trySpawnGroups(cx, cz) {
    per chunk at most, and the site must satisfy that prefab's placement mode. */
 function trySpawnStructureInChunk(cx, cz) {
   // a world created with structures switched off never gets any (0.7594); older worlds have no flag and keep them
-  if (!STRUCTURES.size || menuScene || !currentWorld || currentWorld.structures === false) return;
+  if (menuScene || !currentWorld || currentWorld.structures === false) return;
+  /* The prefabs are fetched once, on the first world opened, and the chunks around spawn land while that
+     is still in flight. They used to be dropped on the floor here — one try per chunk, ever — so the whole
+     area a player starts in could never hold a structure. They wait in line instead now (0.799). */
+  if (!STRUCTURES.size) {
+    if (_structWaiting.size < 4096) _structWaiting.add(cx + ',' + cz);
+    return;
+  }
   // a new chunk may unblock a piece that was waiting on it; the frame loop does the bulk of the
   // draining, so keep this slice small — chunk arrival is already a busy moment
   processPlacementQueue(16);
@@ -1232,21 +1251,21 @@ const _clampSpan = (v, d) => Math.max(1, Math.min(STRUCT_MAX_SPAN, parseInt(v, 1
 function buildStructPanel() {
   const panel = invPanel('structPanel');
   if (!panel) return;
-  if (!activeStructBlock) { panel.style.display = 'none'; return; }
+  if (!activeStructBlock || invRightTab() !== 'struct') { panel.style.display = 'none'; return; }   // or another tab (0.795)
   const p = activeStructBlock.split(',').map(Number);
   if ((getBlock(p[0], p[1], p[2]) & 255) !== B.STRUCTURE_BLOCK) {
     activeStructBlock = null; panel.style.display = 'none'; return;
   }
   const s = structSettings(p[0], p[1], p[2]);
   panel.style.display = 'flex';
-  panel.innerHTML =
-    '<div class="ctitle">Structure Block</div>' +
+  panel.innerHTML =                                           // untitled since 0.796: the tab names it
     `<label>name<input id="stName" maxlength="24" spellcheck="false" value="${s.name}"></label>` +
     `<label>width  X<input id="stW" type="number" min="1" max="${STRUCT_MAX_SPAN}" value="${s.w}"></label>` +
     `<label>height Y<input id="stH" type="number" min="1" max="${STRUCT_MAX_SPAN}" value="${s.h}"></label>` +
     `<label>length Z<input id="stL" type="number" min="1" max="${STRUCT_MAX_SPAN}" value="${s.l}"></label>` +
     '<div class="strow"><button id="stSave">Save</button><button id="stDl" class="grey">JSON</button></div>' +
     '<div id="stMsg"></div>';
+  addInvTabs(panel, 'struct');                                // Structure / Equipment / Skill tree (0.795)
 
   const nameEl = panel.querySelector('#stName');
   const wEl = panel.querySelector('#stW'), hEl = panel.querySelector('#stH'), lEl = panel.querySelector('#stL');

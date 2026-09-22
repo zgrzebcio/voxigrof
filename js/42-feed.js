@@ -73,11 +73,19 @@ function _feedBump(el) {
    is a steady pulse rather than a pile-up. */
 const FEED_CHIME_RATE = { level: 1.26, warn: 1.0, crit: 0.72 };
 const FEED_CHIME_GAP = 900;      // ms
+/* A gold row's chime is capped across ALL of them (0.7992): finishing a quest that also levels you up,
+   or two quests at once, used to ring two or three times over each other. One ring, then a pause. */
+const FEED_LEVEL_GAP = 2000;
+var _feedLevelChimeAt = -1e9;
 const _feedChimeAt = new Map();  // row key -> when it last chimed
 function _feedChime(key, cls) {
   const rate = FEED_CHIME_RATE[cls];
   if (rate == null || typeof playSound !== 'function') return;
   const now = performance.now();
+  if (cls === 'level') {
+    if (now - _feedLevelChimeAt < FEED_LEVEL_GAP) return;
+    _feedLevelChimeAt = now;
+  }
   if (now - (_feedChimeAt.get(key) || -1e9) < FEED_CHIME_GAP) return;
   _feedChimeAt.set(key, now);
   playSound('feedAlert', { gain: cls === 'crit' ? 0.9 : 0.7, rate, pitch: true });
@@ -180,6 +188,18 @@ function feedSkill(name) {
     `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Learned <b class="fAmt"></b></span>`);
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = name;
+  if (!row.fresh) _feedBump(row.el);
+}
+
+/* A finished quest (0.7992): the same gold star as a level-up, with what it paid on the right. Keyed per
+   quest, so two finished at once read as two rows — but only one of them rings (see _feedChime). */
+function feedQuest(name, xp) {
+  const row = _feedPush('quest:' + name, 'level',
+    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Quest done: <b class="fAmt"></b></span>` +
+    '<span class="fWhy"></span>');
+  if (!row) return;
+  row.el.querySelector('.fAmt').textContent = name;
+  row.el.querySelector('.fWhy').textContent = '+' + xp + ' XP';
   if (!row.fresh) _feedBump(row.el);
 }
 

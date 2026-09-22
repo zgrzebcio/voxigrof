@@ -59,7 +59,7 @@ const SWAP_KEYS = [
   // movement bookkeeping + held light
   'wasMoving', 'lastFlying', '_hlId', '_hlLevel', '_hlX', '_hlY', '_hlZ', '_hlRaw',
   // this player's slice of the HUD
-  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx',
+  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl',
   'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl',
   'deathEl', 'deathCauseEl', 'deathStatsEl', '_interactShown', 'blocknameTimer',
 ];
@@ -232,7 +232,7 @@ const playerRoster = () => PSTATE.map((s, i) => s.player.name || defaultPlayerNa
        rather than the bottom of the window, and the scale shrinks the whole HUD to suit a
        quarter-screen viewport.                                                                   */
 const HUD_PANE_IDS = ['hud', 'crosshair', 'interact', 'blockname', 'vitals',
-                      'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap'];
+                      'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap', 'quest'];   // quest box 0.798
 /* The virtual cursor, the drag ghost and the item tooltip stay on the BODY rather than inside the
    pane, one set per player. They are positioned in raw screen coordinates — the same space mouse
    events arrive in — so putting them inside the pane's scaled wrapper would transform them twice.
@@ -279,6 +279,7 @@ function _bindPaneDom(pane, g) {
   g.blocknameEl  = q('#blockname');
   g.hotbarEl     = q('#hotbar');
   g.interactEl   = q('#interact');
+  g.questEl      = q('#quest');                  // each seat's own starter quest (0.798)
   g.vitalsEl     = q('#vitals');
   g.vctx         = g.vitalsEl.getContext('2d');
   g.vctx.imageSmoothingEnabled = false;
@@ -808,6 +809,7 @@ function _serializeSlot(i) {
     aliveT: +(p.aliveT || 0).toFixed(1), dead: !!p.dead, cause: p._dmgCause || null, deathDay: p._deathDay ?? null,   // 0.757
     craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken (0.76)
     skills: serializeSkills(p),           // learned skills (0.79)
+    quest: serializeQuests(p),            // the starter quest reached (0.798)
     survHot: g.survStash.hot, survInv: g.survStash.inv, survInv2: g.survStash.inv2,
     survEquip: _packSlots(g.survEquip || []), survBelt: _packSlots(g.survBelt || []),   // packed, as restoreEquip reads it
     xp: g.playerXP,
@@ -937,6 +939,7 @@ function applyExtraPlayerRestore(slot) {
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
   player.craftQueue = restoreCraftQueue(rec.craftQueue);
   player.skills = restoreSkills(rec.skills);   // 0.79
+  player.questIdx = restoreQuests(rec.quest);  // 0.798
   survStash = migrateStash(rec.survHot, rec.survInv, rec.survInv2);
   restoreEquip(rec.survEquip, rec.survBelt);
   loadInventoryForMode(currentInvMode);

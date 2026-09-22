@@ -53,6 +53,50 @@ const slotInner = (s) => {
          (s.dur === 0 ? '<span class="brk"></span>' : '');    // broken, kept by Mender (0.79)
 };
 
+/* ---- right-panel tabs (0.795) ----
+   The right-hand column shows ONE panel: the open furnace, chest or structure block, or the equipment.
+   A row of tabs on top of it switches between them while the inventory stays open: the station's own
+   panel, Equipment, and the Skill tree (which, as before, takes over the whole window and has the same
+   tabs to come back by). Closing the inventory forgets the pick, so a chest always opens on the chest.
+   Only what is ON SCREEN takes part: a hidden chest is no quick-move target, a hidden furnace takes no
+   fuel, and gear is only worn from the grids while Equipment shows. */
+const invStation = () => activeStructBlock ? 'struct' : activeFurnace ? 'furnace' : activeChest ? 'chest' : null;
+function invRightTab() {
+  const st = invStation();
+  return !st ? 'equip' : (player._invTab === 'equip' && !player.canFly) ? 'equip' : st;
+}
+const _STATION_TAB = { furnace: 'Furnace', chest: 'Chest', struct: 'Structure' };
+// the tab row for the top of a panel, `current` lit; null when there would be only one tab
+function invTabsEl(current) {
+  const tabs = [], st = invStation();
+  if (st) tabs.push([st, st === 'chest' && activeChest2 ? 'Large Chest' : _STATION_TAB[st]]);
+  if (!player.canFly) tabs.push(['equip', 'Equipment']);
+  const free = !player.canFly && typeof skillPointsFree === 'function' ? skillPointsFree() : 0;
+  if (!player.canFly && typeof openSkillTree === 'function') tabs.push(['skills', free ? `Skill tree (${free})` : 'Skill tree']);
+  if (tabs.length < 2) return null;
+  const row = document.createElement('div');
+  row.className = 'invTabs';
+  for (const [key, label] of tabs) {
+    const b = document.createElement('button');
+    b.className = 'invTab' + (key === current ? ' on' : '') + (key === 'skills' && free ? ' hasPts' : '');
+    b.dataset.tab = key;
+    b.textContent = label;
+    b.addEventListener('click', () => { if (!dragHeld) pickInvTab(key); });
+    row.appendChild(b);
+  }
+  return row;
+}
+function pickInvTab(key) {
+  if (key === 'skills') { if (!player._skillView) openSkillTree(); return; }
+  player._invTab = key === 'equip' ? 'equip' : null;
+  if (player._skillView) closeSkillTree(); else buildInventory();
+}
+// put the tab row on top of a right-hand panel
+function addInvTabs(panel, current) {
+  const t = invTabsEl(current);
+  if (t) panel.insertBefore(t, panel.firstChild);
+}
+
 function buildInventory() {
   // hide both side panels first; the right one is rebuilt below
   const cpEl = invPanel('craftPanel');
@@ -67,7 +111,6 @@ function buildInventory() {
   if (stpEl) stpEl.style.display = 'none';
 
   invEl.innerHTML =
-    '<div class="title">Inventory</div>' +
     '<div class="hint">drag: hold <b>LMB</b>/<b>A</b> &middot; quick-move: <b>Shift+LMB</b>/<b>Y</b> &middot; swap gear: <b>Shift+RMB</b> &middot; drop: <b>Y</b>/<b>Shift+Y</b> &middot; sort: <b>MMB</b> &middot; close: <b>Tab</b>/<b>B</b></div>';
   /* One N×INV_COLS grid bound to a slot array + region; DOM order == slot index (slot 0 =
      bottom-left, the CSS reverses the rows). `count` renders only the first N slots of the array
@@ -117,7 +160,7 @@ function buildInventory() {
       label.className = 'ctitle packHead';
       label.textContent = ITEM_PROPS[backpackItemId()]?.name || 'Backpack';
       // with a chest open, Pull all is the chest's; otherwise the pack gets its own beside its name
-      if (!activeChest) label.appendChild(invButton('Pull all', 'Take everything out of your backpack', pullAll));
+      if (invRightTab() !== 'chest') label.appendChild(invButton('Pull all', 'Take everything out of your backpack', pullAll));
       invEl.appendChild(label);
       invEl.appendChild(mkGrid(invSlots2, 'inv2', cap));
     }
@@ -127,12 +170,12 @@ function buildInventory() {
   if (!player.canFly) invEl.appendChild(_invActionBar());
   // survival: crafting list on the left, plus the furnace GUI on the right when one is open
   if (!player.canFly) buildCraftPanel();
-  if (activeFurnace) buildFurnacePanel();
-  if (activeChest) buildChestPanel();
-  // equipment shares the right-hand column with the furnace and chest GUIs, so it yields to them
-  if (activeStructBlock) buildStructPanel();
-  // equipment yields the right-hand column to whichever GUI is open there
-  else if (!activeFurnace && !activeChest) buildEquipPanel();
+  // the right-hand column: whichever tab is picked (0.795) — the open station's GUI, or the equipment
+  const rt = invRightTab();
+  if (rt === 'furnace') buildFurnacePanel();
+  else if (rt === 'chest') buildChestPanel();
+  else if (rt === 'struct') buildStructPanel();
+  else buildEquipPanel();
   // the skill tree, when it is up, replaces every panel above (0.79, 45-skills.js)
   if (typeof syncSkillView === 'function') syncSkillView();
   alignInvWrap();
@@ -235,7 +278,9 @@ function itemTooltipHTML(id, dur, fresh, wm) {
   const isItem = id >= 256;
   const p = isItem ? ITEM_PROPS[id] : PROPS[id];
   if (!p) return '';
-  let html = `<div class="tipName">${_tipEsc(p.name || '')}</div>`;   // wear is a stat row here, not in the name (0.7591)
+  // a block shows its picked variant in brackets, e.g. "Stone (brick)" (0.794)
+  const nm = !isItem && typeof variantNameOf === 'function' ? variantNameOf(id) : p.name;
+  let html = `<div class="tipName">${_tipEsc(nm || '')}</div>`;   // wear is a stat row here, not in the name (0.7591)
   if (p.desc) html += `<div class="tipDesc">${_tipEsc(p.desc)}</div>`;
   /* Set bonus (0.731). Written once per MATERIAL in ARMOR_SET_BONUS rather than copied into five
      `desc` strings, so the wording can never drift between the helmet and the boots. Gloves are
@@ -337,7 +382,9 @@ function itemDisplayName(id, dur) {
   if (!p) return '';
   const max = (p.tool || p.ranged || p.shield || p.chisel) ? p.durability : 0;
   if (max && dur === 0) return `${p.name} (broken)`;         // kept by Mender, waiting for repair (0.79)
-  return max ? `${p.name} (${dur != null ? dur : max}/${max})` : (p.name || '');
+  if (max) return `${p.name} (${dur != null ? dur : max}/${max})`;
+  // a block shows its picked variant, "Stone (brick)" (0.7942)
+  return (id < 256 && typeof variantNameOf === 'function' ? variantNameOf(id) : p.name) || '';
 }
 // place the panel near the cursor but always fully on screen
 function showTooltip(html) {
@@ -554,7 +601,7 @@ function _gridEmpty(g) {
 // shift-clicking a log ending up as fuel while another log is already smelting.
 // Returns amount placed (0 = furnace not open, wrong item, or both slots occupied by another id).
 function _pushFurnace(id, want) {
-  if (!activeFurnace) return 0;
+  if (!activeFurnace || invRightTab() !== 'furnace') return 0;   // only while it is on screen (0.795)
   const f = FURNACES.get(activeFurnace); if (!f) return 0;
   const isSmelt = SMELT[id] !== undefined;
   const isFuel  = FUEL_SMELTS[id] !== undefined;
@@ -580,8 +627,9 @@ function destGrids(region) {
   // an open chest is the natural quick-move target: player grids feed it, and its own slots
   // feed back into the player
   const chestArrs = [];
-  if (activeChest && CHESTS.get(activeChest)) chestArrs.push(CHESTS.get(activeChest).slots);
-  if (activeChest2 && CHESTS.get(activeChest2)) chestArrs.push(CHESTS.get(activeChest2).slots);
+  const chestShown = invRightTab() === 'chest';           // not while Equipment is picked over it (0.795)
+  if (chestShown && activeChest && CHESTS.get(activeChest)) chestArrs.push(CHESTS.get(activeChest).slots);
+  if (chestShown && activeChest2 && CHESTS.get(activeChest2)) chestArrs.push(CHESTS.get(activeChest2).slots);
   if (region === 'chest' || region === 'chest2')
     return useInv2 ? [HOTBAR, invSlots, invSlots2] : [HOTBAR, invSlots];
   if (chestArrs.length && (region === 'hot' || region === 'inv' || region === 'inv2'))
@@ -617,7 +665,7 @@ function transferOne(region, i) {
    torch stack already in the offhand. It only fills an EMPTY slot, and only while the equipment
    panel is actually on screen; otherwise it falls back to the ordinary quick-move. Shift+RMB is the
    one that REPLACES what you are wearing, see swapEquip. */
-const _equipShown = () => !player.canFly && !activeFurnace && !activeChest && !activeStructBlock;
+const _equipShown = () => !player.canFly && invRightTab() === 'equip';   // the Equipment tab, even over a station (0.795)
 const _isPlayerGrid = (region) => region === 'hot' || region === 'inv' || region === 'inv2';
 function _quickEquip(region, i) {
   if (!_equipShown() || !_isPlayerGrid(region)) return false;
@@ -671,7 +719,7 @@ function _destsFor(region, id) {
 function _stashTarget() {
   if (player.canFly) return null;
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
-  if (activeChest && CHESTS.get(activeChest)) {
+  if (invRightTab() === 'chest' && activeChest && CHESTS.get(activeChest)) {   // shown, not just open (0.795)
     const grids = [CHESTS.get(activeChest).slots];
     if (activeChest2 && CHESTS.get(activeChest2)) grids.push(CHESTS.get(activeChest2).slots);
     return { kind: 'chest', grids, mine: packN > 0 ? [invSlots, invSlots2] : [invSlots] };
@@ -924,6 +972,8 @@ function toggleInventory(open, mode) {
     activeChest = activeChest2 = null;          // ...and the chest, which also shuts its lid
     activeStructBlock = null;                   // structure editor closes with the inventory
     player._skillView = false;                  // ...and so does the skill tree (0.79)
+    player._invTab = null;                      // ...and the tab picked over a station (0.795)
+    if (typeof craftPickCancel === 'function') craftPickCancel();   // ...and a counted batch (0.7992)
     if (lastHoverEl) { lastHoverEl.classList.remove('hover'); lastHoverEl = null; }
     /* The tooltip has to be torn down HERE rather than left to the next cursor frame: since 0.72
        updateInvCursorVisual only runs while the inventory is open, so the frame that would have
@@ -970,6 +1020,7 @@ function updateInvCursorVisual(dt) {
     vcurEl.style.display = 'block';
     vcurEl.style.left = invCursor.x + 'px';
     vcurEl.style.top = invCursor.y + 'px';
+    if (typeof craftPickFollow === 'function') craftPickFollow();   // a counted batch rides the cursor (0.7992)
   } else {
     vcurEl.style.display = 'none';
   }

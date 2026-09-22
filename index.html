@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voxiGrof</title>
-<link rel="stylesheet" href="css/style.css?v=0.792">
+<link rel="stylesheet" href="css/style.css?v=0.7992">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -16,7 +16,8 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.792</div>
+<div id="version">alpha 0.7992</div>
+<div id="quest"></div>
 <div id="crosshair"></div>
 <div id="interact"></div>
 <div id="blockname"></div>
@@ -95,31 +96,40 @@
         <button id="worldsBackBtn" class="grey">Back</button>
       </div>
     </div>
+    <!-- 0.7991: the settings are a scrolling column INSIDE the panel, one per row, with Create and
+         Back on the bottom row like every other screen's Back. They used to be one long wrapping
+         line that ran past the panel's edge. -->
     <div id="menuCreate" style="display:none">
-      <div class="seedrow">
-        <input id="worldName" maxlength="24" spellcheck="false" placeholder="world name">
-        <input id="seedInput" class="mono" maxlength="24" spellcheck="false" placeholder="seed (optional)">
+      <div id="createOpts">
+        <div class="seedrow">
+          <input id="worldName" maxlength="24" spellcheck="false" placeholder="world name">
+          <input id="seedInput" class="mono" maxlength="24" spellcheck="false" placeholder="seed (optional)">
+        </div>
+        <label class="crow">mode
+          <select id="newModeSel">
+            <option value="survival">Survival</option>
+            <option value="creative">Creative</option>
+          </select>
+        </label>
+        <label class="crow">terrain
+          <select id="newTerrainSel">
+            <option value="default">Default</option>
+            <option value="flat">Flat</option>
+          </select>
+        </label>
+        <label class="crow" title="How often plants grow, crops ripen and grass spreads.">random tick
+          <input id="tickInput" type="number" min="0" max="20" step="1" value="3">
+        </label>
+        <label class="crow"
+               title="Let up to four people share this world on one screen. Player 1 uses keyboard and mouse; each other player needs a gamepad. Fixed at creation.">split screen
+          <input id="newSplitChk" type="checkbox">
+        </label>
+        <label class="crow"
+               title="Villages, dungeons and other generated buildings. Fixed at creation.">structures
+          <input id="newStructChk" type="checkbox" checked>
+        </label>
       </div>
       <div class="seedrow">
-        <select id="newModeSel" style="background:#0b0d16;color:#dfe;border:1px solid #445;border-radius:6px;padding:8px 10px;">
-          <option value="survival">Survival</option>
-          <option value="creative">Creative</option>
-        </select>
-        <select id="newTerrainSel" style="background:#0b0d16;color:#dfe;border:1px solid #445;border-radius:6px;padding:8px 10px;">
-          <option value="default">Default terrain</option>
-          <option value="flat">Flat</option>
-        </select>
-        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;">random tick
-          <input id="tickInput" type="number" min="0" max="20" step="1" value="3" style="width:56px;">
-        </label>
-        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;"
-               title="Let up to four people share this world on one screen. Player 1 uses keyboard and mouse; each other player needs a gamepad. Fixed at creation.">
-          <input id="newSplitChk" type="checkbox"> split screen
-        </label>
-        <label style="color:#9ab;font-size:13px;display:flex;align-items:center;gap:6px;"
-               title="Villages, dungeons and other generated buildings. Fixed at creation.">
-          <input id="newStructChk" type="checkbox" checked> structures
-        </label>
         <button id="createBtn">Create World</button>
         <button id="createBackBtn" class="grey">Back</button>
       </div>
@@ -275,6 +285,9 @@ window.THREE = THREE;
 <script defer src="js/43-chisel.js"></script>
 <script defer src="js/44-spoil.js"></script>
 <script defer src="js/45-skills.js"></script>
+<script defer src="js/46-variants.js"></script>
+<script defer src="js/47-quests.js"></script>
+<script defer src="js/48-menu-ui.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

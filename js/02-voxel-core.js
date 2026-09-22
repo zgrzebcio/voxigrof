@@ -50,7 +50,11 @@ function VOXEL_CORE() {
               RAW_IRON_BLOCK:108, RAW_GOLD_BLOCK:109, RAW_TIN_BLOCK:110, RAW_COPPER_BLOCK:111,
               TOPAZ_ORE:112, TOPAZ_BLOCK:113, SANDSTONE_TOP:114, SANDSTONE_SIDE:115, SANDSTONE_BOTTOM:116,
               RED_SANDSTONE_TOP:117, RED_SANDSTONE_SIDE:118, RED_SANDSTONE_BOTTOM:119, FIBER_BLOCK:120, LADDER:121,
-              BLUE_MUSHROOM:122 };
+              BLUE_MUSHROOM:122,
+              // variant looks (0.7941, 46-variants.js)
+              MOSSY_STONE_BRICK:123, CRACKED_STONE_BRICK:124, MOSSY_COBBLE:125, SULFUR_BRICKS:126,
+              GRANITE_BRICKS:127, MARBLE_BRICKS:128, LIMESTONE_BRICKS:129,
+              BERRY_BUSH_YELLOW:130 };                                                 // 0.7947
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -87,7 +91,16 @@ function VOXEL_CORE() {
               BLUE_MUSHROOM:111,                                      // 0.7691
               MORTAR:112,                                             // 0.77
               // hollow logs (0.7842): bark shells that hold soil or sand. 113-124 stay unused, see below
-              HOLLOW_LOG:125, HOLLOW_BIRCH_LOG:126, HOLLOW_SPRUCE_LOG:127, };
+              HOLLOW_LOG:125, HOLLOW_BIRCH_LOG:126, HOLLOW_SPRUCE_LOG:127,
+              // variant blocks (0.7941): other looks of a block, picked on the variant bar and never an item
+              MOSSY_STONE_BRICK:128, CRACKED_STONE_BRICK:129, MOSSY_COBBLE:130, SULFUR_BRICKS:131,
+              GRANITE_BRICKS:132, MARBLE_BRICKS:133, LIMESTONE_BRICKS:134,
+              GRANITE_MORTAR:135, MARBLE_MORTAR:136, LIMESTONE_MORTAR:137,           // 0.7945
+              YELLOWBERRY_BUSH:138,                                                  // 0.7947
+              // gem clusters on a plain stone bed, a variant (0.7947)
+              DIAMOND_CLUSTER_STONE:139, EMERALD_CLUSTER_STONE:140, RUBY_CLUSTER_STONE:141,
+              SAPPHIRE_CLUSTER_STONE:142, TOPAZ_CLUSTER_STONE:143,
+            };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
   /* variant byte layout:
@@ -125,6 +138,8 @@ function VOXEL_CORE() {
   const LOG_W_NORMAL = LOG_W_BLOCK;
   const logWidthPx = (w) => 8 + 2 * Math.max(LOG_W_MIN, Math.min(LOG_W_MAX, w));
   const logWidthOf = (variant) => ((variant >> 2) & 63) || LOG_W_NORMAL;
+  // how much of a wooden log's width is cut off each of its long edges when meshed (0.793): 2 of 16 pixels
+  const LOG_BEVEL = 0.125;
   function logCutBox(axis, w) {
     const t = (1 - logWidthPx(w) / 64) / 2;                  // inset per side; negative past 64
     return axis === 1 ? [0, t, t, 1, 1 - t, 1 - t]           // X-axis: inset Y,Z
@@ -216,6 +231,70 @@ function VOXEL_CORE() {
                    faces:[tile,tile,tile,tile,tile,tile], desc: '' };
   // topaz ore (0.769): the fourth gem, same rules as the others
   PROPS[B.TOPAZ_ORE] = { name:'Topaz ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE], desc: '' };
+  /* GEM CLUSTERS (0.7945). Diamond, emerald, ruby, sapphire and topaz are no longer ore blocks buried in the
+     rock: each is a cluster of crystal spikes growing out of a stone face in a cave — floor, ceiling or wall —
+     drawn in its gem block's texture. Same ids, so drops, tool tiers, XP and Prospector are unchanged. The
+     variant byte (0-5) is the way it points: up, down, +X, -X, +Z, -Z (CLUSTER_DIRS); the block it grows from
+     is the cell behind it, and when that goes the cluster drops as an item (11-chunks.js). Nothing collides
+     with it. Worldgen puts them in caves (genChunk, after the sulfur). */
+  const CLUSTER_DIRS = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
+  /* THE LOOK (0.7946; five straight spikes in 0.7945). A low uneven bed of the gem's ore rock, and six to
+     eight crystal points of different heights rising out of it, each LEANING a step at a time so they
+     point every which way. Four layouts, built from fixed seeds so every client draws the same; bits 3-4
+     of the variant byte pick one (bits 0-2 are the direction), rolled when a cluster spawns or is placed.
+     Authored pointing UP, in 16ths: [x0, y0, z0, x1, y1, z1, crystal ? 1 : 0]. */
+  const CLUSTER_LAYOUTS = 4;
+  function _clusterLayout(seed) {
+    let s = (seed * 2654435761) >>> 0;
+    const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    const out = [[2, 0, 2, 14, 1, 14, 0]];                          // the bed...
+    for (let i = 0; i < 3; i++) {                                   // ...lumpy in a few places
+      const w = 3 + (rnd() * 4 | 0), d = 3 + (rnd() * 4 | 0);
+      const x = 1 + (rnd() * (14 - w) | 0), z = 1 + (rnd() * (14 - d) | 0);
+      out.push([x, 0, z, x + w, 2, z + d, 0]);
+    }
+    const n = 6 + (rnd() * 3 | 0);
+    for (let c = 0; c < n; c++) {
+      const w = rnd() < 0.35 ? 3 : 2, h = 4 + (rnd() * 7 | 0);     // 4..10 tall
+      let x = 2 + (rnd() * (12 - w) | 0), z = 2 + (rnd() * (12 - w) | 0);
+      const dx = (rnd() * 3 | 0) - 1, dz = (rnd() * 3 | 0) - 1;   // which way it leans
+      for (let y = 1; y < h;) {
+        const top = Math.min(h, y + 2 + (rnd() * 2 | 0));
+        const tip = top >= h, ww = tip ? 1 : w, o = tip ? (w - 1) >> 1 : 0;
+        out.push([x + o, y, z + o, x + o + ww, top, z + o + ww, 1]);
+        y = top;
+        x = Math.max(0, Math.min(16 - w, x + dx));
+        z = Math.max(0, Math.min(16 - w, z + dz));
+      }
+    }
+    return out.map(b => [...b.slice(0, 6).map(v => v / 16), b[6]]);
+  }
+  const CLUSTER_UP = Array.from({ length: CLUSTER_LAYOUTS }, (_, i) => _clusterLayout(7 + i * 131));
+  // turn a box authored pointing up to point along CLUSTER_DIRS[o]
+  const _clusterTurn = (b, o) =>
+      o === 1 ? [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5]]
+    : o === 2 ? [b[1], b[0], b[2], b[4], b[3], b[5]]
+    : o === 3 ? [1 - b[4], b[0], b[2], 1 - b[1], b[3], b[5]]
+    : o === 4 ? [b[0], b[2], b[1], b[3], b[5], b[4]]
+    : o === 5 ? [b[0], b[2], 1 - b[4], b[3], b[5], 1 - b[1]]
+    : b;
+  // [direction][layout] -> [box, crystal?]
+  const CLUSTER_BOXES = CLUSTER_DIRS.map((_, o) => CLUSTER_UP.map(lay => lay.map(b => [_clusterTurn(b, o), b[6]])));
+  // the crosshair's box, indexed by the whole variant byte (direction | layout << 3 | bed << 5)
+  const CLUSTER_HIT = Array.from({ length: 256 }, (_, v) =>
+    [_clusterTurn([1, 0, 1, 15, 11, 15].map(n => n / 16), (v & 7) % 6)]);
+  /* THE BED (0.7948): bits 5-7 of the variant byte say what rock the cluster grows from — 0 its ore's own
+     speckled stone, then plain stone, granite, marble, limestone. Worldgen matches the rock it grew on;
+     the variant bar picks one when you place it. Bits, not block ids, so a new rock costs no id. */
+  const CLUSTER_BED_SHIFT = 5;
+  const CLUSTER_BEDS = [null, T.STONE, T.GRANITE, T.MARBLE, T.LIMESTONE].map(t => t == null ? null : Array(6).fill(t));
+  const CLUSTER_BED_OF = { [B.STONE]: 1, [B.GRANITE]: 2, [B.MARBLE]: 3, [B.LIMESTONE]: 4 };   // rock id -> bed
+  for (const [id, name, tile] of [[B.DIAMOND_ORE, 'Diamond cluster', T.DIAMOND_BLOCK], [B.EMERALD_ORE, 'Emerald cluster', T.EMERALD_BLOCK],
+                                  [B.RUBY_ORE, 'Ruby cluster', T.RUBY_BLOCK], [B.SAPPHIRE_ORE, 'Sapphire cluster', T.SAPPHIRE_BLOCK],
+                                  [B.TOPAZ_ORE, 'Topaz cluster', T.TOPAZ_BLOCK]])
+    // crystals in the gem block's texture, the bed in the ore's own stone (0.7946)
+    Object.assign(PROPS[id], { name, solid: false, opaque: false, model: 'cluster', bedFaces: PROPS[id].faces,
+                               faces: [tile, tile, tile, tile, tile, tile], boxes: CLUSTER_HIT[0], boxesByVar: CLUSTER_HIT });
   // sandstone (0.769): five sand of its colour, with its own top, side and bottom faces [+X,-X,top,bottom,+Z,-Z]
   PROPS[B.SANDSTONE]     = { name:'Sandstone',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
                              faces:[T.SANDSTONE_SIDE,T.SANDSTONE_SIDE,T.SANDSTONE_TOP,T.SANDSTONE_BOTTOM,T.SANDSTONE_SIDE,T.SANDSTONE_SIDE], desc: '' };
@@ -246,7 +325,7 @@ function VOXEL_CORE() {
     MORTAR_BOXES.push([at(v[i]), v[i + 1] * MORTAR_S, at(v[i + 2]), at(v[i + 3]), v[i + 4] * MORTAR_S, at(v[i + 5]), v[i + 6]]);
   }
   PROPS[B.MORTAR] = { name:'Mortar and pestle', solid:true, opaque:false, raycast:true, pass:0, model:'voxel',
-                      stack:10, hardness:3.0, type:'stone',
+                      stack:10, hardness:3.0, type:'stone', mortar:true,   // `mortar`: it and its variants work as one (0.7945)
                       boxes:[[0.13, 0, 0.13, 0.87, 0.71, 0.87]],   // the bowl; the pestle is not in the way
                       voxBoxes: MORTAR_BOXES, matFaces: MORTAR_FACES, animMat: 3,   // the pestle moves (0.772)
                       faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
@@ -291,7 +370,8 @@ function VOXEL_CORE() {
     [[0.43, 0.18, 0.00, 0.57, 0.81, 0.33]],
     [[0.43, 0.18, 0.67, 0.57, 0.81, 1.00]],
   ];
-  PROPS[B.TORCH] = { name:'Torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH], desc: '' };
+  PROPS[B.TORCH] = { name:'Torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH],
+                     desc: 'Carried in the offhand it lights your way — but a full offhand means you cannot forage' };   // 0.7992
   // furnace: front picked per variant facing (rot:'side'); lit bit swaps the front tile
   PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE], desc: '' };
   PROPS[B.RED_SAND] = { name:'Red Sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.1, type:'ground', faces:[T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND], desc: '' };
@@ -423,7 +503,7 @@ function VOXEL_CORE() {
      stage once (0.7331 renumbering), which the regrow timer undoes on its own. */
   const BERRY_STAGE = { SMALL: 0, EMPTY: 1, FRUITLING: 2, GROWN: 3 };
   const berryStage = (v) => v & 3;
-  const isBerryBush = (id) => id === B.REDBERRY_BUSH || id === B.BLUEBERRY_BUSH;
+  const isBerryBush = (id) => id === B.REDBERRY_BUSH || id === B.BLUEBERRY_BUSH || id === B.YELLOWBERRY_BUSH;
   const _berryBush = (name, ripe) => ({
     name, solid:false, opaque:false, raycast:true, noTarget:true,
     pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass',
@@ -434,6 +514,7 @@ function VOXEL_CORE() {
   });
   PROPS[B.REDBERRY_BUSH]  = _berryBush('Red berry bush',  T.BERRY_BUSH_RED);
   PROPS[B.BLUEBERRY_BUSH] = _berryBush('Blue berry bush', T.BERRY_BUSH_BLUE);
+  PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Yellow berry bush', T.BERRY_BUSH_YELLOW);   // poisonous berries (0.7947)
   PROPS[B.PINCUSHION] = { name:'Pincushion', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.7,0.75]], faces:[T.PINCUSHION], desc: '' };
   /* Flint stone (0.732) — a dark nodule lying on the turf. Built on the `carpet` model, which is
      just "one flat box, chosen by variant", so it renders as a low slab rather than a full cube;
@@ -471,7 +552,7 @@ function VOXEL_CORE() {
   PROPS[B.MELON]    = _gourd('Watermelon', T.MELON_SIDE, T.MELON_TOP);
   PROPS[B.PUMPKIN]  = _gourd('Pumpkin', T.PUMPKIN_SIDE, T.PUMPKIN_TOP);
   PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT], desc: '' };
-  PROPS[B.STONE_BRICK]    = { name:'Stone brick', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
+  PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
   PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
   PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
   /* CHISEL SHAPES (0.783; pane and fence 0.784). A shape is a VARIANT of a full block, not a block of its
@@ -512,18 +593,50 @@ function VOXEL_CORE() {
      WALL (0.787): SHAPE_WALL, a solid wall 8 px thick and the full block tall, joining walls of the SAME block
      straight and diagonally like the fence; +1 is the pose for icons and the hand. */
   const SHAPE_COVER = 0x70, SHAPE_WALL = 0x80;
+  /* VARIANT BLOCKS (0.7941): the looks the variant bar picks between (46-variants.js). Each is a block of its
+     own, hidden from the inventory: in hand it is always its base block with the variant picked, and broken it
+     drops that base block. Each is built from the block it plays like (hardness, sound, tool), so one more is
+     one line here plus its line in BLOCK_VARIANTS. [id, plays like, name, tile] */
+  const VARIANT_BLOCKS = [
+    [B.MOSSY_STONE_BRICK,   B.STONE_BRICK,  'Stone (mossy brick)',   T.MOSSY_STONE_BRICK],
+    [B.CRACKED_STONE_BRICK, B.STONE_BRICK,  'Stone (cracked brick)', T.CRACKED_STONE_BRICK],
+    [B.MOSSY_COBBLE,        B.COBBLE,       'Cobblestone (mossy)',   T.MOSSY_COBBLE],
+    [B.SULFUR_BRICKS,       B.SULFUR_BLOCK, 'Sulfur block (brick)',  T.SULFUR_BRICKS],
+    [B.GRANITE_BRICKS,      B.GRANITE,      'Granite (brick)',       T.GRANITE_BRICKS],
+    [B.MARBLE_BRICKS,       B.MARBLE,       'Marble (brick)',        T.MARBLE_BRICKS],
+    [B.LIMESTONE_BRICKS,    B.LIMESTONE,    'Limestone (brick)',     T.LIMESTONE_BRICKS],
+    // the mortar's bowl carved from another rock (0.7945): only the bowl material changes, powder and pestle stay
+    [B.GRANITE_MORTAR,   B.MORTAR, 'Mortar and pestle (granite)',   T.GRANITE,   { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.GRANITE) } }],
+    [B.MARBLE_MORTAR,    B.MORTAR, 'Mortar and pestle (marble)',    T.MARBLE,    { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.MARBLE) } }],
+    [B.LIMESTONE_MORTAR, B.MORTAR, 'Mortar and pestle (limestone)', T.LIMESTONE, { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.LIMESTONE) } }],
+    /* a gem cluster on a bed of plain stone instead of its ore (0.7947); mined, it still gives its gems.
+       Retired from the variant bar in 0.7948, when the bed moved into the cluster's own variant bits
+       (CLUSTER_BEDS): kept only so a cluster placed in 0.7947 still draws and drops right */
+    [B.DIAMOND_CLUSTER_STONE,  B.DIAMOND_ORE,  'Diamond cluster (stone)',  T.DIAMOND_BLOCK,  { bedFaces: Array(6).fill(T.STONE), dropsAsBase: true }],
+    [B.EMERALD_CLUSTER_STONE,  B.EMERALD_ORE,  'Emerald cluster (stone)',  T.EMERALD_BLOCK,  { bedFaces: Array(6).fill(T.STONE), dropsAsBase: true }],
+    [B.RUBY_CLUSTER_STONE,     B.RUBY_ORE,     'Ruby cluster (stone)',     T.RUBY_BLOCK,     { bedFaces: Array(6).fill(T.STONE), dropsAsBase: true }],
+    [B.SAPPHIRE_CLUSTER_STONE, B.SAPPHIRE_ORE, 'Sapphire cluster (stone)', T.SAPPHIRE_BLOCK, { bedFaces: Array(6).fill(T.STONE), dropsAsBase: true }],
+    [B.TOPAZ_CLUSTER_STONE,    B.TOPAZ_ORE,    'Topaz cluster (stone)',    T.TOPAZ_BLOCK,    { bedFaces: Array(6).fill(T.STONE), dropsAsBase: true }],
+  ];
+  for (const [id, like, name, tile, extra] of VARIANT_BLOCKS)
+    PROPS[id] = { ...PROPS[like], name, noInv: true, faces: [tile, tile, tile, tile, tile, tile], desc: '', ...extra };
+  // every brick variant takes what stone brick takes; mossy cobblestone what cobblestone takes
+  const _BRICK_VARIANTS = [B.MOSSY_STONE_BRICK, B.CRACKED_STONE_BRICK, B.SULFUR_BRICKS,
+                           B.GRANITE_BRICKS, B.MARBLE_BRICKS, B.LIMESTONE_BRICKS];
   const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS];
   const SHAPE_BLOCKS = {
-    slab:   [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE],
-    stairs: [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE],
-    pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS],                  // 0.784
+    slab:   [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
+             ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
+    stairs: [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
+             ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
+    pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE],   // 0.784
     fence:  [..._ALL_PLANKS, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK],                         // 0.784
     layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK,   // 0.785
-             B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.GLASS, B.IRON_BLOCK, B.GOLD_BLOCK],
+             B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.GLASS, B.IRON_BLOCK, B.GOLD_BLOCK, B.MOSSY_COBBLE],
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
-             B.GRANITE, B.MARBLE, B.LIMESTONE, B.SANDSTONE, B.RED_SANDSTONE],
+             B.GRANITE, B.MARBLE, B.LIMESTONE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
-             B.GRANITE, B.MARBLE, B.LIMESTONE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE],
+             B.GRANITE, B.MARBLE, B.LIMESTONE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
   };
   const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK];
   for (const fam in SHAPE_BLOCKS)
@@ -652,7 +765,8 @@ function VOXEL_CORE() {
      shell's thickness is just the bark rim; the inside walls are bark too. Walls are authored standing up
      and turned onto the axis; on a lying log the bark is turned as well, so its grain runs along the log. */
   const HOLLOW_FILLS = [0, B.DIRT, B.GRASS, B.SAND, B.RED_SAND];
-  const HOLLOW_WALLS = [[0,0,0,16,16,2], [0,0,14,16,16,16], [0,0,2,2,16,14], [14,0,2,16,16,14]].map(b => b.map(n => n / 16));
+  // the ±Z walls stop 2 short of each corner (0.794), leaving the square 2-pixel notch a log's edges have
+  const HOLLOW_WALLS = [[2,0,0,14,16,2], [2,0,14,14,16,16], [0,0,2,2,16,14], [14,0,2,16,16,14]].map(b => b.map(n => n / 16));
   const HOLLOW_CORE_UP = [2,0,2,14,15,14].map(n => n / 16);      // soil sits just under the rim
   const HOLLOW_CORE_LYING = [2,0,2,14,16,14].map(n => n / 16);   // ...and runs out to both ends lying down
   const HOLLOW_SWAP = [0, (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5), (1 << 0) | (1 << 1)];   // faces whose UVs turn, per axis
@@ -1185,6 +1299,9 @@ function VOXEL_CORE() {
         ];
         for (let oi = 0; oi < ORE_TYPES.length; oi++) {
           const [oreId, attempts, minN, maxN, bestLo, bestHi, rangeLo, rangeHi] = ORE_TYPES[oi];
+          // gems grow as clusters in caves since 0.7945 (below). Skipped rather than removed, so every other
+          // row keeps its index `oi`, which seeds its veins: the rest of the underground stays where it was
+          if (PROPS[oreId].model === 'cluster') continue;
           for (let ai = 0; ai < attempts; ai++) {
             const lx = (hash3(cx * 47 + oi + ai,       11, cz * 43 + oi + ai    ) * 16) | 0;
             const lz = (hash3(cx * 53 + oi + ai * 3,   17, cz * 59 + oi + ai    ) * 16) | 0;
@@ -1328,7 +1445,11 @@ function VOXEL_CORE() {
           const yMaxC = Math.min(grand ? 42 : 34, capY);
           for (let y = 5; y <= yMaxC; y++) {
             const i = idx(x, y, z);
-            if ((data[i] & 255) !== B.STONE) continue;
+            /* Carve every rock, not just stone (0.7948). Ore veins, granite, marble and limestone blobs and
+               gravel patches are laid down BEFORE the caves, and a room that only cleared plain stone left all
+               of them hanging in mid-air inside it. Liquids and bedrock still stay put. */
+            const cb = data[i] & 255;
+            if (cb === B.AIR || cb === B.WATER || cb === B.LAVA || cb === B.BEDROCK) continue;
             if (isPillar) continue;
             if (stalag && y < 5 + stalag) continue;
             if (stalac && y > yMaxC - stalac) continue;
@@ -1647,6 +1768,64 @@ function VOXEL_CORE() {
             if (hash3(wx * 89 + 14001, y * 19 + 7, wz * 97 + 14001) < chance) {
               const tipH = hash3(wx * 103, y * 23, wz * 107);
               placeSulfur(x, y, z, tipH);
+            }
+          }
+        }
+      }
+
+      /* ---- gem clusters (0.7945) ----
+         Each gem keeps the depth band its ore vein had. A try picks a column and a height in that band, then
+         looks up and down from there for the nearest open cave cell touching rock, and grows the cluster out
+         of that rock: floor, ceiling or wall, whichever it touches (a coin picks between several). A cell
+         open to the sky does not count — except for emerald, which has always lived in mountain rock. */
+      {
+        const GEMS = [
+          // [id,          tries, bestLo, bestHi, rangeLo, rangeHi, sky ok]
+          [B.DIAMOND_ORE,   3,     15,     20,      3,      30,   false],
+          [B.EMERALD_ORE,   5,    150,    160,    120,     196,   true ],
+          [B.RUBY_ORE,      4,     43,     47,     30,      70,   false],
+          [B.SAPPHIRE_ORE,  4,     93,     97,     80,     130,   false],
+          [B.TOPAZ_ORE,     4,     78,     82,     60,     100,   false],
+        ];
+        const CLUSTER_TRY_CHANCE = 0.05;
+        const rockAt = (x, y, z) => {
+          if (x < 0 || x > 15 || z < 0 || z > 15 || y < 1 || y > 198) return false;
+          const p = PROPS[data[idx(x, y, z)] & 255];
+          return !!p && !!p.opaque && p.type === 'stone';
+        };
+        const underRoof = (x, y, z) => {
+          for (let yy = y + 1; yy < 200; yy++) if (PROPS[data[idx(x, yy, z)] & 255]?.opaque) return true;
+          return false;
+        };
+        for (let gi = 0; gi < GEMS.length; gi++) {
+          const [gem, tries, bestLo, bestHi, rangeLo, rangeHi, skyOk] = GEMS[gi];
+          for (let t = 0; t < tries; t++) {
+            const s = 21000 + gi * 101 + t * 7;
+            // 95% of tries never happen (0.7948): 0.7945's rate put far too many clusters in every cave
+            if (hash3(cx * 61 + s, 17, cz * 67 + s) >= CLUSTER_TRY_CHANCE) continue;
+            const lx = (hash3(cx * 31 + s, 3, cz * 29 + s) * 16) | 0;
+            const lz = (hash3(cx * 37 + s, 5, cz * 41 + s) * 16) | 0;
+            const inBest = hash3(cx + s, 7, cz + s * 3) < 0.7;
+            const ly0 = inBest ? bestLo + ((hash3(cx * 13 + s, 9, cz * 11 + s) * (bestHi - bestLo + 1)) | 0)
+                               : rangeLo + ((hash3(cx * 17 + s, 13, cz * 19 + s) * (rangeHi - rangeLo + 1)) | 0);
+            for (let k = 0; k <= 24; k++) {
+              const ly = ly0 + ((k & 1) ? -((k + 1) >> 1) : (k >> 1));   // 0, -1, +1, -2, +2 ...
+              if (ly < 2 || ly > 197 || ly < rangeLo - 4 || ly > rangeHi + 4) continue;
+              if (data[idx(lx, ly, lz)] !== B.AIR) continue;
+              const opts = [];
+              for (let o = 0; o < 6; o++) {
+                const d = CLUSTER_DIRS[o];
+                if (rockAt(lx - d[0], ly - d[1], lz - d[2])) opts.push(o);
+              }
+              if (!opts.length) continue;
+              if (!skyOk && !underRoof(lx, ly, lz)) break;
+              const o = opts[(hash3(cx * 43 + s, ly, cz * 47 + s) * opts.length) | 0];
+              const lay = (hash3(cx * 53 + s, ly + 1, cz * 59 + s) * CLUSTER_LAYOUTS) | 0;   // which look (0.7946)
+              // its bed is the rock it grows on: stone, granite, marble, limestone; on anything else its ore (0.7948)
+              const d = CLUSTER_DIRS[o], rock = data[idx(lx - d[0], ly - d[1], lz - d[2])] & 255;
+              const bed = CLUSTER_BED_OF[rock] || 0;
+              data[idx(lx, ly, lz)] = gem | ((o | (lay << 3) | (bed << CLUSTER_BED_SHIFT)) << 8);
+              break;
             }
           }
         }
@@ -2007,7 +2186,7 @@ function VOXEL_CORE() {
           for (let y = 3; y < caveTop; y++) {
             if ((data[idx(x, y, z)] & 255) === B.STONE &&
                 (data[idx(x, y + 1, z)] & 255) === B.AIR &&
-                hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.002)
+                hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.001)              // halved in 0.799 (was 0.002)
               data[idx(x, y + 1, z)] = hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 1 / 3
                 ? B.RED_MUSHROOM : hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 2 / 3 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;   // thirds since 0.7691
           }
@@ -2020,7 +2199,7 @@ function VOXEL_CORE() {
               for (let dy = 2; dy <= 5 && h + dy < 200; dy++) {
                 if ((data[idx(x, h + dy, z)] & 255) === B.LEAVES) { hasLeaves = true; break; }
               }
-              if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.0007)
+              if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.00035)   // halved in 0.799
                 data[idx(x, h + 1, z)] = hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 1 / 3
                   ? B.RED_MUSHROOM : hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 2 / 3 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;   // thirds since 0.7691
             }
@@ -2039,7 +2218,7 @@ function VOXEL_CORE() {
         const wx = cx * 16 + sx, wz = cz * 16 + sz;
         if (TREE[gi] >= 0.5 && !DES[gi] && h > WATER_LEVEL + 1 && h <= 146 &&
             !(SNO[gi] && fbm(wx * 0.004 + 2222, wz * 0.004 + 888, 2) <= 0.25) &&       // plain snow has no trees to fall
-            hash3(cx * 79 + 7300, 41, cz * 83 + 7300) < 0.15) {                             // 0.35 before 0.7845
+            hash3(cx * 79 + 7300, 41, cz * 83 + 7300) < 0.075) {                            // 0.35 before 0.7845, 0.15 before 0.799
           const wood = SNO[gi] ? B.HOLLOW_SPRUCE_LOG
                      : fbm(wx * 0.004 + 1234, wz * 0.004 - 987, 2) > 0.35 ? B.HOLLOW_BIRCH_LOG : B.HOLLOW_LOG;   // birchRegion
           const alongX = hash3(cx * 89 + 7300, 43, cz * 97 + 7300) < 0.5;
@@ -2065,9 +2244,9 @@ function VOXEL_CORE() {
             const shroom = (mx, mz, salt) => {
               if (mx < 0 || mx > 15 || mz < 0 || mz > 15 || H[(mx + 2) + (mz + 2) * 20] !== h) return;
               const roll = hash3(cx * 1301 + mx, h + 7400 + salt, cz * 1307 + mz);
-              if (roll >= 0.12) return;                                                   // 0.3 before 0.7845
+              if (roll >= 0.06) return;                                                   // 0.3 before 0.7845, 0.12 before 0.799
               if (!ground(data[idx(mx, h, mz)] & 255) || !open(data[idx(mx, h + 1, mz)])) return;
-              data[idx(mx, h + 1, mz)] = roll < 0.04 ? B.RED_MUSHROOM : roll < 0.08 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;
+              data[idx(mx, h + 1, mz)] = roll < 0.02 ? B.RED_MUSHROOM : roll < 0.04 ? B.BROWN_MUSHROOM : B.BLUE_MUSHROOM;
             };
             cells.forEach(([lx, lz], k) => { shroom(lx + (alongX ? 0 : 1), lz + (alongX ? 1 : 0), k * 2);
                                              shroom(lx - (alongX ? 0 : 1), lz - (alongX ? 1 : 0), k * 2 + 1); });
@@ -2196,7 +2375,7 @@ function VOXEL_CORE() {
           const meadow = isPlains && fbm(wx * 0.006 + 6006, wz * 0.006 - 3003, 2) > 0.32;
           const r = hash3(cx * 97 + lx + 5500, 71, cz * 83 + lz + 5500);
           // flowers cut ~95%: forest tiny, plains small, meadows the main place they gather
-          const flowerCh = meadow ? 0.02 : isPlains ? 0.0015 : 0.0003;
+          const flowerCh = (meadow ? 0.02 : isPlains ? 0.0015 : 0.0003) * 0.3;   // 70% fewer flowers (0.799)
           // short grass thins with altitude (full at y100, ~1/4 at y200) but never disappears
           const alt = Math.min(1, Math.max(0, (h - 100) / 100));
           const grassCh  = 0.22 * (1 - alt * 0.75);
@@ -2212,8 +2391,9 @@ function VOXEL_CORE() {
                sprouts, bare bushes and ripe ones of both bushes — the regrow timer takes over from
                there. The stage numbers are the growth order, so the roll is just 0..3. */
             const stage = Math.min(BERRY_STAGE.GROWN, (hash3(cx * 41 + lx + 909, 37, cz * 43 + lz + 606) * 4) | 0);
-            const bush = hash3(cx * 53 + lx + 4242, 29, cz * 59 + lz + 2424) < 0.5
-                       ? B.REDBERRY_BUSH : B.BLUEBERRY_BUSH;
+            // red and blue as common as each other, the poisonous yellow one rarer (0.7947)
+            const kind = hash3(cx * 53 + lx + 4242, 29, cz * 59 + lz + 2424);
+            const bush = kind < 0.4 ? B.REDBERRY_BUSH : kind < 0.8 ? B.BLUEBERRY_BUSH : B.YELLOWBERRY_BUSH;
             data[idx(lx, h + 1, lz)] = bush | (stage << 8);
           } else if (r < flowerCh + berryCh + tallCh && h + 2 < CY && (data[idx(lx, h + 2, lz)] & 255) === B.AIR) {
             data[idx(lx, h + 1, lz)] = B.TALL_LOWER;
@@ -2391,10 +2571,21 @@ function VOXEL_CORE() {
             if (n >= 1) data[idx(x, h + 1, z)] = layerVal(top, n);
           } else if (top === B.GRAVEL) {
             const r = hash3(wx * 31 + 9100, 4101, wz * 37 - 9100);
-            if (r < 0.45) data[idx(x, h + 1, z)] = layerVal(B.GRAVEL, 1 + ((r / 0.45 * 4) | 0));
+            // a third as many since 0.799, and 1-2 deep instead of 1-4 (was r < 0.45)
+            if (r < 0.15) data[idx(x, h + 1, z)] = layerVal(B.GRAVEL, 1 + ((r / 0.15 * 2) | 0));
           } else if (top === B.GRASS || top === B.DIRT || top === B.STONE) {
             const r = hash3(wx * 41 + 9300, 4303, wz * 43 - 9300);
-            if (r < 0.0015) data[idx(x, h + 1, z)] = layerVal(B.GRAVEL, r < 0.0005 ? 2 : 1);
+            if (r < 0.00075) data[idx(x, h + 1, z)] = layerVal(B.GRAVEL, r < 0.00025 ? 2 : 1);   // halved in 0.799
+            /* ...and a drift of fallen leaves the same way (0.7992), of the wood that grows there, only on
+               the turf and only under a canopy-ish sky — near trees it reads as litter, not as scenery. */
+            else if ((top === B.GRASS || top === B.DIRT) && TREE[gi] >= 0.4) {
+              const lr = hash3(wx * 47 + 9500, 4507, wz * 53 - 9500);
+              if (lr < 0.006) {
+                const leaf = SNO[gi] ? B.SPRUCE_LEAVES
+                           : fbm(wx * 0.004 + 1234, wz * 0.004 - 987, 2) > 0.35 ? B.BIRCH_LEAVES : B.LEAVES;
+                data[idx(x, h + 1, z)] = layerVal(leaf, lr < 0.002 ? 2 : 1);
+              }
+            }
           }
         }
       return data.buffer;
@@ -2623,10 +2814,12 @@ function VOXEL_CORE() {
        is rock with no light of its own, so the vine rendered dark right beside its own glow. */
     // sw (0.7842): bitmask by face index (+X,-X,top,bottom,+Z,-Z) of faces whose texture turns a quarter,
     // so the bark of a lying hollow log runs along it instead of across
-    function emitBoxFaces(x, y, z, b, f, own, sw = 0) {
+    function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       const op = (xx, yy, zz) => opaqueVal(gb(xx, yy, zz));
-      const L = own ? gl(x, y, z) : -1;
+      let L = own ? gl(x, y, z) : -1;
+      // a faint light of its own, as an ore's selfGlow gives its faces (gem clusters, 0.7945)
+      if (glow && L >= 0 && (L & 15) < glow) L = (L & 0xF0) | glow;
       const lit = (inner, xx, yy, zz) => (inner && L >= 0 ? L : gl(xx, yy, zz));
       const T4 = (k, a, c, d, e) => ((sw >> k) & 1) ? [[a[1],a[0]], [c[1],c[0]], [d[1],d[0]], [e[1],e[0]]] : [a, c, d, e];
       if (b[4] < 1 || !op(x, y+1, z))            // top
@@ -2688,6 +2881,13 @@ function VOXEL_CORE() {
               if ((va === 1 && bx[6] === vp.animMat) || (va === 2 && bx[6] !== vp.animMat)) continue;
               emitBoxFaces(x, y, z, bx, vp.matFaces[bx[6]] || vp.faces, true);
             }
+          }
+          else if (PROPS[vid].model === 'cluster')      // a gem cluster (0.7945): crystals out of the face behind it
+          {
+            const va = (val >> 8) & 255, cp = PROPS[vid];
+            const bed = CLUSTER_BEDS[va >> CLUSTER_BED_SHIFT] || cp.bedFaces;   // the rock it grows from (0.7948)
+            for (const [bx, gem] of CLUSTER_BOXES[(va & 7) % 6][(va >> 3) & (CLUSTER_LAYOUTS - 1)])
+              emitBoxFaces(x, y, z, bx, gem ? cp.faces : bed, true, 0, gem ? (cp.selfGlow || 0) : 0);
           }
         }
 
@@ -2815,10 +3015,6 @@ function VOXEL_CORE() {
         if (logInto(x, y, z + 1, 2, fam)) { b[5] = 1; flared = true; }
       }
       const F = PROPS[id].faces, side = F[0], top = F[2];
-      const rf = va === 1 ? [top, top, side, side, side, side]      // X-axis: caps on ±X
-               : va === 2 ? [side, side, side, side, top, top]      // Z-axis: caps on ±Z
-               :            [side, side, top, top, side, side];     // Y-axis: caps on ±Y
-      const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       /* An end cap is culled only against a same-axis log at least as wide as this cell — the
          narrower of two stacked logs must keep its cap or you see into the hollow.
 
@@ -2832,18 +3028,59 @@ function VOXEL_CORE() {
         const n = logAt(nx, ny, nz, fam);
         return !!n && n.axis === va && n.w >= myW;        // continuous trunk, no narrower than us
       };
-      if (!(va === 0 && capped(x, y+1, z)))         // +Y
-        quad(pss, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0], [b[0],b[2]],[b[0],b[5]],[b[3],b[5]],[b[3],b[2]], rf[2], 255, gl(x, y+1, z));
-      if (!(va === 0 && capped(x, y-1, z)))         // -Y
-        quad(pss, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [b[0],b[2]],[b[3],b[2]],[b[3],b[5]],[b[0],b[5]], rf[3], 140, gl(x, y-1, z));
-      if (!(va === 1 && capped(x+1, y, z)))         // +X
-        quad(pss, [x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1], [1-b[2],b[1]],[1-b[2],b[4]],[1-b[5],b[4]],[1-b[5],b[1]], rf[0], 178, gl(x+1, y, z));
-      if (!(va === 1 && capped(x-1, y, z)))         // -X
-        quad(pss, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0], [b[2],b[1]],[b[5],b[1]],[b[5],b[4]],[b[2],b[4]], rf[1], 178, gl(x-1, y, z));
-      if (!(va === 2 && capped(x, y, z+1)))         // +Z
-        quad(pss, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1], [b[0],b[1]],[b[3],b[1]],[b[3],b[4]],[b[0],b[4]], rf[4], 216, gl(x, y, z+1));
-      if (!(va === 2 && capped(x, y, z-1)))         // -Z
-        quad(pss, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0], [1-b[0],b[1]],[1-b[0],b[4]],[1-b[3],b[4]],[1-b[3],b[1]], rf[5], 216, gl(x, y, z-1));
+      /* Rounded bark (0.793): each of the four edges that
+         run ALONG the log has a square notch LOG_BEVEL of its width deep (2 of 16 pixels on a full log; a diagonal until 0.7931), so
+         trunks and branches read round. The texture is untouched: every face keeps the uv mapping
+         the box had, and a bevel strip borrows the mapping of the side face next to it. Only the
+         mesh changes — collision and the selection box stay the box. Cactus has them too since 0.794. */
+      const cut = LOG_BEVEL * logWidthPx(myW) / 64;
+      const A = va === 1 ? 0 : va === 2 ? 2 : 1;               // world axis the log runs along
+      const Pa = va === 1 ? 1 : 0, Qa = va === 2 ? 1 : 2;      // the two axes across it
+      const a0 = b[A], a1 = b[A + 3], p0 = b[Pa], p1 = b[Pa + 3], q0 = b[Qa], q1 = b[Qa + 3];
+      const at = (a, p, q) => { const l = [0, 0, 0]; l[A] = a; l[Pa] = p; l[Qa] = q; return l; };
+      // per face direction (0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z): shade, the cell it takes light from, uv of a local point
+      const SH = [178, 178, 255, 140, 216, 216];
+      const NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+      const UVF = [(l) => [1 - l[2], l[1]], (l) => [l[2], l[1]], (l) => [l[0], l[2]],
+                   (l) => [l[0], l[2]], (l) => [l[0], l[1]], (l) => [1 - l[0], l[1]]];
+      const lit = (d) => gl(x + NB[d][0], y + NB[d][1], z + NB[d][2]);
+      const litMax = (m, n) => (Math.max(m >> 4, n >> 4) << 4) | Math.max(m & 15, n & 15);
+      // one quad of local points, wound to face `n` (an outward direction, need not be unit)
+      const face = (pts, n, ud, tile, shade, lite) => {
+        const [c0, c1, c2] = pts;
+        const e = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]], f = [c2[0] - c0[0], c2[1] - c0[1], c2[2] - c0[2]];
+        const dot = (e[1] * f[2] - e[2] * f[1]) * n[0] + (e[2] * f[0] - e[0] * f[2]) * n[1] + (e[0] * f[1] - e[1] * f[0]) * n[2];
+        if (dot < 0) pts = [pts[0], pts[3], pts[2], pts[1]];
+        const w = pts.map(l => [x + l[0], y + l[1], z + l[2]]), u = pts.map(UVF[ud]);
+        quad(pss, w[0], w[1], w[2], w[3], u[0], u[1], u[2], u[3], tile, shade, lite);
+      };
+      const unit = (k, s) => { const n = [0, 0, 0]; n[k] = s; return n; };
+      // the two end caps (culled against the trunk they continue), an octagon as a band and two trapezoids
+      for (const [s, av] of [[1, a1], [-1, a0]]) {
+        const d = 2 * A + (s < 0 ? 1 : 0);
+        if (capped(x + NB[d][0], y + NB[d][1], z + NB[d][2])) continue;
+        const n = unit(A, s), L = lit(d);
+        face([at(av, p0, q0 + cut), at(av, p1, q0 + cut), at(av, p1, q1 - cut), at(av, p0, q1 - cut)], n, d, top, SH[d], L);
+        if (cut > 0) {
+          face([at(av, p0 + cut, q0), at(av, p1 - cut, q0), at(av, p1 - cut, q0 + cut), at(av, p0 + cut, q0 + cut)], n, d, top, SH[d], L);
+          face([at(av, p0 + cut, q1 - cut), at(av, p1 - cut, q1 - cut), at(av, p1 - cut, q1), at(av, p0 + cut, q1)], n, d, top, SH[d], L);
+        }
+      }
+      // the four bark sides, each narrowed by the bevels either side of it
+      for (const s of [1, -1]) {
+        const dp = 2 * Pa + (s < 0 ? 1 : 0), pe = s > 0 ? p1 : p0;
+        face([at(a0, pe, q0 + cut), at(a1, pe, q0 + cut), at(a1, pe, q1 - cut), at(a0, pe, q1 - cut)], unit(Pa, s), dp, side, SH[dp], lit(dp));
+        const dq = 2 * Qa + (s < 0 ? 1 : 0), qe = s > 0 ? q1 : q0;
+        face([at(a0, p0 + cut, qe), at(a1, p0 + cut, qe), at(a1, p1 - cut, qe), at(a0, p1 - cut, qe)], unit(Qa, s), dq, side, SH[dq], lit(dq));
+      }
+      // ...and the four corner notches between them: a square step, two small faces each (0.7931, was a diagonal)
+      if (cut > 0) for (const sp of [1, -1]) for (const sq of [1, -1]) {
+        const dp = 2 * Pa + (sp < 0 ? 1 : 0), dq = 2 * Qa + (sq < 0 ? 1 : 0);
+        const pi = (sp > 0 ? p1 : p0) - sp * cut, qi = (sq > 0 ? q1 : q0) - sq * cut;   // the notch's inner corner
+        const pe = sp > 0 ? p1 : p0, qe = sq > 0 ? q1 : q0;
+        face([at(a0, pi, qi), at(a1, pi, qi), at(a1, pi, qe), at(a0, pi, qe)], unit(Pa, sp), dp, side, SH[dp], litMax(lit(dp), lit(dq)));
+        face([at(a0, pi, qi), at(a1, pi, qi), at(a1, pe, qi), at(a0, pe, qi)], unit(Qa, sq), dq, side, SH[dq], litMax(lit(dp), lit(dq)));
+      }
     }
     for (let y = 0; y < yCap; y++)
       for (let z = 0; z < 16; z++)
@@ -3004,7 +3241,7 @@ function VOXEL_CORE() {
     return { passes: out, minY: Math.min(minY, maxY), maxY: Math.max(maxY, 2) };
   }
 
-  return { B, T, V, PROPS, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
+  return { B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
            SHAPE_MASK, ROT_MASK, shapeOfVal,
            HOLLOW_FILLS, opaqueVal, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK,
@@ -3075,7 +3312,11 @@ function migrateLegacyLayers(v) {
   return [CORE.layerVal(ids[ids.length - 1], ids.length, mixed), mixed ? ids : null];
 }
 // an old slab or stairs item in a slot: the full block it was made from (null for the cactus slab)
-const legacyItemId = (id) => (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id] ? (LEGACY_SHAPE[id][0] || null) : id);
+// ...and since 0.794 a stone brick item is plain stone: brick is a variant you pick (46-variants.js), not an item
+const legacyItemId = (id) => {
+  if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = LEGACY_SHAPE[id][0] || null;
+  return id === B.STONE_BRICK ? B.STONE : id;
+};
 const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush } = CORE;
 
 // Items (IDs >= 256) — separate registry from blocks
@@ -3118,7 +3359,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                CHISEL: 383,    // 0.78
                HAMMER: 384,    // 0.788
                // the pig (0.789) and what comes off one
-               PORK: 385, COOKED_PORK: 386, FAT: 387 };                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+               PORK: 385, COOKED_PORK: 386, FAT: 387,
+               YELLOW_BERRIES: 388 };                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -3142,7 +3384,7 @@ const ITEM_PROPS = {
   [ITEM.ASHES]:         { name: 'Ashes',         stack: 99, icon: 'ashes',         desc: 'Used as crafting ingredient, left in a furnace by burnt fuel' },
   // worn in the Others slot; picks a block shape from a radial (0.78, 43-chisel.js) — shaping itself comes later
   [ITEM.CHISEL]:        { name: 'Chisel',        stack: 1,  icon: 'chisel', equip: 'accessories', chisel: true, durability: 300,   // 200 until 0.7845
-                          desc: 'Wear it in the Others slot.' },
+                          desc: 'Wear it in the Neck slot for block variants (hold R and scroll), or in Others to pick a block shape (hold Q)' },   // craftable again (0.799)
   /* The hammer (0.788) replaced the chisel outright in 0.789: same radial, same one-point-per-block
      wear, 400 durability. The chisel keeps its entry below so worlds saved with one still load. */
   [ITEM.HAMMER]:        { name: 'Hammer',        stack: 1,  icon: 'hammer', equip: 'accessories', chisel: true, durability: 500,
@@ -3234,7 +3476,9 @@ const ITEM_PROPS = {
   [ITEM.BUCKET]:        { name: 'Bucket',        stack: 20, icon: 'bucket', desc: 'Used to fill with fluid, even with cow\'s milk (female cow)' },
   // 0.767: from a cow (bucket in hand, right-click). Drinking it clears every running effect and hands the bucket back
   [ITEM.MILK_BUCKET]:   { name: 'Milk bucket',   stack: 1, icon: 'milk_bucket', food: 4, foodSat: 6, foodSatFull: 3,
-                          eatTime: 1.6, drink: true, foodClearEffects: true, foodReturn: 283, spoil: 300, desc: 'Drink it to remove all active effects' },
+                          // 10 minutes, and what is left when it turns is the bucket back (0.7992)
+                          eatTime: 1.6, drink: true, foodClearEffects: true, foodReturn: 283, spoil: 600, spoilInto: 283,
+                          desc: 'Drink it to remove all active effects. Goes off in 10 minutes, leaving the bucket' },
   [ITEM.WATER_BUCKET]:  { name: 'Water Bucket',  stack: 1,  icon: 'water_bucket', desc: '' },
   [ITEM.LAVA_BUCKET]:   { name: 'Lava Bucket',   stack: 1,  icon: 'lava_bucket', desc: '' },
   [ITEM.SNOWBALL]:      { name: 'Snowball',      stack: 30, icon: 'snowball', throwable: true, desc: 'Can be thrown to knock back friends or enemies' },
@@ -3244,11 +3488,14 @@ const ITEM_PROPS = {
   [ITEM.SUGAR_CANE]:    { name: 'Sugar cane',    stack: 99, icon: 'sugarcane', desc: 'Can be turned into sugar in a mortar' },
   [ITEM.WHEAT]:         { name: 'Wheat',         stack: 99, icon: 'wheat', desc: 'Can be turned into flour in a mortar' },
 // Consumables
-  [ITEM.APPLE]:         { name: 'Apple',          stack: 99, icon: 'apple',         foodSatFull: 3, food: 5,  foodSat: 8,  eatTime: 1.5, spoil: 1800, desc: '' },
+  [ITEM.APPLE]:         { name: 'Apple',          stack: 99, icon: 'apple',         foodSatFull: 3, food: 5,  foodSat: 8,  eatTime: 1.5, spoil: 3600, desc: '' },   // an hour since 0.7992
   [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 40, icon: 'melon_slice',   foodSatFull: 1, food: 1,  foodSat: 2,  eatTime: 0.7, spoil: 1200, desc: '' },
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
   [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600, desc: '' },
   [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600, desc: '' },
+  // yellow berries (0.7947): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison, 31-armor.js)
+  [ITEM.YELLOW_BERRIES]: { name: 'Yellow berries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600,
+                           foodEffect: 'poison', desc: 'Poisonous' },
   // 0.761: the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
   [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 3, food: 6,  foodSat: 6,  eatTime: 4, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
   [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 7, food: 12, foodSat: 14, eatTime: 4, foodHeal: 3, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
@@ -3300,6 +3547,26 @@ const ITEM_PROPS = {
   [ITEM.BACKPACK]:           { name: 'Backpack',           stack: 1, icon: 'backpack',           equip: 'back',       packSlots: 16,
                                desc: 'Worn on the back. Adds two more rows of carrying space' },
 };
+
+/* ---- tool wear (0.7992) ----
+   A hoe used to wear out a quarter faster than the rest of its set for no reason anyone could name, so
+   each one now lasts exactly as long as its own pickaxe. Then every tool and weapon — not armor, and not
+   the hammer or chisel, whose wear is one point per shaped block — gained 20%. Written as a pass over the
+   table rather than 30 edited numbers, so the ratios between materials stay where they were. */
+for (const [hoe, pick] of [[ITEM.FLINT_HOE, ITEM.FLINT_PICKAXE], [ITEM.STONE_HOE, ITEM.STONE_PICKAXE],
+                           [ITEM.IRON_HOE, ITEM.IRON_PICKAXE], [ITEM.GOLDEN_HOE, ITEM.GOLDEN_PICKAXE],
+                           [ITEM.BRONZE_HOE, ITEM.BRONZE_PICKAXE], [ITEM.DIAMOND_HOE, ITEM.DIAMOND_PICKAXE]])
+  if (ITEM_PROPS[hoe] && ITEM_PROPS[pick]) ITEM_PROPS[hoe].durability = ITEM_PROPS[pick].durability;
+const TOOL_DURABILITY_MUL = 1.2;
+for (const p of Object.values(ITEM_PROPS))
+  if (p && p.durability && (p.tool || p.ranged || p.shield)) p.durability = Math.round(p.durability * TOOL_DURABILITY_MUL);
+// every meat leaves rotten flesh behind when it turns, cooked or raw (0.7992)
+for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK])
+  if (ITEM_PROPS[id]) ITEM_PROPS[id].spoilInto = ITEM.ROTTEN_FLESH;
+/* A pumpkin is food now, not masonry (0.7992): it goes off in four hours and cannot be planted back into
+   the ground in survival. One that grew in the world is still a block, and creative still places them. */
+PROPS[B.PUMPKIN].spoil = 14400;
+PROPS[B.PUMPKIN].noPlace = true;
 
 // blocks that only DROP when broken with the right tool type at (or above) a tier.
 // Not listed = always drops. Block still breaks either way, just yields nothing.
@@ -3357,7 +3624,7 @@ const TOOL_BLOCKS = {
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
                    B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE]),
   hatchet: new Set([B.LOG, B.PLANKS, B.BIRCH_LOG, B.BIRCH_PLANKS, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.SPRUCE_PLANKS,
-                    B.MELON, B.PUMPKIN, B.CRAFTING_BENCH, B.DOOR, B.CACTUS]),
+                    B.MELON, B.PUMPKIN, B.CRAFTING_BENCH, B.DOOR, B.CACTUS, B.CHEST, B.BED]),   // chest and bed 0.7992
   hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY]),
   // shears are the wool tool; they also snip plant matter cleanly
   shears: new Set([B.WOOL, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
@@ -3367,6 +3634,11 @@ const TOOL_BLOCKS = {
                    B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
                    B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };
+// variant blocks (0.7941) mine exactly like the block each plays like: same tool, same drop gate
+for (const [id, like] of CORE.VARIANT_BLOCKS) {
+  if (MINE_REQ[like]) MINE_REQ[id] = MINE_REQ[like];
+  for (const k in TOOL_BLOCKS) if (TOOL_BLOCKS[k].has(like)) TOOL_BLOCKS[k].add(id);
+}
 /* Hollow logs (0.7842): cut with a hatchet like any log. HOLLOW_FILL_OF is what can be packed into one
    (block id -> fill index in its variant); an UPRIGHT one full of dirt or grass takes what grass takes, and
    one full of sand takes a cactus. */
@@ -3444,10 +3716,16 @@ const BLOCK_DROP = {
 };
 
 // Returns [{id, count}, ...] (empty array = no drops). isNatural=true uses lower leaf-decay probability.
+const GRAVEL_FLINT_CHANCE = 0.05;          // a gravel block, and since 0.799 a gravel layer too (22-main-loop.js)
+const GOURD_FIBER_CHANCE = 0.4;            // a melon or pumpkin also gives a fiber (0.799)
 function blockDrop(blockId, isNatural = false) {
   // a flint stone is never mined by hand (noTarget), but an explosion can still take one out —
   // and when it does it should hand over the same flint a pickup would
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
+  // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
+  const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
+  // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)
+  if (vBase != null) return PROPS[blockId]?.dropsAsBase ? blockDrop(vBase, isNatural) : [{ id: vBase, count: 1 }];
   if (blockId === B.LEAVES || blockId === B.BIRCH_LEAVES || blockId === B.SPRUCE_LEAVES) {
     const drops = [];
     /* 2% since 0.7343. Leaves are the ONLY stick source a player can reach before their first
@@ -3457,7 +3735,7 @@ function blockDrop(blockId, isNatural = false) {
     // doubled in 0.7443 (was 0.05 / 0.012) — the ratio between the two is what must hold
     // Canopy Forager (0.79, 45-skills.js) scales all three rolls. Absent in a worker, where it reads 1
     const lm = typeof skillLeafMul === 'function' ? skillLeafMul() : 1;
-    const stickChance = (isNatural ? 0.10 : 0.024) * lm;
+    const stickChance = (isNatural ? 0.11 : 0.0264) * lm;      // 10% more sticks since 0.7992
     if (Math.random() < stickChance)
       drops.push({ id: ITEM.STICK, count: Math.floor(Math.random() * 3) + 1 });
     const appleChance = (isNatural ? 0.002 : 0.0005) * lm;
@@ -3487,10 +3765,16 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.SAPPHIRE_ORE) return [{ id: ITEM.SAPPHIRE, count: 1 + Math.floor(Math.random() * 2) }];
   if (blockId === B.TOPAZ_ORE)    return [{ id: ITEM.TOPAZ,    count: 1 + Math.floor(Math.random() * 2) }];   // 0.769
   if (blockId === B.GRAVEL) {
-    if (Math.random() < 0.05) return [{ id: ITEM.FLINT, count: 1 }];   
+    if (Math.random() < GRAVEL_FLINT_CHANCE) return [{ id: ITEM.FLINT, count: 1 }];
     return [{ id: B.GRAVEL, count: 1 }];
   }
-  if (blockId === B.MELON) return [{ id: ITEM.MELON_SLICE, count: 2 + Math.floor(Math.random() * 5) }];
+  // a gourd comes off its vine with a 40% chance of a fiber too (0.799), picked or broken
+  if (blockId === B.MELON || blockId === B.PUMPKIN) {
+    const out = blockId === B.MELON ? [{ id: ITEM.MELON_SLICE, count: 2 + Math.floor(Math.random() * 5) }]
+                                    : [{ id: B.PUMPKIN, count: 1 }];
+    if (Math.random() < GOURD_FIBER_CHANCE) out.push({ id: ITEM.FIBER, count: 1 });
+    return out;
+  }
   if (blockId === B.WHEAT) return [{ id: ITEM.WHEAT, count: 1 + Math.floor(Math.random() * 2) }];
   // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
   if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||

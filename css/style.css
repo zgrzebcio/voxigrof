@@ -24,6 +24,15 @@
   #version { position:fixed; top:18px; right:10px; color:#cfd8e0; font-size:11px;
              font-family:Consolas, 'Courier New', monospace; letter-spacing:0.5px;
              text-shadow:0 1px 2px rgba(0,0,0,.9); pointer-events:none; z-index:11; opacity:0.85; }
+  /* ---- starter quest (0.798): top right, under the version ---- */
+  #quest { position:fixed; top:36px; right:10px; z-index:5; pointer-events:none; display:none; max-width:230px;
+           padding:6px 9px; background:rgba(10,12,20,.62); border:1px solid rgba(255,255,255,.16); border-radius:7px;
+           color:#e6edf5; font-size:12px; text-shadow:0 1px 2px rgba(0,0,0,.9); }
+  #quest .qHead { color:#9ab; font-size:10px; text-transform:uppercase; letter-spacing:.5px; display:flex; gap:8px; }
+  #quest .qXp { margin-left:auto; color:#7ee63a; font-weight:700; }
+  #quest .qName { font-weight:600; margin-top:2px; }
+  #quest .qName b { color:#ffd76a; margin-left:4px; }
+  #quest .qHint { color:#8fa0b4; font-size:11px; margin-top:1px; }
   #crosshair { position:fixed; left:50%; top:50%; width:18px; height:18px; margin:-9px 0 0 -9px;
                pointer-events:none; z-index:5; mix-blend-mode:difference; }
   #crosshair::before, #crosshair::after { content:''; position:absolute; background:#fff; }
@@ -279,6 +288,32 @@
   .fbHint { color:#6b7789; font-size:9px; margin-top:6px; text-align:center; }
   /* ---- chisel (0.78): the picked shape right of the hotbar, and the hold-to-pick radial above it ---- */
   #hotbar .chiselSlot { position:absolute; left:calc(100% + 9px); bottom:2px; background:rgba(10,10,16,.55); }
+  /* ---- variants (0.794): the held block's looks, five slots just above the vitals; empty ones are dimmed ---- */
+  /* back at 64px in 0.7943 (86px in 0.7942 slid under the open inventory); the item name moved down instead */
+  #hotbar .variantBar { position:absolute; left:50%; bottom:calc(100% + 64px); transform:translateX(-50%);
+                        display:flex; gap:3px; padding:2px; background:rgba(10,10,16,.55);
+                        border:1px solid rgba(255,255,255,.18); border-radius:6px; }
+  #hotbar .variantBar .slot { width:34px; height:34px; }
+  #hotbar .variantBar .slot img { width:30px; height:30px; }
+  #hotbar .variantBar .vEmpty { opacity:.3; }
+  /* ---- effect bar (0.797): running effects right of the hotbar, half-size slots (23px, a slot is 46),
+     after the chisel's slot when that is out. Icon on top, seconds left under it. ---- */
+  #hotbar .effBar { position:absolute; left:calc(100% + 9px); bottom:2px; display:flex; gap:3px; align-items:flex-end; }
+  #hotbar .effBar.afterChisel { left:calc(100% + 9px + 50px + 6px); }
+  #hotbar .effSlot { position:relative; width:23px; height:23px; box-sizing:border-box; border-radius:4px;
+                     background:rgba(10,10,16,.6); border:1px solid rgba(255,255,255,.25);
+                     display:flex; align-items:flex-start; justify-content:center; }
+  #hotbar .effSlot.good { border-color:rgba(126,230,58,.7); }
+  #hotbar .effSlot.bad  { border-color:rgba(230,90,70,.8); }
+  #hotbar .effSlot i { font-style:normal; font-size:12px; line-height:14px; }
+  #hotbar .effSlot b { position:absolute; left:0; right:0; bottom:-1px; text-align:center; font:700 8px/1 system-ui,sans-serif;
+                       color:#fff; text-shadow:0 0 2px #000, 1px 1px 0 #000; }
+  #hotbar .variantBar.hold { border-color:rgba(255,255,255,.6); box-shadow:0 0 8px rgba(255,255,255,.3); }   /* bind held (0.7944) */
+  /* the bind, left of the bar: R, or D-pad Right on a pad (0.7942) */
+  #hotbar .variantBar .vKey { position:absolute; right:calc(100% + 6px); top:50%; transform:translateY(-50%);
+                              white-space:nowrap; color:#dfe6ee; font-size:12px; text-shadow:0 1px 2px #000; }
+  #hotbar .variantBar .vKey b { display:inline-block; min-width:12px; padding:1px 5px; margin-right:2px; text-align:center;
+                                background:rgba(10,10,16,.7); border:1px solid rgba(255,255,255,.35); border-radius:4px; }
   /* pie-slice wedges since 0.781; the 440px box and the radii must match CHISEL_RAD in 43-chisel.js */
   .chiselRadial { position:absolute; left:50%; bottom:calc(100% + 70px); width:440px; height:440px; margin-left:-220px;
                   pointer-events:none; z-index:6; }
@@ -315,7 +350,17 @@
   .ctab img { width:26px; height:26px; image-rendering:auto; }
   .ctab .tlabel { color:#dfe; font-size:12px; font-weight:600; letter-spacing:0.5px; }
   /* no visible scrollbar (0.777): the wheel and the right stick scroll it, and the rows get its width */
-  #craftList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:430px; scrollbar-width:none; }
+  /* one recipe row taller since 0.796 (+61px: a 56px row and its gap), where the panel title used to be */
+  /* the line under the tabs telling you what Shift and Ctrl do (0.7992) */
+  #craftPanel .chint { color:#6b7789; font-size:10px; text-align:center; margin:-2px 0 2px; }
+  #craftPanel .chint b { color:#9ab; }
+  /* a batch counted out on the cursor with Ctrl / pad X (0.7992) */
+  #craftPick { position:fixed; z-index:14; display:none; align-items:center; gap:4px; pointer-events:none;
+               transform:translate(14px, 10px); padding:3px 6px; border-radius:6px;
+               background:rgba(10,12,20,.85); border:1px solid rgba(255,255,255,.3); }
+  #craftPick img { width:26px; height:26px; image-rendering:auto; }
+  #craftPick b { color:#ffd76a; font:700 13px/1 system-ui,sans-serif; }
+  #craftList { display:flex; flex-direction:column; gap:5px; overflow-y:auto; height:491px; scrollbar-width:none; }
   #craftList::-webkit-scrollbar, .fbList::-webkit-scrollbar { display:none; }
   /* ingredients sit almost touching (0.777) to leave room for the XP column */
   .crow { display:flex; align-items:center; gap:2px; background:#0b0d16; border:1px solid #334;
@@ -343,7 +388,7 @@
          color:#7ee63a; font-size:11px; font-weight:600; }
   .cxp img { width:14px; height:14px; image-rendering:pixelated; }
   /* ---- personal crafting queue (0.76): six slots under the recipe list (five before 0.778) ---- */
-  #craftPanel.hasQueue #craftList { height:352px; }
+  #craftPanel.hasQueue #craftList { height:413px; }   /* 352px until 0.796 */
   .cqPanel { display:flex; flex-direction:column; gap:5px; padding-top:6px; border-top:1px solid rgba(255,255,255,.12); }
   .cqHead { display:flex; align-items:center; justify-content:space-between; }
   .cqHead .ctitle { color:#9ab; font-size:12px; }
@@ -414,7 +459,8 @@
               opacity:0; transition:opacity .12s; }
   #interact b { color:#fff; font-weight:600; }
   /* held-item name sits ABOVE the vitals row (78 + 40 tall), where the hearts used to be */
-  #blockname { position:fixed; left:50%; bottom:124px; transform:translateX(-50%); color:#fff; font-size:14px;
+  /* 100px since 0.7943 (was 124): under the variant slots, which sit just above the vitals */
+  #blockname { position:fixed; left:50%; bottom:100px; transform:translateX(-50%); color:#fff; font-size:14px;
                text-shadow:0 1px 3px #000; z-index:5; pointer-events:none;
                opacity:0; transition:opacity .25s; }
 
@@ -519,6 +565,35 @@
   /* ---- world list (main menu) ---- */
   #overlay .wlist { max-height:468px; overflow-y:auto; margin-bottom:16px; display:flex;
                     flex-direction:column; gap:8px; padding-right:4px; }
+  /* ---- create world (0.7991): one setting per row, scrolling inside the panel ---- */
+  #createOpts { max-height:min(48vh, 420px); overflow-y:auto; margin:0 auto 14px; width:min(520px, 100%);
+                display:flex; flex-direction:column; gap:8px; padding-right:4px; }
+  #createOpts .seedrow { margin-bottom:0; }
+  #overlay .crow { display:flex; align-items:center; justify-content:space-between; gap:10px;
+                   background:#0f1220; border:1px solid rgba(255,255,255,.10); border-radius:8px;
+                   padding:8px 12px; color:#9ab; font-size:13px; text-align:left; }
+  #overlay .crow select { background:#0b0d16; color:#dfe; border:1px solid #445; border-radius:6px;
+                          padding:6px 10px; font-size:13px; min-width:150px; }
+  #overlay .crow input[type=number] { width:70px; }
+  #overlay .crow input[type=checkbox] { width:18px; height:18px; accent-color:#7ee63a; }
+  /* ---- in-game confirm (0.7991): replaces the browser's confirm(), which a pad cannot answer
+     and which drops out of fullscreen ---- */
+  #uiAsk { position:fixed; inset:0; z-index:12; display:none; align-items:center; justify-content:center;
+           background:rgba(6,8,14,.55); backdrop-filter:blur(2px); }
+  #uiAsk .askBox { background:rgba(16,18,30,.97); border:1px solid rgba(255,255,255,.18); border-radius:12px;
+                   padding:22px 26px; width:min(460px, 90vw); text-align:center; color:#e6edf5; }
+  #uiAsk .askTitle { font-size:16px; font-weight:600; margin-bottom:6px; }
+  #uiAsk .askText { color:#9ab; font-size:13px; margin-bottom:16px; }
+  #uiAsk .askBtns { display:flex; gap:10px; justify-content:center; }
+  #uiAsk button { background:#3f7d32; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:7px;
+                  padding:8px 16px; font-size:14px; cursor:pointer; }
+  #uiAsk button.danger { background:#8a3a34; }
+  #uiAsk button.grey { background:#4a4f66; }
+  /* ---- menu pad cursor (0.7991) ---- */
+  #mcursor { position:fixed; width:16px; height:16px; margin:-8px 0 0 -8px; z-index:13; pointer-events:none;
+             display:none; border:2px solid #fff; border-radius:50%; background:rgba(255,255,255,.22);
+             box-shadow:0 0 6px rgba(0,0,0,.8); }
+  .padhover { outline:2px solid #ffd76a !important; outline-offset:2px; }
   #overlay button.grey { background:#4a4f66; }
   #overlay button.grey:hover { background:#5b6180; }
   /* The save's screenshot is the row's own background now, so there is no thumbnail column and
@@ -656,6 +731,16 @@
 #skillPanel .skNode.locked { opacity:.45; }
 #skillPanel .skHint { font-size:11px; color:#6f7f94; text-align:center; }
 #equipPanel .skOpenRow { display:flex; justify-content:center; }
+/* ---- right-panel tabs (0.795): Furnace / Chest / Structure, Equipment and Skill tree, on top of the panel ---- */
+.invTabs { display:flex; flex-wrap:wrap; gap:3px; justify-content:center; }
+.invTab { pointer-events:auto; background:#1f2636; color:#9ab; border:1px solid rgba(255,255,255,.12);
+          border-radius:6px; padding:3px 6px; font-size:11px; white-space:nowrap; cursor:pointer; }
+.invTab.on { background:#34405a; color:#eaf2ff; border-color:rgba(255,255,255,.3); }
+.invTab:hover:not(.on), .invTab.hover:not(.on) { background:#283247; }
+.invTab.hasPts { border-color:#ffd76a; color:#ffe9a8; }
+/* the furnace's (0.796): on top of the book while it is open, else on the panel, clear of the book button */
+.fbook > .invTabs { margin-bottom:6px; }
+#furnacePanel > .invTabs { margin-right:32px; }
 #equipPanel .skOpenBtn.hasPts { border-color:#ffd76a; color:#ffe9a8; }
 /* the skill tooltip's requirement ticks */
 #ctip .skOk { color:#9fe07a; }

@@ -84,55 +84,42 @@ legends: B = big update, M= medium update, S = small update
 82. M: ~~add chisel and make different type blocks, slab, stairs, pane, fences, hollow log~~s. v0.78
 83. S: ~~pig, fat, pork and food spoiling~~  v0.789
 84. M: ~~skill tree — spend levels~~. v0.79
-85. S: updating ui, adding simple quest to give xp v0.795
-86. B: Particles system v0.8
+85. M: ~~add variant mode system~~. 0.794 (should  be add when chisel update but i forget)
+86. S: ~~updating ui, adding simple quest to give xp~~ v0.795
+87. B: Particles system v0.8
 
 *Give it a hard pool cap and a per-frame budget from day one — phones are the constraint,*
 
 *and it has to emit per viewport in split screen (see the layer notes in 06-renderer.js).*
 
 87. S: fishes: cod, pike, salmon, catfish v0.805
-
-*-> M, and add BOATS + FISHING ROD here. Both vanished from the list in the last edit*
-
-*(0.99 is multiplayer now), and both are still in the utilities line at the bottom.*
-
-*Their natural home is next to the fish anyway.*
-
 88. M: weather and season system. v0.81
 89. S: cloud with dark version v0.815
-90. M: drinking and temperature system. v0.82
+90. M: drinking and temperature system with cloth armor. v0.82
 91. S: heatstroke and sandstorm weather. v0.825
 92. M: rain weather and snowing with snow carpet block v0.83
 93. S: ice block new mores biomes winter season. v0.835
 94. M: desert biome update with palm tree. v0.84
-95. S: hellhound spawning in desert v0.845
-96. M: jungle biome with jungle tree and cocoa beam. v0.85
-97. S: bear territorial , fat, quality oil v0.855
-98. M: bamboo biome  with bamboo trees. v0.86
-99. S: panda bear version but neutral.  v0.865
-100. M: swamp biome with mangrove trees. v0.87
-101. S: add kelp underwater 0.875
+95. S: hellhound spawning in desert, add more sandstone variants v0.845
+96. M: jungle biome with jungle tree and cocoa beans. v0.85
+97. S: bear territorial , fat, quality oil, cookies v0.855
+98. M: bamboo biome  with bamboo trees, door shape. v0.86
+99. S: panda bear version but neutral, give bamboo panda give panda love effect.  v0.865
+100. M: swamp biome with mangrove trees, mud v0.87
+101. S: add kelp underwater picking bush, 0.875
 102. M: cherry update with cherry tree. v0.88
-103. S: compass map spyglass with them functions 0.885
-104. M: farming system with seed and more plants. v0.89
-105. S: growing visual system v0.895
+103. S: belt, compass map spyglass with them functions 0.885
+104. M: volcano biome with a lot new block like blackstone, quartz ore with black quartz item 0.89
+105. S: boat and fishing rod system 0.895
 106. B: electric update add new ore and generator with full electric system v0.9
 107. S: steel with infuser machine v0.905
-108. M: volcano biome with a lot new block like blackstone, quartz ore with black quartz item 0.91
-109. S: small and simple skill trees 0.915
-
-*RE-AIMED (the base tree moved to 0.765): this becomes skill tree part 2 — the COMBAT*
-
-*category (melee damage, bow damage / draw speed, knockback resist, armour durability save)*
-
-*plus the machine and electric nodes, added once there is machine content to branch into*.
-
+108. M: farming system with seed and more plants. v0.91
+109. S: growing visual system v0.915
 110. M: electric furnace and fabricator machine with electric crafting, polymer and carbon fiber items v0.92
 111. S: resin, rubber, extractor tool and extractor machine v0.925
 112. M: bio fuel with bio generator and solar generator and wind generator v0.93
 113. S: electric cables and batteries v0.935
-114. M: crusher and ore powder v0.94
+114. M: crusher, skill part 2 v0.94
 115. S: electric mortal and pestle v0.945
 116. M: Pipe for fluid and item transfer v0.95
 117. S: fluid tank and item barrel v0.955
@@ -158,9 +145,13 @@ legends: B = big update, M= medium update, S = small update
 
 125. S: visual update like grass, water blending between biome v0.995
 126. B: sound effect with polishing fully performance and textures 1.0 FULL GAME! as beta version
-127. B: Achievements update 1.1
-128. B: animal update — breeding, gender, growing sizes, per-animal stats. v1.5
-129. 
+127. B: Achievements/quest update 1.1
+128. B: farming update better farm system with bee animal 1.2
+129. B: sky and moon update: add moon as own shape no flat plain, meteors shower and structure v1.3
+130. B: traveling update: like parachute, multiple people boat support v1.4
+131. B: animal update — breeding, gender, growing sizes, per-animal stats. v1.5
+132. 
+133. 
 
 *more textures per animal, male/female, babies that grow, and stats that differ per*
 

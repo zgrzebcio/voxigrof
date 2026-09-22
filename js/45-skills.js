@@ -98,7 +98,8 @@ function skillState(id) {
   const s = SKILL_BY_ID[id];
   if (!s) return 'locked';
   if (hasSkill(id)) return 'owned';
-  if (!s.req.every(hasSkill)) return 'locked';
+  // arrow, not every(hasSkill): every() passes the index as hasSkill's `p`, which made every requirement read unmet (0.793)
+  if (!s.req.every(r => hasSkill(r))) return 'locked';
   return skillPointsFree() >= s.cost ? 'ready' : 'poor';
 }
 function learnSkill(id) {
@@ -333,8 +334,8 @@ function _renderSkillPanel(sp) {
   }).join('');
   sp.innerHTML =
     '<div class="skHead">' +
-      '<button class="invBtn skBack">&larr; Back</button>' +
-      '<div class="ctitle">Skill tree</div>' +
+      '<div class="skTabsSlot"></div>' +                // the inventory's tabs, the way back out (0.795; was a Back button)
+      '<div class="ctitle"></div>' +                    // untitled since 0.796 (its tab is lit); still the spacer
       `<div class="skPts"><b>${free}</b> point${free === 1 ? '' : 's'} free <small>level ${lvl}</small></div>` +
     '</div>' +
     `<div class="skTabs">${tabs}</div>` +
@@ -342,7 +343,8 @@ function _renderSkillPanel(sp) {
       `<svg width="${L.width}" height="${L.height}">${lines}</svg>${nodes}` +
     '</div>' +
     '<div class="skHint">Click a skill twice to learn it &middot; points come from levels, learning keeps your level &middot; <b>K</b> to close</div>';
-  sp.querySelector('.skBack').addEventListener('click', () => { if (!dragHeld) closeSkillTree(); });
+  const invTabs = typeof invTabsEl === 'function' ? invTabsEl('skills') : null;
+  if (invTabs) sp.querySelector('.skTabsSlot').replaceWith(invTabs);
   for (const el of sp.querySelectorAll('.skTab'))
     el.addEventListener('click', () => { player._skillCat = el.dataset.cat; player._skillArm = null; buildInventory(); });
   for (const el of sp.querySelectorAll('.skNode'))
@@ -383,12 +385,14 @@ function skillTipHTML(id) {
 function getSkillElements() {
   if (typeof invOpen === 'undefined' || !invOpen) return [];
   const out = [];
-  const eq = invPanel('equipPanel');
-  if (eq && eq.style.display !== 'none')
-    for (const el of eq.querySelectorAll('.skOpenBtn')) out.push({ el, type: 'skill', tip: null });
+  // the inventory's tabs on whichever right-hand panel is up (0.795; they replaced the Skill tree button)
+  for (const id of ['equipPanel', 'furnacePanel', 'chestPanel', 'structPanel']) {
+    const p = invPanel(id);
+    if (p && p.style.display !== 'none') for (const el of p.querySelectorAll('.invTab')) out.push({ el, type: 'skill', tip: null });
+  }
   const sp = invPanel('skillPanel');
   if (sp && sp.style.display !== 'none') {
-    for (const el of sp.querySelectorAll('.skBack, .skTab')) out.push({ el, type: 'skill', tip: null });
+    for (const el of sp.querySelectorAll('.invTab, .skTab')) out.push({ el, type: 'skill', tip: null });
     for (const el of sp.querySelectorAll('.skNode')) out.push({ el, type: 'skill', tip: () => skillTipHTML(el.dataset.sk) });
   }
   return out;

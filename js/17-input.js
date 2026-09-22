@@ -286,7 +286,8 @@ document.addEventListener('wheel', (e) => {
   /* While the shape radial is open the wheel turns ITS pages and the hotbar stays put (0.7892) —
      the ring covers the hotbar anyway, so scrolling the selection under it is invisible work. */
   if (typeof chiselWheel === 'function' && chiselWheel(e.deltaY)) return;
-  hotbarSel = (hotbarSel + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
+  if (typeof variantWheel === 'function' && variantWheel(e.deltaY)) return;   // R held: the variant bar (0.7944)
+  hotbarSel =(hotbarSel + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
   updateHotbar();
 });
 // suppress the browser context menu everywhere while in-game (incl. fullscreen + inventory UI)
@@ -419,8 +420,12 @@ function invGamepad(g, dt, btn, edge) {
     // craft or inventory buttons (0.755), the furnace book and its tabs (0.775)
     // ...and the skill tree's tabs and skills (0.79)
     const b = el && el.closest ? el.closest('.cbtn, .invBtn, .cqSlot, .fbookBtn, #furnTabs .ctab, .skTab, .skNode') : null;
-    if (b) b.click();
+    // X held on a recipe counts a batch out on the cursor instead of ordering one; letting X go orders it (0.7992)
+    const row = b && b.classList.contains('cbtn') ? b.closest('.crow') : null;
+    if (row && row._recipe && btn(2) && typeof craftPickAdd === 'function') { pad.xCombo = true; craftPickAdd(row._recipe); }
+    else if (b) b.click();
   }
+  if (pad.prev[2] && !btn(2) && typeof craftPickOn === 'function' && craftPickOn()) { pad.xCombo = true; craftPickCommit(); }
   if (pad.prev[0] && !btn(0) && dragHeld) {                      // A release = drop
     if (hov) endDrag(hov.region, hov.i);
     else if (!(typeof tryRepairDrop === 'function' && tryRepairDrop(invCursor.x, invCursor.y))) cancelDrag();   // repair (0.79)
@@ -486,11 +491,26 @@ function pollGamepad(dt) {
     return { mx: 0, mz: 0, up: false, dn: false };
   }
 
+  /* The MENU owns the pad while it is up (0.7991, 48-menu-ui.js): the left stick drives its cursor, A
+     presses, the D-pad steps, B goes back and the right stick scrolls. Only Start still closes it, so
+     none of the in-world binds below (debug text, camera, dropping an item) fire behind the menu. */
+  if (typeof updateMenuPad === 'function' && (!playing || (typeof uiAskOpen === 'function' && uiAskOpen()))) {
+    const took = updateMenuPad(dt, btn, edge, g);
+    if (edge(9) && !(typeof uiAskOpen === 'function' && uiAskOpen())) setPlaying(!playing);
+    if (took) {
+      pad.prev = g.buttons.map(b => b.pressed);
+      pad.radialOpen = false;
+      act.padBreak = act.padPlace = act.padPick = false;
+      radialEl.style.display = 'none';
+      return { mx: 0, mz: 0, up: false, dn: false };
+    }
+  }
   // Start (9) toggles the menu (or closes the inventory); Back (8) fullscreen; B (1) inventory
   if (edge(9)) { if (invOpen) toggleInventory(false); else setPlaying(!playing); }
   if (edge(8)) toggleFullscreen();                // Back / Share
   if (edge(12)) toggleDebugHud(activePlayerSlot());   // D-pad Up hides this seat's debug text
   if (edge(14) && playing) cycleCameraView();         // D-pad Left cycles perspective (F2's twin)
+  player._variantHold = btn(15);                      // D-pad Right HELD: the bumpers step the variant bar (0.7944)
   /* D-pad Down drops one of the held item — the pad's twin of Y. Deliberately no stack modifier:
      every button that could serve as one already means something while playing (the triggers mine
      and place, the bumpers cycle the hotbar), and a mis-modified drop throws away a whole stack. */
@@ -561,8 +581,9 @@ function pollGamepad(dt) {
 
   /* Bumpers cycle the hotbar — but while the shape radial is open they turn its pages instead
      (0.7892), matching what the wheel does for mouse and keyboard. */
-  if (edge(4)) { if (!chiselRadialPage(-1)) { hotbarSel = (hotbarSel + HOTBAR.length - 1) % HOTBAR.length; updateHotbar(); } }
-  if (edge(5)) { if (!chiselRadialPage(1))  { hotbarSel = (hotbarSel + 1) % HOTBAR.length; updateHotbar(); } }
+  // ...and with D-pad Right held they step the variant bar instead (0.7944)
+  if (edge(4)) { if (!(player._variantHold && stepHeldVariant(-1)) && !chiselRadialPage(-1)) { hotbarSel = (hotbarSel + HOTBAR.length - 1) % HOTBAR.length; updateHotbar(); } }
+  if (edge(5)) { if (!(player._variantHold && stepHeldVariant(1))  && !chiselRadialPage(1))  { hotbarSel = (hotbarSel + 1) % HOTBAR.length; updateHotbar(); } }
 
   // double-tap A toggles flying (same rule as double-tap Space); L3 toggles sprint
   if (edge(0)) jumpTap();

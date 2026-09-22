@@ -328,8 +328,12 @@ function updateVitals(dt) {
 
   // timed effects count down first, so one that runs out this frame no longer boosts it (0.758)
   if (typeof tickPlayerEffects === 'function') tickPlayerEffects(dt);
-  // regen: kicks in above 12 food, doubles above 18; Rapid regen doubles it again
-  if (player.hp < playerMaxHP() && player.food > REGEN_FOOD_MIN) {
+  /* Regen: kicks in above 12 food, doubles above 18; Rapid regen doubles it again. It stops while
+     poisoned (0.797), and for a few seconds after ANY hit (0.7992) so a fight cannot be out-healed —
+     five seconds normally, two with Rapid regen running. */
+  const poisoned = typeof playerHasEffect === 'function' && playerHasEffect('poisonDps');
+  if (player._regenWaitT > 0) player._regenWaitT = Math.max(0, player._regenWaitT - dt);
+  if (!poisoned && !(player._regenWaitT > 0) && player.hp < playerMaxHP() && player.food > REGEN_FOOD_MIN) {
     const rate = REGEN_HP_PER_S * (player.food > REGEN_FAST_FOOD ? 2 : 1)
                * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1);
     player.hp = Math.min(playerMaxHP(), player.hp + rate * dt);
@@ -502,6 +506,9 @@ function updateVitals(dt) {
       const mult = armorDamageMultiplier();
       if (mult < 1) player.hp = Math.min(playerMaxHP(), dmgBase - lost * mult);
       damageArmorDurability(lost);             // wear follows how hard the hit was (0.756)
+      // ...and healing waits (0.7992): Rapid regen shortens the wait rather than ignoring it
+      const wait = (typeof playerHasEffect === 'function' && playerHasEffect('regenMul')) ? REGEN_HIT_WAIT_FAST : REGEN_HIT_WAIT;
+      player._regenWaitT = Math.max(player._regenWaitT || 0, wait);
     }
   }
   // void death
@@ -522,6 +529,7 @@ function updateVitals(dt) {
        actually opened, so creative's block palette, which lives in that same array, is never
        touched. Read before equipSlots is emptied, since that is where the pack itself sits. */
     const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+    _dropLifeOverride = DROP_LIFE_DEATH;         // everything a death spills lies 20 minutes (0.7981)
     for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length],
                               [equipSlots, equipSlots.length], [beltSlots, beltSlots.length],
                               [invSlots2, packN]])
@@ -536,6 +544,7 @@ function updateVitals(dt) {
       }
     // the crafting queue's ingredients were already taken from you, so they fall with the rest (0.76)
     if (typeof dropCraftQueueAt === 'function') dropCraftQueueAt(dx0, dy0, dz0);
+    _dropLifeOverride = 0;
     saveAll(); buildHotbar();
     if (invOpen) toggleInventory(false);
     showDeathScreen(player._dmgCause || 'died');

@@ -33,10 +33,11 @@ the create screen for a world without villages and dungeons.
 | Pick up grass, bushes, flint pebbles | Hold `E` | Hold Y |
 | Work a bench or mortar | Hold `E` (tap to take) | Hold Y (tap to take) |
 | Inventory | `Tab` | B (tap) |
-| Skill tree | `K` | Skill tree button in the equipment panel |
+| Skill tree | `K` | Skill tree tab on top of the right-hand panel |
 | Hotbar | `1`–`8` or mouse wheel | LB / RB |
 | Drop one / drop stack | `Y` / `Shift+Y` | D-pad Down / X + D-pad Down |
 | Shape wheel (hammer worn) | Hold `Q`, aim with the mouse, let go | Hold B, aim with the right stick, let go |
+| Pick a variant (hammer in Neck) | Hold `R` + mouse wheel | Hold D-pad Right + LB / RB |
 | Turn the shape wheel's page | Mouse wheel | LB / RB |
 | Pause menu | `Esc` | Start |
 | Fullscreen | `F1` | Back / Share |
@@ -52,7 +53,7 @@ cursor: A picks up and puts down, Y quick-moves, D-pad Down drops, and LB/RB fli
 Bare hands only break plants, leaves and furniture. Everything solid needs a tool, so the start
 of the game is about making your first flint tools.
 
-1. **Fiber.** Hold `E` on short grass, tall grass, wheat and berry bushes. Each pick has a chance to
+1. **Fiber.** Hold `E` on short grass, tall grass, wheat and berry bushes. Foraging needs both hands, so your offhand must be empty. Each pick has a chance to
    give fiber (grass 15%, wheat and ripe bushes 20%, bare bushes 30%). Fiber goes into every early
    recipe, so gather plenty.
 2. **Sticks.** Break leaves. About 2% of broken leaves drop sticks, and leaves that decay on their own
@@ -68,6 +69,21 @@ of the game is about making your first flint tools.
 7. **Furnace.** 12 cobblestone, crafted at the bench. Put fuel in the bottom slot and something to smelt
    in the top one.
 
+**Starter quests** in the top-right corner walk you through these steps one at a time, from your first
+fiber to one of every gem. Each shows what to get and how, and pays XP when it is done.
+
+Health stops regenerating for 5 seconds after any hit (2 with Rapid regen) and while you are poisoned.
+Milk goes off in 10 minutes and leaves the bucket, meat leaves rotten flesh, and a pumpkin is food that
+keeps 4 hours and can no longer be planted.
+
+A crafting bench or mortar needs its top clear: with a block or plant standing on it, it will not open,
+and an order on it cannot be worked or taken. A craft you are part way through is kept when you let go,
+walk away or leave the world.
+
+Dropped items stay where they fall, even when you walk away and the area unloads. Their time only runs
+while you are near: everything you carried lies 20 minutes after you die, what you throw down 10,
+anything else 5.
+
 Watch your hunger and air. Starving and drowning hurt, and drowning hurts more with every hit.
 Zombies and skeletons come out at night and burn up at sunrise. Food you carry also goes off in
 time — see [Food and spoiling](#food-and-spoiling).
@@ -81,11 +97,11 @@ death: your level is a record of what you have done.
 A kill pays a base for what the creature is **plus its level** (every creature rolls a level of
 1–50): animals 20, villagers 30, monsters 40. A level-1 cow is 21, a level-50 zombie is 90.
 
-Each level costs three times the last — 40, 120, 360, 1080 — so a level is meant to be an
+Each level costs three times the last — 30, 90, 270, 810 — up to level 50, so a level is meant to be an
 achievement rather than something that ticks over.
 
 **Every level is one skill point.** Spending points does not spend levels. Open the tree with `K`,
-or with the **Skill tree** button on the equipment panel, which shows how many points are free.
+or with the **Skill tree** tab on top of the right-hand panel, which shows how many points are free. With a furnace, chest or structure block open, the same tabs switch that panel to **Equipment** and back.
 Pick a category tab, then click a skill **twice** — the first click arms it, the second learns it,
 because there is no way to unlearn one.
 
@@ -134,7 +150,8 @@ commit to it.
 
 - **From the inventory:** clicking a recipe adds one craft to your crafting queue under the recipe
   list. The queue has 6 slots and each slot is one craft; `Shift+click` fills every empty slot you
-  can afford. The queue keeps working while the inventory is closed — it shows faintly in the hotbar
+  can afford, and holding `Ctrl` (pad **X**) while clicking counts a batch out on the cursor — let go to
+  order them all, right click to drop it. The queue keeps working while the inventory is closed — it shows faintly in the hotbar
   row, just left of the offhand slot — but you walk slower and cannot sprint until it is done. Click
   a queued slot to cancel it, or **Cancel all**; unfinished crafts give their ingredients back.
 - **At a crafting bench:** pick a recipe and the bench takes the ingredients. The order floats over
@@ -210,6 +227,11 @@ diamond need bronze or better; obsidian needs diamond. Mining an ore with too we
 nothing. Iron, copper, tin, gold, diamond and the gem ores glow faintly, so they are easier to spot
 in the dark. **Prospector** adds one more of the ore to every ore block you break.
 
+**Gems grow as clusters.** Diamond, ruby, topaz, sapphire and emerald are not buried in the rock: they
+grow, rarely, as crystal clusters on cave floors, ceilings and walls in their depth range, on a bed of the rock they grow from (stone, granite, marble or limestone; their own ore stone on anything else) (emerald also on
+open mountain rock). Break the block a cluster grows from and the cluster drops as an item, not as gems,
+so you still need a bronze pickaxe. A cluster item can be placed on any face.
+
 Marble, granite and limestone come as big patches in stone — granite below y 60, marble and
 limestone in the middle depths — and any pickaxe takes them.
 
@@ -219,6 +241,10 @@ Food goes off while you **carry** it. Every food has a shelf life, and the bar u
 much of it is left; the tooltip gives the time in minutes and seconds. At zero, one item of the stack
 is lost — the feed says "spoiled" — and the clock starts again on the next one, so a stack rots one
 at a time.
+
+**Yellow berries are poisonous.** Yellow berry bushes grow among the red and blue ones, a little
+rarer. Their berries fill you like the others, but eating one poisons you for 10 seconds: you lose
+half a health point a second, and your health does not regenerate meanwhile, down to your last half heart but never past it. Running effects show as small slots right of the hotbar, with the seconds left.
 
 - **Chests do not tick.** Anything in storage keeps, and comes back out with the time it went in.
 - Stacking two lots of the same food takes the **shorter** clock, so fresh meat never refreshes old.
@@ -285,8 +311,17 @@ A cover placed over a hole becomes a lid flush with the ground; in a doorway (wa
 sits flush with the wall on your side; anywhere else it lies against the face you clicked. Mobs
 fall through it too.
 
-The old **chisel** did this job before the hammer and can no longer be made; one already in a save
+The **chisel** can be crafted again at the bench: worn in the Neck slot it unlocks block variants, and in
+the Others slot it picks shapes like the hammer. One already in a save
 still works.
+
+**Variants.** With a hammer worn in the Neck slot, five slots above the health bar show the other
+looks of the block in your hand, drawn in the picked shape, the plain block in the middle. Hold `R`
+and scroll, or hold D-pad Right and press LB / RB, to step through them. The
+pick changes every one of that block you carry (no separate stacks), is not saved, and a variant
+breaks back into the plain block. Stone: brick, mossy brick, cracked brick. Cobblestone: mossy.
+Sulfur block, granite, marble, limestone: brick. Variants take the same shapes as stone brick.
+Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble or limestone bed.
 
 ## Rare and special materials
 

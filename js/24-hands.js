@@ -214,9 +214,11 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   /* sync held item */
   const slot  = HOTBAR[hotbarSel];
   const curId = slot ? slot.id : null;
-  // a block the chisel would shape is held in that shape (0.783)
-  const curVar = curId != null && typeof chiselHeldVariant === 'function' ? chiselHeldVariant(curId) : 0;
-  if (curId !== _heldId || curVar !== _heldVar) _rebuildHeld(curId, curVar);
+  // held as its picked variant (0.794), and a block the chisel would shape in that shape (0.783)
+  const curBlk = curId != null && typeof heldBlockOf === 'function' ? heldBlockOf(curId) : curId;
+  const curVar = (curBlk != null && typeof chiselHeldVariant === 'function' ? chiselHeldVariant(curBlk) : 0)
+    || (curId != null && typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(curId) : 0);   // a cluster's bed (0.7948)
+  if (curBlk !== _heldId || curVar !== _heldVar) _rebuildHeld(curBlk, curVar);
   const hasItem = curId !== null;
   const heldIsFood = curId !== null && ITEM_PROPS[curId]?.food > 0;
 

@@ -87,6 +87,14 @@ const TEXTURES = {
   melon_side:           'textures/Blocks/Plants/melon_side.png',
   bricks:               'textures/Blocks/Decorations/bricks.png',
   stone_brick:          'textures/Blocks/Decorations/stone_bricks.png',
+  // variant looks (0.7941); the granite, marble and limestone bricks were made from stone_bricks' layout
+  mossy_stone_brick:    'textures/Blocks/Decorations/mossy_stone_bricks.png',
+  cracked_stone_brick:  'textures/Blocks/Decorations/cracked_stone_bricks.png',
+  mossy_cobblestone:    'textures/Blocks/Decorations/mossy_cobblestone.png',
+  sulfur_bricks:        'textures/Blocks/Decorations/sulfur_bricks.png',
+  granite_bricks:       'textures/Blocks/Decorations/granite_bricks.png',
+  marble_bricks:        'textures/Blocks/Decorations/marble_bricks.png',
+  limestone_bricks:     'textures/Blocks/Decorations/limestone_bricks.png',
   birch_log:            'textures/Blocks/Woods/birch_log.png',
   birch_log_top:        'textures/Blocks/Woods/birch_log_top.png',
   birch_planks:         'textures/Blocks/Woods/birch_planks.png',
@@ -139,6 +147,7 @@ const TEXTURES = {
   berry_bush_fruitling:     'textures/Billboards/Plants/Berry_bush/fruitling_berry_bush_.png',
   berry_bush_red:           'textures/Billboards/Plants/Berry_bush/redberry_bush.png',
   berry_bush_blue:          'textures/Billboards/Plants/Berry_bush/blueberry_bush.png',
+  berry_bush_yellow:        'textures/Billboards/Plants/Berry_bush/yellowberry_bush.png',   // 0.7947, from the red one
   // flint stone (0.732) — PLACEHOLDER art: blackstone, which was already in the repo and unused.
   // Swap both of these for a real flint texture when one exists; nothing else has to change.
   flint_rock:               'textures/Blocks/Natures/blackstone.png',
@@ -191,6 +200,7 @@ const ITEM_TEXTURES = {
   melon_slice:   'textures/Items/Consumables/melon_slice.png',
   redberries:    'textures/Items/Consumables/redberries.png',
   blueberries:   'textures/Items/Consumables/blueberries.png',
+  yellowberries: 'textures/Items/Consumables/yellowberries.png',   // 0.7947, from the red ones
   brick:         'textures/Items/Materials/brick.png',
   potato:        'textures/Items/Plants/potato.png',
   potato_bake:   'textures/Items/Consumables/baked_potato.png',

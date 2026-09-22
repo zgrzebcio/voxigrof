@@ -149,12 +149,16 @@ function _dropLightHook(_r, _s, _c, _g, material) {
 const DROPS = [];
 const DROP_SCALE = 0.28, DROP_HALF = DROP_SCALE / 2;
 const DROP_GRAVITY = 20, DROP_PICKUP_R = 1.6, DROP_LIFETIME = 300;
+/* How long a drop lies before it goes (0.7981), counted ONLY while its chunk is simulated: 5 minutes for
+   anything mined or knocked loose, 10 for what you threw down yourself, 20 for what you dropped by dying. */
+const DROP_LIFE_THROWN = 600, DROP_LIFE_DEATH = 1200;
+var _dropLifeOverride = 0;                 // set around a death, so every drop it spills (queue included) lasts 20 min
 const DROP_REST_LIFT = 0.22;               // extra height above the block top when grounded
 const DROP_HOP_AMP  = 0.025;               // very subtle bob — user asked for slow, not jumpy
 const DROP_HOP_HZ   = 1.1;                 // ~5.7s per full up-down cycle
 const DEFAULT_PICKUP_DELAY = 0.35;
 const PLAYER_DROP_PICKUP_DELAY = 1.5;      // player-tossed items refuse re-pickup for this long
-function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null) {
+function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null, life = 0) {
   const passes = buildDropGeom(id);
   if (!passes.length) return null;
   const group = new THREE.Group();
@@ -179,6 +183,7 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
     pickupDelay,
     dur,                                   // tool wear carried through the drop (null for non-tools)
     meta,                                  // ...and its extras — spoilage clock, Well made (slotMeta, 0.79)
+    life: life || _dropLifeOverride || DROP_LIFETIME,   // seconds it lies before it goes (0.7981)
   };
   DROPS.push(rec);
   return rec;
@@ -196,7 +201,7 @@ function throwFromPlayer(id, count, dur = null, meta = null) {
       x: forward.x * 5.5 + (Math.random() - 0.5) * jitter,
       y: 3.6 + (Math.random() - 0.5) * 0.3,
       z: forward.z * 5.5 + (Math.random() - 0.5) * jitter,
-    }, PLAYER_DROP_PICKUP_DELAY, dur, meta);
+    }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN);   // thrown down by you: 10 minutes (0.7981)
     // spawnDrop centres on the cell midpoint; nudge back to the true throw origin
     const rec = DROPS[DROPS.length - 1];
     if (rec) rec.group.position.set(spawnX, spawnY, spawnZ);
@@ -319,9 +324,18 @@ function updateProjectiles(dt) {
 function updateDrops(dt) {
   for (let i = DROPS.length - 1; i >= 0; i--) {
     const d = DROPS[i];
+    const p = d.group.position;
+    /* A drop keeps to its chunk like a mob does (0.7981). Out of the loaded world it is hidden and left
+       exactly where it is; loaded but outside the simulation radius it is drawn, still, with its clock
+       stopped. It used to keep falling and ageing out there: with the chunk under it unloaded the ground
+       read as air, so it dropped through the world and was deleted, and far off its time ran out anyway. */
+    const dcx = Math.floor(p.x / 16), dcz = Math.floor(p.z / 16);
+    const dch = getChunk(dcx, dcz);
+    const loaded = !!(dch && dch.data);
+    if (d.group.visible !== loaded) d.group.visible = loaded;
+    if (!loaded || !inSimRangeChunk(dcx, dcz)) continue;
     d.age += dt;
     d.group.rotation.y += 1.7 * dt;
-    const p = d.group.position;
     // ---- water: buoyancy floats the drop up to the surface; current carries it along ----
     const wbx = Math.floor(p.x), wby = Math.floor(p.y), wbz = Math.floor(p.z);
     const inWater = (getBlock(wbx, wby, wbz) & 255) === B.WATER;
@@ -398,7 +412,7 @@ function updateDrops(dt) {
       }
       if (taker && withPlayer(taker, () => tryPickup(d.id, d.dur ?? null, 'picked up', d.meta ?? null))) { removeDrop(i); continue; }
     }
-    if (d.age > DROP_LIFETIME) removeDrop(i);
+    if (d.age > (d.life || DROP_LIFETIME)) removeDrop(i);
   }
 }
 

@@ -128,7 +128,10 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'raw_iron_block', 'raw_gold_block', 'raw_tin_block', 'raw_copper_block'
                      ,'topaz_ore', 'topaz_block', 'sandstone_top', 'sandstone', 'sandstone_bottom'   // 0.769
                      ,'red_sandstone_top', 'red_sandstone', 'red_sandstone_bottom', 'fiber_block', 'ladder'
-                     ,'blue_mushroom'];                               // 0.7691
+                     ,'blue_mushroom'                                 // 0.7691
+                     ,'mossy_stone_brick', 'cracked_stone_brick', 'mossy_cobblestone', 'sulfur_bricks'   // variants, 0.7941
+                     ,'granite_bricks', 'marble_bricks', 'limestone_bricks'
+                     ,'berry_bush_yellow'];                           // 0.7947
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
 
 // glowstone uses the embedded texture if present; otherwise a procedural warm-speckle fallback

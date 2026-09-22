@@ -43,7 +43,7 @@ const mkSlot    = (id, n = 1) => {
   const d = id >= 256 ? ITEM_PROPS[id]?.durability : null;
   const s = d ? { id, count: n, dur: d } : { id, count: n };
   // food comes into the world fresh; `fresh` is its spoilage clock in seconds (0.789, 44-spoil.js)
-  const f = id >= 256 ? ITEM_PROPS[id]?.spoil : null;
+  const f = typeof spoilMax === 'function' ? spoilMax(id) : (id >= 256 ? ITEM_PROPS[id]?.spoil : null);   // blocks too (0.7992)
   if (f) s.fresh = f;
   return s;
 };
@@ -93,20 +93,24 @@ const CREATIVE_ORDER = [
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
-  B.MARBLE, B.GRANITE, B.LIMESTONE, B.STONE_BRICK, B.BRICKS,
+  B.MARBLE, B.GRANITE, B.LIMESTONE, B.BRICKS,
   B.GLASS, B.GLOWSTONE, B.WOOL,
-  B.COAL_ORE, B.IRON_ORE, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE, B.DIAMOND_ORE,
-  B.SULFUR_BLOCK, B.OBSIDIAN, B.CACTUS,
-  B.CRAFTING_BENCH, B.FURNACE, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.STRUCTURE_BLOCK,
-  B.MELON, B.PUMPKIN, B.SUGAR_CANE, B.TORCH, B.SULFUR_UP_TIP,
+  // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
+  B.COAL_ORE, B.IRON_ORE, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
+  B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE,
+  // storage blocks in ore order: the topaz block right after sapphire's, then the raw metals (0.7947)
+  B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.TIN_BLOCK, B.COPPER_BLOCK,
+  B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.RUBY_BLOCK, B.SAPPHIRE_BLOCK, B.TOPAZ_BLOCK,
+  B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK,
+  B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.OBSIDIAN,
+  B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
+  B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
+  B.MELON, B.PUMPKIN, B.SUGAR_CANE, B.TORCH,
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
-  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.FLINT_ROCK,
-  B.GLOW_VINE, B.GLOWCRYSTAL_BLOCK,
-  B.COBWEB, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE,
-  ...STORAGE_BLOCK_IDS,
-  B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.LADDER, B.MORTAR,
+  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.FLINT_ROCK,
+  B.GLOW_VINE, B.COBWEB,
 ];
 function _defaultCreativeInventory() {
   const rank = new Map();
@@ -162,7 +166,7 @@ function _validateSlot(v) {
     // 0 is a broken tool kept by Mender (0.79), not a corrupt one: it comes back broken, not repaired
     if (maxD) out.dur = Number.isInteger(v.dur) && v.dur >= 0 && v.dur <= maxD ? v.dur : maxD;
     // ...and its freshness (0.789). A save written before food spoiled has none: it comes back fresh
-    const maxF = v.id >= 256 ? ITEM_PROPS[v.id]?.spoil : null;
+    const maxF = typeof spoilMax === 'function' ? spoilMax(v.id) : (v.id >= 256 ? ITEM_PROPS[v.id]?.spoil : null);   // 0.7992
     if (maxF) out.fresh = Number.isFinite(v.fresh) && v.fresh >= 0 && v.fresh <= maxF ? v.fresh : maxF;
     if (maxD && v.wm) out.wm = 1;                  // Well made only means anything on something that wears (0.79)
     return out;
@@ -304,6 +308,7 @@ BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
 BUSH_NAME[B.REDBERRY_BUSH] = 'red berry bush';
 BUSH_NAME[B.BLUEBERRY_BUSH] = 'blue berry bush';
+BUSH_NAME[B.YELLOWBERRY_BUSH] = 'yellow berry bush';
 BUSH_NAME[B.FLINT_ROCK] = 'flint pebble';
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
@@ -311,6 +316,7 @@ BUSH_NAME[B.PUMPKIN] = 'pumpkin';
 const BERRY_FRUIT = [];
 BERRY_FRUIT[B.REDBERRY_BUSH] = ITEM.BERRIES;
 BERRY_FRUIT[B.BLUEBERRY_BUSH] = ITEM.BLUE_BERRIES;
+BERRY_FRUIT[B.YELLOWBERRY_BUSH] = ITEM.YELLOW_BERRIES;   // poisonous (0.7947)
 /* Berry bush (0.698). Picking a GROWN bush takes the fruit and leaves the plant standing at
    `empty`, so it regrows (33-felling.js) instead of being consumed — a bush is a renewable
    patch, not a one-shot pickup. An unripe bush yields nothing but a better fiber roll, since
@@ -346,6 +352,9 @@ function findBushPickup() {
      likely to be holding by accident. Creative removes them with the crosshair instead, which is
      why raycastVoxel stops on plants in that mode. */
   if (player.canFly) return null;
+  /* Foraging takes BOTH hands (0.7992): whatever the offhand is holding — a torch, a shield — is in the
+     way, so nothing can be picked until that slot is empty. */
+  if (typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined' && equipSlots[EQUIP_INDEX.offhand]) return null;
   const p = player.pos, r = player.R * BUSH_REACH;
   const y0 = Math.floor(p.y);
   const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r);
@@ -643,7 +652,8 @@ function _doPlace() {
   if (hit.id === B.STRUCTURE_BLOCK) { openStructureBlock(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // survival only, same as the bench and the furnace — in creative a chest is just a block to build with
   if (!player.canFly && hit.id === B.CHEST) { openChest(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
-  const heldId = slotId(HOTBAR[hotbarSel]);
+  // a block with a variant picked places as that variant: stone as stone brick (0.794, 46-variants.js)
+  const heldId = heldBlockOf(slotId(HOTBAR[hotbarSel]));
   // buckets: fill empty bucket from a water source, or pour a water source from a full one
   if (heldId === ITEM.BUCKET || heldId === ITEM.WATER_BUCKET || heldId === ITEM.LAVA_BUCKET) { useBucket(heldId, hit); return; }
   // sulfur tip: only placeable on the top or bottom face of a sulfur block.
@@ -657,6 +667,23 @@ function _doPlace() {
     const varb = hit.ny === 1 ? 0 : 1;
     setBlock(px, py, pz, B.SULFUR_UP_TIP | (varb << 8));
     playBlockSound(B.SULFUR_UP_TIP, 'place', px, py, pz);
+    handPlaceSwing = true;
+    spendHeld("placed");
+    return;
+  }
+  /* A gem cluster (0.7945) grows on the face you click — floor, ceiling or wall — pointing away from it,
+     and only off a solid block, as it grows in a cave. */
+  if (heldId != null && heldId < 256 && PROPS[heldId]?.model === 'cluster') {
+    if (isNoTargetPlant(hit.id) || !isSolid(hit.x, hit.y, hit.z)) return;
+    const px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
+    const cur = getBlock(px, py, pz) & 255;
+    if (!isPlaceableInto(cur)) return;
+    const o = hit.ny === 1 ? 0 : hit.ny === -1 ? 1 : hit.nx === 1 ? 2 : hit.nx === -1 ? 3 : hit.nz === 1 ? 4 : 5;
+    if (isPlantReplaceable(cur)) clearPlantAt(px, py, pz);
+    // one of the four looks (0.7946), on the bed picked on the variant bar (0.7948)
+    const bed = typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(slotId(HOTBAR[hotbarSel])) : 0;
+    setBlock(px, py, pz, heldId | ((o | ((Math.random() * 4 | 0) << 3) | bed) << 8));
+    playBlockSound(heldId, 'place', px, py, pz);
     handPlaceSwing = true;
     spendHeld("placed");
     return;
@@ -736,11 +763,13 @@ function _doPlace() {
     return;
   }
   const slot = HOTBAR[hotbarSel];
-  let id = slotId(slot);
+  let id = heldBlockOf(slotId(slot));
   if (id == null) return;                                  // empty hotbar slot -> nothing to place
   // items that place a block when used (sugar cane item -> sugar cane block)
   if (id === ITEM.SUGAR_CANE) id = B.SUGAR_CANE;
   if (id >= 256) return;                                   // items (sticks, etc.) are not placeable
+  // food you carry rather than build with (0.7992: the pumpkin). Creative still plants them.
+  if (PROPS[id].noPlace && !player.canFly) { feedWarn(`${PROPS[id].name} cannot be planted`); return; }
   // billboards (torch, mushrooms, any cross model): any face works, but the target cell
   // must sit on a solid block (matches the support-break rule in setBlock)
   // ...except a torch clicked onto the SIDE of a solid block, which hangs on that wall (0.7451)

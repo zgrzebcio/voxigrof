@@ -104,6 +104,7 @@ function _furnaceAsh(k, f, points) {
   _refreshFurnaceSlots(k);
 }
 
+const PROGRESS_COOL_SEC = 20;    // seconds an unfuelled smelt takes to slide back to nothing (0.7992)
 function updateFurnaces(dt) {
   _crackleTick = performance.now();
   const burning = new Set();
@@ -142,7 +143,12 @@ function updateFurnaces(dt) {
         f.xp += rec.xp;
         _refreshFurnaceSlots(k);
       }
-    } else f.progress = 0;
+    } else if (f.progress > 0) {
+      /* The smelt cools off instead of snapping back to zero (0.7992): out of fuel, or the input taken
+         away, it slides back over PROGRESS_COOL_SEC — long enough to feed the fire another coal and
+         carry on from close to where it was. */
+      f.progress = Math.max(0, f.progress - dt / PROGRESS_COOL_SEC);
+    }
     if (lit !== f.lit) {                                     // swap the front face + light on/off
       f.lit = lit;
       const facing = (getBlock(x, y, z) >> 8) & 3;           // keep the rotation bits
@@ -192,13 +198,12 @@ function buildFurnacePanel() {
   const panel = invPanel('furnacePanel');
   if (!panel) return;
   const f = activeFurnace && FURNACES.get(activeFurnace);
-  if (!f) { panel.style.display = 'none'; return; }
+  if (!f || invRightTab() !== 'furnace') { panel.style.display = 'none'; return; }   // or another tab is up (0.795)
   panel.style.display = 'flex';
   const bar = (cls) =>
     `<div class="fbar ${cls}"><img class="fbase" src="textures/Gui/Interactables/Lit_progress.png" alt="">` +
     `<div class="ffill"><img src="textures/Gui/Interactables/Lit_progress.png" alt=""></div></div>`;
-  panel.innerHTML =
-    `<div class="ctitle">Furnace</div>` +
+  panel.innerHTML =                                         // untitled since 0.796: the Furnace tab names it
     `<button class="fbookBtn${furnBookOpen ? ' sel' : ''}" title="Smelting book">` +
       `<img src="textures/Items/Materials/book.png" alt=""></button>` +
     `<div id="furnGrid">` +
@@ -215,20 +220,34 @@ function buildFurnacePanel() {
       `</div>` +
     `</div>` +
     (furnBookOpen ? _furnBookHtml() : '');
+  // Furnace / Equipment / Skill tree (0.795) — on the very top: over the book while it is open (0.796)
+  addInvTabs(panel.querySelector('.fbook') || panel, 'furnace');
   panel.classList.toggle('bookOpen', furnBookOpen);         // squares the top corners where the book joins (0.7761)
   panel.querySelector('.fbookBtn').addEventListener('click', () => { furnBookOpen = !furnBookOpen; buildFurnacePanel(); });
   for (const tab of panel.querySelectorAll('#furnTabs .ctab'))
     tab.addEventListener('click', () => { furnBookCat = tab.dataset.cat; _furnBookScroll = 0; buildFurnacePanel(); });
   const list = panel.querySelector('.fbList');
   if (list) {
-    /* the book floats above the panel (0.776) so the slots never move; shrink the list when the panel
-       sits too close to the top of the screen for the full height */
-    const room = panel.getBoundingClientRect().top - 12 - (panel.querySelector('.fbook').offsetHeight - list.offsetHeight) - 6;
-    list.style.height = Math.max(120, Math.min(320, room)) + 'px';
     list.scrollTop = _furnBookScroll;
     list.addEventListener('scroll', () => { _furnBookScroll = list.scrollTop; });
+    _sizeFurnBook(panel);
+    /* ...and again once the frame has laid out (0.796). Opening a furnace with the book already open builds
+       this panel before the inventory is shown and slid into place, so the first measurement read a panel
+       that was not where it would be, found no room above it and squeezed the list to its minimum. */
+    requestAnimationFrame(() => _sizeFurnBook(panel));
   }
   _updateFurnaceBars();
+}
+/* The book floats above the panel (0.776) so the slots never move; its list shrinks when the panel sits too
+   close to the top of the screen for the full height. */
+function _sizeFurnBook(panel) {
+  const book = panel.querySelector('.fbook'), list = panel.querySelector('.fbList');
+  if (!book || !list || !panel.isConnected || panel.style.display === 'none') return;
+  const top = panel.getBoundingClientRect().top;
+  if (!top) return;                                          // not laid out yet: the next frame sizes it
+  const room = top - 12 - (book.offsetHeight - list.offsetHeight) - 6;
+  list.style.height = Math.max(120, Math.min(320, room)) + 'px';
+  list.scrollTop = _furnBookScroll;
 }
 
 /* ---- smelting book (0.775) ----

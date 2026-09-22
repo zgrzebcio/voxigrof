@@ -13,7 +13,7 @@
 
 const EQUIP_SLOTS = [
   { key: 'helmet',      label: 'Helmet',      col: 'l', accepts: 'helmet'     },
-  { key: 'necklace',    label: 'Necklace',    col: 'l', accepts: null         },
+  { key: 'necklace',    label: 'Necklace',    col: 'l', accepts: 'necklace'   },   // for now the hammer, which unlocks variants (0.794)
   { key: 'chestplate',  label: 'Chestplate',  col: 'l', accepts: 'chestplate' },
   { key: 'leggings',    label: 'Leggings',    col: 'l', accepts: 'leggings'   },
   { key: 'boots',       label: 'Boots',       col: 'l', accepts: 'boots'      },
@@ -66,6 +66,8 @@ function equipAccepts(slotIdx, id) {
   const want = EQUIP_SLOTS[slotIdx] && EQUIP_SLOTS[slotIdx].accepts;
   if (want === 'offhand' && id != null && OFFHAND_BLOCKS.has(id)) return true;   // a torch
   if (!want || id == null || id < 256) return false;
+  // no necklace exists yet: the neck holds a hammer or chisel for the time being, which unlocks block variants (0.794)
+  if (want === 'necklace') return typeof CHISEL_TOOLS !== 'undefined' && CHISEL_TOOLS.includes(id);
   return ITEM_PROPS[id]?.equip === want;
 }
 
@@ -199,14 +201,20 @@ function activeEffects() {
    seconds remaining. A food with `foodEffect` starts one, and eating another restarts the clock rather
    than stacking a second copy. */
 const EFFECT_DEFS = {
-  rapidRegen:   { name: 'Rapid regen',   time: 8,  good: true, regenMul: 2,                          // golden apple
+  // `icon`: what the effect bar beside the hotbar shows for it (0.797) — an emoji until each has a sprite
+  rapidRegen:   { name: 'Rapid regen',   time: 20, good: true, regenMul: 2, icon: '💖',              // golden apple; 8s until 0.7992
                   desc: 'Health regenerates twice as fast, and food heals twice as much.' },
   // cooked pumpkin pie (0.761): +20% crafting speed and +5% move speed
-  spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05,
+  spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05, icon: '🌶️',
                   desc: 'Crafting speed +20% and move speed +5%.' },
   // raw food, rotten flesh (0.761): hunger drains twice as fast and the view sways (22-main-loop.js)
-  nausea:       { name: 'Nausea',        time: 10, good: false, hungerMul: 2, sway: true,
+  nausea:       { name: 'Nausea',        time: 10, good: false, hungerMul: 2, sway: true, icon: '🤢',
                   desc: 'Hunger drains twice as fast, and your view sways and drifts.' },
+  /* yellow berries (0.7947): half a health point a second, 5 over the whole of it. A slow drip, so armor
+     does not soak it (that needs half a point in one frame, 19-vitals.js), and it stops at 1: poison
+     alone never kills you. */
+  poison:       { name: 'Poison',        time: 10, good: false, poisonDps: 0.5, announce: 'You feel poisoned', icon: '☠️',
+                  desc: 'You slowly lose health while it lasts. It cannot take your last half heart.' },
 };
 // sum of one numeric field over this player's running effects (0.761)
 const _effectSum = (field) => (player.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.[field] || 0), 0);
@@ -223,6 +231,7 @@ function addPlayerEffect(id) {
   const t = d.time * ((typeof hasSkill === 'function' && hasSkill('lingering')) ? 1.25 : 1);   // Lingering (0.79)
   const e = list.find(x => x.id === id);
   if (e) e.left = t; else list.push({ id, left: t });
+  if (d.announce && typeof feedWarn === 'function') feedWarn(d.announce);   // a bad one says so as it lands (0.7947)
   if (invOpen) buildEquipPanel();
 }
 // counts down; the equipment panel is rebuilt only when a shown second changes or an effect ends
@@ -236,7 +245,45 @@ function tickPlayerEffects(dt) {
     if (e.left <= 0) { list.splice(i, 1); changed = true; }
     else if (Math.ceil(e.left) !== shown) changed = true;
   }
+  /* Poison (0.7947) drips health away, never below 1. Since 0.7992 it also LOOKS like damage: the drip
+     is gathered up and, every time half a point has gone, the screen flashes red as any other hit does —
+     anything else that hurts over time gets the same for free. */
+  const dps = _effectSum('poisonDps');
+  if (dps > 0 && !player.dead && player.hp > 1) {
+    const before = player.hp;
+    player.hp = Math.max(1, player.hp - dps * dt);
+    player._effDmgAcc = (player._effDmgAcc || 0) + (before - player.hp);
+    if (player._effDmgAcc >= 0.5) {
+      if (typeof hurtFlash === 'function') hurtFlash(player._effDmgAcc);
+      if (typeof playSound === 'function') playSound('hit', { gain: 0.3 });
+      player._effDmgAcc = 0;
+    }
+    if (typeof vitalsDirty !== 'undefined') vitalsDirty = true;
+  }
   if (changed && invOpen) buildEquipPanel();
+}
+/* THE EFFECT BAR (0.797): every running timed effect as a half-size slot right of the hotbar — its icon and
+   the seconds left, green-edged when good, red when bad. Per frame, per seat, from the main loop beside the
+   chisel slot; it lives INSIDE #hotbar so split screen carries it along, and buildHotbar clearing it is
+   fine, this puts it back. Redrawn only when a shown second (or the list) changes. */
+function syncEffectBar() {
+  if (typeof hotbarEl === 'undefined' || !hotbarEl) return;
+  const list = (!player.canFly && !player.dead && player.effects) || [];
+  let bar = hotbarEl.querySelector(':scope > .effBar');
+  if (!list.length) { if (bar) bar.remove(); return; }
+  const chisel = !!hotbarEl.querySelector(':scope > .chiselSlot');   // it sits after the chisel's slot, if that is out
+  const t = (s) => s >= 60 ? Math.ceil(s / 60) + 'm' : Math.ceil(s) + 's';
+  const key = (chisel ? 'c|' : '|') + list.map(e => e.id + ':' + t(e.left)).join(',');
+  if (bar && bar._key === key) return;
+  if (!bar) { bar = document.createElement('div'); bar.className = 'effBar'; hotbarEl.appendChild(bar); }
+  bar._key = key;
+  bar.classList.toggle('afterChisel', chisel);
+  bar.innerHTML = list.map(e => {
+    const d = EFFECT_DEFS[e.id];
+    if (!d) return '';
+    return `<div class="effSlot${d.good === false ? ' bad' : ' good'}" title="${d.name}">` +
+           `<i>${d.icon || '✨'}</i><b>${t(e.left)}</b></div>`;
+  }).join('');
 }
 // multiplier on health regen, and on the instant heal of a food eaten while the effect runs
 const playerRegenMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT_DEFS[e.id]?.regenMul || 1), 1);
@@ -330,6 +377,9 @@ function offhandTopUp(id, n, fresh = null) {
 // the equipment slot an item or block belongs in, torches included, or -1 (0.7522)
 function equipSlotFor(id) {
   if (id == null) return -1;
+  // an item's own slot first, so the hammer still goes to Others and only reaches the neck when dragged (0.794)
+  const own = id >= 256 ? EQUIP_SLOTS.findIndex(s => s.accepts === ITEM_PROPS[id]?.equip) : -1;
+  if (own >= 0) return own;
   for (let k = 0; k < EQUIP_SLOTS.length; k++) if (equipAccepts(k, id)) return k;
   return -1;
 }
@@ -561,7 +611,8 @@ function buildEquipPanel() {
      this panel for a furnace, chest or structure block, but its direct callers did not: armour
      wearing down from a hit, a shield blocking, a torch placed from the offhand. So taking a blow
      with a chest open popped the equipment panel up over the chest. */
-  if (player.canFly || activeFurnace || activeChest || activeStructBlock) { panel.style.display = 'none'; return; }
+  // ...and since 0.795 a tab can put it back over them: it shows exactly when the Equipment tab is the one up
+  if (player.canFly || invRightTab() !== 'equip') { panel.style.display = 'none'; return; }
   panel.style.display = 'flex';
   const cell = (s, i) => {
     const item = equipSlots[i];
@@ -622,8 +673,7 @@ function buildEquipPanel() {
       cells += `<div class="slot belt" data-belt="${i}" data-name="Belt slot">${slotInner(beltSlots[i])}</div>`;
     beltRow = `<div id="beltRow">${cells}</div>`;
   }
-  panel.innerHTML =
-    '<div class="ctitle">Equipment</div>' +
+  panel.innerHTML =                                  // no "Equipment" title since 0.796: its tab says so
     beltRow +
     '<div id="equipBody">' +
       `<div class="eqCol">${left}</div>` +
@@ -636,13 +686,8 @@ function buildEquipPanel() {
     '</div>' +
     '<div class="ctitle stTitle">Stats</div>' +
     `<div id="equipStats">${stats}</div>`;
-  // the way into the skill tree (0.79), under the Equipment title where the free points are seen
-  if (typeof skillOpenButton === 'function') {
-    const row = document.createElement('div');
-    row.className = 'skOpenRow';
-    row.appendChild(skillOpenButton());
-    panel.insertBefore(row, panel.children[1] || null);
-  }
+  // the tabs on top (0.795): the open station if any, Equipment, and the Skill tree, which used to be a button here
+  addInvTabs(panel, 'equip');
   if (_pvRenderer) {                                 // re-attach the existing canvas after rebuild
     invPanel('equipPreview').appendChild(_pvRenderer.domElement);
     _pvArmorKey = '';                                // force an overlay refresh

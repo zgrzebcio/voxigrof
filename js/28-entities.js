@@ -723,6 +723,7 @@ const _ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 /* ---- sheep: passive grazers. They never attack; being hit makes them bolt. ---- */
 const SHEEP_HP = 8;
 const SHEEP_SPEED = 2.0, SHEEP_FLEE_SPEED = 5.2;
+const FLEE_SPEED_MUL = 1.56;             // every grazer bolts faster than its FLEE_SPEED says: +30% in 0.799, +20% again in 0.7992
 const SHEEP_FLEE_TIME = 6;
 const SHEEP_H = 1.3;                     // shorter than a humanoid
 const SHEEP_REGROW = 10;                 // seconds for the fleece to grow back once it starts
@@ -2176,8 +2177,8 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
   const pig = e.kind === 'pig';                 // 0.789
   const walkSpeed = horse ? HORSE_WALK_SPEED * horseSpeedStat(e)
                           : cow ? COW_SPEED : pig ? PIG_SPEED : SHEEP_SPEED;
-  const fleeSpeed = horse ? HORSE_FLEE_SPEED * horseSpeedStat(e)
-                          : cow ? COW_FLEE_SPEED : pig ? PIG_FLEE_SPEED : SHEEP_FLEE_SPEED;
+  const fleeSpeed = (horse ? HORSE_FLEE_SPEED * horseSpeedStat(e)
+                           : cow ? COW_FLEE_SPEED : pig ? PIG_FLEE_SPEED : SHEEP_FLEE_SPEED) * FLEE_SPEED_MUL;
   if (e.flailT > 0) e.flailT -= dt;
   if (e.turnCd > 0) e.turnCd -= dt;
   if (e.fleeT > 0) e.fleeT -= dt;
@@ -2260,7 +2261,10 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
 
   /* ---- move ---- */
   let moved = 0;
-  const stunned = (e.kx !== 0 || e.kz !== 0);
+  /* A knockback no longer stuns a FLEEING animal (0.799): the hit that makes it bolt also shoved it, and
+     that shove held it standing still until it had worn off, so the flight looked cancelled. It runs at
+     once now, the shove carrying it along on top. */
+  const stunned = (e.kx !== 0 || e.kz !== 0) && !(e.fleeT > 0);
   e.wantMove = moveSpeed > 0 && !stunned;        // read by the stuck watchdog next tick
   if (moveSpeed > 0 && !stunned) {
     moveSpeed *= boxDragMul(e.x, e.y, e.z, _boxR, _boxH);   // leaves/litter -40%, snow -70%

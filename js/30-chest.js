@@ -274,10 +274,11 @@ function buildChestPanel() {
   const panel = invPanel('chestPanel');
   if (!panel) return;
   const a = activeChest && CHESTS.get(activeChest);
-  if (!a) { panel.style.display = 'none'; return; }
+  if (!a || invRightTab() !== 'chest') { panel.style.display = 'none'; return; }   // or another tab is up (0.795)
   const b = activeChest2 && CHESTS.get(activeChest2);
   panel.style.display = 'flex';
-  panel.innerHTML = `<div class="ctitle">${b ? 'Large Chest' : 'Chest'}</div>`;
+  panel.innerHTML = '';                                       // its tab names it (0.796; was a "Chest" title)
+  addInvTabs(panel, 'chest');                                 // Chest / Equipment / Skill tree (0.795)
   const mkGrid = (arr, region) => {
     const grid = document.createElement('div');
     grid.className = 'grid';
@@ -328,7 +329,8 @@ function restoreChests(list) {
     for (let i = 0; i < CHEST_SLOTS && i < arr.length; i++) {
       const s = arr[i];
       if (!Array.isArray(s)) continue;
-      const [id, count, dur, fresh, wm] = s;
+      const [raw, count, dur, fresh, wm] = s;
+      const id = legacyItemId(raw);               // stone brick is a variant of stone since 0.794
       if (!(PROPS[id] || ITEM_PROPS[id])) continue;
       const slot = mkSlot(id, Math.max(1, count | 0));
       if (dur != null) slot.dur = dur;

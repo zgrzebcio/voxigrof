@@ -136,7 +136,8 @@ function saveWorld(syncToLS = false) {
     +r.group.position.x.toFixed(2), +r.group.position.y.toFixed(2), +r.group.position.z.toFixed(2),
     +r.vx.toFixed(2), +r.vy.toFixed(2), +r.vz.toFixed(2),
     Math.round(r.age * 10) / 10, Math.max(0, +(r.pickupDelay || 0).toFixed(2)),
-    r.dur ?? null, r.meta || null]);                                  // wear and extras (0.79)
+    r.dur ?? null, r.meta || null,                                    // wear and extras (0.79)
+    r.life || DROP_LIFETIME]);                                        // how long it lies: 5, 10 or 20 min (0.7981)
   const furnaces = [...FURNACES].map(([k, f]) =>
     [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3),
      +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP (0.775)
@@ -163,7 +164,8 @@ function saveWorld(syncToLS = false) {
               aliveT: +(player.aliveT || 0).toFixed(1), dead: !!player.dead,
               cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
               craftQueue: serializeCraftQueue(player),                     // 0.76
-              skills: serializeSkills(player) },                           // 0.79
+              skills: serializeSkills(player),                             // 0.79
+              quest: serializeQuests(player) },                            // the starter quest reached (0.798)
     /* One record per person who has played this world, tagged with their profile (0.721) — see
        the header of 36-splitscreen.js's persistence section. Player one ALSO keeps writing the
        original top-level fields above, so an older build still opens this save. */
@@ -209,6 +211,7 @@ async function loadWorld(w) {
   if (ls && (!data || (ls.savedAt || 0) > (data.savedAt || 0))) data = ls;   // pick the newest copy
   setPlayerCount(1);                  // the roster is per world; the previous one's players leave
   player.chiselShape = null;          // the chisel's shape is not kept between worlds (0.7844)
+  player._variantPick = null;         // ...nor the picked variants (0.794)
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain);      // worlds saved before 0.665 have no `terrain` -> 'default'
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world (0.785)
@@ -296,6 +299,7 @@ async function loadWorld(w) {
   /* Skills first (0.79): they ride with the XP that paid for them, and Pack Rat decides how big a
      stack the inventory below is allowed to hold. */
   player.skills = restoreSkills(_own && _own.skills);
+  player.questIdx = restoreQuests(_own && _own.quest);   // 0.798
   // only restore survival inventory when there is a real record to restore (proves they played it).
   // Any other case (fresh world, ID collision, corrupt/missing data) starts empty.
   survStash = _own
@@ -332,10 +336,12 @@ function restoreDrops(list) {
   if (!Array.isArray(list)) return;
   for (const d of list) {
     if (!Array.isArray(d) || d.length < 4) continue;
-    const [id, x, y, z, vx = 0, vy = 0, vz = 0, age = 0, pd = 0, dur = null, meta = null] = d;
+    const [id, x, y, z, vx = 0, vy = 0, vz = 0, age = 0, pd = 0, dur = null, meta = null, life = 0] = d;
     if (!PLACEABLE.includes(id) && !ITEM_PROPS[id]) continue;
+    // a save from before 0.7981 has no lifetime: it keeps the 5 minutes every drop had then
     const rec = spawnDrop(id, Math.floor(x), Math.floor(y), Math.floor(z), { x: vx, y: vy, z: vz }, pd,
-                          typeof dur === 'number' ? dur : null, meta && typeof meta === 'object' ? meta : null);
+                          typeof dur === 'number' ? dur : null, meta && typeof meta === 'object' ? meta : null,
+                          +life > 0 ? +life : DROP_LIFETIME);
     if (rec) { rec.group.position.set(x, y, z); rec.age = age; }
   }
 }
@@ -412,7 +418,9 @@ function renderWorldList() {
     del.textContent = '✕';
     del.className = 'wdel';
     del.title = 'delete world';
-    del.onclick = () => { if (confirm(`Delete world "${w.name}" forever?`)) deleteWorld(w); };
+    // the game's own window since 0.7991: a browser confirm() cannot be answered with a pad
+    del.onclick = () => uiConfirm('Delete this world?', `"${w.name}" and everything in it is gone for good.`,
+                                  () => deleteWorld(w), 'Delete');
     btns.append(play, del);
     worldListEl.appendChild(row);
   }

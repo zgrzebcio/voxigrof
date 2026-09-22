@@ -40,7 +40,7 @@ const RECIPES_BASIC = [
   { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 2, xpToGive: 2 },
   { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], station: 'mortar', timeToCraft: 3, xpToGive: 2 },
-  { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1 },
+  { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1, removed: true },   // brick is a variant of stone since 0.794
   { in: [[ITEM.BRICK, 5]],                                                   out: [B.BRICKS, 1], timeToCraft: 1, xpToGive: 3 },
   { in: [[ITEM.STRING, 5]],                                                  out: [B.WOOL, 1], timeToCraft: 1, xpToGive: 3 },
   { in: [[ITEM.FLINT, 3], [ITEM.STICK, 2], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_SWORD, 1], timeToCraft: 4, xpToGive: 8 },
@@ -99,7 +99,7 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.FLOUR, 3], [B.PUMPKIN, 1]],                                   out: [ITEM.PUMPKIN_PIE, 1], timeToCraft: 8, xpToGive: 40 },
   { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1], [ITEM.ASHES, 1]], out: [ITEM.GUNPOWDER, 2], station: 'mortar', timeToCraft: 4.5, xpToGive: 10 },
   { in: [[ITEM.GUNPOWDER, 7], [B.SAND, 10]],                                 out: [B.TNT, 1], timeToCraft: 10, xpToGive: 30 },
-  { in: [[ITEM.SUGAR_CANE, 3]],                                              out: [ITEM.PAPER, 1], timeToCraft: 2, xpToGive: 5 },
+  { in: [[ITEM.BARK, 4]],                                                    out: [ITEM.PAPER, 1], timeToCraft: 2, xpToGive: 5 },   // bark, not cane (0.7992)
   { in: [[ITEM.GOLD_INGOT, 10], [ITEM.APPLE, 1]],                            out: [ITEM.GOLDEN_APPLE, 1], timeToCraft: 7, xpToGive: 100 },
   { in: [[ITEM.LEATHER, 2], [ITEM.FIBER, 8],  [V_NUGGET, 1]],                out: [ITEM.LEATHER_GLOVES, 1], timeToCraft: 4, xpToGive: 20 },
   { in: [[ITEM.LEATHER, 3], [ITEM.FIBER, 10], [V_NUGGET, 1]],                out: [ITEM.LEATHER_BOOTS, 1], timeToCraft: 5, xpToGive: 30 },
@@ -135,7 +135,8 @@ RECIPES_ADVANCED.push(
   { in: [[B.FIBER_BLOCK, 1]], out: [ITEM.FIBER, 10],     timeToCraft: 1,   xpToGive: 1 },
   { in: [[ITEM.STICK, 10]],   out: [B.LADDER, 1],        timeToCraft: 3, xpToGive: 5 },
   // mortar and pestle (0.77; carved from granite with a bone pestle since 0.771)
-  { in: [[B.GRANITE, 20], [ITEM.BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 10, xpToGive: 90 },
+  // any stone carves a mortar since 0.7992; which rock the bowl LOOKS like is a variant you pick (46-variants.js)
+  { in: [[V_STONE, 20], [ITEM.BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 10, xpToGive: 90 },
   /* 0.773, at the mortar: grinding doubles ore. A raw ore gives 2 powder; a raw ore block (ten ores) gives
      20 and takes ten times as long. Each powder smelts into one ingot (26-furnace.js). */
   { in: [[ITEM.RAW_IRON, 1]],        out: [ITEM.IRON_POWDER, 2],    station: 'mortar', timeToCraft: 2,  xpToGive: 2 },
@@ -157,11 +158,11 @@ RECIPES_ADVANCED.push(
   { in: [[ITEM.BRONZE_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_PICKAXE, 1], timeToCraft: 5.5, xpToGive: 70 },
   { in: [[ITEM.BRONZE_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HATCHET, 1], timeToCraft: 6,   xpToGive: 80 },
   { in: [[ITEM.BRONZE_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 4.5, xpToGive: 60 },
-  /* The chisel (0.78): worn in the Others slot, picked a block shape (43-chisel.js). RETIRED in
-     0.789 — the hammer below took the job over. Left in place, `removed`, so the recipe indices a
-     save holds still line up and one flag brings it back. */
+  /* The chisel (0.78): worn in the Others slot, picked a block shape (43-chisel.js). Retired in 0.789 when
+     the hammer below took that job, and made again since 0.799: worn in the Neck slot it unlocks block
+     variants (46-variants.js), and in Others it still shapes like the hammer. */
   { in: [[B.IRON_BLOCK, 5], [ITEM.COPPER_NUGGET, 4], [ITEM.STICK, 2], [B.FIBER_BLOCK, 1], [ITEM.STRING, 5]],
-    out: [ITEM.CHISEL, 1], timeToCraft: 10, xpToGive: 150, removed: true },
+    out: [ITEM.CHISEL, 1], timeToCraft: 10, xpToGive: 150 },
   // the hammer (0.788): the shape tool, and since 0.789 the only one
   { in: [[B.IRON_BLOCK, 1], [ITEM.COPPER_NUGGET, 8], [ITEM.STICK, 4], [B.FIBER_BLOCK, 2], [ITEM.STRING, 10]],
     out: [ITEM.HAMMER, 1], timeToCraft: 15, xpToGive: 200 },
@@ -562,8 +563,17 @@ function benchBusy(x, y, z) { return _benchHasOrder(BENCHES.get(benchKey(x, y, z
 /* Which recipe list each station opens (0.771). A mortar works exactly like a bench — one order floating
    over it, hold E to work it, tap E to take, hold the right button to cancel — only its list differs. */
 const STATION_MODE = { [B.CRAFTING_BENCH]: 'advanced', [B.MORTAR]: 'mortar' };
+PROPS.forEach((p, id) => { if (p && p.mortar) STATION_MODE[id] = 'mortar'; });   // its granite, marble and limestone variants (0.7945)
 const isStation = (id) => STATION_MODE[id & 255] != null;
-function openBench(x, y, z, mode = 'advanced') { activeBench = benchKey(x, y, z); toggleInventory(true, mode); }
+/* A station needs its top clear (0.799): any block or plant standing on a bench or a mortar stops it —
+   it will not open, its order cannot be worked or taken, and one open in front of you closes the moment
+   something is put (or falls) on it. */
+const stationCovered = (x, y, z) => (getBlock(x, y + 1, z) & 255) !== B.AIR;
+const STATION_COVERED_MSG = 'Clear the top of it first';
+function openBench(x, y, z, mode = 'advanced') {
+  if (stationCovered(x, y, z)) { feedWarn(STATION_COVERED_MSG); return; }
+  activeBench = benchKey(x, y, z); toggleInventory(true, mode);
+}
 
 // a recipe chosen at a bench: one craft (or as many as affordable with Shift) goes on its order
 function benchOrder(r, all) {
@@ -599,6 +609,35 @@ function onRecipeClick(r, all) {
   else queueCraft(r, all);
 }
 
+/* ---- how useful a recipe is (0.7992) ----
+   The number the recipe list sorts by, lowest first. Stations top the list because everything else is
+   made at one; then the things you wear and carry; then tools and weapons, ordered bow, diamond, bronze,
+   iron, stone, flint (a hoe sits just under its own set); then armor, iron before leather; then
+   ingredients and food; and last the blocks you build and decorate with, with pressed ore blocks below
+   them — they are storage, not something you need at hand. */
+const _RANK_STATION = new Set([B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.CHEST, B.BED, B.TORCH, B.LADDER, B.DOOR]);
+const _RANK_TOOL_MAT = { diamond: 1, bronze: 2, iron: 3, golden: 4, stone: 5, flint: 6 };
+function recipeRank(r) {
+  const id = r.out && r.out[0];
+  if (id == null) return 60;
+  if (id < 256) {
+    if (_RANK_STATION.has(id)) return 0;
+    if (typeof STORAGE_BLOCK_IDS !== 'undefined' && STORAGE_BLOCK_IDS.includes(id)) return 80;   // pressed ore
+    return 70;                                                        // ordinary building and decoration blocks
+  }
+  const p = ITEM_PROPS[id];
+  if (!p) return 60;
+  if (p.packSlots || p.beltSlots || p.shield || p.chisel) return 5;   // backpack, belt, shield, hammer: carried gear
+  if (p.ranged) return 10;                                            // the bow tops the tools
+  if (p.tool) {
+    const mat = Object.keys(_RANK_TOOL_MAT).find(m => p.icon && p.icon.startsWith(m));
+    return 11 + (_RANK_TOOL_MAT[mat] || 7) + (p.tool === 'hoe' ? 0.5 : 0);
+  }
+  if (p.armor) return 30 + (p.armorMat === 'iron' ? 0 : p.armorMat === 'leather' ? 1 : 0.5);
+  if (p.food) return 50;
+  return 40;                                                          // ingredients: ingots, string, paper...
+}
+
 function _aimedBench() {
   if (!playing || invOpen || menuScene || player.canFly || player.dead || player.riding) return null;
   const hit = currentRay();
@@ -607,20 +646,27 @@ function _aimedBench() {
 /* Once per frame per seat, from the frame loop. `eHeld` is E (or the pad's North button); `rmbHeld` is
    the raw right button, read even while the bench has the controls locked. */
 function updateBenchWork(dt, eHeld, rmbHeld) {
+  // the recipe list of a station that has just been covered closes (0.799)
+  if (invOpen && activeBench) {
+    const [ax, ay, az] = activeBench.split(',').map(Number);
+    if (stationCovered(ax, ay, az)) { toggleInventory(false); feedWarn(STATION_COVERED_MSG); }
+  }
   const hit = _aimedBench();
   const key = hit ? benchKey(hit.x, hit.y, hit.z) : null;
   const b = key ? BENCHES.get(key) : null;
   const r = b ? recipeAt(b.ri) : null;
+  const covered = !!hit && stationCovered(hit.x, hit.y, hit.z);   // nothing is worked or taken under a block (0.799)
   player._benchAim = !!hit;
   // a mortar saved mid-grind comes back without its pestle drawn: put it back the moment it is looked at (0.772)
-  if (hit && (hit.id & 255) === B.MORTAR && !(b && b.pestle) && ((getBlock(hit.x, hit.y, hit.z) >> 8) & 255))
-    setBlock(hit.x, hit.y, hit.z, B.MORTAR);
+  if (hit && PROPS[hit.id & 255]?.mortar && !(b && b.pestle) && ((getBlock(hit.x, hit.y, hit.z) >> 8) & 255))
+    setBlock(hit.x, hit.y, hit.z, hit.id & 255);
   const eDown = eHeld && !player._benchE;
   player._benchE = eHeld;
   if (!eHeld) player._benchNeedRelease = false;
 
+  if (covered && eDown && _benchHasOrder(b)) feedWarn(STATION_COVERED_MSG);
   // a tap of E takes whatever is finished
-  if (b && eDown && b.done > 0) {
+  if (b && eDown && b.done > 0 && !covered) {
     if (r) _giveItems(r.out[0], r.out[1] * b.done + skillSpareParts(r.out[0], b.done), 'crafted', true,
                       skillCraftMeta(r.out[0]));   // Fine Work, Spare Parts (0.79)
     b.done = 0; b.dirty = true;
@@ -628,7 +674,7 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
     refreshSlotsUI();
   }
   // holding E works the order, one craft at a time
-  const wants = !!(r && b.units.length && eHeld && !player._benchNeedRelease);
+  const wants = !!(r && b.units.length && eHeld && !player._benchNeedRelease && !covered);
   if (wants && craftSpeed() <= 0 && eDown) feedWarn(_cantCraftMsg);
   if (wants && craftSpeed() > 0) {
     player._benchWork = key;
@@ -665,8 +711,11 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
    out-crafted by simply holding the key through the blow. Called from 19-vitals.js on damage. */
 function interruptBenchWork(needRelease = true) {
   if (!player._benchWork) return;
+  /* The craft in progress is KEPT since 0.7992: letting go of E, walking off or leaving the world pauses
+     it where it stands, and it carries on from there when you come back. Only a cancelled order throws
+     the progress away, along with the ingredients it hands back. */
   const b = BENCHES.get(player._benchWork);
-  if (b) { b.t = 0; b._step = 0; b.dirty = true; }
+  if (b) b.dirty = true;
   player._benchWork = false;
   if (needRelease) player._benchNeedRelease = true;
 }
@@ -704,15 +753,18 @@ function benchBroken(x, y, z) {
 function clearBenches() { for (const k of [...BENCHES.keys()]) _benchClear(k); }
 function serializeBenches() {
   const out = [];
-  for (const [k, b] of BENCHES) if (_benchHasOrder(b)) out.push([k, b.ri, b.done, b.units]);
+  // ...including how far the craft in progress got (0.7992)
+  for (const [k, b] of BENCHES) if (_benchHasOrder(b)) out.push([k, b.ri, b.done, b.units, +(b.t || 0).toFixed(2)]);
   return out;
 }
 function restoreBenches(list) {
   if (!Array.isArray(list)) return;
   for (const rec of list) {
     if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[3])) continue;
+    const r = recipeAt(+rec[1] || 0);
     const b = { ri: +rec[1] || 0, done: Math.max(0, rec[2] | 0), units: rec[3].filter(_validUnit),
-                t: 0, sprite: null, canvas: null, dirty: true };
+                // a save from before 0.7992 has no progress on it, which reads as a craft not yet begun
+                t: Math.max(0, Math.min(r ? r.timeToCraft : 0, +rec[4] || 0)), sprite: null, canvas: null, dirty: true };
     if (_benchHasOrder(b)) BENCHES.set(rec[0], b);
   }
 }
@@ -783,19 +835,20 @@ function _startPestle(key, b) {
   g.position.set(x + 0.5, y + 0.5, z + 0.5);           // drop geometry is centred on its cell
   scene.add(g);
   b.pestle = g;
-  setBlock(x, y, z, B.MORTAR | (1 << 8));
+  setBlock(x, y, z, (getBlock(x, y, z) & 255) | (1 << 8));   // keeps its own id: a granite mortar stays granite (0.7945)
 }
 function _stopPestle(key, b) {
   scene.remove(b.pestle);
   b.pestle = null;
   const [x, y, z] = key.split(',').map(Number);
-  if ((getBlock(x, y, z) & 255) === B.MORTAR) setBlock(x, y, z, B.MORTAR);
+  const id = getBlock(x, y, z) & 255;
+  if (PROPS[id]?.mortar) setBlock(x, y, z, id);
 }
 function _animatePestle(key, b) {
   const working = PLAYERS.some(p => p._benchWork === key);
   if (working && !b.pestle) {
     const [x, y, z] = key.split(',').map(Number);
-    if ((getBlock(x, y, z) & 255) === B.MORTAR) _startPestle(key, b);
+    if (PROPS[getBlock(x, y, z) & 255]?.mortar) _startPestle(key, b);
   } else if (!working && b.pestle) _stopPestle(key, b);
   if (!b.pestle) return;
   const t = performance.now() / 1000, y0 = +key.split(',')[1];
@@ -860,6 +913,44 @@ addEventListener('keydown', (e) => { if (e.key === 'Shift') _setCraftShift(true)
 addEventListener('keyup',   (e) => { if (e.key === 'Shift') _setCraftShift(false); });
 addEventListener('blur', () => _setCraftShift(false));
 
+/* ---- counting out a batch (0.7992) ----
+   Hold Ctrl (X on a pad) and click a recipe over and over: the count rides on the cursor instead of
+   going straight onto the queue. Let Ctrl go and that many are ordered at once. Right click, or closing
+   the inventory, drops the count and nothing is spent — the ingredients are only taken on the commit. */
+var craftPick = null;                       // { r, n } while counting
+const _craftPickEl = document.createElement('div');
+_craftPickEl.id = 'craftPick';
+document.body.appendChild(_craftPickEl);
+function _craftPickPaint() {
+  if (!craftPick) { _craftPickEl.style.display = 'none'; return; }
+  const src = renderBlockIcon(craftPick.r.out[0]);
+  _craftPickEl.innerHTML = (src ? `<img src="${src}" alt="">` : '') + `<b>${craftPick.n}</b>`;
+  _craftPickEl.style.display = 'flex';
+  _craftPickEl.style.left = (invCursor ? invCursor.x : innerWidth / 2) + 'px';
+  _craftPickEl.style.top = (invCursor ? invCursor.y : innerHeight / 2) + 'px';
+}
+function craftPickAdd(r) {
+  if (craftPick && craftPick.r !== r) craftPickCancel();
+  const cap = (craftMode !== 'basic' && activeBench) ? maxCrafts(r)
+            : Math.min(maxCrafts(r), CRAFT_QUEUE_MAX - craftQueue().length);
+  if (cap <= 0) { feedWarn(craftPick ? 'No room for more' : 'Missing ingredients'); return; }
+  craftPick = { r, n: Math.min(cap, (craftPick ? craftPick.n : 0) + 1) };
+  _craftPickPaint();
+}
+function craftPickCancel() { craftPick = null; _craftPickPaint(); }
+function craftPickCommit() {
+  const p = craftPick;
+  craftPickCancel();
+  if (!p) return;
+  for (let i = 0; i < p.n; i++) onRecipeClick(p.r, false);
+}
+const craftPickOn = () => !!craftPick;
+const craftPickFollow = () => { if (craftPick) _craftPickPaint(); };   // the pad cursor moves it too
+addEventListener('contextmenu', (e) => { if (craftPick) { e.preventDefault(); craftPickCancel(); } });
+addEventListener('keyup', (e) => { if (e.key === 'Control' && craftPick) craftPickCommit(); });
+addEventListener('blur', () => craftPickCancel());
+addEventListener('mousemove', () => { if (craftPick) _craftPickPaint(); });
+
 // output-id -> category: blocks (id<256), tools (item with .tool), materials (other items)
 function recipeCategory(r) {
   const oid = r.out[0];
@@ -917,15 +1008,21 @@ function buildCraftPanel() {
     tabsHtml += `<div class="ctab${sel}" data-cat="${c.key}" title="${c.label}">${inner}</div>`;
   }
   tabsHtml += '</div>';
-  panel.innerHTML = `<div class="ctitle">${craftMode === 'mortar' ? 'Mortar and Pestle' : craftMode === 'advanced' ? 'Crafting Bench' : 'Crafting'}</div>` + tabsHtml;
+  // one line telling you the two modifiers the list has (0.7992)
+  panel.innerHTML = tabsHtml +
+    '<div class="chint"><b>Shift</b> all you can afford &middot; <b>Ctrl</b> (pad <b>X</b>) click to count a batch, let go to craft</div>';
   const list = document.createElement('div');
   list.id = 'craftList';
-  // filter by category, then sort so craftable rows float to the top (stable within each group)
+  /* Order (0.7992): what you can afford first, as before, then by how much use it is — the stations you
+     build everything else at, then carried gear, then tools and weapons best material first, then armor,
+     then the rest, with decoration and pressed-ore blocks at the bottom. Ties keep the table's order. */
   const recs = craftRecipes().filter(r => craftCat === 'all' || recipeCategory(r) === craftCat);
   const idxOf = new Map(recs.map((r, i) => [r, i]));
   recs.sort((a, b) => {
     const ca = canCraft(a), cb = canCraft(b);
     if (ca !== cb) return ca ? -1 : 1;
+    const ra = recipeRank(a), rb = recipeRank(b);
+    if (ra !== rb) return ra - rb;
     return idxOf.get(a) - idxOf.get(b);
   });
   for (const r of recs) {
@@ -953,7 +1050,10 @@ function buildCraftPanel() {
     html += `<span class="cxp">${r.xpToGive ? `<img src="textures/Items/Useables/experience_bottle.png" alt="">${r.xpToGive}` : ''}</span>`;
     row.innerHTML = html;
     // Shift+click commits as many as you can afford (0.76: into the queue, or onto the bench's order)
-    row.querySelector('.cbtn').addEventListener('click', (ev) => onRecipeClick(r, ev.shiftKey));
+    // Ctrl: count a batch out on the cursor first, and order it when Ctrl is let go (0.7992)
+    row._recipe = r;                                  // the pad's X+A batch reads it back off the row
+    row.querySelector('.cbtn').addEventListener('click',
+      (ev) => { if (ev.ctrlKey) craftPickAdd(r); else onRecipeClick(r, ev.shiftKey); });
     list.appendChild(row);
   }
   panel.appendChild(list);

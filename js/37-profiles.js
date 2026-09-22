@@ -129,11 +129,10 @@ function renderProfiles() {
       del.className = 'wdel';
       del.textContent = '✕';
       del.title = 'delete profile';
-      del.onclick = () => {
-        if (confirm(`Delete profile "${p.name}"? Worlds and builds are kept.`)) {
-          deleteProfile(p.id); renderProfiles(); paintProfileLabel(); renderSplitPanel();
-        }
-      };
+      // the game's own window since 0.7991 (48-menu-ui.js), so a pad can answer it
+      del.onclick = () => uiConfirm('Delete this profile?', `"${p.name}" goes; worlds and builds are kept.`, () => {
+        deleteProfile(p.id); renderProfiles(); paintProfileLabel(); renderSplitPanel();
+      }, 'Delete');
       btns.appendChild(del);
     }
     row.append(label, btns);
