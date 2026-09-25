@@ -33,7 +33,7 @@ const FELL_MAX_LOGS = 512;          // safety bound on the flood (a real tree is
 const FELL_MAX_LEAVES = 900;        // ditto for the canopy flood
 const LEAF_REACH = 5;               // leaf-to-leaf hops a canopy may span out from its wood
 const LEAF_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
-const BARK_MIN = 1, BARK_MAX = 2;
+// bark per strip: LOOT.bark in 50-loottable.js (0.806)
 /* Falling leaves are one THREE.Group each, so a big canopy would add several hundred objects to
    the scene in one go — the other half of the felling hitch. Past this many in flight the rest
    settle straight to the ground with no visual, which nobody notices inside a collapsing tree. */
@@ -237,6 +237,7 @@ function updateSnowMelt(dt) {
     const left = t - step * heat;
     if (left > 0) { snowMelt.set(k, left); continue; }
     removeLayerAt(x, y, z, si);
+    if (typeof fxSnowMelt === 'function') fxSnowMelt(x, y, z);   // flakes and drips (0.8)
     if (snowLayerTopAt(x, y, z) < 0) snowMelt.delete(k);
     else snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
@@ -451,43 +452,14 @@ function settleLeafNow(id, x, y, z) {
    counter, no per-tree bookkeeping, and the notch you see IS the remaining wood. */
 const CUT_STEP = 4;                 // width indices removed per swing (8 texture units)
 
-function tryChopLog(x, y, z) {
-  const val = getBlock(x, y, z), id = val & 255;
-  if (!isAnyLog(id) || !_holdingAxe()) return false;
-  /* A placed log is not a tree: no bark strip, no width countdown, no flood. Hand it back to the
-     normal mining path so it breaks once and drops itself, like any other building block. */
-  if (isPlacedLog(val)) return false;
-  const variant = (val >> 8) & 255;
-
-  // first swing: take the bark off. Same width — nothing has been cut away yet.
-  if (isLiveLog(id)) {
-    setBlock(x, y, z, STRIPPED_OF[id] | (variant << 8));
-    playBlockSound(id, 'break', x, y, z);
-    if (!player.canFly) {
-      const n = BARK_MIN + Math.floor(Math.random() * (BARK_MAX - BARK_MIN + 1));
-      for (let i = 0; i < n; i++) spawnDrop(ITEM.BARK, x, y, z);
-    }
-    return true;
-  }
-
-  // every swing after that bites CUT_STEP off the remaining width
-  const w = logWidthOf(variant);
-  const next = w - CUT_STEP;
-  if (next < LOG_W_MIN) { fellTreeFrom(x, y, z); return true; }
-  setBlock(x, y, z, id | (((variant & 3) | (next << 2)) << 8));
-  playBlockSound(id, 'hit', x, y, z);
-  if (typeof skillShakeTree === 'function') skillShakeTree(x, y, z);   // Timber Shaker (0.79)
-  return true;
-}
-
-/* Collect every log connected to (x,y,z) at or above the cut, drop them together, and bring the
-   surrounding leaves down as falling litter. */
-function fellTreeFrom(x, y, z) {
+/* Every log still attached to (x,y,z) at or above it, itself first (the felling flood, 0.804 split out so
+   the swing count can use it too). 26-neighbourhood, never below the cut, never into placed wood. */
+function _floodLogs(x, y, z, max = FELL_MAX_LOGS) {
   const logs = [];
   const seen = new Set();
   const stack = [[x, y, z]];
   seen.add(x + ',' + y + ',' + z);
-  while (stack.length && logs.length < FELL_MAX_LOGS) {
+  while (stack.length && logs.length < max) {
     const [cx, cy, cz] = stack.pop();
     const id = getBlock(cx, cy, cz) & 255;
     if (!isAnyLog(id)) continue;
@@ -506,6 +478,53 @@ function fellTreeFrom(x, y, z) {
           if (isAnyLog(nval & 255) && !isPlacedLog(nval)) stack.push([nx, ny, nz]);
         }
   }
+  return logs;
+}
+/* The swings a cut takes grow with what stands above it (0.804): one more for every four logs a cut
+   would bring down, up to ten. The notch still shrinks with each swing, and a trunk thinner than its
+   tree deserves is held at its last sliver until the count is reached. Counted per cell, not saved. */
+const CUT_COUNT = new Map();
+const cutSwingsFor = (above) => Math.min(10, 1 + Math.ceil(above / 4));
+
+function tryChopLog(x, y, z) {
+  const val = getBlock(x, y, z), id = val & 255;
+  if (!isAnyLog(id) || !_holdingAxe()) return false;
+  /* A placed log is not a tree: no bark strip, no width countdown, no flood. Hand it back to the
+     normal mining path so it breaks once and drops itself, like any other building block. */
+  if (isPlacedLog(val)) return false;
+  /* ...and neither is the very top of a trunk with nothing on it — no log, no leaves (0.804): there is
+     no tree left above to fell, so it too is simply broken, and never brings the canopy around it down. */
+  const above = _floodLogs(x, y, z, 64).length - 1;
+  if (above <= 0 && !isLeaf(getBlock(x, y + 1, z) & 255)) return false;
+  const variant = (val >> 8) & 255;
+
+  // first swing: take the bark off. Same width — nothing has been cut away yet.
+  if (isLiveLog(id)) {
+    setBlock(x, y, z, STRIPPED_OF[id] | (variant << 8));
+    playBlockSound(id, 'break', x, y, z);
+    if (!player.canFly) {
+      const n = rollLoot(LOOT.bark);            // 50-loottable.js (0.806)
+      for (let i = 0; i < n; i++) spawnDrop(ITEM.BARK, x, y, z);
+    }
+    return true;
+  }
+
+  // every swing after that bites CUT_STEP off the remaining width
+  const w = logWidthOf(variant);
+  const next = w - CUT_STEP;
+  const ck = x + ',' + y + ',' + z, swings = (CUT_COUNT.get(ck) || 0) + 1;
+  if (next < LOG_W_MIN && swings >= cutSwingsFor(above)) { CUT_COUNT.delete(ck); fellTreeFrom(x, y, z); return true; }
+  CUT_COUNT.set(ck, swings);
+  setBlock(x, y, z, id | (((variant & 3) | (Math.max(LOG_W_MIN, next) << 2)) << 8));
+  playBlockSound(id, 'hit', x, y, z);
+  if (typeof skillShakeTree === 'function') skillShakeTree(x, y, z);   // Timber Shaker (0.79)
+  return true;
+}
+
+/* Collect every log connected to (x,y,z) at or above the cut, drop them together, and bring the
+   surrounding leaves down as falling litter. */
+function fellTreeFrom(x, y, z) {
+  const logs = _floodLogs(x, y, z);
   if (!logs.length) return;
 
   /* Canopy, gathered while the logs are still standing so reach is measured from wood.
@@ -550,11 +569,16 @@ function fellTreeFrom(x, y, z) {
      could not settle, and spilled as an item instead of deepening the drift. Bottom-up clears
      each column ahead of the leaf above it. */
   const leaves = [...leafCells.values()].sort((a, b) => a.y - b.y);
+  /* The last swing breaks the cut block itself at once (0.804), in pieces, and only then does the rest
+     come down. The job skips its now-empty cell, so its log is counted here. */
+  const cutId = getBlock(x, y, z) & 255;
+  if (typeof fxBreak === 'function') fxBreak(x, y, z, getBlock(x, y, z));
+  setBlock(x, y, z, B.AIR);
   FELL_JOBS.push({
     logs, leaves, li: 0, ci: 0,
     logStep: Math.min(FELL_MAX_PER_STEP, Math.ceil(logs.length / FELL_STEPS)),
     leafStep: Math.min(FELL_MAX_PER_STEP, Math.ceil(leaves.length / FELL_STEPS)),
-    kind: logs[0].id, normal: 0, stripped: 0,
+    kind: logs[0].id, normal: isStrippedLog(cutId) ? 0 : 1, stripped: isStrippedLog(cutId) ? 1 : 0,
     dropX: x, dropY: y, dropZ: z,
     survival: !player.canFly,
   });
@@ -605,4 +629,4 @@ function updateFelling(dt) {
     FELL_JOBS.splice(j, 1);
   }
 }
-function clearFelling() { FELL_JOBS.length = 0; }
+function clearFelling() { FELL_JOBS.length = 0; CUT_COUNT.clear(); }

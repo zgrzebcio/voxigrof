@@ -22,6 +22,13 @@ let lastInputDevice = 'kbd';
    tests it first, so they all bail out cleanly until the inventory code has loaded. */
 var invOpen = false;
 
+// the Backspace clean view (0.801): every HUD element goes (style.css), and 36-splitscreen.js skips the hand
+var hudHidden = false;
+var pauseAfterJoin = false;               // the pointer was lost during loading (0.801)
+function toggleHudHidden(on = !hudHidden) {
+  hudHidden = on;
+  document.body.classList.toggle('hudHidden', on);
+}
 function setPlaying(on) {
   if (on && !currentWorld) { refreshMenu(); return; }   // no world selected — stay on the title
   if (on && !playing) applySettings();      // closing the menu ALWAYS applies the settings,
@@ -126,7 +133,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
             || Math.random().toString(36).slice(2, 10).toUpperCase();
   const w = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
               name, seed, mode: newModeSel.value === 'creative' ? 'creative' : 'survival',
-              tickSpeed: clampi(+tickInput.value || 3, 0, 20),   // simulation speed for decay/flow/grass
+              tickSpeed: clampi(+tickInput.value || 5, 0, 20),   // simulation speed for decay/flow/grass
               terrain: newTerrainSel.value === 'flat' ? 'flat' : 'default',   // fixed at creation
               // split screen is fixed at creation too: the save keeps a roster of profiles, and a
               // world that never had one should not sprout half-filled player records later
@@ -161,7 +168,7 @@ function quitToMenu() {
      menu, so nothing else hid it: it stayed up over the title screen and over the next world opened.
      Every seat's copy is hidden, since each pane cloned its own. The death itself is saved and the
      screen reopens when this world is loaded again. */
-  for (const el of document.querySelectorAll('#deathScreen')) el.style.display = 'none';
+  for (const el of document.querySelectorAll('#deathScreen')) { el.style.display = 'none'; el.parentElement?.classList.remove('dying'); }
   toast('world saved');
   currentWorld = null;
   pendingRestore = null;
@@ -172,20 +179,17 @@ function quitToMenu() {
 }
 document.getElementById('quitBtn').addEventListener('click', quitToMenu);
 document.getElementById('fsBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
-/* Mute toggles. #menuExtras hosts them, so the same pair shows on the title screen and on the
-   pause menu without a second copy of the markup. The glyph IS the state: struck-through = off. */
-{
-  const musicBtn = document.getElementById('musicBtn'), sfxBtn = document.getElementById('sfxBtn');
-  const paint = () => {
-    musicBtn.textContent = musicMuted ? '♪̸' : '♪';
-    musicBtn.title = musicMuted ? 'Music off — click to unmute' : 'Music on — click to mute';
-    musicBtn.style.opacity = musicMuted ? '0.45' : '1';
-    sfxBtn.textContent = sfxMuted ? '\u{1F507}' : '\u{1F50A}';
-    sfxBtn.title = sfxMuted ? 'Sound effects off — click to unmute' : 'Sound effects on — click to mute';
-    sfxBtn.style.opacity = sfxMuted ? '0.45' : '1';
-  };
-  musicBtn.addEventListener('click', (e) => { e.stopPropagation(); setMusicMuted(!musicMuted); paint(); });
-  sfxBtn.addEventListener('click',   (e) => { e.stopPropagation(); setSfxMuted(!sfxMuted); paint(); });
+/* Volume sliders (0.804; they replaced the two mute buttons). #menuExtras hosts them, so the same three
+   show on the title screen and the pause menu. Each shows its percentage beside it. */
+for (const kind of ['master', 'music', 'sfx']) {
+  const el = document.getElementById('vol_' + kind);
+  if (!el) continue;
+  const out = el.parentElement.querySelector('.volVal');
+  const paint = () => { if (out) out.textContent = soundVol[kind] + '%'; };
+  el.value = soundVol[kind];
+  el.addEventListener('input', () => { setVolume(kind, el.value); paint(); });
+  el.addEventListener('change', () => { setVolume(kind, el.value); paint(); });
+  el.addEventListener('click', (e) => e.stopPropagation());
   paint();
 }
 canvas.addEventListener('click', () => {
@@ -199,7 +203,13 @@ document.addEventListener('pointerlockchange', () => {
     mouseBreak = mousePlace = false;
     // ESC while mouse-locked -> pause menu. NOT when the death screen released it (0.74511):
     // dying would otherwise stack the pause menu on top of the death screen.
-    if (playing && !invOpen && !player.dead) setPlaying(false);
+    /* ...and never while a world is still loading (0.801): the pause menu would open over the loading
+       screen. The loss is noted instead, and once the world is in the game pauses only if the window
+       is still minimised or in the background (see the end of loading in 22-main-loop.js). */
+    if (playing && !invOpen && !player.dead) {
+      if (worldJoining()) pauseAfterJoin = true;
+      else setPlaying(false);
+    }
   }                                             // (inventory releases the lock on purpose)
 });
 document.addEventListener('mousemove', (e) => {
@@ -226,6 +236,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'F1') { e.preventDefault(); toggleFullscreen(); return; }
   if (e.code === 'F2') { e.preventDefault(); if (playing) cycleCameraView(); return; }
   if (e.code === 'F3') { e.preventDefault(); toggleDebugHud(0); return; }   // keyboard is seat one
+  // Backspace: hide every piece of HUD and the hand for a clean view, again to bring them back (0.801).
+  // Never while typing into a field — there it is still a Backspace.
+  if (e.code === 'Backspace' && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '') && !e.target?.isContentEditable) {
+    e.preventDefault();
+    if (currentWorld && !e.repeat) toggleHudHidden();
+    return;
+  }
   // joining a world: no key does anything until its chunks are in (0.759), fullscreen aside
   if (worldJoining()) { e.preventDefault(); return; }
   // working a crafting bench (0.76): E is the only key that still does anything
@@ -335,10 +352,11 @@ document.addEventListener('mousemove', (e) => {
 let shiftSweep = false;
 document.addEventListener('mousedown', (e) => {
   if (!invOpen || !mouseOwnsInput() || (e.button !== 0 && e.button !== 2)) return;
+  if (typeof uiAskOpen === 'function' && uiAskOpen()) return;   // answering a question never throws what you carry (0.807)
   invCursor.mode = 'mouse'; invCursor.x = e.clientX; invCursor.y = e.clientY;
   const s = slotAtPoint(e.clientX, e.clientY);
   if (!s) {
-    // a broken tool put down on the recipe list or the queue goes in for repair (Mender, 0.79)
+    // gear let go on the Repair or Dismantle zone asks first (Mender / Dismantle, 0.807)
     if (dragHeld && e.button === 0 && typeof tryRepairDrop === 'function' && tryRepairDrop(e.clientX, e.clientY)) {
       e.preventDefault(); return;
     }
@@ -409,7 +427,11 @@ function invGamepad(g, dt, btn, edge) {
   const ry = padAxis(g.axes[3] || 0);
   if (Math.abs(ry) > 0.01) {
     // ...and the furnace book's list while it is open (0.7762)
-    const list = invPanel('craftList') || (activeFurnace && invWrapEl.querySelector('#furnacePanel .fbList'))
+    // ...and first of all whatever scrolling box sits under the cursor: the skill tree, a chest (0.803)
+    let list = null;
+    for (let n = document.elementFromPoint(invCursor.x, invCursor.y); n && n !== document.body; n = n.parentElement)
+      if (n.scrollHeight > n.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(n).overflowY)) { list = n; break; }
+    list = list || invPanel('craftList') || (activeFurnace && invWrapEl.querySelector('#furnacePanel .fbList'))
               || document.querySelector('#inv .invScroll');
     if (list) list.scrollTop += ry * 700 * dt;
   }
@@ -423,14 +445,20 @@ function invGamepad(g, dt, btn, edge) {
     // X held on a recipe counts a batch out on the cursor instead of ordering one; letting X go orders it (0.7992)
     const row = b && b.classList.contains('cbtn') ? b.closest('.crow') : null;
     if (row && row._recipe && btn(2) && typeof craftPickAdd === 'function') { pad.xCombo = true; craftPickAdd(row._recipe); }
+    // a ready skill is held to learn (0.804); anything else is a press
+    else if (b && b.classList.contains('skNode') && typeof skillHoldStart === 'function' && skillHoldStart(b.dataset.sk, 'pad')) {}
     else if (b) b.click();
   }
   if (pad.prev[2] && !btn(2) && typeof craftPickOn === 'function' && craftPickOn()) { pad.xCombo = true; craftPickCommit(); }
+  if (pad.prev[0] && !btn(0) && typeof skillHoldEnd === 'function') skillHoldEnd('pad');   // A let go early (0.804)
   if (pad.prev[0] && !btn(0) && dragHeld) {                      // A release = drop
     if (hov) endDrag(hov.region, hov.i);
     else if (!(typeof tryRepairDrop === 'function' && tryRepairDrop(invCursor.x, invCursor.y))) cancelDrag();   // repair (0.79)
   }
   if (edge(3) && hov) instantTransfer(hov.region, hov.i);       // Y = quick-move
+  // D-pad Left / Right: the inventory's tabs (Equipment, Skill tree, the station) (0.8031)
+  if (edge(14) && typeof cycleInvTab === 'function') cycleInvTab(-1);
+  if (edge(15) && typeof cycleInvTab === 'function') cycleInvTab(1);
   /* D-pad Down throws from the hovered slot, one at a time; with X held, the whole stack. X tapped on
      its own is the RMB twin: take half, or put one down from what the cursor carries. "Tapped" means
      released with no D-pad Down in between, so the combo never also takes half (0.7523). */
@@ -505,11 +533,22 @@ function pollGamepad(dt) {
       return { mx: 0, mz: 0, up: false, dn: false };
     }
   }
-  // Start (9) toggles the menu (or closes the inventory); Back (8) fullscreen; B (1) inventory
+  // Start (9) toggles the menu (or closes the inventory); B (1) inventory
   if (edge(9)) { if (invOpen) toggleInventory(false); else setPlaying(!playing); }
-  if (edge(8)) toggleFullscreen();                // Back / Share
+  /* Back / Share (8), 0.803: a tap opens or closes the skill tree (K's twin); held about a second it
+     hides or shows the whole HUD (Backspace's twin). It no longer toggles fullscreen. */
+  if (edge(8)) { pad.backArmed = true; pad.backHeld = 0; }
+  if (pad.backArmed && btn(8)) {
+    pad.backHeld += dt;
+    if (pad.backHeld >= 1) { pad.backArmed = false; toggleHudHidden(); }
+  } else if (pad.backArmed) {
+    pad.backArmed = false;
+    if (playing && !player.dead && !player.canFly && typeof openSkillTree === 'function') {
+      if (invOpen && player._skillView) toggleInventory(false); else openSkillTree();
+    }
+  }
   if (edge(12)) toggleDebugHud(activePlayerSlot());   // D-pad Up hides this seat's debug text
-  if (edge(14) && playing) cycleCameraView();         // D-pad Left cycles perspective (F2's twin)
+  if (edge(14) && playing && !invOpen) cycleCameraView();         // D-pad Left cycles perspective (F2's twin)
   player._variantHold = btn(15);                      // D-pad Right HELD: the bumpers step the variant bar (0.7944)
   /* D-pad Down drops one of the held item — the pad's twin of Y. Deliberately no stack modifier:
      every button that could serve as one already means something while playing (the triggers mine
@@ -532,7 +571,9 @@ function pollGamepad(dt) {
     }
   } else {
     pad.bArmed = false;
-    if (edge(1)) { if (!playing) setPlaying(true); else toggleInventory(); }
+    // B with a batch being counted out cancels the batch, not the inventory (0.8041)
+    if (edge(1) && invOpen && typeof craftPickOn === 'function' && craftPickOn()) craftPickCancel();
+    else if (edge(1)) { if (!playing) setPlaying(true); else toggleInventory(); }
   }
   if (invOpen) {                                   // inventory owns the pad: virtual cursor only
     invGamepad(g, dt, btn, edge);

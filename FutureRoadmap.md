@@ -86,13 +86,13 @@ legends: B = big update, M= medium update, S = small update
 84. M: ~~skill tree — spend levels~~. v0.79
 85. M: ~~add variant mode system~~. 0.794 (should  be add when chisel update but i forget)
 86. S: ~~updating ui, adding simple quest to give xp~~ v0.795
-87. B: Particles system v0.8
+87. B: ~~Particles system~~ v0.8
 
 *Give it a hard pool cap and a per-frame budget from day one — phones are the constraint,*
 
 *and it has to emit per viewport in split screen (see the layer notes in 06-renderer.js).*
 
-87. S: fishes: cod, pike, salmon, catfish v0.805
+87. S: ~~fishes: cod, pike, salmon, catfish~~ v0.805
 88. M: weather and season system. v0.81
 89. S: cloud with dark version v0.815
 90. M: drinking and temperature system with cloth armor. v0.82

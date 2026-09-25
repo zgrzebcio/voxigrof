@@ -124,6 +124,7 @@ function tryTameInteract() {
       }
       ent.loved = true;
       ent.fleeT = 0;
+      if (typeof fxTamed === 'function') fxTamed(ent.x, ent.y + 1.2, ent.z, 3);   // a few hearts: it likes you (0.803)
       playSound('chew', { gain: 0.8, rate: 1.0, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
       toast(`the ${tp.label} lets you close — use it again to climb on`);
       return true;
@@ -277,6 +278,7 @@ function finishTaming(e, tp) {
     }
   }
   playSound('chestOpen', { gain: 0.7, rate: 1.4, pos: { x: e.x, y: e.y + 1, z: e.z } });
+  if (typeof fxTamed === 'function') fxTamed(e.x, e.y + 1.2, e.z);   // hearts and sparkles (0.803)
   dismountRider(player, true);
   toast(`tamed the ${tp.label}!`);
   openNameDialog(e, tp);

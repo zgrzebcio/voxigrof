@@ -496,6 +496,106 @@ function buildPig(bodyHex = PIG_COATS.pink.body, spotHex = PIG_COATS.pink.spot) 
   return { root, head, body, ears: [earL, earR], legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
 }
 
+/* ================================ fish (0.805) ================================
+   Four species living in water: cod < salmon < pike < catfish, by size and health. Passive — a hit
+   sends one darting away — and each drops one of its own raw fish. They have a level like every
+   creature but no gender. On land they flop about and slowly suffocate.
+
+   One sheet per species (textures/Entity/<species>.png, 128x128, the 64-unit layout at 2x), all on
+   the same box layout, painted by toolsrc/fish-tex.ps1 (PowerShell; it refuses to overwrite a sheet):
+     body     4w x 6h x 12d at (0, 0)     head   4x5x4 at (0, 20)     tail  1x6x5 at (20, 20)
+     dorsal   1x3x6 at (34, 0)            pectoral fin 3x1x2 at (34, 12)
+     whisker  1x1x4 at (34, 18)  (drawn on the catfish's sheet only)
+   A species' shape is the same boxes STRETCHED (`body`/`head` scales below): a pike long and thin,
+   a catfish wide-headed and flat. `len` is its overall size; each fish then rolls its own size. */
+const FISH = {
+  cod:     { name: 'Cod',     hp: 4, item: ITEM.COD,     len: 0.55, body: [1, 1, 1],        head: [1, 1, 1],        speed: 1.6, flee: 4.2, weight: 40 },
+  salmon:  { name: 'Salmon',  hp: 5, item: ITEM.SALMON,  len: 0.68, body: [0.9, 0.95, 1.2], head: [0.9, 0.9, 1.1],  speed: 1.9, flee: 4.8, weight: 30 },
+  pike:    { name: 'Pike',    hp: 7, item: ITEM.PIKE,    len: 0.85, body: [0.8, 0.8, 1.5],  head: [0.85, 0.75, 1.5], speed: 1.8, flee: 5.2, weight: 20 },
+  catfish: { name: 'Catfish', hp: 8, item: ITEM.CATFISH, len: 1.0,  body: [1.25, 0.85, 1.1], head: [1.5, 0.8, 1.1], speed: 1.2, flee: 3.8, weight: 10, whiskers: true, bottom: true },
+};
+const FISH_SPECIES = Object.keys(FISH);
+const FISH_FLEE_TIME = 4;
+const FISH_DRY_GRACE = 4, FISH_DRY_EVERY = 1.5;   // seconds out of water before it starts to suffocate, then per point
+const _fishTex = {};
+for (const s of FISH_SPECIES) _fishTex[s] = _nearestTex('textures/Entity/' + s + '.png');
+function buildFish(species) {
+  const sp = FISH[species] || FISH.cod;
+  const mat = new THREE.MeshBasicMaterial({ map: _fishTex[species] || _fishTex.cod, transparent: true, alphaTest: 0.5,
+                                            side: THREE.DoubleSide });
+  const root = new THREE.Group();
+  // `swim` carries the whole fish: it pitches with the dive and rolls onto its side when stranded
+  const swim = new THREE.Group();
+  swim.position.y = 3 * PX * sp.body[1];
+  const body = _part(mat, 4, 6, 12, 0, 0);
+  body.scale.set(...sp.body);
+  const head = _part(mat, 4, 5, 4, 0, 20);
+  head.scale.set(...sp.head);
+  head.position.set(0, -0.3 * PX, (6 * sp.body[2] + 2 * sp.head[2]) * PX);
+  const tail = new THREE.Group();                       // wags from where it joins the body
+  tail.position.z = -6 * sp.body[2] * PX;
+  const fin = _part(mat, 1, 6, 5, 20, 20);
+  fin.position.z = -2.5 * PX;
+  fin.scale.y = Math.max(0.8, sp.body[1]);
+  tail.add(fin);
+  const dorsal = _part(mat, 1, 3, 6, 34, 0);
+  // a pike carries its dorsal fin far back, by the tail, the others mid-back
+  dorsal.position.set(0, (3 * sp.body[1] + 1.4) * PX, (species === 'pike' ? -3.2 : 0.5) * sp.body[2] * PX);
+  const finL = _part(mat, 3, 1, 2, 34, 12), finR = _part(mat, 3, 1, 2, 34, 12);
+  finL.position.set( (2 * sp.body[0] + 1.2) * PX, -1.6 * PX * sp.body[1], 3.5 * sp.body[2] * PX);
+  finR.position.set(-(2 * sp.body[0] + 1.2) * PX, -1.6 * PX * sp.body[1], 3.5 * sp.body[2] * PX);
+  finL.rotation.z = -0.45; finR.rotation.z = 0.45;
+  swim.add(body, head, tail, dorsal, finL, finR);
+  if (sp.whiskers) {                                    // a catfish's barbels, from the corners of its mouth
+    for (const sx of [1, -1]) {
+      const w = _part(mat, 1, 1, 4, 34, 18);
+      w.position.set(sx * 2.2 * sp.head[0] * PX, -1.6 * PX, head.position.z + 2.5 * PX);
+      w.rotation.set(0.35, sx * 0.55, 0);
+      swim.add(w);
+    }
+  }
+  root.add(swim);
+  return { root, swim, tail, fins: [finL, finR], mat, mats: [mat], tint: new THREE.Color(1, 1, 1) };
+}
+// a fish's box: its species' length times its own roll, flatter than it is long
+const fishLen = (e) => (FISH[e.species] || FISH.cod).len * (e.size || 1);
+const isFish = (e) => e.kind === 'fish';
+function spawnFish(x, y, z, opts = {}) {
+  const species = FISH[opts.species] ? opts.species : _rollFishSpecies();
+  const sp = FISH[species];
+  const size = _animalSize(opts);
+  const m = buildFish(species);
+  m.root.scale.setScalar(sp.len * size);
+  m.root.position.set(x, y, z);
+  scene.add(m.root);
+  const ent = {
+    model: m, x, y, z, vy: 0, yaw: Math.random() * Math.PI * 2,
+    hp: opts.hp != null ? opts.hp : sp.hp, onGround: false,
+    state: 'wander', wanderT: 0, walk: Math.random() * 6, hurtT: 0,
+    fleeT: 0, jumpCd: 0, kx: 0, kz: 0, hazCd: 0, airT: ENT_AIR_MAX,
+    escapeT: 0, turnCd: 0, flailT: 0,
+    species, size, swimVy: 0, dryT: 0,
+    hx: opts.hx != null ? opts.hx : x,
+    hz: opts.hz != null ? opts.hz : z,
+    inventory: [],
+    kind: 'fish',
+    name: sp.name,
+    level: _rollLevel(opts.level),                      // a level, but no gender
+  };
+  ENTITIES.push(ent);
+  return ent;
+}
+function _rollFishSpecies(bottom = true) {
+  let tot = 0;
+  for (const s of FISH_SPECIES) if (bottom || !FISH[s].bottom) tot += FISH[s].weight;
+  let r = Math.random() * tot;
+  for (const s of FISH_SPECIES) {
+    if (!bottom && FISH[s].bottom) continue;
+    if ((r -= FISH[s].weight) < 0) return s;
+  }
+  return 'cod';
+}
+
 /* ================================ third-person view ================================ */
 // 0 = first person, 1 = over the shoulder, 2 = looking back at the face
 var camView = 0;
@@ -810,6 +910,7 @@ function entMaxHp(e) {
     case 'pig':      return PIG_HP;
     case 'zombie':   return ZOMBIE_HP;
     case 'skeleton': return SKEL_HP;
+    case 'fish':     return (FISH[e.species] || FISH.cod).hp;   // 0.805
     default:         return ENT_HP;
   }
 }
@@ -1423,6 +1524,10 @@ function spawnSkeleton(x, y, z) {
   return ent;
 }
 
+// a creature leaving the world without dying: a puff where it stood, smoky if the sun took it (0.803)
+function _fxEntGone(e, burnt = false) {
+  if (typeof fxPuff === 'function') fxPuff(e.x, e.y + 0.8, e.z, burnt ? [0.3, 0.28, 0.27] : [0.85, 0.85, 0.88], 12, 1.4);
+}
 function _removeEntity(i) {
   const e = ENTITIES[i];
   // never leave a rider welded to an animal that no longer exists
@@ -1448,8 +1553,9 @@ function clearEntities() {
 /* 0.7442 re-sized with the breed scales: sheep x0.85, cow x1.15, horse x1.2 in HEIGHT only — its
    radius stays 0.45 so an ordinary-sized horse still fits a one-wide gap (0.54 would not). */
 const ENT_BOX = { sheep: [0.345, 1.265], cow: [0.46, 1.72], horse: [0.45, 2.28] };
-const entR = (e) => (ENT_BOX[e.kind] ? ENT_BOX[e.kind][0] : ENT_R) * (e.size || 1);
-const entH = (e) => (ENT_BOX[e.kind] ? ENT_BOX[e.kind][1] : ENT_H) * (e.size || 1);
+// a fish (0.805): a short squat column round its middle, scaled by its species and its own size
+const entR = (e) => e.kind === 'fish' ? 0.3 * fishLen(e) : (ENT_BOX[e.kind] ? ENT_BOX[e.kind][0] : ENT_R) * (e.size || 1);
+const entH = (e) => e.kind === 'fish' ? 0.42 * fishLen(e) : (ENT_BOX[e.kind] ? ENT_BOX[e.kind][1] : ENT_H) * (e.size || 1);
 let _boxR = ENT_R, _boxH = ENT_H;
 function _useBox(e) { _boxR = e ? entR(e) : ENT_R; _boxH = e ? entH(e) : ENT_H; }
 
@@ -1550,48 +1656,50 @@ function _entFallDamage(e, i, wasGround, inWater) {
 const ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse']);
 function _entDropLoot(ent, byPlayer = false) {
   const bx = Math.floor(ent.x), by = Math.floor(ent.y + 0.5), bz = Math.floor(ent.z);
-  // Butcher (0.79): an animal the player killed gives one more of everything it drops
-  const bonus = byPlayer && ANIMAL_KINDS.has(ent.kind) && typeof hasSkill === 'function' && hasSkill('butcher') ? 1 : 0;
+  /* Every count rolls from LOOT (50-loottable.js, 0.806). Butcher (0.79; a chance since 0.806): an animal
+     the player killed has a 20% chance of one more of its FIRST drop — the meat, a horse's leather. */
+  const butcher = byPlayer && ANIMAL_KINDS.has(ent.kind) && typeof hasSkill === 'function' && hasSkill('butcher');
   const pop = (id, n) => {
-    if (n > 0) n += bonus;
     for (let i = 0; i < n; i++)
       spawnDrop(id, bx, by, bz, {
         x: (Math.random() - 0.5) * 3.5, y: 2.4 + Math.random() * 1.6, z: (Math.random() - 0.5) * 3.5,
       }, 0.6);
   };
+  const first = (id, table) => pop(id, rollLoot(table) + lootBonus(butcher));
   if (ent.kind === 'sheep') {
-    pop(ITEM.MUTTON, _ri(1, 3));
-    if (ent.woolly) { pop(B.WOOL, 1); pop(ITEM.STRING, _ri(1, 3)); }
+    first(ITEM.MUTTON, LOOT.meat);
+    if (ent.woolly) { pop(B.WOOL, 1); pop(ITEM.STRING, rollLoot(LOOT.woolString)); }
     return;
   }
   if (ent.kind === 'cow') {
-    pop(ITEM.BEEF, _ri(1, 3));
-    const hide = _ri(0, 2);                    // 0 is a real outcome — not every hide is usable
-    if (hide > 0) pop(ITEM.LEATHER, hide);
+    first(ITEM.BEEF, LOOT.meat);
+    pop(ITEM.LEATHER, rollLoot(LOOT.leather));
     return;
   }
   if (ent.kind === 'pig') {
-    pop(ITEM.PORK, _ri(1, 3));
-    const fat = _ri(0, 2);                     // 0 is a real outcome — a lean pig renders nothing
-    if (fat > 0) pop(ITEM.FAT, fat);
+    first(ITEM.PORK, LOOT.meat);
+    pop(ITEM.FAT, rollLoot(LOOT.fat));
+    return;
+  }
+  if (ent.kind === 'fish') {                   // one of its own, raw (0.805) — always one, no skill adds to it
+    pop((FISH[ent.species] || FISH.cod).item, rollLoot(LOOT.fish));
     return;
   }
   if (ent.kind === 'horse') {
-    pop(ITEM.LEATHER, _ri(1, 3));
+    first(ITEM.LEATHER, LOOT.leather);
     if (ent.saddled) pop(ITEM.SADDLE, 1);      // tack always comes back, whatever happened to it
     return;
   }
   if (ent.kind === 'zombie') {
-    const n = _ri(0, 2);                       // 0 is a real outcome — some leave nothing
-    if (n > 0) pop(ITEM.ROTTEN_FLESH, n);
+    pop(ITEM.ROTTEN_FLESH, rollLoot(LOOT.monster));
     if (Math.random() < ZOMBIE_NUGGET_CHANCE)
       pop(ZOMBIE_NUGGETS[Math.floor(Math.random() * ZOMBIE_NUGGETS.length)], 1);
     _mobDropHeld(ent);                         // and anything it picked up off the ground
     return;
   }
   if (ent.kind === 'skeleton') {
-    pop(ITEM.BONE, _ri(SKEL_BONE_MIN, SKEL_BONE_MAX));
-    pop(ent.ammoId != null ? ent.ammoId : ITEM.ARROW, _ri(SKEL_ARROW_DROP_MIN, SKEL_ARROW_DROP_MAX));
+    pop(ITEM.BONE, rollLoot(LOOT.monster));
+    pop(ent.ammoId != null ? ent.ammoId : ITEM.ARROW, rollLoot(LOOT.arrows));
     /* The bow itself, once in a hundred thousand kills, and worn nearly through when it does
        come — it is a trophy off a corpse, not a shortcut past the crafting bench. */
     if (ent.arm === 'bow' && Math.random() < SKEL_BOW_DROP_CHANCE) {
@@ -1602,11 +1710,11 @@ function _entDropLoot(ent, byPlayer = false) {
     }
     return;
   }
-  for (const l of ENT_LOOT) { const id = l.id(); if (id != null) pop(id, _ri(l.min, l.max)); }
+  for (const l of ENT_LOOT) { const id = l.id(); if (id != null) pop(id, rollLoot(LOOT.villager)); }
   for (const s of ent.inventory) pop(s.id, s.count);
 }
 
-/* Right-clicking a woolly sheep with shears takes the fleece: drops 1-3 wool, leaves the sheep
+/* Right-clicking a woolly sheep with shears takes the fleece: drops wool (LOOT.shearWool), leaves the sheep
    shorn so it starts looking for grass to eat. Called from doPlace before block placement. */
 function tryShearSheep() {
   const held = heldUseId();
@@ -1618,7 +1726,7 @@ function tryShearSheep() {
   ent.regrowing = false;
   ent.grazeCd = SHEEP_GRAZE_CD;
   const bx = Math.floor(ent.x), by = Math.floor(ent.y + 0.5), bz = Math.floor(ent.z);
-  const n = _ri(1, 3);
+  const n = rollLoot(LOOT.shearWool);           // 50-loottable.js (0.806)
   for (let i = 0; i < n; i++)
     spawnDrop(B.WOOL, bx, by, bz, {
       x: (Math.random() - 0.5) * 2.5, y: 2.2 + Math.random(), z: (Math.random() - 0.5) * 2.5,
@@ -1672,12 +1780,20 @@ function _entFoe(e, tp, distXZ, dt) {
    never pays the player XP, never drops loot and never turns anyone against the player — the victim
    turns on its attacker instead. Death only MARKS the body: updateEntities removes it at the top of
    its next turn, since taking an entry out of ENTITIES here would shift the one being updated. */
+// red hearts over a hurt creature, one per two points of damage (0.8, 49-particles.js)
+const _fxEntHurt = (ent, dmg) => {
+  if (typeof fxHearts === 'function') fxHearts(ent.x, ent.y + entH(ent) * 0.85, ent.z, false, dmg);   // one heart per point dealt (0.8031)
+  // the killing blow: crit stars and a white puff (0.801)
+  if (ent.hp <= 0 && typeof fxDeath === 'function') fxDeath(ent.x, ent.y, ent.z, entH(ent));
+};
 function damageEntityByMob(ent, dmg, by) {
   if (!ent || ent.hp <= 0 || ent._killedByMob) return false;
   ent.hp -= dmg;
+  _fxEntHurt(ent, dmg);
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;
-  if (isGrazer(ent)) ent.fleeT = ent.kind === 'cow' ? COW_FLEE_TIME : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
+  if (isFish(ent)) ent.fleeT = FISH_FLEE_TIME;                  // 0.805
+  else if (isGrazer(ent)) ent.fleeT = ent.kind === 'cow' ? COW_FLEE_TIME : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
   else if (by && by !== ent && by.hp > 0 &&
            ((_isMonster(ent) && by.kind === 'npc') || (ent.kind === 'npc' && _isMonster(by)))) {
     ent._foe = by;
@@ -1702,11 +1818,12 @@ const _entAimTarget = (f) => ({ pos: { x: f.x, y: f.y, z: f.z }, EYE: 1.62 });
 function damageEntity(ent, dmg) {
   if (ent._killedByMob) return false;          // already dead at another creature's hands (0.7912)
   ent.hp -= dmg;
+  _fxEntHurt(ent, dmg);
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;                   // limbs thrash on impact even while standing
-  // Grazers are passive: they bolt rather than retaliate.
-  if (isGrazer(ent)) {
-    if (!player.canFly) ent.fleeT = ent.kind === 'cow' ? COW_FLEE_TIME
+  // Grazers are passive: they bolt rather than retaliate. So are fish (0.805)
+  if (isGrazer(ent) || isFish(ent)) {
+    if (!player.canFly) ent.fleeT = isFish(ent) ? FISH_FLEE_TIME : ent.kind === 'cow' ? COW_FLEE_TIME
                                   : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
     if (ent.hp <= 0) {
       if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent)); }   // killed by the player
@@ -1908,6 +2025,7 @@ function serializeEntities() {
                                  mk: e.milkCd > 0 ? Math.round(e.milkCd) : 0 }                        // 0.767 milk cooldown
         : e.kind === 'pig'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level }  // 0.789
         : e.kind === 'npc' ? { g: e.gender, lv: e.level }                    // 0.756 identity
+        : e.kind === 'fish' ? { sp: e.species, sz: e.size, lv: e.level }    // 0.805
         : 0,
     ]);
   }
@@ -1964,6 +2082,17 @@ function restoreEntities(list) {
         hz: typeof hz === 'number' ? hz : z,
       });
       if (typeof yaw === 'number') p.yaw = yaw;
+      continue;
+    }
+    if (kind === 'fish') {                     // 0.805
+      const d = (extra && typeof extra === 'object') ? extra : {};
+      const fsh = spawnFish(x, y, z, {
+        species: d.sp, size: d.sz, level: d.lv,
+        hp: typeof hp === 'number' && hp > 0 ? hp : undefined,
+        hx: typeof hx === 'number' ? hx : x,
+        hz: typeof hz === 'number' ? hz : z,
+      });
+      if (typeof yaw === 'number') fsh.yaw = yaw;
       continue;
     }
     if (kind === 'sheep') {                    // saves written before sheep existed have no kind
@@ -2044,6 +2173,28 @@ function trySpawnEntitiesInChunk(cx, cz) {
   _rollHerd(cx, cz, COW_CHUNK_CHANCE,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
   _rollHerd(cx, cz, PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig);
   _rollHerd(cx, cz, HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
+  _rollFish(cx, cz);                                                   // 0.805
+}
+/* Fish (0.805): a small school of one species in water at least FISH_MIN_DEPTH deep, somewhere between
+   the bed and a block under the surface. A catfish keeps to the bottom, and only where it is deep. */
+const FISH_CHUNK_CHANCE = 0.06, FISH_SCHOOL_MIN = 1, FISH_SCHOOL_MAX = 3, FISH_MIN_DEPTH = 2;
+function _rollFish(cx, cz) {
+  if (Math.random() >= FISH_CHUNK_CHANCE) return;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const x = cx * 16 + Math.floor(Math.random() * 16), z = cz * 16 + Math.floor(Math.random() * 16);
+    const bed = surfaceY(x, z);
+    let top = bed;
+    while (top < 199 && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
+    const depth = top - bed;
+    if (depth < FISH_MIN_DEPTH) continue;
+    const species = _rollFishSpecies(depth >= 3);
+    const n = species === 'cod' ? _ri(2, 4) : _ri(FISH_SCHOOL_MIN, FISH_SCHOOL_MAX);
+    for (let k = 0; k < n; k++) {
+      const fy = FISH[species].bottom ? bed + 1.1 : bed + 1.1 + Math.random() * Math.max(0, depth - 2);
+      spawnFish(x + 0.5 + (Math.random() - 0.5) * 0.4, fy, z + 0.5 + (Math.random() - 0.5) * 0.4, { species });   // mid-column: wholly in water
+    }
+    return;
+  }
 }
 /* One grazer group. They only appear on grass, and they arrive clustered on a single vetted spot
    rather than scattered across the chunk — which is what makes a field read as a field. */
@@ -2094,6 +2245,7 @@ function trySpawnNightMobsInChunk(cx, cz) {
       { spawn(s.x, s.y, s.z); continue; }              // fall back to the vetted anchor spot
     spawn(zx, s.y, zz);
   }
+  if (n > 0 && typeof fxPuff === 'function') fxPuff(s.x, s.y + 0.8, s.z, [0.22, 0.2, 0.26], 14, 1.6);   // they rise out of a dark puff (0.803)
 }
 
 function serializeEntChunks() { return [..._entChunks]; }
@@ -2130,11 +2282,11 @@ function _updatePlayerKick(dt) {
 function _separateBodies(dt) {
   for (let a = 0; a < ENTITIES.length; a++) {
     const e = ENTITIES[a];
-    if (e.active === false) continue;         // frozen in an unloaded chunk — nothing to push
+    if (e.active === false || isFish(e)) continue;   // frozen in an unloaded chunk — nothing to push; fish shove nobody (0.805)
     // vs other entities — two bodies touch at the SUM of their own radii
     for (let b = a + 1; b < ENTITIES.length; b++) {
       const o = ENTITIES[b];
-      if (o.active === false) continue;
+      if (o.active === false || isFish(o)) continue;
       if (Math.abs(o.y - e.y) >= Math.max(entH(e), entH(o))) continue;
       const minD = entR(e) + entR(o), minD2 = minD * minD;
       let dx = o.x - e.x, dz = o.z - e.z;
@@ -2423,6 +2575,116 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
    what makes hiding spots meaningful. Water puts the fire out too. A short grace period stops a
    zombie flickering alight every time it crosses a one-block gap in a roof.
    Returns true if it burned to death (the caller must remove it immediately). */
+/* Fish tick (0.805). In water it drifts on its own heading and depth, darts away from whoever is nearest
+   after a hit, and keeps its whole body in water — at a wall, a bank or the surface it turns rather than
+   leave. Stranded, it flops about and after FISH_DRY_GRACE seconds starts to suffocate. Returns true when
+   it died and was removed. */
+function _fishWet(e, x, y, z) {
+  const R = entR(e), H = entH(e);
+  for (const yy of [y + 0.02, y + H - 0.02])
+    for (const dx of [-R, R]) for (const dz of [-R, R])
+      if ((getBlock(Math.floor(x + dx), Math.floor(yy), Math.floor(z + dz)) & 255) !== B.WATER) return false;
+  return true;
+}
+function _updateFish(e, dt, tp, i) {
+  const sp = FISH[e.species] || FISH.cod;
+  const H = entH(e);
+  const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z)) & 255) === B.WATER;
+  if (e.fleeT > 0) e.fleeT -= dt;
+  if (e.flailT > 0) e.flailT -= dt;
+  if (e.turnCd > 0) e.turnCd -= dt;
+  let speed = 0;
+  if (inWater) {
+    e.dryT = 0; e.onGround = false; e.vy = 0;
+    if (e.fleeT > 0) {
+      // away from the nearest player, jinking a little
+      if (e.turnCd <= 0) {
+        e.yaw = Math.atan2(e.x - tp.pos.x, e.z - tp.pos.z) + (Math.random() - 0.5) * 0.8;
+        e.swimVy = (Math.random() - 0.5) * 1.2; e.turnCd = 0.4;
+      }
+      speed = sp.flee;
+    } else {
+      e.wanderT -= dt;
+      if (e.wanderT <= 0) {
+        e.wanderT = 1.5 + Math.random() * 3.5;
+        e.state = Math.random() < 0.25 ? 'idle' : 'wander';
+        e.yaw += (Math.random() - 0.5) * 2.2;
+        e.swimVy = sp.bottom ? -0.25 : (Math.random() - 0.5) * 0.7;
+        const hdx = e.hx - e.x, hdz = e.hz - e.z;             // a short leash: a school stays a school
+        if (Math.hypot(hdx, hdz) > 48) e.yaw = Math.atan2(hdx, hdz);
+      }
+      speed = e.state === 'idle' ? sp.speed * 0.15 : sp.speed;
+    }
+    const sx = Math.sin(e.yaw) * speed * dt, sz = Math.cos(e.yaw) * speed * dt;
+    if (_fishWet(e, e.x + sx, e.y, e.z + sz)) { e.x += sx; e.z += sz; }
+    else if (e.turnCd <= 0) { e.yaw += Math.PI * (0.6 + Math.random() * 0.8); e.turnCd = 0.35; }
+    // up and down: it never breaks the surface, and bounces gently off the bed
+    const ny = e.y + e.swimVy * dt;
+    if (_fishWet(e, e.x, ny, e.z)) e.y = ny; else e.swimVy = -e.swimVy * 0.5;
+    if (e.kx || e.kz) {                                     // a hit's knockback, spent in the water
+      const kdx = e.kx * dt, kdz = e.kz * dt;
+      if (_fishWet(e, e.x + kdx, e.y, e.z + kdz)) { e.x += kdx; e.z += kdz; }
+      const k = Math.max(0, 1 - ENT_KNOCK_DECAY * dt); e.kx *= k; e.kz *= k;
+      if (Math.abs(e.kx) < 0.05 && Math.abs(e.kz) < 0.05) e.kx = e.kz = 0;
+    }
+    if (waterFlowVec(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z), _flowV)) {
+      const fdx = _flowV.x * 1.2 * dt, fdz = _flowV.z * 1.2 * dt;
+      if (_fishWet(e, e.x + fdx, e.y, e.z + fdz)) { e.x += fdx; e.z += fdz; }
+    }
+    e.walk += (1.5 + speed * 1.6) * dt;
+  } else {
+    // stranded: it falls, flops, and slowly suffocates
+    e.vy = Math.max(-34, e.vy - ENT_GRAVITY * dt);
+    const ny = e.y + e.vy * dt;
+    if (_entBlocked(e.x, ny, e.z)) { if (e.vy < 0) { e.y = Math.floor(ny) + 1; e.onGround = true; } e.vy = 0; }
+    else { e.y = ny; e.onGround = false; }
+    if (e.onGround && e.jumpCd <= 0) {
+      e.jumpCd = 0.5 + Math.random() * 0.9;
+      e.vy = 3 + Math.random() * 2;
+      e.yaw += (Math.random() - 0.5) * 2;
+      e.kx = Math.sin(e.yaw) * 1.4; e.kz = Math.cos(e.yaw) * 1.4;
+    }
+    if (e.kx || e.kz) {
+      const kdx = e.kx * dt, kdz = e.kz * dt;
+      if (!_entBlocked(e.x + kdx, e.y, e.z)) e.x += kdx;
+      if (!_entBlocked(e.x, e.y, e.z + kdz)) e.z += kdz;
+      const k = Math.max(0, 1 - ENT_KNOCK_DECAY * dt); e.kx *= k; e.kz *= k;
+      if (Math.abs(e.kx) < 0.05 && Math.abs(e.kz) < 0.05) e.kx = e.kz = 0;
+    }
+    e.dryT = (e.dryT || 0) + dt;
+    if (e.dryT > FISH_DRY_GRACE) {
+      e.hazCd -= dt;
+      if (e.hazCd <= 0) {
+        e.hazCd = FISH_DRY_EVERY;
+        e.hp -= 1; e.hurtT = 0.25;
+        if (e.hp <= 0) { if (!player.canFly) _entDropLoot(e); _removeEntity(i); return true; }
+      }
+    }
+    e.walk += 12 * dt;
+  }
+  // lava is lava
+  if ((getBlock(Math.floor(e.x), Math.floor(e.y + 0.1), Math.floor(e.z)) & 255) === B.LAVA) {
+    if (!player.canFly) _entDropLoot(e);
+    _removeEntity(i); return true;
+  }
+  /* ---- visuals: the tail beats faster the faster it swims, the body counter-sways, it pitches with
+     the dive, and stranded it lies on its side thrashing ---- */
+  const m = e.model;
+  m.root.position.set(e.x, e.y, e.z);
+  m.root.rotation.y = e.yaw;
+  const beat = Math.sin(e.walk * 3);
+  const wag = inWater ? beat * (0.25 + Math.min(0.35, speed * 0.07)) : beat * 0.7;
+  m.tail.rotation.y = wag;
+  m.swim.rotation.y = -wag * 0.25;
+  m.swim.rotation.x = inWater ? -Math.max(-0.5, Math.min(0.5, e.swimVy * 0.5)) : 0;
+  m.swim.rotation.z = inWater ? 0 : Math.PI / 2 * 0.92;
+  m.swim.position.y = (inWater ? 3 * sp.body[1] : 2 * sp.body[0] * sp.head[0]) * PX;
+  m.fins[0].rotation.y = 0.3 + Math.sin(e.walk * 2) * 0.25;
+  m.fins[1].rotation.y = -0.3 - Math.sin(e.walk * 2) * 0.25;
+  shadeTinted(m, e.x, e.y, e.z, e.hurtT > 0);
+  return false;
+}
+
 function _zombieBurnTick(e, dt) {
   const hx = Math.floor(e.x), hz = Math.floor(e.z);
   const wet = (getBlock(hx, Math.floor(e.y + 0.4), hz) & 255) === B.WATER;
@@ -2521,7 +2783,7 @@ function updateEntities(dt) {
       const dx2 = e.x - e._px, dz2 = e.z - e._pz;
       if (dx2 * dx2 + dz2 * dz2 < 1e-6) {
         e.stuckT = (e.stuckT || 0) + dt;
-        if (e.stuckT > ENT_STUCK_TIME && distXZ > 16 && !isClaimed(e)) { _removeEntity(i); continue; }
+        if (e.stuckT > ENT_STUCK_TIME && distXZ > 16 && !isClaimed(e)) { _fxEntGone(e); _removeEntity(i); continue; }
       } else e.stuckT = 0;
     } else e.stuckT = 0;
     e._px = e.x; e._pz = e.z;
@@ -2530,6 +2792,7 @@ function updateEntities(dt) {
     if (e.atkCd > 0) e.atkCd -= dt;
     if (e.jumpCd > 0) e.jumpCd -= dt;
     if (isGrazer(e)) { _updateGrazer(e, dt, pdx, pdz, distXZ, i); continue; }
+    if (isFish(e)) { _updateFish(e, dt, tp, i); continue; }   // 0.805
     /* ---- night mobs: claw out of the ground, hunt on sight, burn at dawn ---- */
     if (isNightMob(e)) {
       if (e.riseT > 0) {
@@ -2545,7 +2808,7 @@ function updateEntities(dt) {
         shadeHumanoid(e.model, e.x, e.y, e.z, false, false);
         continue;                                    // no AI, no gravity, no damage while rising
       }
-      if (_zombieBurnTick(e, dt)) { _removeEntity(i); continue; }
+      if (_zombieBurnTick(e, dt)) { _fxEntGone(e, true); _removeEntity(i); continue; }
       if (e.burnT > 0) e.burnT -= dt;
       // Always hostile inside the hunting radius; creative flight and death call it off.
       if (!tp.canFly && !tp.dead && distXZ <= ZOMBIE_CHASE_RANGE) e.state = 'chase';

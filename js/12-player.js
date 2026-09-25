@@ -195,6 +195,36 @@ function playerOnClimbable() {
   return false;
 }
 
+/* Wall climbing (0.804). In survival, jump and forward held against a wall pull you up it, at most
+   WALL_CLIMB_MAX blocks above where your feet last stood: enough to get out of a pit you dug, never a
+   way up a cliff. It is hard work — WALL_CLIMB_FOOD hunger a second — and both hands are on the wall,
+   so nothing is mined, placed or eaten on the way (22-main-loop.js). Not while falling fast either:
+   grabbing a wall is no way to cancel a fall. */
+const WALL_CLIMB_MAX = 3, WALL_CLIMB_SPEED = 1.7, WALL_CLIMB_FOOD = 0.8, WALL_CLIMB_MIN_FOOD = 2;
+const WALL_CLIMB_GRAB_VY = -5, WALL_CLIMB_MANTLE_VY = 5.5;
+// a solid block right in front of the body, feet to chest, within a hand's reach of it
+function wallAhead() {
+  const p = player.pos, reach = player.R + 0.2;
+  const x = Math.floor(p.x - Math.sin(player.yaw) * reach), z = Math.floor(p.z - Math.cos(player.yaw) * reach);
+  for (let y = Math.floor(p.y + 0.1); y <= Math.floor(p.y + 1.2); y++) if (isSolid(x, y, z)) return true;
+  return false;
+}
+function wallClimbWanted(upHeld, fwd, grounded, inWater) {
+  if (player.canFly || player.flying || inWater || player.riding || player.sleepingAt || player.dead) return false;
+  if (grounded) player._climbBase = player.pos.y;
+  if (!upHeld || fwd <= 0.1 || player.food <= WALL_CLIMB_MIN_FOOD) return false;
+  if (!player._wallClimbing && player.vy < WALL_CLIMB_GRAB_VY) return false;
+  if (player.pos.y >= (player._climbBase ?? player.pos.y) + WALL_CLIMB_MAX) return false;
+  // a climb only STARTS at a wall two blocks high or more: a one-block step is a jump, not a climb (0.8041)
+  if (!player._wallClimbing) {
+    const p = player.pos, reach = player.R + 0.2;
+    const x = Math.floor(p.x - Math.sin(player.yaw) * reach), z = Math.floor(p.z - Math.cos(player.yaw) * reach);
+    const y0 = Math.floor(p.y + 0.1);
+    if (!isSolid(x, y0, z) || !isSolid(x, y0 + 1, z)) return false;
+  }
+  return wallAhead();
+}
+
 function collideAxis(axis, delta) {
   if (delta === 0) return;
   const p = player.pos, R = player.R, H = player.H, EPS = 0.001;

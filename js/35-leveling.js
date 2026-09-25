@@ -56,6 +56,7 @@ function addXP(n) {
   if (leveled) {
     if (typeof playSound === 'function') playSound('levelUp', { gain: 0.8 });
     if (typeof feedLevel === 'function') feedLevel(playerLevel);        // gold row in the feed (0.7523)
+    if (typeof fxLevelUp === 'function') fxLevelUp(player);             // a golden spiral round you (0.8)
     _xpFlash = 0.7;
   }
 }
@@ -92,7 +93,7 @@ const XP_BLOCK = {};
 /* A kill (0.791): a base for what the creature is, plus its level (1-50), so the stronger the thing you
    bring down the more it teaches you. Animals 20, villagers 30, monsters 40. Replaced a flat 25. */
 const XP_KILL_BASE = { animal: 20, npc: 30, monster: 40 };
-const _XP_ANIMALS = new Set(['sheep', 'cow', 'pig', 'horse']);
+const _XP_ANIMALS = new Set(['sheep', 'cow', 'pig', 'horse', 'fish']);   // fish 0.805
 function mobKillXP(ent) {
   const kind = ent && ent.kind;
   const base = _XP_ANIMALS.has(kind) ? XP_KILL_BASE.animal : kind === 'npc' ? XP_KILL_BASE.npc : XP_KILL_BASE.monster;

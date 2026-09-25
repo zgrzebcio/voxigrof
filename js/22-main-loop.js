@@ -295,6 +295,7 @@ function processLeavesDecay(dt) {
         // decayed leaves fall the same way a felled canopy does, so they end up as litter on
         // the ground instead of evaporating in place
         setBlock(x, y, z, B.AIR);
+        if (typeof fxLeafDecay === 'function') fxLeafDecay(x, y, z, leafId);   // a flutter of leaf bits (0.8)
         if (FALLING.length < MAX_FALLING) spawnFallingLeaf(leafId, x, y, z);
         else settleLeafNow(leafId, x, y, z);
         scheduleLeavesCheck(x, y, z);
@@ -414,6 +415,7 @@ function updateEating(dt, wantPlace) {
   const eatDur = (id !== null && ITEM_PROPS[id]?.eatTime) || EAT_TIME;
   if (wantPlace && isFood) {
     _eatTimer = Math.min(eatDur, _eatTimer + dt);
+    if (typeof fxEat === 'function') fxEat(player, id, dt);   // crumbs, or milk splashing (0.801)
     if (_eatTimer >= eatDur) {
       _eatTimer = 0;
       const foodAmt = ITEM_PROPS[id].food || 0;
@@ -437,7 +439,13 @@ function updateEating(dt, wantPlace) {
       const effChance = ITEM_PROPS[id].foodEffectChance ?? 1;
       if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff);
       const heal = ITEM_PROPS[id].foodHeal || 0;
-      if (heal > 0) player.hp = Math.min(playerMaxHP(), player.hp + heal * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1));
+      if (heal > 0) {
+        const before = player.hp;
+        player.hp = Math.min(playerMaxHP(), player.hp + heal * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1));
+        // green hearts for what the food healed, seen by everyone but you in first person (0.8)
+        if (typeof fxHearts === 'function' && player.hp > before)
+          fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, true, player.hp - before, fxOwner(player));   // one per point healed (0.8031)
+      }
       slot.count--;
       if (slot.count <= 0) HOTBAR[hotbarSel] = null;
       if (typeof feedItem === 'function') feedItem(id, -1, 'eaten');
@@ -797,6 +805,7 @@ function explodeAt(cx, cy, cz, R) {
   const survival = !player.canFly;
   const chained = [];
   const R2 = R * R;
+  if (typeof fxExplode === 'function') fxExplode(cx + 0.5, cy + 0.5, cz + 0.5, R);   // a smoke ball and flying sparks (0.803)
   for (let dy = -R; dy <= R; dy++)
     for (let dz = -R; dz <= R; dz++)
       for (let dx = -R; dx <= R; dx++) {
@@ -832,6 +841,7 @@ function updateTNTs(dt) {
     if ((val & 255) !== B.TNT) { stale.push(k); continue; }
     r.t -= dt;
     r.blinkT -= dt;
+    if (typeof fxTntFuse === 'function') fxTntFuse(r, x, y, z, dt);   // sparks off the fuse on top (0.803)
     if (r.blinkT <= 0) {
       r.lit ^= 1;
       // blink period accelerates toward zero: 0.35s at 3s left → 0.06s minimum near boom
@@ -1023,7 +1033,6 @@ function tickPlayer(dt, now, slot) {
   /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
      which is all a one-frame-late cancel needs. */
   if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
-  const fast   = player.fast;
   const len = Math.hypot(fwd, str);
   if (len > 1) { fwd /= len; str /= len; }
 
@@ -1037,7 +1046,17 @@ function tickPlayer(dt, now, slot) {
   const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
   player._inWater = inWater;               // exposed for fall damage + hand animation
   player.sneaking = !player.flying && !inWater && grounded && dnHeld && !player.dead;
+  /* Sneak and sprint never together, and a sprint only runs forward: backing up or a pure sidestep drops
+     it (0.804). Flying keeps its fast move in every direction. */
+  if (player.sneaking) player.fast = false;
+  if (!player.flying && (fwd || str) && fwd <= 0.1) player.fast = false;
+  const fast = player.fast;
   const onClimb = !player.flying && !inWater && player.spawned && !menuScene && playerOnClimbable();   // 0.765
+  // up a bare wall (0.804, 12-player.js); at its lip a last heave carries you over the edge
+  const wallClimb = !onClimb && player.spawned && !menuScene && !joining && !benching && !lying
+                    && wallClimbWanted(upHeld, fwd, grounded, inWater);
+  if (!wallClimb && player._wallClimbing && upHeld && fwd > 0.1 && !wallAhead()) player.vy = Math.max(player.vy, WALL_CLIMB_MANTLE_VY);
+  player._wallClimbing = wallClimb;
   let dy, hSpeed;
   if (player.flying) {
     hSpeed = player.speed * (fast ? player.fastMul : 1);
@@ -1077,9 +1096,13 @@ function tickPlayer(dt, now, slot) {
       else if (dnHeld) player.vy = 0;
       else player.vy = Math.max(player.vy - 27 * dt, -CLIMB_SLIDE * (1 + CLIMB_LOOK_BONUS * Math.max(0, -look)));
       player.fallStart = null;                  // a climb is never a fall
+    } else if (wallClimb) {
+      player.vy = WALL_CLIMB_SPEED;             // hand over hand up the wall (0.804)
+      player.fallStart = null;
     } else {
       // jump strength is a HEIGHT multiplier and height goes with velocity squared, hence the root (0.756)
-      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
+      // ...and no jumping while a crafting queue runs (0.804)
+      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerIsCrafting()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
       player.vy = Math.max(-58, player.vy - 27 * dt);           // gravity
       // in a cobweb you sink slowly and barely hop (0.766)
       if (playerInCobweb()) player.vy = Math.max(-COBWEB_VY_MAX, Math.min(COBWEB_VY_MAX, player.vy));
@@ -1094,10 +1117,12 @@ function tickPlayer(dt, now, slot) {
            * (playerIsCrafting() ? craftMoveMul() : 1);  // crafting queue running (0.76; Walk and Work 0.79)
   }
   if (!player.spawned) { player.vy = 0; dy = 0; }   // hold still until the spawn chunk exists
+  // hands on a wall, or on a ladder going somewhere: the climbing arms play and the hands are busy (0.804)
+  player._climbAnim = wallClimb || (onClimb && Math.abs(player.vy) > 0.2);
   if (joining || benching) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
   if (menuScene) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // title camera: rotation only
   if (lying) {                                  // asleep: pinned to the mattress, look only
-    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0;
+    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0; player._climbAnim = false;
     const s = player.sleepingAt, d = BED_DIR[s.facing & 3];
     player.pos.set(s.x + 0.5 + d[0] * 0.5, s.y + BED_H, s.z + 0.5 + d[1] * 0.5);
   }
@@ -1237,10 +1262,13 @@ function tickPlayer(dt, now, slot) {
 
   /* ---- break / place (mouse + gamepad share repeat timing) ---- */
   // in bed you can look around and nothing else — no swinging, no placing, no eating
-  const wantBreak = !lying && !joining && !benching && ((mouseBreak && pointerLocked) || act.padBreak);
-  const wantPlace = !lying && !joining && !benching && ((mousePlace && pointerLocked) || act.padPlace);
+  const climbing = !!player._climbAnim;      // both hands on the wall or the ladder (0.804)
+  const wantBreak = !lying && !joining && !benching && !climbing && ((mouseBreak && pointerLocked) || act.padBreak);
+  const wantPlace = !lying && !joining && !benching && !climbing && ((mousePlace && pointerLocked) || act.padPlace);
   // selection highlight
   updateInvCursorVisual(dt);                 // this seat's cursor / drag ghost / hover / tooltip
+  if (typeof updateSkillHold === 'function') updateSkillHold(dt);   // a skill being held to learn (0.804)
+  if (typeof updateDropZones === 'function') updateDropZones();      // repair / dismantle zones while carrying gear (0.807)
   const hit = (playing && !invOpen) ? currentRay() : null;
 
   // Swinging at a mob takes priority over the block behind it. Priority is decided by AIM alone,
@@ -1290,8 +1318,9 @@ function tickPlayer(dt, now, slot) {
           hoeCutGrass(hit.x, hit.y, hit.z); act.lastBreak = now;
         }
         else {
-        const minedId = getBlock(hit.x, hit.y, hit.z) & 255;
+        const minedVal = getBlock(hit.x, hit.y, hit.z), minedId = minedVal & 255;
         playBlockSound(minedId, 'break', hit.x, hit.y, hit.z);
+        if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, minedVal);   // 0.8
         setBlock(hit.x, hit.y, hit.z, B.AIR);
         queueWaterAround(hit.x, hit.y, hit.z);
         queueLavaAround(hit.x, hit.y, hit.z);
@@ -1328,6 +1357,8 @@ function tickPlayer(dt, now, slot) {
         mining.stage = stage;
         drawCrack(progress);
         if (stage & 1) playBlockSound(hit.id, 'hit', hit.x, hit.y, hit.z);   // every other stage
+        // chips off the face being hit, on every stage (0.8)
+        if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
       }
       const cboxes = rayBoxesAt(hit.x, hit.y, hit.z);
       if (cboxes && cboxes.length) {
@@ -1350,6 +1381,8 @@ function tickPlayer(dt, now, slot) {
         // NOT an early return — the rest of frame() still has to stream chunks and render.
         const chopped = tryChopLog(mx, my, mz);
         if (!chopped) playBlockSound(minedId, 'break', mx, my, mz);
+        // the block bursts into bits of itself; a log the axe only notched sheds a few chips (0.8)
+        if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
         // the wrong tool for the job (a pickaxe on dirt): double wear below, and no experience
         const wrongTool = isWrongTool(heldUseId(), mval);
         // natural blocks only; your own placements pay 0 — and a single layer pays nothing (0.785)
@@ -1561,9 +1594,31 @@ function runWorldTick(dt, now) {
   /* Loading screen: dismiss once the player has spawned, the chunks within radius 4 are ready,
      AND the art is in (0.732). Chunk readiness alone used to be enough, which is how a cold join
      landed you in a finished world holding invisible items beside a black chest. */
-  if (_loadingWorld) setLoadingStep(!player.spawned ? 'generating terrain'
-                                  : !gameAssetsReady ? 'loading textures'
-                                  : 'building chunks');
+  /* ...with a rough percentage and what is left (0.804): terrain generated, chunks built, art loaded and
+     icons drawn, weighted by about how long each takes. Close, not exact. */
+  if (_loadingWorld) {
+    const R = Math.min(viewDist, Math.max(4, simDist()));
+    let total = 0, genned = 0, built = 0;
+    for (let dz = -R; dz <= R; dz++)
+      for (let dx = -R; dx <= R; dx++) {
+        if (dx * dx + dz * dz > R * R) continue;
+        total++;
+        const c = getChunk(playerCX + dx, playerCZ + dz);
+        if (!c || !c.data) continue;
+        genned++;
+        if (!c.meshing && !c.queuedMesh) built++;
+      }
+    const art = gameAssetsReady ? 1 : (typeof gameArtTotal !== 'undefined' && gameArtTotal
+      ? 0.7 * gameArtDone / gameArtTotal + (gameIconsLeft >= 0 && typeof PLACEABLE !== 'undefined'
+          ? 0.3 * (1 - gameIconsLeft / Math.max(1, PLACEABLE.length)) : 0) : 0);
+    const pct = Math.min(99, Math.floor(100 * (0.35 * genned / total + 0.45 * built / total + 0.2 * art)));
+    const step = !player.spawned || genned < total ? `generating terrain · ${total - genned} chunks left`
+               : !gameAssetsReady ? (gameIconsLeft > 0 ? `drawing icons · ${gameIconsLeft} left`
+                                    : `loading textures · ${Math.max(0, gameArtTotal - gameArtDone)} left`)
+               : built < total ? `building chunks · ${total - built} left`
+               : 'lighting';
+    setLoadingStep(`${pct}% · ${step}`);
+  }
   if (_loadingWorld && player.spawned && gameAssetsReady) {
     let _ldDone = true;
     // every chunk the simulation will touch, not just the nearest ring (0.759), capped at the view distance
@@ -1579,6 +1634,12 @@ function runWorldTick(dt, now) {
     if (_ldDone && meshResults.length === 0 && genFinishQueue.length === 0) {
       _loadingWorld = false;
       worldLoadingEl.style.display = 'none';
+      /* Focus was lost while loading (0.801): pause now only if the window is still minimised or in the
+         background; still looking at the game, it simply carries on — a click on it takes the mouse back. */
+      if (pauseAfterJoin) {
+        pauseAfterJoin = false;
+        if (playing && (document.hidden || !document.hasFocus()) && !pointerLocked) setPlaying(false);
+      }
     }
   }
 
@@ -1603,6 +1664,7 @@ function runWorldTick(dt, now) {
     updateBed(dt);
     updateChests(dt);
     updateBenchDisplays();                  // the order floating over each busy crafting bench (0.76)
+    if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)
   }
   /* The armour-stand preview is a single WebGL renderer whose canvas can only live in one panel at
      a time. It follows whoever opened their inventory MOST RECENTLY, and the moment they close it
@@ -1683,7 +1745,7 @@ function paintDebugHud() {
   const clock = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(Math.floor(mins % 60)).padStart(2, '0')}`;
   const cx = Math.floor(p.x / 16), cz = Math.floor(p.z / 16);
   hudEl.innerHTML =
-    `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
+    `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
     `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock} &middot; Day ${worldDay}<br>` +
     `XYZ ${p.x.toFixed(1)} / ${p.y.toFixed(1)} / ${p.z.toFixed(1)}<br>` +
     `biome ${mainGen.biomeAt(Math.floor(p.x), Math.floor(p.z))}<br>` +

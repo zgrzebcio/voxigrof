@@ -225,6 +225,10 @@ function openChest(x, y, z) {
   if (b) { const rb = CHESTS.get(activeChest2); if (rb) fillPendingLoot(b.x, b.y, b.z, rb.slots); }
   // ONE sound for the whole chest, single or double — it's one lid action either way
   playSound('chestOpen', { gain: 0.8, pos: { x: a.x + 0.5, y: a.y + 0.5, z: a.z + 0.5 } });
+  if (typeof fxPuff === 'function') {                // a dust puff from under the lid (0.803)
+    fxPuff(a.x + 0.5, a.y + 0.9, a.z + 0.5, [0.8, 0.74, 0.62], 6);
+    if (b) fxPuff(b.x + 0.5, b.y + 0.9, b.z + 0.5, [0.8, 0.74, 0.62], 6);
+  }
   toggleInventory(true);
 }
 

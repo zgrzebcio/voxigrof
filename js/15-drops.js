@@ -158,7 +158,11 @@ const DROP_HOP_AMP  = 0.025;               // very subtle bob — user asked for
 const DROP_HOP_HZ   = 1.1;                 // ~5.7s per full up-down cycle
 const DEFAULT_PICKUP_DELAY = 0.35;
 const PLAYER_DROP_PICKUP_DELAY = 1.5;      // player-tossed items refuse re-pickup for this long
+/* Creative drops nothing (0.804): no item ever comes loose in it — thrown, spilled, felled or refunded.
+   A save being loaded is the one exception, so a survival world's drops survive a load in creative. */
+var _dropsRestoring = false;
 function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null, life = 0) {
+  if (!_dropsRestoring && typeof player !== 'undefined' && player && player.canFly) return null;
   const passes = buildDropGeom(id);
   if (!passes.length) return null;
   const group = new THREE.Group();
@@ -192,18 +196,24 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
 // than a mining pop, and a longer pickup delay so you can't grab it back the same tick.
 function throwFromPlayer(id, count, dur = null, meta = null) {
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const spawnX = player.pos.x + forward.x * 0.4;
   const spawnY = player.pos.y + player.EYE - 0.35;
-  const spawnZ = player.pos.z + forward.z * 0.4;
+  /* Standing against a block, 0.4 ahead of the eye is INSIDE it (0.807): the throw spawned in the wall and
+     hung there hidden — it looked as if it vanished, and with a full inventory it never came back. Against
+     a wall it now drops from your own column, straight down at your feet, where you can see it. */
+  let reach = 0.4;
+  while (reach > 0 && isSolid(Math.floor(player.pos.x + forward.x * reach), Math.floor(spawnY), Math.floor(player.pos.z + forward.z * reach))) reach -= 0.1;
+  reach = Math.max(0, reach);
+  const blocked = reach < 0.4;
+  const spawnX = player.pos.x + forward.x * reach;
+  const spawnZ = player.pos.z + forward.z * reach;
   for (let i = 0; i < count; i++) {
-    const jitter = 0.6;
-    spawnDrop(id, Math.floor(spawnX), Math.floor(spawnY), Math.floor(spawnZ), {
-      x: forward.x * 5.5 + (Math.random() - 0.5) * jitter,
-      y: 3.6 + (Math.random() - 0.5) * 0.3,
-      z: forward.z * 5.5 + (Math.random() - 0.5) * jitter,
+    const jitter = 0.6, push = blocked ? 0 : 5.5;
+    const rec = spawnDrop(id, Math.floor(spawnX), Math.floor(spawnY), Math.floor(spawnZ), {
+      x: forward.x * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
+      y: blocked ? 1 : 3.6 + (Math.random() - 0.5) * 0.3,
+      z: forward.z * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
     }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN);   // thrown down by you: 10 minutes (0.7981)
-    // spawnDrop centres on the cell midpoint; nudge back to the true throw origin
-    const rec = DROPS[DROPS.length - 1];
+    // spawnDrop centres on the cell midpoint; nudge back to the true throw origin (null in creative, 0.804)
     if (rec) rec.group.position.set(spawnX, spawnY, spawnZ);
   }
 }
@@ -275,6 +285,7 @@ function clearDrops() {
   for (const pr of PROJECTILES) scene.remove(pr.group);
   PROJECTILES.length = 0;
   if (typeof clearArrows === 'function') clearArrows();   // ammo in flight (38-ranged.js)
+  if (typeof fxClear === 'function') fxClear();           // and every particle and footprint (0.8)
 }
 /* ---- projectiles: throwable items (snowball etc) — fly forward, vanish on block hit ---- */
 const PROJECTILES = [];
@@ -367,6 +378,14 @@ function updateDrops(dt) {
     // Grounded drops STOP physics entirely (no gravity, no ground-check re-fires) — otherwise
     // each frame gravity pulled p.y below base and the next tick's snap yanked it back, which
     // read as a constant bounce. Only re-enter physics if the block underneath disappeared.
+    /* A drop inside a solid block — thrown into a wall, or a block placed over it — is lifted out onto its
+       top (0.807). Stuck in there it could neither be seen nor fall, and read as lost. */
+    if (!inWater && isSolid(wbx, wby, wbz)) {
+      let ty = wby + 1;
+      while (ty < wby + 8 && isSolid(wbx, ty, wbz)) ty++;
+      p.y = ty + DROP_HALF + DROP_REST_LIFT;
+      d.vx = d.vz = 0; d.vy = 0; d.grounded = true; d.base = p.y;
+    }
     if (!inWater && d.grounded) {
       const supY = Math.floor(d.base - DROP_HALF - DROP_REST_LIFT - 0.1);
       if (isSolid(Math.floor(p.x), supY, Math.floor(p.z))) {

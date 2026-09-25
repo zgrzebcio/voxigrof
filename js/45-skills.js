@@ -57,12 +57,14 @@ const SKILLS = [
   { id: 'spareParts',  cat: 'crafting', name: 'Spare Parts',    cost: 1, req: ['nimble'],
     desc: '5% chance an ammo craft gives 1 extra' },
   { id: 'mender',      cat: 'crafting', name: 'Mender',         cost: 2, req: ['fineWork', 'walkWork'],
-    desc: 'Worn-out tools and gear break instead of vanishing. Drag a broken one onto the crafting list or queue to repair it for half its recipe (flint anywhere, the rest at a bench)' },
+    desc: 'Worn-out tools and gear break instead of vanishing. Drop a worn one on the Repair zone under the crafting panel: half its recipe when broken, less the less worn it is (flint anywhere, the rest at a bench)' },
+  { id: 'dismantle',   cat: 'crafting', name: 'Dismantle',      cost: 2, req: ['mender'],   // 0.807
+    desc: 'Drop a tool, weapon or piece of armor on the Dismantle zone under the equipment panel to break it down into half its recipe, less the more worn it is' },
   // ---- exploring ----
   { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 1, req: [],
     desc: '25% chance a loot chest holds one extra item' },
   { id: 'prospector',   cat: 'exploring', name: 'Prospector',    cost: 1, req: [],
-    desc: '+1 of the ore from every ore block you mine' },
+    desc: '20% chance of one more ore from every ore block you mine' },
   { id: 'weathered',    cat: 'exploring', name: 'Weathered',     cost: 2, req: [],
     desc: '+10% cold and heat resistance' },
   { id: 'packRat',      cat: 'exploring', name: 'Pack Rat',      cost: 1, req: ['treasureNose'],
@@ -71,7 +73,7 @@ const SKILLS = [
     desc: '30% less damage from falls, lava and cactus' },   // explosions and temperature once they hurt (0.791)
   // ---- husbandry ----
   { id: 'butcher',     cat: 'husbandry', name: 'Butcher',        cost: 1, req: [],
-    desc: '+1 of each drop from animals you kill' },
+    desc: '20% chance of one more meat (or leather) from animals you kill' },
   { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 1, req: [],
     desc: 'Food you carry spoils 10% slower' },                        // 0.7911
   { id: 'lingering',   cat: 'husbandry', name: 'Lingering',      cost: 1, req: ['preserver'],   // after Preserver since 0.7911
@@ -126,8 +128,8 @@ const skillFiberMul  = () => hasSkill('grassWeaver') ? 1.3 : 1;     // Grass Wea
 const skillHazardMul = () => hasSkill('hazardHide') ? 0.7 : 1;      // Hazard Hide: fall, cactus, fire, lava
 const ORE_BLOCKS = new Set([B.COAL_ORE, B.IRON_ORE, B.COPPER_ORE, B.TIN_ORE, B.GOLD_ORE, B.DIAMOND_ORE,
                             B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]);
-// Prospector: one more of an ore's first drop. A flat +1 for now; meant to become a chance later
-const skillOreBonus  = (blockId) => (ORE_BLOCKS.has(blockId) && hasSkill('prospector')) ? 1 : 0;
+// Prospector: a 20% chance of one more of an ore's first drop (a flat +1 until 0.806; 50-loottable.js)
+const skillOreBonus  = (blockId) => lootBonus(ORE_BLOCKS.has(blockId) && hasSkill('prospector'));
 // Spare Parts: an ammo craft has a 5% chance of one extra, rolled once per craft
 function skillSpareParts(outId, crafts) {
   if (!ITEM_PROPS[outId]?.ammo || !hasSkill('spareParts')) return 0;
@@ -327,10 +329,10 @@ function _renderSkillPanel(sp) {
     lines += `<path class="skLink${hasSkill(r) ? ' lit' : ''}" d="M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}"/>`;
   }
   const nodes = L.list.map(s => {
-    const st = skillState(s.id), armed = player._skillArm === s.id && st === 'ready';
-    return `<div class="skNode ${st}${armed ? ' armed' : ''}" data-sk="${s.id}" ` +
+    const st = skillState(s.id);
+    return `<div class="skNode ${st}" data-sk="${s.id}" ` +
            `style="left:${L.pos[s.id].x}px;top:${L.pos[s.id].y}px;width:${SK_NODE_W}px;height:${SK_NODE_H}px">` +
-           `<b>${s.name}</b><small>${armed ? 'click again to learn' : st === 'owned' ? 'learned' : s.cost + ' point' + (s.cost > 1 ? 's' : '')}</small></div>`;
+           `<b>${s.name}</b><small>${st === 'owned' ? 'learned' : st === 'ready' ? 'hold to learn' : s.cost + ' point' + (s.cost > 1 ? 's' : '')}</small></div>`;
   }).join('');
   sp.innerHTML =
     '<div class="skHead">' +
@@ -342,14 +344,60 @@ function _renderSkillPanel(sp) {
     `<div class="skTree" style="width:${L.width}px;height:${L.height}px">` +
       `<svg width="${L.width}" height="${L.height}">${lines}</svg>${nodes}` +
     '</div>' +
-    '<div class="skHint">Click a skill twice to learn it &middot; points come from levels, learning keeps your level &middot; <b>K</b> to close</div>';
+    '<div class="skHint">Hold a skill for a second to learn it &middot; points come from levels, learning keeps your level &middot; <b>K</b> to close</div>';
   const invTabs = typeof invTabsEl === 'function' ? invTabsEl('skills') : null;
   if (invTabs) sp.querySelector('.skTabsSlot').replaceWith(invTabs);
   for (const el of sp.querySelectorAll('.skTab'))
     el.addEventListener('click', () => { player._skillCat = el.dataset.cat; player._skillArm = null; buildInventory(); });
-  for (const el of sp.querySelectorAll('.skNode'))
+  /* Learning is a HOLD (0.804; it was two clicks): press on a ready skill and keep holding for
+     SKILL_HOLD_TIME. A skill that cannot be learned still says why on a plain click. */
+  for (const el of sp.querySelectorAll('.skNode')) {
+    el.addEventListener('mousedown', (e) => { if (e.button === 0) skillHoldStart(el.dataset.sk, 'mouse'); });
+    el.addEventListener('mouseleave', () => skillHoldEnd('mouse'));
     el.addEventListener('click', () => _skillNodeClick(el.dataset.sk));
+  }
 }
+const SKILL_HOLD_TIME = 1;             // seconds held on a skill to learn it (0.804)
+function skillHoldStart(id, src) {
+  if (skillState(id) !== 'ready') return false;
+  player._skillHold = { id, t: 0, src };
+  return true;
+}
+function skillHoldEnd(src) {
+  const h = player._skillHold;
+  if (!h || (src && h.src !== src)) return;
+  player._skillHold = null;
+  const el = _skNodeEl(h.id);
+  if (el) { el.classList.remove('holding'); el.style.removeProperty('--hold'); }
+}
+const _skNodeEl = (id) => { const sp = invPanel('skillPanel'); return sp ? sp.querySelector('.skNode[data-sk="' + id + '"]') : null; };
+/* Per seat, per frame (22-main-loop.js): fills the held skill's bar, and learns it when full. A pad's hold
+   lets go the moment its cursor leaves the skill. */
+const SKILL_REMIND = 10;                  // seconds between "points to spend" reminders (0.807)
+function updateSkillHold(dt) {
+  // unspent points nag gently on the feed, every SKILL_REMIND seconds, in gold (0.807)
+  if (!player.canFly && !player.dead && playing && typeof feedSkillPoints === 'function') {
+    player._skRemindT = (player._skRemindT ?? 3) - dt;
+    if (player._skRemindT <= 0) {
+      player._skRemindT = SKILL_REMIND;
+      const free = skillPointsFree();
+      if (free > 0) feedSkillPoints(free);
+    }
+  }
+  const h = player._skillHold;
+  if (!h) return;
+  if (!invOpen || !player._skillView || skillState(h.id) !== 'ready') { skillHoldEnd(); return; }
+  if (h.src === 'pad') {
+    const at = document.elementFromPoint(invCursor.x, invCursor.y);
+    const node = at && at.closest ? at.closest('.skNode') : null;
+    if (!node || node.dataset.sk !== h.id) { skillHoldEnd(); return; }
+  }
+  h.t += dt;
+  const el = _skNodeEl(h.id);
+  if (el) { el.classList.add('holding'); el.style.setProperty('--hold', String(Math.min(1, h.t / SKILL_HOLD_TIME))); }
+  if (h.t >= SKILL_HOLD_TIME) { player._skillHold = null; learnSkill(h.id); }
+}
+addEventListener('mouseup', () => { if (typeof player !== 'undefined' && player) skillHoldEnd('mouse'); });
 function _skillNodeClick(id) {
   const st = skillState(id);
   if (st !== 'ready') {
@@ -359,9 +407,7 @@ function _skillNodeClick(id) {
     buildInventory();
     return;
   }
-  if (player._skillArm === id) { player._skillArm = null; learnSkill(id); return; }
-  player._skillArm = id;
-  buildInventory();
+  // a ready skill is learned by holding it (skillHoldStart); a click alone does nothing more (0.804)
 }
 
 // the hover panel for a skill: what it does, what it costs, what it needs, and where you stand
@@ -374,7 +420,7 @@ function skillTipHTML(id) {
   html += `<div class="tipRow"><span>cost</span><b>${s.cost} point${s.cost > 1 ? 's' : ''}</b></div>`;
   for (const r of s.req)
     html += `<div class="tipRow"><span>requires</span><b class="${hasSkill(r) ? 'skOk' : 'skNo'}">${hasSkill(r) ? '&#10003;' : '&#10007;'} ${esc(SKILL_BY_ID[r]?.name || r)}</b></div>`;
-  const line = { owned: 'Learned', ready: 'Click twice to learn', poor: `Needs ${s.cost - skillPointsFree()} more point${s.cost - skillPointsFree() > 1 ? 's' : ''}`,
+  const line = { owned: 'Learned', ready: 'Hold for a second to learn', poor: `Needs ${s.cost - skillPointsFree()} more point${s.cost - skillPointsFree() > 1 ? 's' : ''}`,
                  locked: 'Learn what it requires first' }[st];
   html += `<div class="tipRow"><span>status</span><b>${line}</b></div></div>`;
   return html;

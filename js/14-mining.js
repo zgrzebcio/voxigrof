@@ -116,6 +116,7 @@ function hoeCutGrass(cx, cy, cz) {
         const x = cx + dx, y = cy + dy, z = cz + dz;
         const id = getBlock(x, y, z) & 255;
         if (!HOE_GRASS.has(id)) continue;
+        if (typeof fxBreak === 'function') fxBreak(x, y, z, getBlock(x, y, z));   // the forage colours, per plant (0.804)
         _hoeCutOne(x, y, z, id);
         cut++;
         if (slot.dur != null && --slot.dur <= 0) broke = true;

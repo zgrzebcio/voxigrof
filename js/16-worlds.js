@@ -10,6 +10,7 @@ let pointerLocked = false;
 const overlay = document.getElementById('overlay');
 const seedInput = document.getElementById('seedInput');
 seedInput.value = (new URLSearchParams(location.search).get('seed') || '').replace(/[^a-z0-9]/gi, '');
+if (seedInput.value.toLowerCase() === 'voxigrof') seedInput.value = '';   // the menu backdrop's, left in old URLs (0.8031)
 
 /* ================================================================================================
    WORLDS — named save files in localStorage. `vg_worlds` holds the registry; each world's
@@ -334,6 +335,10 @@ async function loadWorld(w) {
 
 function restoreDrops(list) {
   if (!Array.isArray(list)) return;
+  _dropsRestoring = true;                        // a load restores them whatever the mode (0.804)
+  try { _restoreDropList(list); } finally { _dropsRestoring = false; }
+}
+function _restoreDropList(list) {
   for (const d of list) {
     if (!Array.isArray(d) || d.length < 4) continue;
     const [id, x, y, z, vx = 0, vy = 0, vz = 0, age = 0, pd = 0, dur = null, meta = null, life = 0] = d;

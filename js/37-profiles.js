@@ -145,8 +145,11 @@ function paintProfileLabel() {
 profilesBtn.addEventListener('click', () => refreshMenu('profiles'));
 profilesBackBtn.addEventListener('click', () => refreshMenu(currentWorld ? 'pause' : 'home'));
 profileAddBtn.addEventListener('click', () => {
+  const first = PROFILES.length === 0;             // the very first profile of this device (0.807)
   const p = createProfile(profileNameIn.value);
   if (!p) return;
+  // ...goes straight on to the main menu: there is nothing else to do on this screen yet
+  if (first && !currentWorld) { profileNameIn.value = ''; paintProfileLabel(); renderSplitPanel(); refreshMenu('home'); return; }
   profileNameIn.value = '';
   renderProfiles();
   paintProfileLabel();

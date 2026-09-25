@@ -213,6 +213,7 @@ function updateArrows(dt) {
     if (a.age > 25 || a.group.position.y < -30) { removeArrow(i); continue; }
     if (a.drag) { const k = Math.max(0, 1 - a.drag * dt); a.vx *= k; a.vy *= k; a.vz *= k; }
     a.vy -= a.gravity * dt;
+    if (typeof fxArrowTrail === 'function') fxArrowTrail(a, dt);   // a faint trail behind it in flight (0.803)
     const speed = Math.hypot(a.vx, a.vy, a.vz);
     const steps = Math.max(1, Math.min(12, Math.ceil(speed * dt / ARROW_STEP)));
     const sdt = dt / steps;

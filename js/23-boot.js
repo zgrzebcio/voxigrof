@@ -90,6 +90,7 @@ buildAtlas().then((tex) => {
    screen for ever. Fifteen seconds in, the world opens regardless. */
 let _gameAssetsStarted = false;
 var gameAssetsReady = false;
+var gameIconsLeft = -1;                           // -1: not started (0.804)
 const GAME_ASSET_TIMEOUT = 15000;
 function ensureGameAssets() {
   if (_gameAssetsStarted) return;
@@ -109,6 +110,7 @@ function ensureGameAssets() {
       const warmIcons = () => {
         const t0 = performance.now();
         while (i < PLACEABLE.length && performance.now() - t0 < 3) renderBlockIcon(PLACEABLE[i++]);
+        gameIconsLeft = PLACEABLE.length - i;       // the loading screen counts these down (0.804)
         if (i < PLACEABLE.length) { requestAnimationFrame(warmIcons); return; }
         buildInventory();                           // icons are cached by now, so this is cheap
         forEachPlayerSlot(() => buildHotbar());     // ...and the hotbars once more, now fully warm

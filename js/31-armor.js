@@ -66,8 +66,8 @@ function equipAccepts(slotIdx, id) {
   const want = EQUIP_SLOTS[slotIdx] && EQUIP_SLOTS[slotIdx].accepts;
   if (want === 'offhand' && id != null && OFFHAND_BLOCKS.has(id)) return true;   // a torch
   if (!want || id == null || id < 256) return false;
-  // no necklace exists yet: the neck holds a hammer or chisel for the time being, which unlocks block variants (0.794)
-  if (want === 'necklace') return typeof CHISEL_TOOLS !== 'undefined' && CHISEL_TOOLS.includes(id);
+  // no necklace exists yet: the neck holds the chisel, which unlocks block variants (0.794; only the chisel since 0.803)
+  if (want === 'necklace') return id === ITEM.CHISEL;
   return ITEM_PROPS[id]?.equip === want;
 }
 
@@ -255,6 +255,7 @@ function tickPlayerEffects(dt) {
     player._effDmgAcc = (player._effDmgAcc || 0) + (before - player.hp);
     if (player._effDmgAcc >= 0.5) {
       if (typeof hurtFlash === 'function') hurtFlash(player._effDmgAcc);
+      if (typeof fxHearts === 'function') fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, false, 1, fxOwner(player));   // 0.8
       if (typeof playSound === 'function') playSound('hit', { gain: 0.3 });
       player._effDmgAcc = 0;
     }

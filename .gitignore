@@ -6,6 +6,5 @@ xd.txt
 *.ini
 *.zip
 .codegraph
-.claude
 .mcp.json
 toolsrc

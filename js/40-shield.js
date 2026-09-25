@@ -60,6 +60,7 @@ function updateShield(dt, wantPlace) {
   if (player._shieldUp < 0.01) player._shieldUp = 0;
   if (player._shieldHitT > 0) player._shieldHitT -= dt;
   if (player._offSwingT > 0) player._offSwingT -= dt;
+  if (player._offPickT > 0) player._offPickT -= dt;          // a forage grab with the left hand (0.802)
   _poseOffhandArm(dt);
 }
 
@@ -87,6 +88,7 @@ function shieldBlock(tp, fromX, fromZ, dmg) {
   playSound('wood', { gain: 0.9, rate: 0.72 + Math.random() * 0.1,
                       pos: { x: tp.pos.x, y: tp.pos.y + 1.2, z: tp.pos.z } });
   tp._shieldHitT = 0.18;                   // the arm jolts back on impact
+  if (typeof fxShieldHit === 'function') fxShieldHit(tp, fromX, fromZ);   // wood chips and sparks off its face (0.803)
   return true;
 }
 
@@ -131,14 +133,16 @@ function _poseOffhandArm(dt) {
   const off = handRoot && handRoot.userData && handRoot.userData.off;
   if (!off) return;
   const id = offhandItemId();
-  const show = id != null && playing && !menuScene && !invOpen && !player.dead;
+  // an empty left arm still comes up for a forage grab (0.802)
+  const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead;
   off.root.visible = show;
   if (!show) { off.root.position.y = OFF_REST.pos[1] - 1.4; return; }       // come back up from below
-  const shield = isShieldId(id);
+  const shield = id != null && isShieldId(id);
   if (off.heldId !== id) {
     off.heldId = id;
     while (off.held.children.length) off.held.remove(off.held.children[0]);
-    if (shield) {
+    if (id == null) { /* bare hand */ }
+    else if (shield) {
       const node = buildShieldNode(id);
       node.scale.setScalar(SHIELD_FP_SCALE);
       off.held.add(node);
@@ -156,13 +160,16 @@ function _poseOffhandArm(dt) {
   const u = shield && player._shieldHand === 'off' ? (player._shieldUp || 0) : 0;
   const L = (a, b) => a + (b - a) * u;
   const jolt = (player._shieldHitT > 0 && player._shieldHand === 'off') ? player._shieldHitT / 0.18 * 0.12 : 0;
-  const swing = player._offSwingT > 0 ? Math.sin((1 - player._offSwingT / 0.25) * Math.PI) : 0;   // placed a torch
+  const swing = player._offPickT > 0 ? Math.sin((1 - player._offPickT / 0.35) * Math.PI)          // forage grab
+    : player._offSwingT > 0 ? Math.sin((1 - player._offSwingT / 0.25) * Math.PI) : 0;               // placed a torch
+  // climbing (0.804): the left arm reaches while the right one pulls (24-hands.js), half a beat apart
+  const cl = player._climbAnim ? Math.sin((player._climbT || 0) * 7 + Math.PI) : 0, climb = player._climbAnim ? 1 : 0;
   const k = 1 - Math.exp(-dt * 18);
   const r = off.root.position;
-  r.x += (L(OFF_REST.pos[0], OFF_RAISE.pos[0]) - r.x) * k;
-  r.y += (L(OFF_REST.pos[1], OFF_RAISE.pos[1]) + swing * 0.06 - r.y) * k;
+  r.x += (L(OFF_REST.pos[0], OFF_RAISE.pos[0]) + climb * 0.12 - r.x) * k;
+  r.y += (L(OFF_REST.pos[1], OFF_RAISE.pos[1]) + swing * 0.06 + climb * (0.4 + cl * 0.16) - r.y) * k;
   r.z += (L(OFF_REST.pos[2], OFF_RAISE.pos[2]) + jolt - r.z) * k;
-  off.pivot.rotation.x = L(OFF_REST.arm[0], OFF_RAISE.arm[0]) - swing * 0.8;
+  off.pivot.rotation.x = L(OFF_REST.arm[0], OFF_RAISE.arm[0]) - swing * 0.8 + climb * (0.75 + cl * 0.3);
   off.pivot.rotation.y = L(OFF_REST.arm[1], OFF_RAISE.arm[1]);
   if (shield) {
     off.held.position.set(L(OFF_REST.sh[0], OFF_RAISE.sh[0]), L(OFF_REST.sh[1], OFF_RAISE.sh[1]),

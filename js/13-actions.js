@@ -274,12 +274,14 @@ function doBreak() {
   if (isNoTargetPlant(hit.id)) {
     // its own sound: these are not all grass any more (a flint stone is `type:'stone'`)
     playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
+    if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z));   // its forage colours (0.804)
     clearPlantAt(hit.x, hit.y, hit.z);
     return;
   }
   if (tryChopLog(hit.x, hit.y, hit.z)) return;   // axe on a log: strip / fell instead of breaking
   const inf = layerBreakInfo(hit.x, hit.y, hit.z);
   playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
+  if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z));   // 0.8
   if (inf) inf.apply(); else setBlock(hit.x, hit.y, hit.z, B.AIR);   // a layer stack loses its top layer only
 }
 /* ---- bush pickup ----
@@ -321,7 +323,7 @@ BERRY_FRUIT[B.YELLOWBERRY_BUSH] = ITEM.YELLOW_BERRIES;   // poisonous (0.7947)
    `empty`, so it regrows (33-felling.js) instead of being consumed — a bush is a renewable
    patch, not a one-shot pickup. An unripe bush yields nothing but a better fiber roll, since
    all you did was strip leaves off it. */
-const BERRY_PICK_MIN = 1, BERRY_PICK_MAX = 3;
+// how many berries a ripe pick gives: LOOT.berry in 50-loottable.js (0.806)
 const BERRY_FIBER_CHANCE = 0.20;                 // ripe pick: fruit is the reward, fiber is a bonus
 const BERRY_LEAF_FIBER_CHANCE = 0.30;            // unripe pick: fiber is the whole point
 /* Yield goes STRAIGHT into the inventory — no dropped entity to walk back over. That is what
@@ -352,9 +354,12 @@ function findBushPickup() {
      likely to be holding by accident. Creative removes them with the crosshair instead, which is
      why raycastVoxel stops on plants in that mode. */
   if (player.canFly) return null;
-  /* Foraging takes BOTH hands (0.7992): whatever the offhand is holding — a torch, a shield — is in the
-     way, so nothing can be picked until that slot is empty. */
-  if (typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined' && equipSlots[EQUIP_INDEX.offhand]) return null;
+  /* A free hand picks (0.802): the right one when it is empty, else the left. The offhand may carry a
+     shield as long as it is not raised; anything else there (a torch) leaves no hand free. */
+  if (typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined') {
+    const off = equipSlots[EQUIP_INDEX.offhand];
+    if (off && !(isShieldId(off.id) && !player.blocking && !(player._shieldUp > 0.05))) return null;
+  }
   const p = player.pos, r = player.R * BUSH_REACH;
   const y0 = Math.floor(p.y);
   const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r);
@@ -387,8 +392,12 @@ function harvestAtPlayer() {
   const t = findBushPickup();
   if (!t) return 0;
   const { x, z, id } = t;
-  handPickSwing = true;                          // 24-hands.js plays the grab on the next frame
+  // the right hand grabs when empty; holding anything, the left does it (40-shield.js shows that arm, 0.802)
+  if (HOTBAR[hotbarSel]) player._offPickT = 0.35;
+  else handPickSwing = true;                     // 24-hands.js plays the grab on the next frame
   addXP(XP_HARVEST);                             // foraging counts, same as breaking a wild block
+  // bits of the plant you pulled (0.801); the whole cell value, not just the variant (fixed 0.803)
+  if (typeof fxForage === 'function') fxForage(x, t.y, z, id | (t.v << 8));
   if (isBerryBush(id)) {
     const stage = berryStage(t.v);
     // the BLOCK is the kind now, so a bush stays the bush it was through every pick for free
@@ -396,7 +405,7 @@ function harvestAtPlayer() {
       // first pick on a ripe bush: take the fruit, leave the plant standing and empty
       setBlock(x, t.y, z, id | (BERRY_STAGE.EMPTY << 8));
       const fruit = BERRY_FRUIT[id];
-      const n = BERRY_PICK_MIN + Math.floor(Math.random() * (BERRY_PICK_MAX - BERRY_PICK_MIN + 1));
+      const n = rollLoot(LOOT.berry);           // 1 sure, then 75% and 35% for more (50-loottable.js, 0.806)
       for (let i = 0; i < n; i++) bushGive(fruit, x, t.y, z);
       if (!player.canFly && Math.random() < fiberChance(BERRY_FIBER_CHANCE)) _giveFiber(x, t.y, z);
       queueBerryGrow(x, t.y, z);

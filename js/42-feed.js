@@ -183,6 +183,14 @@ function feedLevel(level) {
 
 /* Learning a skill (0.7911): the same gold star as a level-up, since it is what the level paid for.
    Keyed per skill so two learned back to back read as two rows. */
+// a gold reminder that skill points are waiting (0.807, 45-skills.js repeats it every SKILL_REMIND seconds)
+function feedSkillPoints(n) {
+  const row = _feedPush('skillpts', 'level',
+    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"></span>`);
+  if (!row) return;
+  row.el.querySelector('.fTxt').innerHTML = `<b class="fAmt">${n}</b> skill point${n === 1 ? '' : 's'} to spend &middot; open the tree`;
+  if (!row.fresh) _feedBump(row.el);
+}
 function feedSkill(name) {
   const row = _feedPush('skill:' + name, 'level',
     `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Learned <b class="fAmt"></b></span>`);

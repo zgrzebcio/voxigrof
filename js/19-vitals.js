@@ -325,6 +325,8 @@ function updateVitals(dt) {
   if (player.prevOnGround && !grounded && player.vy > 0.1 && !player.flying)
     totalDrain += FOOD_JUMP_COST * (isSprinting ? 0.4 : 1);
   player.prevOnGround = grounded;
+  // climbing a bare wall is hard work (0.804, 12-player.js); a ladder or vine costs nothing extra
+  if (player._wallClimbing) totalDrain += WALL_CLIMB_FOOD * dt;
 
   // timed effects count down first, so one that runs out this frame no longer boosts it (0.758)
   if (typeof tickPlayerEffects === 'function') tickPlayerEffects(dt);
@@ -336,7 +338,9 @@ function updateVitals(dt) {
   if (!poisoned && !(player._regenWaitT > 0) && player.hp < playerMaxHP() && player.food > REGEN_FOOD_MIN) {
     const rate = REGEN_HP_PER_S * (player.food > REGEN_FAST_FOOD ? 2 : 1)
                * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1);
+    const before = player.hp;
     player.hp = Math.min(playerMaxHP(), player.hp + rate * dt);
+    if (typeof fxHealTick === 'function') fxHealTick(player, player.hp - before);   // a green heart per heart healed (0.8)
     totalDrain += FOOD_REGEN_COST_PER_S * dt;
   }
 
@@ -509,6 +513,9 @@ function updateVitals(dt) {
       // ...and healing waits (0.7992): Rapid regen shortens the wait rather than ignoring it
       const wait = (typeof playerHasEffect === 'function' && playerHasEffect('regenMul')) ? REGEN_HIT_WAIT_FAST : REGEN_HIT_WAIT;
       player._regenWaitT = Math.max(player._regenWaitT || 0, wait);
+      // red hearts for the hit — one per heart lost, hidden in your own first-person view (0.8)
+      if (typeof fxHearts === 'function')
+        fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, false, dmgBase - player.hp, fxOwner(player));   // one heart per point lost (0.8031)
     }
   }
   // void death
@@ -554,6 +561,8 @@ function updateVitals(dt) {
   if (player.dead && deathEl && deathEl.style.display !== 'flex') showDeathScreen(player._dmgCause || 'died');
   // ...and a living player never keeps one left over from another world (0.758)
   else if (!player.dead && deathEl && deathEl.style.display === 'flex') deathEl.style.display = 'none';
+  // dead: this pane shows the death screen and nothing else (0.801, the .dying rules in style.css)
+  if (deathEl && deathEl.parentElement) deathEl.parentElement.classList.toggle('dying', !!player.dead);
   // discrete hit this frame (fall / cactus / drown — slow starve drain stays below threshold):
   // red flash + camera kick, both scaled by how hard the hit was
   const lostHp = dmgBase - player.hp;
@@ -618,6 +627,7 @@ function respawnPlayer() {
   }
   player.dead = false;
   if (deathEl) deathEl.style.display = 'none';
+  if (deathEl && deathEl.parentElement) deathEl.parentElement.classList.remove('dying');   // 0.801
   paintVitals();
   // only player one owns the mouse, so only their respawn re-grabs the pointer lock
   if (playing && player === PLAYERS[0]) { lockTries = 0; tryPointerLock(); }

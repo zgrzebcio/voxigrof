@@ -230,6 +230,8 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   if (moving || looked || acting) _inactive = 0; else _inactive += dt;
   const inactive = !hasItem && _inactive > 0.8;
   handRoot.visible = true;
+  // a held torch's flame and a held gem's glint, in the hand scene (0.801, 49-particles.js)
+  if (typeof fxHeldTick === 'function') fxHeldTick(dt, heldGroup, curBlk, handRoot.userData.off);
 
   /* swing triggers */
   const miningNow = !player.canFly && mining.active;
@@ -274,7 +276,16 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
     _swimT = 0;
   } else { _bobT = 0; _swimT = 0; }
 
-  if (!player.flying && player.vy > 1.5)             // jump: hand lifts
+  /* climbing a wall or a ladder (0.804): the arm reaches up and pulls down, in turn with the left one
+     (40-shield.js), which comes up for it even with nothing in it */
+  if (player._climbAnim) {
+    player._climbT = (player._climbT || 0) + dt;
+    const s = Math.sin(player._climbT * 7);
+    ty += 0.22 + s * 0.16; tx += 0.08; trx += 0.75 + s * 0.3;
+    _bobT = 0;
+  } else player._climbT = 0;
+
+  if (!player.flying && player.vy > 1.5 && !player._climbAnim)   // jump: hand lifts
     ty += 0.06 * Math.min(1, (player.vy - 1.5) / 7);
 
   /* swing: forward-back arc — fixed visual period regardless of block hardness */

@@ -23,15 +23,30 @@
 
 const SOUND_MASTER = 0.5;                 // global scale — all sounds are quiet by design
 
-/* Two independent mutes, kept in localStorage so the choice survives a reload. Music and effects
-   are separate knobs because they are separate annoyances: the title loop can wear thin long
-   before block sounds do. */
-const MUTE_MUSIC_KEY = 'vg_muteMusic', MUTE_SFX_KEY = 'vg_muteSfx';
-const _readMute = (k) => { try { return localStorage.getItem(k) === '1'; } catch { return false; } };
-let musicMuted = _readMute(MUTE_MUSIC_KEY), sfxMuted = _readMute(MUTE_SFX_KEY);
-const _writeMute = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch {} };
-function setMusicMuted(v) { musicMuted = !!v; _writeMute(MUTE_MUSIC_KEY, musicMuted); updateMusic(); }
-function setSfxMuted(v)   { sfxMuted   = !!v; _writeMute(MUTE_SFX_KEY, sfxMuted); }
+/* Three volume sliders (0.804; they replaced the two mute buttons), 0-100, kept in localStorage.
+   Master scales everything. Effects scale every sound through SOUND_MASTER as before. Music is quieter
+   by design: 100% is MUSIC_BASE, and it starts at 50%. A mute saved by an older version comes back as 0. */
+const MUSIC_BASE = 0.1;
+const VOL_KEYS = { master: 'vg_volMaster', music: 'vg_volMusic', sfx: 'vg_volSfx' };
+const VOL_DEFAULT = { master: 100, music: 50, sfx: 100 };
+const soundVol = {};
+for (const k in VOL_KEYS) {
+  let v = null;
+  try {
+    const s = localStorage.getItem(VOL_KEYS[k]);
+    if (s != null) v = +s;
+    else if (localStorage.getItem(k === 'music' ? 'vg_muteMusic' : 'vg_muteSfx') === '1' && k !== 'master') v = 0;
+  } catch {}
+  soundVol[k] = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : VOL_DEFAULT[k];
+}
+const sfxGain   = () => SOUND_MASTER * soundVol.sfx / 100 * soundVol.master / 100;
+const musicGain = () => MUSIC_BASE * soundVol.music / 100 * soundVol.master / 100;
+function setVolume(kind, v) {
+  if (!(kind in VOL_KEYS)) return;
+  soundVol[kind] = Math.max(0, Math.min(100, Math.round(+v || 0)));
+  try { localStorage.setItem(VOL_KEYS[kind], String(soundVol[kind])); } catch {}
+  updateMusic();
+}
 
 const SOUND_FILES = {
   // blocks
@@ -107,11 +122,11 @@ function _soundPool(key) {
 /* play a sound by key. opts: { gain, rate, pos } — pos is a THREE.Vector3-ish {x,y,z} that
    attenuates with distance from the player. */
 function playSound(key, opts) {
-  if (!_soundReady || sfxMuted) return;
+  if (!_soundReady || sfxGain() <= 0) return;
   const pool = _soundPool(key);
   if (!pool) return;
   const o = opts || {};
-  let vol = (o.gain != null ? o.gain : 1) * SOUND_MASTER;
+  let vol = (o.gain != null ? o.gain : 1) * sfxGain();          // master x effects slider (0.804)
   /* One pair of speakers, up to four listeners: attenuate from whichever player is CLOSEST, so
      a sound next to player three is still heard even while player one is a mile away (0.72). */
   if (o.pos && typeof PLAYERS !== 'undefined') {
@@ -149,6 +164,8 @@ function playBlockSound(id, kind, x, y, z) {
   const k = SOUND_KIND[kind] || SOUND_KIND.break;
   const pos = x != null ? { x: x + 0.5, y: y + 0.5, z: z + 0.5 } : null;
   playSound(blockSoundKey(id), { gain: k.gain, rate: k.rate * (0.95 + Math.random() * 0.1), pos });
+  // every placement makes this sound, so this is where a placed block kicks up its bits (0.801)
+  if (kind === 'place' && x != null && typeof fxPlace === 'function') fxPlace(x, y, z, getBlock(x, y, z));
 }
 
 /* ---- footsteps ----
@@ -168,6 +185,7 @@ function updateFootsteps(grounded) {
   const p = player.pos;
   const dx = p.x - (player._stepLastX ?? p.x), dz = p.z - (player._stepLastZ ?? p.z);
   player._stepLastX = p.x; player._stepLastZ = p.z;
+  if (typeof fxWalk === 'function') fxWalk(player, grounded, dx, dz);   // footprints and kicked-up bits (0.8)
   if (!grounded || player.flying) { player._stepAccum = 0; return; }
   player._stepAccum = (player._stepAccum || 0) + Math.sqrt(dx * dx + dz * dz);
   if (player._stepAccum < STEP_DIST) return;
@@ -192,6 +210,7 @@ function entityStepSound(e, dt, spd) {
   const lp = nearestPlayerTo(e.x, e.z);                    // audible near ANY player (0.72)
   const dx = e.x - lp.pos.x, dy = e.y - lp.pos.y, dz = e.z - lp.pos.z;
   if (dx * dx + dy * dy + dz * dz > ENT_STEP_RANGE * ENT_STEP_RANGE) { e._stepAccum = 0; return; }
+  if (typeof fxEntityWalk === 'function') fxEntityWalk(e, dt, spd);   // prints by the size of its feet (0.8)
   e._stepAccum = (e._stepAccum || 0) + spd * dt;
   if (e._stepAccum < ENT_STEP_DIST) return;
   e._stepAccum = 0;
@@ -209,10 +228,11 @@ function entityStepSound(e, dt, spd) {
    bring it back — menuScene stays false while a world is loaded. */
 const _bgm = new Audio('sound/Music/sneaky.wav');
 _bgm.loop = true;
-_bgm.volume = SOUND_MASTER;
+_bgm.volume = musicGain();
 
 function updateMusic() {
-  const wantMusic = _soundReady && !musicMuted && (typeof menuScene === 'undefined' || menuScene);
+  const wantMusic = _soundReady && musicGain() > 0 && (typeof menuScene === 'undefined' || menuScene);
+  _bgm.volume = Math.min(1, musicGain());                    // follows the sliders live (0.804)
   if (wantMusic) { if (_bgm.paused) _bgm.play().catch(() => {}); }
   else if (!_bgm.paused) _bgm.pause();
 }

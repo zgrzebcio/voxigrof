@@ -54,7 +54,9 @@ function VOXEL_CORE() {
               // variant looks (0.7941, 46-variants.js)
               MOSSY_STONE_BRICK:123, CRACKED_STONE_BRICK:124, MOSSY_COBBLE:125, SULFUR_BRICKS:126,
               GRANITE_BRICKS:127, MARBLE_BRICKS:128, LIMESTONE_BRICKS:129,
-              BERRY_BUSH_YELLOW:130 };                                                 // 0.7947
+              BERRY_BUSH_YELLOW:130,
+              FURNACE_TOP_OPEN:131,
+              TNT_TOP_LIT:132 };                                                       // 0.804                                                  // 0.801                                                 // 0.7947
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -328,7 +330,8 @@ function VOXEL_CORE() {
                       stack:10, hardness:3.0, type:'stone', mortar:true,   // `mortar`: it and its variants work as one (0.7945)
                       boxes:[[0.13, 0, 0.13, 0.87, 0.71, 0.87]],   // the bowl; the pestle is not in the way
                       voxBoxes: MORTAR_BOXES, matFaces: MORTAR_FACES, animMat: 3,   // the pestle moves (0.772)
-                      faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
+                      faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE],
+                      desc: 'Keep its top clear: with a block or plant on it, it cannot be used' };   // 0.801
   PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
@@ -353,7 +356,8 @@ function VOXEL_CORE() {
   PROPS[B.TALL_LOWER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, noInv:true, stack:99, type:'grass', hardness:0, boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_BOT], desc: '' };
   PROPS[B.TALL_UPPER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',noInv:true, stack:99, hardness:0, type:'grass', boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_TOP], desc: '' };
   // faces [+X,-X,top,bottom,+Z,-Z]; front picked per variant (rot:'side') in the mesher
-  PROPS[B.CRAFTING_BENCH] = { name:'Crafting bench', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:4.5, type:'wood', faces:[T.CRAFT_SIDE,T.CRAFT_SIDE,T.CRAFT_TOP,T.PLANKS,T.CRAFT_FRONT,T.CRAFT_FRONT], desc: '' };
+  PROPS[B.CRAFTING_BENCH] = { name:'Crafting bench', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:4.5, type:'wood', faces:[T.CRAFT_SIDE,T.CRAFT_SIDE,T.CRAFT_TOP,T.PLANKS,T.CRAFT_FRONT,T.CRAFT_FRONT],
+                              desc: 'Keep its top clear: with a block or plant on it, it cannot be used' };   // 0.801
   // torch: cross model (texture has transparent margins so it reads as a small stick),
   // light 10 placed / 5 in hand (handLight overrides the default held-light scaling),
   // topOnly = placeable only when clicking a block's top face
@@ -373,7 +377,9 @@ function VOXEL_CORE() {
   PROPS[B.TORCH] = { name:'Torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH],
                      desc: 'Carried in the offhand it lights your way — but a full offhand means you cannot forage' };   // 0.7992
   // furnace: front picked per variant facing (rot:'side'); lit bit swaps the front tile
-  PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE], desc: '' };
+  // its top is a chimney since 0.801: an open hole that must stay clear (26-furnace.js)
+  PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP_OPEN,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE],
+                       desc: 'Keep its top clear: with a block on it, it stops smelting but its fuel still burns away' };
   PROPS[B.RED_SAND] = { name:'Red Sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.1, type:'ground', faces:[T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND,T.RED_SAND], desc: '' };
   // oak door: 2-cell (bottom + upper half), 1/8 thick. Rendered as an animated standalone mesh
   // (27-doors.js) — the chunk mesher emits nothing for it. Collision boxes swap with the open
@@ -1699,7 +1705,7 @@ function VOXEL_CORE() {
                 if (nx < 0 || nx > 15 || nz < 0 || nz > 15) continue;
                 if ((data[idx(nx, y + dy, nz)] & 255) === B.STONE) rock++;
               }
-              if (rock >= 2) data[idx(x, y, z)] = B.COBWEB;
+              if (rock >= 2) data[idx(x, y, z)] = B.COBWEB;   // still hung in nooks; the pass at the end makes sure (0.806)
             }
           }
       }
@@ -2588,6 +2594,24 @@ function VOXEL_CORE() {
             }
           }
         }
+      /* A cobweb must hang ON something (0.806): floor, wall or ceiling. Later passes — caves, ravines,
+         water — can carve away the rock it was strung from, so every web is checked last and one with no
+         solid face under, over or beside it (inside this chunk) is taken down. */
+      {
+        const NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+        for (let i = 0; i < data.length; i++) {
+          if ((data[i] & 255) !== B.COBWEB) continue;
+          const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+          let held = false;
+          for (const [dx, dy, dz] of NB) {
+            const nx = x + dx, ny = y + dy, nz = z + dz;
+            if (nx < 0 || nx > 15 || nz < 0 || nz > 15 || ny < 0 || ny >= CY) continue;
+            const n = data[idx(nx, ny, nz)];
+            if (n !== 0 && solidVal(n)) { held = true; break; }
+          }
+          if (!held) data[i] = B.AIR;
+        }
+      }
       return data.buffer;
     }
 
@@ -2770,8 +2794,8 @@ function VOXEL_CORE() {
         // driven by the variant byte, set wherever a snow block sits on grass.
         if (id === B.GRASS && varb === V.GRASS_SNOWY && faceIdx !== 2 && faceIdx !== 3)
           tile = T.GRASS_SNOW_SIDE;
-        // TNT lit-blink variant: swap every face to the white snow tile for a visible flash pulse
-        if (id === B.TNT && (varb & 1)) tile = T.TNT_LIT;
+        // TNT lit-blink variant: every face flashes white over its OWN picture — the top keeps the top (0.804)
+        if (id === B.TNT && (varb & 1)) tile = faceIdx === 2 ? T.TNT_TOP_LIT : faceIdx === 3 ? T.TNT_BOTTOM : T.TNT_LIT;
         // lying log: ring texture on the faces along the log's axis (1 = X, 2 = Z)
         if (id === B.LOG && varb)
           tile = (varb === 1 ? (faceIdx === 0 || faceIdx === 1) : (faceIdx === 4 || faceIdx === 5))
@@ -2779,7 +2803,7 @@ function VOXEL_CORE() {
         // rot:'side' blocks: front tile sits on the variant's facing; lit furnace swaps it
         if (id === B.FURNACE) {
           const front = SIDE_FACE[varb & 3];
-          tile = (faceIdx === 2 || faceIdx === 3) ? T.FURNACE_TOP
+          tile = faceIdx === 2 ? T.FURNACE_TOP_OPEN : faceIdx === 3 ? T.FURNACE_TOP   // the chimney on top (0.804)
                : faceIdx === front ? ((varb & V.FURNACE_ON) ? T.FURNACE_FRONT_ON : T.FURNACE_FRONT)
                : T.FURNACE_SIDE;
         }
@@ -2848,6 +2872,11 @@ function VOXEL_CORE() {
           if (!PROPS[vid]) continue;                           // an id this build does not know
           const lc = layerCount(val);                          // a layer stack (0.785)
           const shapeBoxes = lc ? null : shapeBoxesAt(gb, x, y, z, val);   // a chiseled slab or stairs (0.783)
+          /* The furnace's chimney (0.8041): a 6px stub standing 4px proud of its top, drawn only — no
+             hitbox, it never blocks a placement. Emitted in the cell above so the open air lights it. */
+          if (vid === B.FURNACE && !opaqueVal(gb(x, y + 1, z)))
+            emitBoxFaces(x, y + 1, z, [5 / 16, 0, 5 / 16, 11 / 16, 4 / 16, 11 / 16],
+                         [T.FURNACE_SIDE, T.FURNACE_SIDE, T.FURNACE_TOP_OPEN, T.FURNACE_TOP, T.FURNACE_SIDE, T.FURNACE_SIDE], true);
           if (lc) {
             /* One box per RUN of the same block rather than one per layer: a 6-deep snow drift is one box,
                and only a real change of block costs another. A mixed stack reads its list; if that is
@@ -3360,7 +3389,10 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                HAMMER: 384,    // 0.788
                // the pig (0.789) and what comes off one
                PORK: 385, COOKED_PORK: 386, FAT: 387,
-               YELLOW_BERRIES: 388 };                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+               YELLOW_BERRIES: 388,
+               // fish (0.805, 28-entities.js): what each of the four drops, and its cooked form
+               COD: 389, COOKED_COD: 390, SALMON: 391, COOKED_SALMON: 392,
+               PIKE: 393, COOKED_PIKE: 394, CATFISH: 395, COOKED_CATFISH: 396 };                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -3383,12 +3415,12 @@ const ITEM_PROPS = {
   // burnt fuel leaves ashes in the furnace's fourth slot (0.775)
   [ITEM.ASHES]:         { name: 'Ashes',         stack: 99, icon: 'ashes',         desc: 'Used as crafting ingredient, left in a furnace by burnt fuel' },
   // worn in the Others slot; picks a block shape from a radial (0.78, 43-chisel.js) — shaping itself comes later
-  [ITEM.CHISEL]:        { name: 'Chisel',        stack: 1,  icon: 'chisel', equip: 'accessories', chisel: true, durability: 300,   // 200 until 0.7845
-                          desc: 'Wear it in the Neck slot for block variants (hold R and scroll), or in Others to pick a block shape (hold Q)' },   // craftable again (0.799)
+  [ITEM.CHISEL]:        { name: 'Chisel',        stack: 1,  icon: 'chisel', equip: 'necklace', chisel: true, durability: 300,   // 200 until 0.7845; neck only (0.803)
+                          desc: 'Wear it in the Neck slot to lay blocks as their variants: hold R and scroll (hold D-pad Right and a bumper on a gamepad). Cutting shapes is the hammer' },   // craftable again (0.799)
   /* The hammer (0.788) replaced the chisel outright in 0.789: same radial, same one-point-per-block
      wear, 400 durability. The chisel keeps its entry below so worlds saved with one still load. */
   [ITEM.HAMMER]:        { name: 'Hammer',        stack: 1,  icon: 'hammer', equip: 'accessories', chisel: true, durability: 500,
-                          desc: 'Wear it in the Others slot. Hold Q (hold B on a gamepad) to pick a block shape' },
+                          desc: 'Wear it in the Others slot to cut blocks into shapes: hold Q (hold B on a gamepad) to pick one. Variants are the chisel' },
   // bronze metal (0.774): copper and tin powder ground together, smelted into ingots
   [ITEM.BRONZE_INGOT]:  { name: 'Bronze ingot',  stack: 99, icon: 'bronze_ingot',  desc: 'Used as crafting ingredient' },
   [ITEM.BRONZE_NUGGET]: { name: 'Bronze nugget', stack: 99, icon: 'bronze_nugget', desc: 'Used as crafting ingredient' },
@@ -3511,6 +3543,15 @@ const ITEM_PROPS = {
   // pork (0.789): a shade under beef cooked, and it spoils faster than any other meat raw
   [ITEM.PORK]:          { name: 'Raw pork',       stack: 99, icon: 'pork',          foodSatFull: 1, food: 3,  foodSat: 4,  eatTime: 1.9, foodEffect: 'nausea', foodEffectChance: 0.6, spoil: 2600, desc: '' },
   [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 99, icon: 'cooked_pork',   foodSatFull: 4, food: 7,  foodSat: 9,  eatTime: 2.1, spoil: 22400, desc: '' },
+  // fish (0.805): lighter than meat and quicker to eat; the bigger the fish, the more it fills. Raw may turn the stomach
+  [ITEM.COD]:            { name: 'Raw cod',        stack: 99, icon: 'cod',            foodSatFull: 1, food: 2, foodSat: 2, eatTime: 1.4, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 99, icon: 'cooked_cod',     foodSatFull: 3, food: 5, foodSat: 6, eatTime: 1.6, spoil: 14400, desc: '' },
+  [ITEM.SALMON]:         { name: 'Raw salmon',     stack: 99, icon: 'salmon',         foodSatFull: 1, food: 2, foodSat: 3, eatTime: 1.5, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_SALMON]:  { name: 'Cooked salmon',  stack: 99, icon: 'cooked_salmon',  foodSatFull: 3, food: 6, foodSat: 7, eatTime: 1.7, spoil: 14400, desc: '' },
+  [ITEM.PIKE]:           { name: 'Raw pike',       stack: 99, icon: 'pike',           foodSatFull: 1, food: 3, foodSat: 3, eatTime: 1.6, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_PIKE]:    { name: 'Cooked pike',    stack: 99, icon: 'cooked_pike',    foodSatFull: 4, food: 6, foodSat: 8, eatTime: 1.8, spoil: 14400, desc: '' },
+  [ITEM.CATFISH]:        { name: 'Raw catfish',    stack: 99, icon: 'catfish',        foodSatFull: 1, food: 3, foodSat: 4, eatTime: 1.7, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_CATFISH]: { name: 'Cooked catfish', stack: 99, icon: 'cooked_catfish', foodSatFull: 4, food: 7, foodSat: 9, eatTime: 1.9, spoil: 14400, desc: '' },
   // rendered off a pig. Not food — it is fuel and a crafting ingredient, so it never spoils
   [ITEM.FAT]:           { name: 'Fat',            stack: 99, icon: 'fat',           desc: 'Burns well for 1.5 smelt. Used as crafting ingredient' },
 // Armor. `equip` names the equipment slot the piece goes into; `armor` is its point value.
@@ -3561,7 +3602,9 @@ const TOOL_DURABILITY_MUL = 1.2;
 for (const p of Object.values(ITEM_PROPS))
   if (p && p.durability && (p.tool || p.ranged || p.shield)) p.durability = Math.round(p.durability * TOOL_DURABILITY_MUL);
 // every meat leaves rotten flesh behind when it turns, cooked or raw (0.7992)
-for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK])
+for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK,
+                  ITEM.COD, ITEM.COOKED_COD, ITEM.SALMON, ITEM.COOKED_SALMON,          // fish too (0.805)
+                  ITEM.PIKE, ITEM.COOKED_PIKE, ITEM.CATFISH, ITEM.COOKED_CATFISH])
   if (ITEM_PROPS[id]) ITEM_PROPS[id].spoilInto = ITEM.ROTTEN_FLESH;
 /* A pumpkin is food now, not masonry (0.7992): it goes off in four hours and cannot be planted back into
    the ground in survival. One that grew in the world is still a block, and creative still places them. */
@@ -3709,90 +3752,4 @@ function handBreakable(id) {
 // does what is in hand count as a tool at all? (any tool class — pick, shovel, hatchet, hoe, ...)
 const isToolItem = (id) => !!(id != null && id >= 256 && ITEM_PROPS[id] && ITEM_PROPS[id].tool);
 
-// Block drop table: block ID -> drop block ID (null = nothing, undefined = drop self)
-const BLOCK_DROP = {
-  [B.GRASS]: B.DIRT,
-  [B.STONE]: B.COBBLE,
-};
-
-// Returns [{id, count}, ...] (empty array = no drops). isNatural=true uses lower leaf-decay probability.
-const GRAVEL_FLINT_CHANCE = 0.05;          // a gravel block, and since 0.799 a gravel layer too (22-main-loop.js)
-const GOURD_FIBER_CHANCE = 0.4;            // a melon or pumpkin also gives a fiber (0.799)
-function blockDrop(blockId, isNatural = false) {
-  // a flint stone is never mined by hand (noTarget), but an explosion can still take one out —
-  // and when it does it should hand over the same flint a pickup would
-  if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
-  // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
-  const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
-  // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)
-  if (vBase != null) return PROPS[blockId]?.dropsAsBase ? blockDrop(vBase, isNatural) : [{ id: vBase, count: 1 }];
-  if (blockId === B.LEAVES || blockId === B.BIRCH_LEAVES || blockId === B.SPRUCE_LEAVES) {
-    const drops = [];
-    /* 2% since 0.7343. Leaves are the ONLY stick source a player can reach before their first
-       tool (0.7341 put logs behind the tool gate), so 0.9% made the opening tool a grind through
-       whole canopies. Player-PLACED leaves stay far lower on purpose: replanting a leaf block to
-       re-break it must never be a better rate than finding a tree. */
-    // doubled in 0.7443 (was 0.05 / 0.012) — the ratio between the two is what must hold
-    // Canopy Forager (0.79, 45-skills.js) scales all three rolls. Absent in a worker, where it reads 1
-    const lm = typeof skillLeafMul === 'function' ? skillLeafMul() : 1;
-    const stickChance = (isNatural ? 0.11 : 0.0264) * lm;      // 10% more sticks since 0.7992
-    if (Math.random() < stickChance)
-      drops.push({ id: ITEM.STICK, count: Math.floor(Math.random() * 3) + 1 });
-    const appleChance = (isNatural ? 0.002 : 0.0005) * lm;
-    if (Math.random() < appleChance)
-      drops.push({ id: ITEM.APPLE, count: 1 });
-    // saplings from decayed/mined leaves: 2% natural, 0.1% player-broken. Matches the leaf type.
-    const sapChance = (isNatural ? 0.02 : 0.001) * lm;
-    if (Math.random() < sapChance)
-      drops.push({ id: blockId === B.BIRCH_LEAVES ? B.BIRCH_SAPLING
-                     : blockId === B.SPRUCE_LEAVES ? B.SPRUCE_SAPLING : B.OAK_SAPLING, count: 1 });
-    return drops;
-  }
-  if (blockId === B.COAL_ORE)    return [
-    { id: ITEM.COAL,       count: 2 + Math.floor(Math.random() * 3) },
-    { id: ITEM.COAL_CHUNK, count: 3 + Math.floor(Math.random() * 5) },
-  ];
-  if (blockId === B.IRON_ORE)    return [{ id: ITEM.RAW_IRON, count: 1 + Math.floor(Math.random() * 4) }];
-  if (blockId === B.COPPER_ORE)    return [{ id: ITEM.RAW_COPPER, count: 1 + Math.floor(Math.random() * 6) }];
-  if (blockId === B.TIN_ORE)    return [{ id: ITEM.RAW_TIN, count: 1 + Math.floor(Math.random() * 5) }];
-  if (blockId === B.GOLD_ORE)    return [{ id: ITEM.RAW_GOLD, count: 1 + Math.floor(Math.random() * 3) }];
-  if (blockId === B.DIAMOND_ORE) return [{ id: ITEM.DIAMOND,  count: 1 + Math.floor(Math.random() * 2) }];
-  if (blockId === B.GLOW_VINE) return [{ id: ITEM.GLOW_CRYSTAL, count: 1 + Math.floor(Math.random() * 2) }];   // 0.765
-  // 0.766: a cobweb is string; gem ores give 1-2 gems (the pickaxe gate is MINE_REQ)
-  if (blockId === B.COBWEB)       return [{ id: ITEM.STRING,   count: 1 + Math.floor(Math.random() * 3) }];
-  if (blockId === B.EMERALD_ORE)  return [{ id: ITEM.EMERALD,  count: 1 + Math.floor(Math.random() * 2) }];
-  if (blockId === B.RUBY_ORE)     return [{ id: ITEM.RUBY,     count: 1 + Math.floor(Math.random() * 2) }];
-  if (blockId === B.SAPPHIRE_ORE) return [{ id: ITEM.SAPPHIRE, count: 1 + Math.floor(Math.random() * 2) }];
-  if (blockId === B.TOPAZ_ORE)    return [{ id: ITEM.TOPAZ,    count: 1 + Math.floor(Math.random() * 2) }];   // 0.769
-  if (blockId === B.GRAVEL) {
-    if (Math.random() < GRAVEL_FLINT_CHANCE) return [{ id: ITEM.FLINT, count: 1 }];
-    return [{ id: B.GRAVEL, count: 1 }];
-  }
-  // a gourd comes off its vine with a 40% chance of a fiber too (0.799), picked or broken
-  if (blockId === B.MELON || blockId === B.PUMPKIN) {
-    const out = blockId === B.MELON ? [{ id: ITEM.MELON_SLICE, count: 2 + Math.floor(Math.random() * 5) }]
-                                    : [{ id: B.PUMPKIN, count: 1 }];
-    if (Math.random() < GOURD_FIBER_CHANCE) out.push({ id: ITEM.FIBER, count: 1 });
-    return out;
-  }
-  if (blockId === B.WHEAT) return [{ id: ITEM.WHEAT, count: 1 + Math.floor(Math.random() * 2) }];
-  // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
-  if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
-      isBerryBush(blockId)) return [];
-  if (blockId === B.GLASS) return [{ id: ITEM.GLASS_SHARD, count: 2 + Math.floor(Math.random() * 3) }];
-  if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs (0.769)
-  if (blockId === B.SNOW)  return [{ id: ITEM.SNOWBALL,  count: 2 + Math.floor(Math.random() * 3) }];
-  if (blockId === B.SUGAR_CANE) return [{ id: ITEM.SUGAR_CANE, count: 1 }];
-  if (blockId === B.OAK_SAPLING || blockId === B.BIRCH_SAPLING || blockId === B.SPRUCE_SAPLING)
-    return [{ id: blockId, count: 1 }];
-  if (blockId === B.SULFUR_DOWN_TIP || blockId === B.SULFUR_UP_TIP) {
-    // legacy DOWN_TIP still drops sulfur so terrain-generated tips work; both variants of the
-    // canonical SULFUR_UP_TIP block also drop sulfur only (never the tip back)
-    const n = Math.floor(Math.random() * 3);   // 0..2
-    return n > 0 ? [{ id: ITEM.SULFUR, count: n }] : [];
-  }
-  const override = BLOCK_DROP[blockId];
-  if (override === undefined) return [{ id: blockId, count: 1 }];
-  if (override === null)      return [];
-  return [{ id: override, count: 1 }];
-}
+// blockDrop, BLOCK_DROP and every drop chance live in 50-loottable.js since 0.806

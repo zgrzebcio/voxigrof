@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voxiGrof</title>
-<link rel="stylesheet" href="css/style.css?v=0.7992">
+<link rel="stylesheet" href="css/style.css?v=0.807">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -16,7 +16,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.7992</div>
+<div id="version">alpha 0.807</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="interact"></div>
@@ -71,6 +71,7 @@
     <div id="menuHome">
       <div class="seedrow">
         <button id="worldsBtn" style="min-width:230px">Play</button>
+        <button id="fsBtn" class="grey fsSide" title="Fullscreen (F1)" style="padding:6px 13px;font-size:15px">&#9974;</button>
       </div>
       <div class="seedrow">
         <button id="profilesBtn" class="grey" style="min-width:230px">Profile: <b id="profileNameLbl">—</b></button>
@@ -118,7 +119,7 @@
           </select>
         </label>
         <label class="crow" title="How often plants grow, crops ripen and grass spreads.">random tick
-          <input id="tickInput" type="number" min="0" max="20" step="1" value="3">
+          <input id="tickInput" type="number" min="0" max="20" step="1" value="5">
         </label>
         <label class="crow"
                title="Let up to four people share this world on one screen. Player 1 uses keyboard and mouse; each other player needs a gamepad. Fixed at creation.">split screen
@@ -148,35 +149,72 @@
       <div class="seedrow">
         <button id="resumeBtn">Resume</button>
         <button id="quitBtn" style="background:#7d5a32">Save &amp; Quit</button>
+        <button id="fsBtn2" class="grey" title="Fullscreen (F1)" style="padding:6px 13px;font-size:15px">&#9974;</button>
       </div>
     </div>
+    <!-- 0.801: the settings in groups, one shown at a time (48-menu-ui.js), instead of one long row -->
     <div id="menuExtras">
-    <div class="opts">
-      <label id="modeLabel">gamemode
+    <div class="optTabs">
+      <button class="optTab" data-g="info">Info</button>
+      <button class="optTab" data-g="gameplay">Gameplay</button>
+      <button class="optTab" data-g="video">Video</button>
+      <button class="optTab" data-g="audio">Audio</button>
+      <button class="optTab" data-g="controls">Controls</button>
+    </div>
+    <!-- 0.802: one fixed-size box for every tab, so switching tabs never resizes the menu -->
+    <!-- 0.802: keyboard and gamepad apart; the one matching the last used input opens first.
+         0.8031: above the scrolling box, shown only on the Controls tab, so they never scroll away -->
+    <div class="keyTabs">
+      <button class="keyTab" data-k="kbd">Keyboard</button>
+      <button class="keyTab" data-k="pad">Gamepad</button>
+    </div>
+    <div class="optPanel">
+    <div class="controls info optGroup" data-g="info">
+      <div>Punch a tree for <b>logs</b>, turn them into planks and a <b>crafting bench</b>.</div>
+      <div>Hunger drains as you move: <b>cook food</b> in a furnace, raw food spoils.</div>
+      <div>Stations (furnace, bench, mortar) need a <b>clear top</b> to work.</div>
+      <div>Nights are cold: stand near a <b>torch</b> or fire, or wear armor.</div>
+      <div>Wear a <b>chisel</b> in the Neck slot, then hold <b>R</b> and scroll to lay a block as its variant (stone &rarr; brick).</div>
+      <div>Wear a <b>hammer</b> in the Others slot and hold <b>Q</b> to cut blocks into slabs, stairs, fences and more.</div>
+      <div>Level up to earn <b>skill points</b> &middot; open the tree with <b>K</b>.</div>
+      <div>Sleep in a <b>bed</b> to skip the night &middot; sneak to get up.</div>
+      <div><b>2&times; jump</b> toggles flying &middot; sneak-landing also stops it.</div>
+      <div>Sneaking crouches the body, others see it.</div>
+      <div>Stuck in a hole? Hold <b>jump + forward</b> against a wall to climb up to 3 blocks. It costs a lot of hunger.</div>
+      <div><b>Split screen:</b> add players in the pause menu.</div>
+      <div>Sun and moon rise east, set west.</div>
+    </div>
+    <div class="opts optGroup" data-g="gameplay">
+      <label id="modeLabel">Game mode
         <select id="modeSel">
           <option value="creative">Creative</option>
           <option value="survival">Survival</option>
         </select>
       </label>
-      <label title="How split screen divides the window. Four players are always a 2x2 grid.">split
+      <label title="How split screen divides the window. Four players are always a 2x2 grid.">Split screen layout
         <select id="splitDirSel">
-          <option value="h">horizontal (top / bottom)</option>
-          <option value="v">vertical (side by side)</option>
+          <option value="h">Horizontal (top / bottom)</option>
+          <option value="v">Vertical (side by side)</option>
         </select>
       </label>
-      <label>fps limit
+      <label>Mouse sensitivity (%)
+        <input id="sensInput" type="number" min="10" max="400" step="10">
+      </label>
+    </div>
+    <div class="opts optGroup" data-g="video">
+      <label>Frame rate limit (FPS)
         <select id="fpsSel">
           <option value="0">off</option>
           <option>30</option><option>60</option><option>90</option><option>120</option><option>144</option>
         </select>
       </label>
-      <label>render distance
+      <label>Render distance (chunks)
         <input id="distInput" type="number" min="4" max="32" step="1">
       </label>
-      <label title="Chunks that actually tick: mobs, fluids, falling blocks, growth. Capped by render distance.">sim distance
+      <label title="Chunks that actually tick: mobs, fluids, falling blocks, growth. Capped by render distance.">Simulation distance (chunks)
         <input id="simInput" type="number" min="2" max="16" step="1">
       </label>
-      <label>shadow dist
+      <label>Shadow distance (blocks)
         <select id="shadowSel">
           <option value="0">off</option>
           <option value="80">80</option>
@@ -185,49 +223,80 @@
           <option value="240">240</option>
         </select>
       </label>
-      <label title="Texture quality. Low halves the block atlas and turns off anisotropic filtering: faster on phones and weak GPUs. Auto picks for this device.">textures
+      <label title="Texture quality. Low halves the block atlas and turns off anisotropic filtering: faster on phones and weak GPUs. Auto picks for this device.">Texture quality
         <select id="texSel">
           <option value="auto">auto</option>
           <option value="high">high</option>
           <option value="low">low</option>
         </select>
       </label>
-      <label>sensitivity %
-        <input id="sensInput" type="number" min="10" max="400" step="10">
+      <label title="Block bits, smoke, splashes, hearts and footprints. Fewer halves them; off turns them all off.">Particles
+        <select id="fxSel">
+          <option value="all">all</option>
+          <option value="fewer">fewer</option>
+          <option value="off">off</option>
+        </select>
       </label>
-      <button id="musicBtn" title="Mute music" style="padding:6px 11px;font-size:14px">&#9834;</button>
-      <button id="sfxBtn" title="Mute sound effects" style="padding:6px 11px;font-size:14px">&#128266;</button>
-      <button id="fsBtn" title="Fullscreen (F1)" style="padding:6px 11px;font-size:14px">&#9974;</button>
+      <!-- 0.804: the display refresh note sits here, under the frame rate limit it is about -->
+      <div id="hzNote"></div>
     </div>
-    <div id="hzNote"></div>
-    <div class="controls">
-      <div><b>WASD</b> move &middot; <b>mouse</b> look</div>
-      <div><b>Space / Shift</b> up &middot; down / jump</div>
-      <div><b>2×Space / 2×A</b> toggle flying</div>
-      <div><b>sneak-land</b> also stops flying</div>
-      <div><b>sneak</b> crouches the body (others see it)</div>
-      <div><b>bed</b> lie down &middot; <b>sneak</b> to get up</div>
-      <div><b>LMB / RMB</b> break / place</div>
-      <div><b>1–9 / wheel</b> select block</div>
-      <div><b>Tab</b> inventory</div>
-      <div><b>Ctrl</b> toggle fast move</div>
-      <div><b>[ ]</b> view distance</div>
-      <div><b>Stick L/R</b> move / look</div>
-      <div><b>A / X</b> fly up / down</div>
-      <div><b>RT / LT</b> break / place</div>
-      <div><b>LB / RB</b> cycle block</div>
-      <div><b>hold Y</b> radial picker (aim R-stick)</div>
-      <div><b>L3</b> toggle fast move</div>
-      <div><b>split screen</b> add players in pause menu</div>
-      <div><b>Esc / Start</b> open / close menu</div>
-      <div><b>F1 / Back</b> fullscreen</div>
-      <div><b>F2 / D-pad &larr;</b> change perspective</div>
-      <div><b>F3 / D-pad &uarr;</b> hide debug text</div>
-      <div><b>Y / D-pad &darr;</b> drop item &middot; <b>Shift+Y</b> stack</div>
-      <div><b>inventory: Y / D-pad &darr;</b> drop hovered &middot; <b>Shift+Y / X+&darr;</b> stack &middot; <b>X</b> half</div>
-      <div><b>B</b> close menu &middot; else inventory</div>
-      <div><b>A</b> drag &middot; <b>Y</b> quick-move (inventory)</div>
-      <div><b>sun &amp; moon</b> rise east, set west</div>
+    <!-- 0.804: volume sliders instead of the two mute buttons (32-sound.js) -->
+    <div class="opts optGroup" data-g="audio">
+      <label>Master volume
+        <span class="volRow"><input id="vol_master" type="range" min="0" max="100" step="5"><span class="volVal"></span></span>
+      </label>
+      <label>Music volume
+        <span class="volRow"><input id="vol_music" type="range" min="0" max="100" step="5"><span class="volVal"></span></span>
+      </label>
+      <label>Sound effects volume
+        <span class="volRow"><input id="vol_sfx" type="range" min="0" max="100" step="5"><span class="volVal"></span></span>
+      </label>
+    </div>
+    <div class="optGroup" data-g="controls">
+      <div class="controls keyList" data-k="kbd">
+        <div><b>WASD</b> move &middot; <b>mouse</b> look</div>
+        <div><b>Space / Shift</b> up &middot; down / jump</div>
+        <div><b>2&times;Space</b> toggle flying</div>
+        <div><b>Space + W</b> at a wall: climb up to 3 blocks</div>
+        <div><b>LMB / RMB</b> break / place</div>
+        <div><b>1–9 / wheel</b> select block</div>
+        <div><b>Tab</b> inventory</div>
+        <div><b>hold R + wheel</b> block variant (chisel worn)</div>
+        <div><b>K</b> skill tree</div>
+        <div><b>hold Q</b> block shape (hammer worn)</div>
+        <div><b>Ctrl</b> toggle fast move</div>
+        <div><b>[ ]</b> view distance</div>
+        <div><b>Y</b> drop item &middot; <b>Shift+Y</b> stack</div>
+        <div><b>inventory: Y</b> drop hovered &middot; <b>Shift+Y</b> stack</div>
+        <div><b>Esc</b> open / close menu</div>
+        <div><b>F1</b> fullscreen</div>
+        <div><b>F2</b> change perspective</div>
+        <div><b>F3</b> hide debug text</div>
+        <div><b>Backspace</b> hide / show the whole HUD</div>
+      </div>
+      <div class="controls keyList" data-k="pad">
+        <div><b>Stick L / R</b> move / look</div>
+        <div><b>A / X</b> jump, fly up / down</div>
+        <div><b>2&times;A</b> toggle flying</div>
+        <div><b>A + stick forward</b> at a wall: climb up to 3 blocks</div>
+        <div><b>RT / LT</b> break / place</div>
+        <div><b>LB / RB</b> cycle block</div>
+        <div><b>hold Y</b> radial picker (aim R-stick)</div>
+        <div><b>hold D-pad &rarr; + LB / RB</b> block variant (chisel worn)</div>
+        <div><b>hold B</b> block shape (hammer worn)</div>
+        <div><b>Back</b> skill tree &middot; <b>hold Back</b> hide / show the HUD</div>
+        <div><b>L3</b> toggle fast move</div>
+        <div><b>B</b> close menu &middot; else inventory</div>
+        <div><b>D-pad &darr;</b> drop item</div>
+        <div><b>inventory: A</b> drag &middot; <b>Y</b> quick-move</div>
+        <div><b>inventory: D-pad &larr; / &rarr;</b> tabs &middot; <b>LB / RB</b> crafting categories</div>
+        <div><b>menu: LB / RB</b> settings tabs &middot; <b>R-stick</b> scroll</div>
+        <div><b>inventory: D-pad &darr;</b> drop hovered &middot; <b>X+&darr;</b> stack &middot; <b>X</b> half</div>
+        <div><b>Start</b> open / close menu</div>
+        <div><b>D-pad &larr;</b> change perspective</div>
+        <div><b>D-pad &uarr;</b> hide debug text</div>
+      </div>
+    </div>
     </div>
     </div>
   </div>
@@ -288,6 +357,8 @@ window.THREE = THREE;
 <script defer src="js/46-variants.js"></script>
 <script defer src="js/47-quests.js"></script>
 <script defer src="js/48-menu-ui.js"></script>
+<script defer src="js/49-particles.js"></script>
+<script defer src="js/50-loottable.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

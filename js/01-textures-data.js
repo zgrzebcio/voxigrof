@@ -67,6 +67,7 @@ const TEXTURES = {
   furnace_front_on:     'textures/Blocks/Interactables/furnace_front_on.png',
   furnace_side:         'textures/Blocks/Interactables/furnace_side.png',
   furnace_top:          'textures/Blocks/Interactables/furnace_top.png',
+  furnace_top_open:     'textures/Blocks/Interactables/furnace_top_open.png',   // the chimney on top (0.801)
   red_sand:             'textures/Blocks/Sands/red_sand.png',
   cactus_side:          'textures/Blocks/Plants/cactus_side.png',
   cactus_top:           'textures/Blocks/Plants/cactus_top.png',
@@ -273,6 +274,14 @@ const ITEM_TEXTURES = {
   cooked_beef:     'textures/Items/Consumables/cooked_beef.png',
   pork:            'textures/Items/Consumables/pork.png',            // 0.789
   cooked_pork:     'textures/Items/Consumables/cooked_pork.png',     // 0.789
+  cod:             'textures/Items/Consumables/cod.png',             // fish, 0.805
+  cooked_cod:      'textures/Items/Consumables/cooked_cod.png',
+  salmon:          'textures/Items/Consumables/salmon.png',
+  cooked_salmon:   'textures/Items/Consumables/cooked_salmon.png',
+  pike:            'textures/Items/Consumables/pike.png',
+  cooked_pike:     'textures/Items/Consumables/cooked_pike.png',
+  catfish:         'textures/Items/Consumables/catfish.png',
+  cooked_catfish:  'textures/Items/Consumables/cooked_catfish.png',
   fat:             'textures/Items/Materials/fat.png',               // 0.789
   saddle:          'textures/Items/Useables/saddle.png',
   leather_helmet:     'textures/Items/Equipments/leather_helmet.png',

@@ -47,6 +47,34 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'Enter') { e.preventDefault(); uiAskClose(true); }
 }, true);
 
+/* ---------------------------------- settings groups (0.801) ----------------------------------
+   The title and pause screens show their settings one group at a time — Gameplay, Video, Audio,
+   Controls — picked by the tabs above them. The last group opened is remembered on this device. */
+function showOptGroup(g) {
+  for (const t of document.querySelectorAll('#menuExtras .optTab')) t.classList.toggle('on', t.dataset.g === g);
+  for (const el of document.querySelectorAll('#menuExtras .optGroup')) el.style.display = el.dataset.g === g ? '' : 'none';
+  // the Keyboard / Gamepad row keeps its space on every tab, so the menu never changes height (0.8031)
+  const kt = document.querySelector('#menuExtras .keyTabs');
+  if (kt) kt.style.visibility = g === 'controls' ? '' : 'hidden';
+  try { localStorage.setItem('vg_optTab', g); } catch {}
+}
+for (const t of document.querySelectorAll('#menuExtras .optTab'))
+  t.addEventListener('click', (e) => { e.stopPropagation(); showOptGroup(t.dataset.g); });
+showOptGroup((() => { try { return localStorage.getItem('vg_optTab') || 'info'; } catch { return 'info'; } })());
+// the key list: keyboard or gamepad, opened on whichever was used last each time the menu shows (0.802)
+function showKeyList(k) {
+  for (const t of document.querySelectorAll('#menuExtras .keyTab')) t.classList.toggle('on', t.dataset.k === k);
+  for (const el of document.querySelectorAll('#menuExtras .keyList')) el.style.display = el.dataset.k === k ? '' : 'none';
+}
+for (const t of document.querySelectorAll('#menuExtras .keyTab'))
+  t.addEventListener('click', (e) => { e.stopPropagation(); showKeyList(t.dataset.k); });
+showKeyList('kbd');
+new MutationObserver(() => {
+  if (overlay.style.display !== 'none') showKeyList(typeof lastInputDevice !== 'undefined' && lastInputDevice === 'pad' ? 'pad' : 'kbd');
+}).observe(overlay, { attributes: true, attributeFilter: ['style'] });
+// the pause screen's own fullscreen button, beside Resume (the title screen's sits beside Play)
+document.getElementById('fsBtn2')?.addEventListener('click', (e) => { e.stopPropagation(); toggleFullscreen(); });
+
 /* ---------------------------------- the menu's pad cursor ---------------------------------- */
 const mcurEl = document.createElement('div');
 mcurEl.id = 'mcursor';
@@ -81,6 +109,7 @@ function _menuPress(el) {
   if (el.tagName === 'SELECT') { _menuStep(el, 1); return; }
   if (el.tagName === 'INPUT') {
     if (el.type === 'checkbox') { el.checked = !el.checked; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (el.type === 'range') { /* a slider moves with D-pad Left / Right */ }
     else el.focus();                        // a text or number field: hand it the keyboard
     return;
   }
@@ -92,9 +121,10 @@ function _menuStep(el, dir) {
   if (el.tagName === 'SELECT' && el.options.length) {
     el.selectedIndex = (el.selectedIndex + dir + el.options.length) % el.options.length;
     el.dispatchEvent(new Event('change', { bubbles: true }));
-  } else if (el.tagName === 'INPUT' && el.type === 'number') {
+  } else if (el.tagName === 'INPUT' && (el.type === 'number' || el.type === 'range')) {   // a volume slider too (0.804)
     const step = +el.step || 1, lo = el.min === '' ? -Infinity : +el.min, hi = el.max === '' ? Infinity : +el.max;
     el.value = String(Math.max(lo, Math.min(hi, (+el.value || 0) + step * dir)));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   } else if (el.tagName === 'INPUT' && el.type === 'checkbox') {
     el.checked = dir > 0;
@@ -116,7 +146,14 @@ function _menuJump(dir) {
 // the scrolling box the cursor is inside, if any (the world list, the create settings)
 function _menuScrollable(el) {
   for (let n = el; n && n !== document.body; n = n.parentElement)
-    if (n.scrollHeight > n.clientHeight + 4) return n;
+    if (n.scrollHeight > n.clientHeight + 4 && getComputedStyle(n).overflowY !== 'visible') return n;
+  return null;
+}
+// the first visible scrolling box of the current screen (0.803)
+function _menuFirstScrollable() {
+  const root = uiAskOpen() ? uiAskEl : overlay;
+  for (const n of root.querySelectorAll('.wlist, #createOpts, .optPanel, .splitList'))
+    if (n.offsetParent && n.scrollHeight > n.clientHeight + 4) return n;
   return null;
 }
 /* Called every frame from pollGamepad while the menu is up. Returns true when it took the pad, so the
@@ -132,7 +169,23 @@ function updateMenuPad(dt, btn, edge, g) {
     menuCursor.y = Math.max(4, Math.min(innerHeight - 4, menuCursor.y + ay * MENU_CURSOR_SPEED * dt));
     menuCursor.on = true;
   }
+  // LB / RB step through the settings tabs (0.8031)
+  if (!uiAskOpen() && (edge(4) || edge(5))) {
+    const tabs = [...document.querySelectorAll('#menuExtras .optTab')].filter(t => t.offsetParent);
+    if (tabs.length) {
+      const i = Math.max(0, tabs.findIndex(t => t.classList.contains('on')));
+      showOptGroup(tabs[(i + (edge(5) ? 1 : -1) + tabs.length) % tabs.length].dataset.g);
+    }
+  }
   if (btn(0) || btn(1) || edge(12) || edge(13) || edge(14) || edge(15)) menuCursor.on = true;
+  /* The right stick scrolls a long list (0.803: works without the cursor too): the box under the cursor,
+     else the first scrolling box on screen — the settings panel, the worlds, the create settings. */
+  const sy = padAxis(g.axes[3] || 0);
+  if (sy) {
+    const at = menuCursor.on ? document.elementFromPoint(menuCursor.x, menuCursor.y) : null;
+    const box = (at && _menuScrollable(at)) || _menuFirstScrollable();
+    if (box) box.scrollTop += sy * 900 * dt;
+  }
   if (!menuCursor.on) return true;
   mcurEl.style.display = 'block';
   mcurEl.style.left = menuCursor.x + 'px';
@@ -151,12 +204,6 @@ function updateMenuPad(dt, btn, edge, g) {
         .find(el => el.offsetParent && /back|resume/i.test(el.textContent));
       if (back) back.click();
     }
-  }
-  // the right stick scrolls a long list (the worlds, the create settings)
-  const sy = padAxis(g.axes[3] || 0);
-  if (sy && _mHover) {
-    const box = _menuScrollable(_mHover);
-    if (box) box.scrollTop += sy * 900 * dt;
   }
   return true;
 }

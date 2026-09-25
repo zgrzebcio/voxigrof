@@ -91,6 +91,14 @@ function pickInvTab(key) {
   player._invTab = key === 'equip' ? 'equip' : null;
   if (player._skillView) closeSkillTree(); else buildInventory();
 }
+// D-pad Left / Right step through the tabs, the bumpers being the crafting categories' (0.8031)
+function cycleInvTab(dir) {
+  const row = invTabsEl(player._skillView ? 'skills' : invRightTab());
+  if (!row) return;
+  const keys = [...row.children].map(b => b.dataset.tab);
+  const i = Math.max(0, keys.indexOf(player._skillView ? 'skills' : invRightTab()));
+  pickInvTab(keys[(i + dir + keys.length) % keys.length]);
+}
 // put the tab row on top of a right-hand panel
 function addInvTabs(panel, current) {
   const t = invTabsEl(current);
@@ -299,7 +307,8 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (p.shield) conds.push(['raise', 'Slows you down, cannot sprint', 'bad']);
     conds.push(['worn', p.packSlots ? `+${p.packSlots} backpack slots`
                       : p.beltSlots ? `+${p.beltSlots} belt slots`
-                      : p.chisel ? 'Hold Q (hold B on a gamepad) to pick a block shape' : 'No effect',   // 0.78
+                      : p.chisel ? (p.equip === 'necklace' ? 'In the Neck slot: hold R to pick a block variant'   // the chisel (0.803)
+                                                           : 'Hold Q (hold B on a gamepad) to pick a block shape') : 'No effect',   // 0.78
                 (p.packSlots || p.beltSlots || p.chisel) ? '' : 'none']);
   }
   if (p.ammo) conds.push(['hit', 'No effect', 'none']);
@@ -348,11 +357,14 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (wm) rows.push(['quality', 'Well made']);
     if (dur === 0) rows.push(['status', 'Broken']);
     const cost = typeof hasSkill === 'function' && hasSkill('mender') && typeof repairCostText === 'function'
-      ? repairCostText(id) : '';
+      ? repairCostText(id, dur) : '';   // scaled by how worn it is (0.807)
     if (cost) {
       rows.push(['repair cost', _tipEsc(cost)]);
       rows.push(['repair at', repairNeedsBench(id) ? 'crafting bench' : 'anywhere']);
     }
+    // Dismantle (0.807): what breaking it down would give back right now
+    if (typeof hasSkill === 'function' && hasSkill('dismantle') && typeof dismantleText === 'function')
+      rows.push(['dismantles to', _tipEsc(dismantleText(id, dur) || 'nothing')]);
   }
   if (p.food != null) {
     rows.push(['food', _tipNum(p.food)]);

@@ -761,7 +761,7 @@ function renderAllViews(dt) {
       const off = HAND_RIGS[j].root.userData.off;       // the shield arm follows the same rule
       if (off) off.root.visible = (j === i) && !!PSTATE[j].offVisible;
     }
-    if (camView === 0 && PSTATE[i].handVisible) {
+    if (camView === 0 && PSTATE[i].handVisible && !(typeof hudHidden !== 'undefined' && hudHidden)) {   // Backspace hides it (0.801)
       handCam.aspect = v.w / Math.max(1, v.h);
       handCam.updateProjectionMatrix();
       renderHandPass();

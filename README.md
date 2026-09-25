@@ -37,12 +37,15 @@ the create screen for a world without villages and dungeons.
 | Hotbar | `1`–`8` or mouse wheel | LB / RB |
 | Drop one / drop stack | `Y` / `Shift+Y` | D-pad Down / X + D-pad Down |
 | Shape wheel (hammer worn) | Hold `Q`, aim with the mouse, let go | Hold B, aim with the right stick, let go |
-| Pick a variant (hammer in Neck) | Hold `R` + mouse wheel | Hold D-pad Right + LB / RB |
+| Pick a variant (chisel in Neck) | Hold `R` + mouse wheel | Hold D-pad Right + LB / RB |
 | Turn the shape wheel's page | Mouse wheel | LB / RB |
 | Pause menu | `Esc` | Start |
-| Fullscreen | `F1` | Back / Share |
+| Fullscreen | `F1` | — |
+| Skill tree | `K` | Back / Share |
 | Camera view | `F2` | D-pad Left |
 | Debug text | `F3` | D-pad Up |
+| Hide the whole HUD | `Backspace` | Hold Back / Share (1 s) |
+| Climb a wall (up to 3 blocks, costs hunger) | Hold `Space` + `W` facing it | Hold A + stick forward |
 
 In the inventory: `Shift+click` quick-moves a stack, `Shift+right click` wears gear, middle click
 sorts, and clicking outside the panels throws what you are carrying. On a pad the sticks move a
@@ -56,9 +59,8 @@ of the game is about making your first flint tools.
 1. **Fiber.** Hold `E` on short grass, tall grass, wheat and berry bushes. Foraging needs both hands, so your offhand must be empty. Each pick has a chance to
    give fiber (grass 15%, wheat and ripe bushes 20%, bare bushes 30%). Fiber goes into every early
    recipe, so gather plenty.
-2. **Sticks.** Break leaves. About 2% of broken leaves drop sticks, and leaves that decay on their own
-   after a tree is cut drop them far more often (10%). Leaves can also drop saplings and, rarely,
-   apples.
+2. **Sticks.** Break leaves. Leaves drop sticks (a 30% chance of one, rarely up to four), a sapling
+   5% of the time and an apple 1%. Torn off by bare hand, every chance is halved.
 3. **Flint.** Small flint pebbles lie on the ground; hold `E` on one to pick it up. Gravel also
    drops flint 5% of the time.
 4. **Flint tools.** Open the inventory (`Tab`) and craft a flint pickaxe (5 flint, 3 sticks,
@@ -77,8 +79,33 @@ Milk goes off in 10 minutes and leaves the bucket, meat leaves rotten flesh, and
 keeps 4 hours and can no longer be planted.
 
 A crafting bench or mortar needs its top clear: with a block or plant standing on it, it will not open,
-and an order on it cannot be worked or taken. A craft you are part way through is kept when you let go,
+and an order on it cannot be worked or taken. A furnace's top is its chimney: covered, it stops smelting
+but the lit fuel keeps burning away. A craft you are part way through is kept when you let go,
 walk away or leave the world.
+
+**Fish.** Cod, salmon, pike and catfish swim in water at least two blocks deep, from the small cod
+(4 health) to the big catfish (8), which keeps to the bottom. Each has a level and its own size, flees
+when hit, flops and suffocates on land, and drops one raw fish of its kind. Cook them in the furnace.
+
+**Wall climbing.** In survival you can climb a bare wall up to 3 blocks, enough to get out of a pit. It
+uses a lot of hunger and both hands, so you can't mine or place while climbing. Ladders show the same
+climbing arms but cost nothing extra. Sprint only works forward and never while sneaking.
+
+**Sound.** The Audio tab has master, music and sound-effects volume sliders. Music starts at 50%.
+
+**Drops are chances (0.806).** Every drop is a sure part plus extra chances: iron and gold give 1, and
+another 60% of the time; copper and tin 1, then 70% and 40%; a gem ore 1, then 40%; a ripe berry bush 1, then
+75% and 35%; meat 1, then 40% and 5%; a fish always exactly 1; rotten flesh and bones 1, and 2 more a third of
+the time. Leather, fat and a sheep's string may not come at all.
+
+**Particles.** Blocks burst into bits when broken and chip while you mine, furnaces smoke, lava pops
+embers, falling into water splashes, hearts show hits (red) and healing (green), and soft ground (sand,
+snow, dirt, gravel, clay) keeps your footprints for a few seconds. The menu's **particles** setting
+(all / fewer / off) turns them down on slow devices. Also: waterfall foam, pool bubbles and dripping
+after a swim, embers from a furnace that is firing something, fireflies at night, butterflies by
+flowers, leaves falling from trees, arrow trails, shield sparks, TNT fuse sparks and blast smoke, puffs
+for a finished craft, an opened chest, and mobs appearing or leaving, and bubbles for running effects
+(green bad, blue good).
 
 Dropped items stay where they fall, even when you walk away and the area unloads. Their time only runs
 while you are near: everything you carried lies 20 minutes after you die, what you throw down 10,
@@ -102,8 +129,8 @@ achievement rather than something that ticks over.
 
 **Every level is one skill point.** Spending points does not spend levels. Open the tree with `K`,
 or with the **Skill tree** tab on top of the right-hand panel, which shows how many points are free. With a furnace, chest or structure block open, the same tabs switch that panel to **Equipment** and back.
-Pick a category tab, then click a skill **twice** — the first click arms it, the second learns it,
-because there is no way to unlearn one.
+Pick a category tab, then **hold** a skill for about a second (mouse button, or A on a gamepad) to
+learn it. A bar fills across it while you hold, and there is no way to unlearn one.
 
 | Survival | Cost | Needs | Effect |
 |---|---|---|---|
@@ -119,19 +146,20 @@ because there is no way to unlearn one.
 | Walk and Work | 1 | Nimble Fingers | Crafting slows your walk 25% less |
 | Fine Work | 1 | Nimble Fingers | Tools and gear you craft from now on are Well made: 10% chance a use costs no durability |
 | Spare Parts | 1 | Nimble Fingers | 5% chance an ammo craft gives 1 extra |
-| Mender | 2 | Fine Work + Walk and Work | Worn-out gear breaks instead of vanishing, and can be repaired |
+| Mender | 2 | Fine Work + Walk and Work | Worn-out gear breaks instead of vanishing. Carry worn gear onto the **Repair** zone under the crafting panel: half its recipe when broken, less the less worn it is |
+| Dismantle | 2 | Mender | Carry a tool, weapon or armor onto the **Dismantle** zone under the equipment panel: you get half its recipe back, less the more worn it is |
 
 | Exploring | Cost | Needs | Effect |
 |---|---|---|---|
 | Treasure Nose | 1 | — | 25% chance a loot chest holds one extra item |
-| Prospector | 1 | — | +1 of the ore from every ore block you mine |
+| Prospector | 1 | — | 20% chance of one more ore from every ore block you mine |
 | Weathered | 2 | — | +10% cold and heat resistance |
 | Pack Rat | 1 | Treasure Nose | Block stacks hold 10 more |
 | Hazard Hide | 1 | Prospector + Treasure Nose + Weathered | 30% less damage from falls, lava and cactus |
 
 | Husbandry | Cost | Needs | Effect |
 |---|---|---|---|
-| Butcher | 1 | — | +1 of each drop from animals you kill |
+| Butcher | 1 | — | 20% chance of one more meat (or leather) from animals you kill |
 | Preserver | 1 | — | Food you carry spoils 10% slower |
 | Lingering | 1 | Preserver | Food and potion effects last 25% longer |
 | Gentle Hand | 2 | Butcher | Taming is 10% faster |
@@ -211,11 +239,11 @@ but is most common in its best band.
 
 | Ore | Best depth (y) | Found between (y) | Pickaxe needed | Drops |
 |---|---|---|---|---|
-| Coal | 60–90 | 35–180 | Flint | 2–4 coal and 3–7 coal chunks |
-| Copper | 70–80 | 20–85 | Flint | 1–6 raw copper |
-| Iron | 50–65 | 15–130 | Stone | 1–4 raw iron |
-| Tin | 40–45 | 10–70 | Stone | 1–5 raw tin |
-| Gold | 20–30 | 5–40 | Iron | 1–3 raw gold |
+| Coal | 60–90 | 35–180 | Flint | 1–3 coal and 2–5 coal chunks |
+| Copper | 70–80 | 20–85 | Flint | 1–3 raw copper |
+| Iron | 50–65 | 15–130 | Stone | 1–2 raw iron |
+| Tin | 40–45 | 10–70 | Stone | 1–3 raw tin |
+| Gold | 20–30 | 5–40 | Iron | 1–2 raw gold |
 | Diamond | 15–20 | 2–30 | Bronze | 1–2 diamonds |
 | Ruby | 43–47 | 30–70 | Bronze | 1–2 rubies |
 | Topaz | 78–82 | 60–100 | Bronze | 1–2 topaz |
@@ -225,7 +253,7 @@ but is most common in its best band.
 Pickaxe tiers go flint, stone, iron (gold is the same tier), bronze, then diamond. Every gem ore and
 diamond need bronze or better; obsidian needs diamond. Mining an ore with too weak a pickaxe gives
 nothing. Iron, copper, tin, gold, diamond and the gem ores glow faintly, so they are easier to spot
-in the dark. **Prospector** adds one more of the ore to every ore block you break.
+in the dark. **Prospector** gives a 20% chance of one more of the ore from every ore block you break.
 
 **Gems grow as clusters.** Diamond, ruby, topaz, sapphire and emerald are not buried in the rock: they
 grow, rarely, as crystal clusters on cave floors, ceilings and walls in their depth range, on a bed of the rock they grow from (stone, granite, marble or limestone; their own ore stone on anything else) (emerald also on
@@ -267,7 +295,7 @@ The golden apple never spoils.
 - **Cows** drop raw beef and leather. Leather makes the first armor set and the backpack. Use an
   empty bucket on a female cow for milk; each cow refills after 10 minutes.
 - **Pigs** live in plains, forest, birch forest and swamp, in groups of up to three. They drop 1–3
-  raw pork and 0–2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
+  raw pork and up to 2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
   berkshire and tamworth.
 - **Horses** can be tamed, then ridden with a saddle.
 - **Zombies** drop rotten flesh, which a furnace turns into leather, and pick up what they find.
@@ -276,7 +304,7 @@ The golden apple never spoils.
   stands and fights any monster that comes near it, and they are evenly matched one-on-one.
   Anything killed by another creature leaves **nothing at all** — no loot, no XP — so leading a
   zombie into a village is not a way to farm either side.
-- **Butcher** adds one of each drop to any animal you kill yourself.
+- **Butcher** gives a 20% chance of one more meat (a horse: leather) from any animal you kill yourself.
 
 ## Block shapes
 
@@ -311,11 +339,10 @@ A cover placed over a hole becomes a lid flush with the ground; in a doorway (wa
 sits flush with the wall on your side; anywhere else it lies against the face you clicked. Mobs
 fall through it too.
 
-The **chisel** can be crafted again at the bench: worn in the Neck slot it unlocks block variants, and in
-the Others slot it picks shapes like the hammer. One already in a save
-still works.
+The **chisel** (bench: 5 iron ingots, 4 copper nuggets, 2 sticks, 1 fiber block, 5 string) is worn in the
+Neck slot and unlocks block variants. Since 0.803 only the hammer cuts shapes and only the chisel picks variants.
 
-**Variants.** With a hammer worn in the Neck slot, five slots above the health bar show the other
+**Variants.** With a chisel worn in the Neck slot, five slots above the health bar show the other
 looks of the block in your hand, drawn in the picked shape, the plain block in the middle. Hold `R`
 and scroll, or hold D-pad Right and press LB / RB, to step through them. The
 pick changes every one of that block you carry (no separate stacks), is not saved, and a variant
@@ -337,7 +364,7 @@ Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, g
   tool gives 1–2 glow crystals; by hand it just comes down. 5 glow crystals make a glowcrystal block
   at the crafting bench, the brightest light in the game.
 - **Cobwebs.** Strung in cave corners, on floors, walls and ceilings. Walking into one slows you
-  down by 80% (leather armor helps only half as much there). Cut one with a sword for 1–3 string.
+  down by 80% (leather armor helps only half as much there). Cut one with a sword for 1–3 string. Cobwebs always hang on a floor, wall or ceiling.
 - **Storage blocks.** At the crafting bench, 10 coal, charcoal, iron/gold/tin/copper ingots, diamonds,
   emeralds, rubies, sapphires or raw iron/gold/tin/copper press into one block, and a block breaks back
   into 10. Coal and charcoal blocks burn in a furnace as long as the ten they were made from.

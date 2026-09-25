@@ -160,8 +160,8 @@ RECIPES_ADVANCED.push(
   { in: [[ITEM.BRONZE_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 4.5, xpToGive: 60 },
   /* The chisel (0.78): worn in the Others slot, picked a block shape (43-chisel.js). Retired in 0.789 when
      the hammer below took that job, and made again since 0.799: worn in the Neck slot it unlocks block
-     variants (46-variants.js), and in Others it still shapes like the hammer. */
-  { in: [[B.IRON_BLOCK, 5], [ITEM.COPPER_NUGGET, 4], [ITEM.STICK, 2], [B.FIBER_BLOCK, 1], [ITEM.STRING, 5]],
+     variants (46-variants.js). Five iron ingots, not blocks, since 0.803, when shaping became the hammer's alone. */
+  { in: [[ITEM.IRON_INGOT, 5], [ITEM.COPPER_NUGGET, 4], [ITEM.STICK, 2], [B.FIBER_BLOCK, 1], [ITEM.STRING, 5]],
     out: [ITEM.CHISEL, 1], timeToCraft: 10, xpToGive: 150 },
   // the hammer (0.788): the shape tool, and since 0.789 the only one
   { in: [[B.IRON_BLOCK, 1], [ITEM.COPPER_NUGGET, 8], [ITEM.STICK, 4], [B.FIBER_BLOCK, 2], [ITEM.STRING, 10]],
@@ -344,7 +344,8 @@ const craftQueue = () => player.craftQueue || (player.craftQueue = []);
 const playerIsCrafting = () => !player.canFly && !player.dead
   && !!(player.craftQueue && player.craftQueue.length) && craftSpeed() > 0;
 
-function queueCraft(r, all) {
+// n: a counted batch (Ctrl), that many at once (0.807)
+function queueCraft(r, all, n = 1) {
   if (player.canFly) return;
   if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return; }
   const q = craftQueue(), ri = recipeIndex(r);
@@ -352,7 +353,7 @@ function queueCraft(r, all) {
   if (room <= 0) { feedWarn('Crafting queue is full'); return; }
   // one craft per slot: Shift fills the empty slots, as far as the ingredients go
   let added = 0;
-  for (let want = all ? room : 1; added < want; added++) {
+  for (let want = all ? room : Math.min(room, n); added < want; added++) {
     const u = _takeIngredients(r);
     if (!u) break;
     q.push({ ri, t: 0, units: [u] });
@@ -408,6 +409,8 @@ function updateCraftQueue(dt) {
         // Fine Work stamps what it makes; Spare Parts may add one to an ammo craft (0.79)
         _giveItems(r.out[0], r.out[1] + skillSpareParts(r.out[0], 1), 'crafted', true, skillCraftMeta(r.out[0]));
         addXP(r.xpToGive || 0);
+        // a puff of what was made, just in front of you (0.803)
+        if (typeof fxCraftPuff === 'function') fxCraftPuff(player.pos.x - Math.sin(player.yaw) * 0.6, player.pos.y + 1.1, player.pos.z - Math.cos(player.yaw) * 0.6, r.out[0]);
         refreshSlotsUI();
       }
     }
@@ -508,52 +511,140 @@ function dropCraftQueueAt(x, y, z) {
   player.craftQueue = [];
 }
 
-/* ---------------------------------- repairs (Mender, 0.79) ----------------------------------
-   A tool or piece of gear worn to 0 stays broken in its slot. Drag it onto the recipe list or the
-   queue and it goes into the personal queue as a repair: half its recipe's ingredients (rounded up),
-   taken at once like any craft, and half its craft time. Anything made with flint — the starter
-   tools — can be mended anywhere; everything else only while a crafting bench is open. Cancelling
-   hands the ingredients back and the tool back broken, exactly as it went in. */
+/* ---------------------------------- repairs (Mender) and dismantling (0.807) ----------------------------------
+   Carry a piece of gear in the inventory and two drop zones slide in beside the panels:
+
+     REPAIR (Mender), under the crafting panel. Any worn item: it goes into the personal queue and comes
+       back whole. The cost is its recipe scaled by how worn it is — half the recipe at 0 durability, less
+       the more is left (each ingredient rounded up) — and half the craft time. Anything made with flint can
+       be mended anywhere; everything else only while a crafting bench is open.
+     DISMANTLE (Dismantle), under the equipment panel. Tools, weapons, armor, shields and bows break down
+       into half their recipe, scaled by the durability left, rounded down. A broken one gives nothing.
+
+   Hovering a zone says what it would cost or give. Letting go on one asks first, in the middle of the
+   screen (uiConfirm, 48-menu-ui.js); the item stays on the cursor until you answer. */
 function repairRecipeFor(id) {
   const all = [...RECIPES_BASIC, ...RECIPES_ADVANCED].filter(r => r && r.out[0] === id);
   return all.find(r => !r.removed) || all[0] || null;    // a retired recipe (the chisel) still prices a repair
 }
-const repairCost = (id) => { const r = repairRecipeFor(id); return r ? r.in.map(([i, n]) => [i, Math.ceil(n / 2)]) : null; };
+const _wornFrac = (id, dur) => { const m = ITEM_PROPS[id]?.durability; return m ? Math.max(0, Math.min(1, 1 - (dur ?? m) / m)) : 0; };
+// what a repair costs: half the recipe at 0 durability, scaled down by what is left (`dur` omitted: broken)
+const repairCost = (id, dur = 0) => {
+  const r = repairRecipeFor(id), w = _wornFrac(id, dur);
+  return r && w > 0 ? r.in.map(([i, n]) => [i, Math.max(1, Math.ceil(n / 2 * w))]) : null;
+};
+// what dismantling gives: half the recipe, scaled by the durability left, rounded down
+const dismantleYield = (id, dur) => {
+  const r = repairRecipeFor(id), m = ITEM_PROPS[id]?.durability;
+  if (!r || !m) return null;
+  const left = Math.max(0, Math.min(1, (dur ?? m) / m));
+  return r.in.map(([i, n]) => [ingIds(i)[0], Math.floor(n / 2 * left)]).filter(([, n]) => n > 0);
+};
 const repairNeedsBench = (id) => { const r = repairRecipeFor(id); return !(r && r.in.some(([i]) => ingIds(i).includes(ITEM.FLINT))); };
 const repairTime = (id) => Math.max(1, (repairRecipeFor(id)?.timeToCraft || 2) / 2);
 const _atBench = () => craftMode === 'advanced' && !!activeBench;
 // "3 Flint, 2 Stick, 5 Fiber" — a variant group reads as its first member with "(any)"
-const repairCostText = (id) => (repairCost(id) || [])
+const _costText = (list) => (list || [])
   .map(([i, n]) => { const ids = ingIds(i); return `${n} ${idName(ids[0])}${ids.length > 1 ? ' (any)' : ''}`; }).join(', ');
+const repairCostText = (id, dur = 0) => _costText(repairCost(id, dur));
+const dismantleText = (id, dur) => _costText(dismantleYield(id, dur));
 
-/* Called with the cursor wherever a carried item was let go (mouse click-carry or pad release) that is
-   not a slot. True when a broken tool was taken into the queue for repair — the caller is done then.
-   False otherwise, including a refusal (with the reason on the feed), so the caller carries on. */
-function tryRepairDrop(x, y) {
-  const s = dragHeld;
-  if (!s || !slotBroken(s) || player.canFly || typeof hasSkill !== 'function' || !hasSkill('mender')) return false;
-  const cp = invPanel('craftPanel');
-  if (!cp || cp.style.display === 'none') return false;
-  const over = (el) => {
-    if (!el) return false;
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-  };
-  if (!over(cp.querySelector('#craftList')) && !over(cp.querySelector('.cqPanel'))) return false;
-  const name = idName(s.id), cost = repairCost(s.id);
-  if (!cost) { feedWarn(`${name} cannot be repaired`); return false; }
-  if (repairNeedsBench(s.id) && !_atBench()) { feedWarn(`${name} can only be repaired at a crafting bench`); return false; }
-  if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return false; }
-  if (craftQueue().length >= CRAFT_QUEUE_MAX) { feedWarn('Crafting queue is full'); return false; }
+const canRepair = (s) => !!s && !player.canFly && hasSkill('mender') && !!ITEM_PROPS[s.id]?.durability
+  && (s.dur ?? ITEM_PROPS[s.id].durability) < ITEM_PROPS[s.id].durability && !!repairRecipeFor(s.id);
+const canDismantle = (s) => !!s && !player.canFly && hasSkill('dismantle') && !!ITEM_PROPS[s.id]?.durability && !!repairRecipeFor(s.id);
+
+// the two zones, one pair per seat (each seat has its own inventory wrapper)
+const _zonesOf = new WeakMap();
+function _zones() {
+  const host = typeof invWrapEl !== 'undefined' && invWrapEl ? invWrapEl : document.body;
+  let z = _zonesOf.get(host);
+  if (!z) {
+    const mk = (cls) => { const el = document.createElement('div'); el.className = 'dropZone ' + cls;
+      el.innerHTML = '<div class="dzTitle"></div><div class="dzText"></div>'; host.appendChild(el); return el; };
+    z = { repair: mk('dzRepair'), dismantle: mk('dzDismantle') };
+    _zonesOf.set(host, z);
+  }
+  return z;
+}
+const _visibleRect = (el) => { if (!el || el.style.display === 'none') return null; const r = el.getBoundingClientRect(); return r.width > 0 ? r : null; };
+const _inRect = (r, x, y) => !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+function _placeZone(el, under, on) {
+  el.classList.toggle('on', on);
+  if (!on || !under) return;
+  const h = 62, top = Math.min(under.bottom + 8, innerHeight - h - 8);
+  el.style.left = under.left + 'px'; el.style.top = top + 'px'; el.style.width = under.width + 'px';
+}
+// the right-hand panel the dismantle zone hangs under: equipment, or whatever station has taken its place
+const _rightPanel = () => ['equipPanel', 'chestPanel', 'furnacePanel', 'structPanel']
+  .map(id => _visibleRect(invPanel(id))).find(r => r) || null;
+/* Once per frame per seat (22-main-loop.js): show, place and word the zones for what the cursor carries. */
+function updateDropZones() {
+  const z = _zones();
+  const s = invOpen && !(typeof uiAskOpen === 'function' && uiAskOpen()) ? dragHeld : null;
+  const x = invCursor.x, y = invCursor.y;
+  const craftR = _visibleRect(invPanel('craftPanel')), rightR = _rightPanel();
+  const rep = canRepair(s) && !!craftR, dis = canDismantle(s) && !!rightR;
+  _placeZone(z.repair, craftR, rep);
+  _placeZone(z.dismantle, rightR, dis);
+  if (rep) {
+    const hot = _inRect(z.repair.getBoundingClientRect(), x, y);
+    z.repair.classList.toggle('hot', hot);
+    z.repair.querySelector('.dzTitle').textContent = hot ? `Repair ${idName(s.id)}` : 'Drop here to repair';
+    z.repair.querySelector('.dzText').textContent = hot
+      ? (repairNeedsBench(s.id) && !_atBench() ? 'Only at a crafting bench' : `Costs ${repairCostText(s.id, s.dur)}`)
+      : 'for part of what it takes to craft';
+  }
+  if (dis) {
+    const hot = _inRect(z.dismantle.getBoundingClientRect(), x, y);
+    z.dismantle.classList.toggle('hot', hot);
+    const give = dismantleText(s.id, s.dur);
+    z.dismantle.querySelector('.dzTitle').textContent = hot ? `Dismantle ${idName(s.id)}` : 'Drop here to dismantle';
+    z.dismantle.querySelector('.dzText').textContent = hot ? (give ? `You get back ${give}` : 'Too worn: nothing to salvage')
+                                                           : 'for half of what it was made from';
+  }
+}
+function _repairNow(s) {
+  const name = idName(s.id), cost = repairCost(s.id, s.dur);
+  if (!cost) { feedWarn(`${name} cannot be repaired`); return; }
+  if (repairNeedsBench(s.id) && !_atBench()) { feedWarn(`${name} can only be repaired at a crafting bench`); return; }
+  if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return; }
+  if (craftQueue().length >= CRAFT_QUEUE_MAX) { feedWarn('Crafting queue is full'); return; }
   const u = _takeIngredients({ in: cost, out: [s.id, 1] });
-  if (!u) { feedWarn(`Missing materials to repair ${name}: ${repairCostText(s.id)}`); return false; }
+  if (!u) { feedWarn(`Missing materials to repair ${name}: ${repairCostText(s.id, s.dur)}`); return; }
   craftQueue().push({ ri: -1, t: 0, units: [u], rep: { id: s.id, meta: slotMeta(s) } });
-  dragHeld = null; dragFrom = null;
+  if (dragHeld === s) { dragHeld = null; dragFrom = null; }
   if (typeof feedItem === 'function') feedItem(s.id, -1, 'into repair');
   refreshSlotsUI();
+}
+function _dismantleNow(s) {
+  const give = dismantleYield(s.id, s.dur) || [];
+  if (dragHeld === s) { dragHeld = null; dragFrom = null; }
+  if (typeof feedItem === 'function') feedItem(s.id, -1, 'dismantled');
+  for (const [id, n] of give) _giveItems(id, n, 'salvaged', false);
+  refreshSlotsUI();
+}
+/* Called wherever a carried item is let go (mouse click-carry or pad release) that is not a slot. True
+   when a drop zone took it — the item stays carried while the question is up, and nothing else happens. */
+function tryRepairDrop(x, y) {
+  const s = dragHeld;
+  if (!s || player.canFly) return false;
+  const z = _zones();
+  const onRep = canRepair(s) && z.repair.classList.contains('on') && _inRect(z.repair.getBoundingClientRect(), x, y);
+  const onDis = !onRep && canDismantle(s) && z.dismantle.classList.contains('on') && _inRect(z.dismantle.getBoundingClientRect(), x, y);
+  if (!onRep && !onDis) return false;
+  const name = idName(s.id);
+  // the answer only counts for the item still on the cursor: anything else put down meanwhile cancels it
+  const still = (fn) => () => { if (dragHeld === s) fn(s); };
+  if (onRep) {
+    if (repairNeedsBench(s.id) && !_atBench()) { feedWarn(`${name} can only be repaired at a crafting bench`); return true; }
+    uiConfirm(`Repair ${name}?`, `It costs ${repairCostText(s.id, s.dur)} and goes into your crafting queue.`, still(_repairNow), 'Repair');
+  } else {
+    const give = dismantleText(s.id, s.dur);
+    uiConfirm(`Dismantle ${name}?`, give ? `You get back ${give}. The item is gone.` : 'It is too worn: nothing comes back.',
+              still(_dismantleNow), 'Dismantle');
+  }
   return true;
 }
-
 /* ---------------------------------- the crafting bench ---------------------------------- */
 const BENCHES = new Map();           // "x,y,z" -> { ri, units, done, t, sprite, canvas, dirty }
 var activeBench = null;              // the bench whose recipe list this seat has open
@@ -576,7 +667,7 @@ function openBench(x, y, z, mode = 'advanced') {
 }
 
 // a recipe chosen at a bench: one craft (or as many as affordable with Shift) goes on its order
-function benchOrder(r, all) {
+function benchOrder(r, all, n = 1) {
   const key = activeBench;
   if (craftSpeed() <= 0) { feedWarn(_cantCraftMsg); return; }
   const ri = recipeIndex(r);
@@ -587,7 +678,7 @@ function benchOrder(r, all) {
     return;
   }
   const units = [];
-  for (let k = 0, want = all ? maxCrafts(r) : 1; k < want; k++) {
+  for (let k = 0, want = all ? maxCrafts(r) : n; k < want; k++) {
     const u = _takeIngredients(r);
     if (!u) break;
     units.push(u);
@@ -604,9 +695,9 @@ function benchOrder(r, all) {
   refreshSlotsUI();
 }
 // a recipe row's button: the bench's order when one is open, the personal queue otherwise
-function onRecipeClick(r, all) {
-  if (craftMode !== 'basic' && activeBench) benchOrder(r, all);
-  else queueCraft(r, all);
+function onRecipeClick(r, all, n = 1) {
+  if (craftMode !== 'basic' && activeBench) benchOrder(r, all, n);
+  else queueCraft(r, all, n);
 }
 
 /* ---- how useful a recipe is (0.7992) ----
@@ -684,6 +775,7 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
       b.units.shift();
       b.done++;
       addXP(r.xpToGive || 0);
+      if (typeof fxCraftPuff === 'function') fxCraftPuff(hit.x + 0.5, hit.y + 1.05, hit.z + 0.5, r.out[0]);   // one made (0.803)
       b.dirty = true;
     }
     const step = Math.floor(b.t / r.timeToCraft * 40);   // redraw the floating bar in 40 steps, not every frame
@@ -854,6 +946,11 @@ function _animatePestle(key, b) {
   const t = performance.now() / 1000, y0 = +key.split(',')[1];
   b.pestle.rotation.y = t * PESTLE_SPEED;
   b.pestle.position.y = y0 + 0.5 + Math.abs(Math.sin(t * PESTLE_SPEED * 2)) * 0.02;
+  // a little powder of what is being ground (0.8, 49-particles.js)
+  if (typeof fxGrind === 'function') {
+    const dt = Math.min(0.1, t - (b._fxLast || t)); b._fxLast = t;
+    fxGrind(b, b.pestle.position.x, y0 + 0.5, b.pestle.position.z, dt);
+  }
 }
 function updateBenchDisplays() {
   for (const [key, b] of BENCHES) {
@@ -901,8 +998,24 @@ function _craftTimeHtml(r) {
          '<path d="M1 5h11M8.5 1.5 12.5 5 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.8" ' +
          `stroke-linecap="round" stroke-linejoin="round"/></svg><small>${t}</small></span>`;
 }
-const _craftBadge = (n, m) => craftShift ? `<b>${n}×(${m})</b>` : (n > 1 ? `<b>${n}</b>` : '');
+const _craftBadge = (n, m) => (craftShift || craftCtrl) ? `<b>${n}×(${m})</b>` : (n > 1 ? `<b>${n}</b>` : '');
 var craftShift = false;
+/* Ctrl held (0.807): the same counts Shift shows — how many you could make — less what the batch you are
+   counting out already claims, so the number goes down as you click. */
+var craftCtrl = false;
+function _craftCtrlRefresh() {
+  const panel = invOpen && !player.canFly ? invPanel('craftPanel') : null;
+  if (craftCtrl && panel && panel.style.display !== 'none') buildCraftPanel();
+}
+function _setCraftCtrl(on) {
+  if (craftCtrl === on) return;
+  craftCtrl = on;
+  const panel = invOpen && !player.canFly ? invPanel('craftPanel') : null;
+  if (panel && panel.style.display !== 'none') buildCraftPanel();
+}
+addEventListener('keydown', (e) => { if (e.key === 'Control') _setCraftCtrl(true); });
+addEventListener('keyup',   (e) => { if (e.key === 'Control') _setCraftCtrl(false); });
+addEventListener('blur', () => _setCraftCtrl(false));
 function _setCraftShift(on) {
   if (craftShift === on) return;
   craftShift = on;
@@ -936,13 +1049,17 @@ function craftPickAdd(r) {
   if (cap <= 0) { feedWarn(craftPick ? 'No room for more' : 'Missing ingredients'); return; }
   craftPick = { r, n: Math.min(cap, (craftPick ? craftPick.n : 0) + 1) };
   _craftPickPaint();
+  _craftCtrlRefresh();
 }
-function craftPickCancel() { craftPick = null; _craftPickPaint(); }
+function craftPickCancel() { const had = !!craftPick; craftPick = null; _craftPickPaint(); if (had) _craftCtrlRefresh(); }
 function craftPickCommit() {
   const p = craftPick;
   craftPickCancel();
   if (!p) return;
-  for (let i = 0; i < p.n; i++) onRecipeClick(p.r, false);
+  /* ONE order of p.n (0.807). It used to be p.n single clicks — and the first one at a bench closed the
+     list, so every craft after it fell into the pocket queue instead of stacking on the station. */
+  onRecipeClick(p.r, false, p.n);
+  _craftCtrlRefresh();
 }
 const craftPickOn = () => !!craftPick;
 const craftPickFollow = () => { if (craftPick) _craftPickPaint(); };   // the pad cursor moves it too
@@ -956,7 +1073,7 @@ function recipeCategory(r) {
   const oid = r.out[0];
   if (oid < 256) return 'blocks';
   const p = ITEM_PROPS[oid];
-  if (p?.equip && p.equip !== 'accessories') return 'armor';   // anything worn in an equipment slot (the chisel is a tool)
+  if (p?.equip && p.equip !== 'accessories' && !p.chisel) return 'armor';   // anything worn in an equipment slot (the chisel is a tool)
   if (p?.food != null) return 'food';
   return (p?.tool || p?.ranged || p?.chisel) ? 'tools' : 'materials';   // a bow is a weapon, so it sits with the tools (0.7593)
 }
@@ -1010,7 +1127,7 @@ function buildCraftPanel() {
   tabsHtml += '</div>';
   // one line telling you the two modifiers the list has (0.7992)
   panel.innerHTML = tabsHtml +
-    '<div class="chint"><b>Shift</b> all you can afford &middot; <b>Ctrl</b> (pad <b>X</b>) click to count a batch, let go to craft</div>';
+    '<div class="chint"><b>Shift</b> all you can afford &middot; <b>Ctrl</b> (pad <b>X</b>) click to count a batch, let go to craft &middot; <b>right click</b> (pad <b>B</b>) or closing cancels it</div>';
   const list = document.createElement('div');
   list.id = 'craftList';
   /* Order (0.7992): what you can afford first, as before, then by how much use it is — the stations you
@@ -1028,8 +1145,9 @@ function buildCraftPanel() {
   for (const r of recs) {
     const ok = canCraft(r);
     // Shift: every count becomes craft-all — capped by the queue's empty slots when crafting from the pocket (0.761)
-    const m = !craftShift ? 0 : (craftMode !== 'basic' && activeBench) ? maxCrafts(r)
+    let m = !(craftShift || craftCtrl) ? 0 : (craftMode !== 'basic' && activeBench) ? maxCrafts(r)
             : Math.min(maxCrafts(r), CRAFT_QUEUE_MAX - craftQueue().length);
+    if (craftCtrl && craftPick && craftPick.r === r) m = Math.max(0, m - craftPick.n);   // less the batch on the cursor (0.807)
     const row = document.createElement('div');
     row.className = 'crow' + (ok ? '' : ' nocraft');
     let html = '';

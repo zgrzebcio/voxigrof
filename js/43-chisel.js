@@ -58,7 +58,7 @@ const CHISEL_HOLD = 0.25;             // a pad's B held this long opens the radi
 const CHISEL_TOOLS = [ITEM.HAMMER, ITEM.CHISEL];
 // worn in survival; creative needs no chisel at all (0.7811)
 const chiselEquipped = () => typeof player !== 'undefined' && !player.dead &&
-  (player.canFly || (CHISEL_TOOLS.includes(equipSlots[EQUIP_INDEX.accessories]?.id)
+  (player.canFly || (equipSlots[EQUIP_INDEX.accessories]?.id === ITEM.HAMMER            // shapes are the hammer's alone (0.803)
                     && !slotBroken(equipSlots[EQUIP_INDEX.accessories])));   // a broken hammer shapes nothing (0.79)
 const _chiselShape = (key) => CHISEL_SHAPES.find(s => _shapeReady(s) && s.key === key) || CHISEL_SHAPES[0];
 // the picked shape. Not saved anywhere since 0.7844: every world you join starts back on the full block

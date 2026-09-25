@@ -241,6 +241,15 @@
                   background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
                   border-radius:10px; padding:14px 18px; }
   #furnacePanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
+  /* ---- a clean screen (0.801) ----
+     Backspace hides every piece of HUD (the pause menu still opens over it); a dead player's pane keeps
+     only the death screen. Classes, not inline styles, so each element's own display comes back. */
+  body.hudHidden #hud, body.hudHidden #crosshair, body.hudHidden #hotbar, body.hudHidden #vitals,
+  body.hudHidden #xpBar, body.hudHidden #xpPops, body.hudHidden #quest, body.hudHidden #interact,
+  body.hudHidden #blockname, body.hudHidden #feed, body.hudHidden #version,
+  .dying #hud, .dying #crosshair, .dying #hotbar, .dying #vitals, .dying #xpBar, .dying #xpPops,
+  .dying #quest, .dying #interact, .dying #blockname, .dying #feed, .dying #version { display:none !important; }
+  #furnacePanel .fChoked { color:#e8866e; font-size:11px; text-align:center; margin-top:4px; }   /* 0.801 */
   #furnGrid { display:flex; gap:16px; align-items:flex-start; justify-content:center; margin-top:8px; }
   #furnacePanel.bookOpen { border-top-left-radius:0; border-top-right-radius:0; }
   #furnGrid .fcol { display:flex; flex-direction:column; gap:10px; align-items:center; }
@@ -290,7 +299,7 @@
   #hotbar .chiselSlot { position:absolute; left:calc(100% + 9px); bottom:2px; background:rgba(10,10,16,.55); }
   /* ---- variants (0.794): the held block's looks, five slots just above the vitals; empty ones are dimmed ---- */
   /* back at 64px in 0.7943 (86px in 0.7942 slid under the open inventory); the item name moved down instead */
-  #hotbar .variantBar { position:absolute; left:50%; bottom:calc(100% + 64px); transform:translateX(-50%);
+  #hotbar .variantBar { position:absolute; left:50%; bottom:calc(100% + 68px);   /* +4px (0.804) */ transform:translateX(-50%);
                         display:flex; gap:3px; padding:2px; background:rgba(10,10,16,.55);
                         border:1px solid rgba(255,255,255,.18); border-radius:6px; }
   #hotbar .variantBar .slot { width:34px; height:34px; }
@@ -356,7 +365,7 @@
   #craftPanel .chint b { color:#9ab; }
   /* a batch counted out on the cursor with Ctrl / pad X (0.7992) */
   #craftPick { position:fixed; z-index:14; display:none; align-items:center; gap:4px; pointer-events:none;
-               transform:translate(14px, 10px); padding:3px 6px; border-radius:6px;
+               transform:translate(calc(-100% - 12px), calc(-100% - 8px)); padding:3px 6px; border-radius:6px;   /* up and left of the cursor, clear of the item tooltip (0.807) */
                background:rgba(10,12,20,.85); border:1px solid rgba(255,255,255,.3); }
   #craftPick img { width:26px; height:26px; image-rendering:auto; }
   #craftPick b { color:#ffd76a; font:700 13px/1 system-ui,sans-serif; }
@@ -460,7 +469,7 @@
   #interact b { color:#fff; font-weight:600; }
   /* held-item name sits ABOVE the vitals row (78 + 40 tall), where the hearts used to be */
   /* 100px since 0.7943 (was 124): under the variant slots, which sit just above the vitals */
-  #blockname { position:fixed; left:50%; bottom:100px; transform:translateX(-50%); color:#fff; font-size:14px;
+  #blockname { position:fixed; left:50%; bottom:106px;   /* +6px (0.804) */ transform:translateX(-50%); color:#fff; font-size:14px;
                text-shadow:0 1px 3px #000; z-index:5; pointer-events:none;
                opacity:0; transition:opacity .25s; }
 
@@ -565,6 +574,34 @@
   /* ---- world list (main menu) ---- */
   #overlay .wlist { max-height:468px; overflow-y:auto; margin-bottom:16px; display:flex;
                     flex-direction:column; gap:8px; padding-right:4px; }
+  /* ---- settings groups (0.801): tabs over one group at a time ---- */
+  #overlay .optTabs { display:flex; gap:4px; justify-content:center; margin:4px 0 10px; }
+  #overlay .optTab { background:#1f2636; color:#9ab; border:1px solid rgba(255,255,255,.12); border-radius:6px;
+                     padding:5px 14px; font-size:12px; cursor:pointer; }
+  #overlay .optTab.on { background:#34405a; color:#eaf2ff; border-color:rgba(255,255,255,.3); }
+  #overlay .optTab:hover:not(.on) { background:#283247; }
+  /* 0.802: every tab shares one box sized to the longest key list, so the menu never jumps */
+  /* 0.803: one column, scrolling only up and down (columns in a fixed box spilled sideways) */
+  #overlay .optPanel { height:270px; width:min(560px, 100%); margin:0 auto; overflow-y:auto; overflow-x:hidden; }
+  #overlay .optPanel .controls { columns:1; }
+  /* 0.8031: settings one per row too, the name on the left and its control on the right */
+  #overlay .optPanel .opts { flex-direction:column; align-items:stretch; gap:8px; width:min(460px, 100%); margin:0 auto; }
+  #overlay .optPanel .opts label { flex-direction:row; justify-content:space-between; align-items:center; gap:12px;
+                                   font-size:13px; text-align:left; }
+  /* 0.804: every control the same size, wide enough for its whole value ("Horizontal (top / bottom)") */
+  #overlay .optPanel .opts select, #overlay .optPanel .opts input, #overlay .optPanel .volRow { width:200px; flex:none; box-sizing:border-box; }
+  #overlay .optPanel .volRow { display:flex; align-items:center; gap:8px; }
+  #overlay .optPanel .volRow input[type=range] { flex:1; width:auto; padding:0; border:none; background:none; accent-color:#8fbf6a; }
+  #overlay .optPanel .volVal { width:40px; text-align:right; color:#dfe; font-size:12px; }
+  #overlay .optPanel #hzNote { margin:2px 0 0; text-align:right; }
+  /* 0.804: Play stays dead centre; the fullscreen button hangs off its right side */
+  #menuHome .seedrow:first-child { position:relative; }
+  #menuHome .fsSide { position:absolute; left:calc(50% + 123px); top:0; }
+  #overlay .controls.info { font-size:12.5px; }
+  #overlay .keyTabs { display:flex; gap:4px; justify-content:center; margin:0 0 8px; }
+  #overlay .keyTab { background:none; color:#9ab; border:none; border-bottom:2px solid transparent;
+                     padding:2px 10px; font-size:12px; cursor:pointer; }
+  #overlay .keyTab.on { color:#eaf2ff; border-bottom-color:#8ab; }
   /* ---- create world (0.7991): one setting per row, scrolling inside the panel ---- */
   #createOpts { max-height:min(48vh, 420px); overflow-y:auto; margin:0 auto 14px; width:min(520px, 100%);
                 display:flex; flex-direction:column; gap:8px; padding-right:4px; }
@@ -726,6 +763,9 @@
 #skillPanel .skNode.ready { border-color:#ffd76a; }
 #skillPanel .skNode.ready small { color:#ffd76a; }
 #skillPanel .skNode.armed { background:#3d3418; border-color:#ffe9a8; box-shadow:0 0 0 2px rgba(255,215,106,.35); }
+/* held to learn (0.804): a bar fills across the skill from the left */
+#skillPanel .skNode.holding { background-image:linear-gradient(to right, rgba(255,215,106,.45) calc(var(--hold, 0) * 100%), transparent 0);
+                              border-color:#ffe9a8; }
 #skillPanel .skNode.poor { opacity:.75; }
 #skillPanel .skNode.poor small { color:#e0a05a; }
 #skillPanel .skNode.locked { opacity:.45; }
@@ -753,3 +793,22 @@
 /* a repair waiting in the crafting queue */
 .cqSlot .cqRep, .cqHud .cqRep { position:absolute; right:2px; top:0; font-size:13px; color:#ffd76a;
              text-shadow:0 1px 2px #000; pointer-events:none; }
+
+/* ---- repair / dismantle drop zones (0.807, 25-crafting.js) ----
+   They slide in under the crafting panel and the right-hand panel while gear is carried, breathe to say
+   "drop here", and light up with what it would cost or give when the cursor is over them. */
+.dropZone { position:fixed; z-index:13; box-sizing:border-box; height:62px; padding:8px 12px; border-radius:8px;
+            display:flex; flex-direction:column; justify-content:center; gap:3px; text-align:center;
+            border:2px dashed rgba(255,255,255,.35); background:rgba(10,12,20,.82); color:#cfd8e3;
+            pointer-events:none; opacity:0; transform:translateY(-10px); visibility:hidden;
+            transition:opacity .18s, transform .18s, visibility .18s, background .12s, border-color .12s; }
+.dropZone.on { opacity:1; transform:none; visibility:visible; animation:dzBreathe 1.4s ease-in-out infinite; }
+.dropZone .dzTitle { font:700 13px/1.1 system-ui,sans-serif; }
+.dropZone .dzText { font:12px/1.2 system-ui,sans-serif; color:#9fb0c4; }
+.dropZone.dzRepair { border-color:rgba(126,230,58,.55); }
+.dropZone.dzRepair .dzTitle { color:#9fe07a; }
+.dropZone.dzDismantle { border-color:rgba(255,190,90,.55); }
+.dropZone.dzDismantle .dzTitle { color:#ffcf7a; }
+.dropZone.hot { animation:none; border-style:solid; background:rgba(24,30,44,.95); transform:scale(1.03); }
+.dropZone.hot .dzText { color:#eaf2ff; }
+@keyframes dzBreathe { 0%, 100% { box-shadow:0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow:0 0 12px 1px rgba(255,255,255,.18); } }

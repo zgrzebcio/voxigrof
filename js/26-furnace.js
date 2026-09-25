@@ -38,6 +38,10 @@ const SMELT_RECIPES = [
   { in: ITEM.MUTTON,        out: ITEM.COOKED_MUTTON, time: 9, xp: 6, cat: 'food' },
   { in: ITEM.BEEF,          out: ITEM.COOKED_BEEF,   time: 9, xp: 6, cat: 'food' },
   { in: ITEM.PORK,          out: ITEM.COOKED_PORK,   time: 7, xp: 3, cat: 'food' },        // 0.789
+  { in: ITEM.COD,           out: ITEM.COOKED_COD,     time: 5, xp: 2, cat: 'food' },       // fish, 0.805
+  { in: ITEM.SALMON,        out: ITEM.COOKED_SALMON,  time: 5, xp: 2, cat: 'food' },
+  { in: ITEM.PIKE,          out: ITEM.COOKED_PIKE,    time: 6, xp: 3, cat: 'food' },
+  { in: ITEM.CATFISH,       out: ITEM.COOKED_CATFISH, time: 6, xp: 3, cat: 'food' },
   { in: ITEM.PUMPKIN_PIE,   out: ITEM.COOKED_PUMPKIN_PIE, time: 15, xp: 10, cat: 'food' },   // bake the raw pie (0.761)
 ];
 const SMELT = {};                                              // input id -> recipe
@@ -133,7 +137,11 @@ function updateFurnaces(dt) {
       f.burn -= used;
       if (f.ashy) _furnaceAsh(k, f, used / FUEL_POINT_SEC);
     }
-    if (lit && canSmelt) {
+    /* Its top is a chimney (0.801): with a block on it the fire has no draught — nothing smelts, but the
+       fuel that is lit keeps burning away, and a new piece still catches when there is something to smelt. */
+    const choked = typeof stationCovered === 'function' && stationCovered(x, y, z);
+    f.choked = choked;
+    if (lit && canSmelt && !choked) {
       f.progress += dt / rec.time;
       if (f.progress >= 1) {
         f.progress = 0;
@@ -155,6 +163,8 @@ function updateFurnaces(dt) {
       setBlock(x, y, z, B.FURNACE | ((facing | (lit ? V.FURNACE_ON : 0)) << 8));
     }
     if (lit) { _furnaceCrackle(k, x, y, z); burning.add(k); }
+    // smoke from the top, a flicker at the mouth (0.8, 49-particles.js)
+    if (lit && !choked && typeof fxFurnace === 'function') fxFurnace(f, x, y, z, (getBlock(x, y, z) >> 8) & 3, dt);
   }
   _stopCrackles(burning);
   _updateFurnaceBars();
@@ -169,13 +179,13 @@ const _crackles = new Map();                // furnace key -> looping Audio
 let _crackleTick = 0;
 function _furnaceCrackle(k, x, y, z) {
   let vol = 0;
-  if (_soundReady && !sfxMuted) {
+  if (_soundReady && sfxGain() > 0) {
     let d = Infinity;
     for (const pl of (typeof PLAYERS !== 'undefined' ? PLAYERS : [player])) {
       if (!pl.spawned && pl !== player) continue;
       d = Math.min(d, Math.hypot(x + 0.5 - pl.pos.x, y + 0.5 - pl.pos.y, z + 0.5 - pl.pos.z));
     }
-    vol = Math.max(0, 1 - d / CRACKLE_RANGE) * 0.7 * SOUND_MASTER;
+    vol = Math.max(0, 1 - d / CRACKLE_RANGE) * 0.7 * sfxGain();   // the sliders (0.804)
   }
   let a = _crackles.get(k);
   if (vol <= 0) { if (a && !a.paused) a.pause(); return; }
@@ -219,7 +229,9 @@ function buildFurnacePanel() {
         `<div class="slot" data-fi="3">${slotInner(f.slots[ASH_SLOT])}</div>` +
       `</div>` +
     `</div>` +
-    (furnBookOpen ? _furnBookHtml() : '');
+    (furnBookOpen ? _furnBookHtml() : '') +
+    // a covered chimney says so, since otherwise it just looks broken (0.801)
+    (f.choked ? '<div class="fChoked">Top covered — nothing smelts, fuel still burns</div>' : '');
   // Furnace / Equipment / Skill tree (0.795) — on the very top: over the book while it is open (0.796)
   addInvTabs(panel.querySelector('.fbook') || panel, 'furnace');
   panel.classList.toggle('bookOpen', furnBookOpen);         // squares the top corners where the book joins (0.7761)

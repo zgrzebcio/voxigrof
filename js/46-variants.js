@@ -11,7 +11,7 @@
    Right and press a bumper, to step through the real ones (0.7944). A variant block takes the chisel
    shapes its own id supports (SHAPE_BLOCKS in 02).
 
-   For now a variant needs a hammer or chisel worn in the NECK slot; creative needs none. The bar is
+   A variant needs the CHISEL worn in the NECK slot (only the chisel since 0.803); creative needs none. The bar is
    meant to switch ammo types later too: that will be one more entry in VARIANT_SOURCES, without a tool. */
 
 const VARIANT_SLOTS = 5;
@@ -43,7 +43,7 @@ for (const [id, base] of [[B.DIAMOND_CLUSTER_STONE, B.DIAMOND_ORE], [B.EMERALD_C
 const variantBaseOf = (blockId) => _VARIANT_BASE[blockId] ?? null;
 
 const variantToolWorn = () => typeof player !== 'undefined' && !!player && !player.dead &&
-  (player.canFly || (CHISEL_TOOLS.includes(equipSlots[EQUIP_INDEX.necklace]?.id)
+  (player.canFly || (equipSlots[EQUIP_INDEX.necklace]?.id === ITEM.CHISEL                // variants are the chisel's alone (0.803)
                      && !slotBroken(equipSlots[EQUIP_INDEX.necklace])));
 
 /* Where a held thing's options come from. A source takes an id and returns its options, default first,

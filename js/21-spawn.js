@@ -6,7 +6,9 @@ function resetWorld(seed, terrainType) {
   SEED = seed;
   TERRAIN_TYPE = terrainType || 'default';
   mainGen = CORE.makeGen(seed, TERRAIN_TYPE);
-  history.replaceState(null, '', '?seed=' + encodeURIComponent(seed));
+  // the title backdrop's seed never goes in the URL: a reload prefilled it into Create World (0.8031)
+  if (typeof MENU_SEED === 'undefined' || seed !== MENU_SEED) history.replaceState(null, '', '?seed=' + encodeURIComponent(seed));
+  else history.replaceState(null, '', location.pathname);
   genQueue.length = 0; meshQueue.length = 0; meshResults.length = 0; genFinishQueue.length = 0;
   for (const [, c] of chunks) disposeChunkMeshes(c);
   chunks.clear();

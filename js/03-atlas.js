@@ -131,7 +131,9 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'blue_mushroom'                                 // 0.7691
                      ,'mossy_stone_brick', 'cracked_stone_brick', 'mossy_cobblestone', 'sulfur_bricks'   // variants, 0.7941
                      ,'granite_bricks', 'marble_bricks', 'limestone_bricks'
-                     ,'berry_bush_yellow'];                           // 0.7947
+                     ,'berry_bush_yellow'                             // 0.7947
+                     ,'furnace_top_open'                              // 0.801
+                     ,'tnt_top_lit'];                                 // made below from tnt_top (0.804)
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
 
 // glowstone uses the embedded texture if present; otherwise a procedural warm-speckle fallback
@@ -249,13 +251,16 @@ function _cacheArt(names) {
 const _artCacheKey = (names) => 'art:' + GAME_VERSION + ':' + names.length;
 
 let _gameArtPromise = null;
+// how much of the art has landed, for the loading screen's percentage (0.804)
+var gameArtTotal = 0, gameArtDone = 0;
 function ensureGameArt() {
   if (_gameArtPromise) return _gameArtPromise;
   const src = _gameArtSources();
   const names = Object.keys(src);
+  gameArtTotal = names.length; gameArtDone = 0;
   _gameArtPromise = (async () => {
-    if (await _loadCachedArt(names)) return;                       // no network at all
-    await Promise.all(names.map(n => loadImage(n, src[n]).catch(() => {})));
+    if (await _loadCachedArt(names)) { gameArtDone = gameArtTotal; return; }   // no network at all
+    await Promise.all(names.map(n => loadImage(n, src[n]).catch(() => {}).finally(() => { gameArtDone++; })));
     _cacheArt(names);          // async, off the critical path — next boot skips every fetch above
   })();
   return _gameArtPromise;
@@ -340,6 +345,17 @@ async function buildAtlas() {
     g.fillStyle = '#ffffff';
     g.fillRect(0, 0, c.width, c.height);
     IMAGES.tnt_lit = c;
+  }
+  // ...and the same flash over its top, so a blinking TNT keeps its fuse face (0.804)
+  if (IMAGES.tnt_top) {
+    const src = IMAGES.tnt_top;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.globalAlpha = 0.5;
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, c.width, c.height);
+    IMAGES.tnt_top_lit = c;
   }
 
   // sample the grass colour from the coloured rim of grass_block_side, so the tinted
