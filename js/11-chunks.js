@@ -183,7 +183,7 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain8097:';   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
+const TERRAIN_KEY = 'terrain8141:';   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
@@ -552,9 +552,13 @@ function setBlock(x, y, z, val) {
   if (!structBulkLight) {
     // re-flood block light if this change is/was a light source or sits within reach of one
     // (oldLit matters: a removed source is already out of glowLights, so glowNear misses it)
-    if (oldLit || newLit || glowNear(x, y, z)) relight(x, y, z);
+    /* Light only stops at opaque cells, so an edit that keeps the opacity (a leaf, a log, a plant or
+       litter going to air) cannot change it (0.8142). Relighting those anyway near a torch — even one
+       in the hand — was a 37-block box per cell: the tree-felling spike. */
+    const opaqueChanged = CORE.opaqueVal(oldVal) !== CORE.opaqueVal(val);
+    if (oldLit || newLit || (opaqueChanged && glowNear(x, y, z))) relight(x, y, z);
     // sky light changes on ANY opacity edit (dig opens daylight in, place casts shade)
-    if (CORE.opaqueVal(oldVal) !== CORE.opaqueVal(val)) reskyAround(x, y, z);   // by value: chiseling a block opens it (0.783)
+    if (opaqueChanged) reskyAround(x, y, z);   // by value: chiseling a block opens it (0.783)
   }
   // snow-on-grass: the grass directly under a snow block wears snowy sides (variant), and reverts
   // to plain grass when the snow is removed. Recursive setBlock is safe (grass fires no snow hook).

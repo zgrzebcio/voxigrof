@@ -58,9 +58,9 @@ const TEXTURES = {
   ladder:               'textures/Blocks/Interactables/ladder.png',
   cobweb:           'textures/Billboards/cobweb.png',
   gravel:           'textures/Blocks/Natures/gravel.png',
-  red_mushroom:     'textures/Billboards/Plants/Mushrooms/red_mushroom.png',
-  blue_mushroom:    'textures/Billboards/Plants/Mushrooms/blue_mushroom.png',   // 0.7691
-  brown_mushroom:   'textures/Billboards/Plants/Mushrooms/brown_mushroom.png',
+  red_mushroom:     'textures/Blocks/mushrooms/red/cap_side.png',
+  blue_mushroom:    'textures/Blocks/mushrooms/blue/cap_side.png',   // 0.7691
+  brown_mushroom:   'textures/Blocks/mushrooms/brown/cap_side.png',
   crafting_bench_top:   'textures/Blocks/Interactables/Crafting_station/crafting_station_top.png',
   crafting_bench_front: 'textures/Blocks/Interactables/Crafting_station/crafting_station_front.png',
   crafting_bench_side:  'textures/Blocks/Interactables/Crafting_station/crafting_station_side.png',
@@ -261,6 +261,8 @@ const DECOR_PARTS = ['band_side', 'band_top', 'pillar_side', 'pillar_top'];
 for (const r of DECOR_ROCKS)
   for (const p of DECOR_PARTS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
+// wheat's growth stages (0.81): stage 0 sprout .. 6, then wheat_full
+for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
 const MUSHROOM_KINDS = ['red', 'brown', 'blue', 'black', 'lava', 'white_tall'];
 const MUSHROOM_PARTS = ['cap_top', 'cap_side', 'cap_bottom', 'stem_side', 'stem_top'];
 const mushroomTileName = (kind, part) => `mushroom_${kind}_${part}`;

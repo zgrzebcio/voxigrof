@@ -279,7 +279,7 @@ function updateBerryGrow(dt) {
   if (_berrySweep >= BERRY_SWEEP_TICK) { _berrySweep = 0; sweepBerryGrow(); }
   _berryTimer += dt;
   if (_berryTimer < BERRY_TICK) return;
-  const step = _berryTimer * (typeof tickFactor === 'function' ? tickFactor() : 1);
+  const step = _berryTimer * (typeof tickFactor === 'function' ? tickFactor() : 1) * seasonGrowth();   // by season (0.81)
   _berryTimer = 0;
   for (const [k, t] of berryGrow) {
     const [x, y, z] = k.split(',').map(Number);
@@ -561,9 +561,9 @@ function fellTreeFrom(x, y, z) {
 
   /* Queue the collapse instead of doing it now. A mature oak is ~40 logs and several hundred
      leaves; clearing all of them in one frame means that many setBlock calls, each dirtying a
-     chunk and re-flooding light, which showed up as a hard hitch. Spreading it over FELL_STEPS
-     ticks also reads better — the tree comes apart from the top down instead of vanishing. */
-  logs.sort((a, b) => b.y - a.y);                       // crown first, so the tree folds downward
+     chunk, which showed up as a hard hitch. Spread over a few seconds it also reads better — the
+     tree comes apart a layer at a time instead of vanishing. */
+  logs.sort((a, b) => a.y - b.y);                       // bottom first, a layer at a time (0.8141)
   /* Leaves go the OTHER way — lowest first. Releasing the top of the canopy first dropped every
      upper leaf onto the leaf blocks still standing underneath it: it came to rest in mid-air,
      could not settle, and spilled as an item instead of deepening the drift. Bottom-up clears
@@ -574,10 +574,22 @@ function fellTreeFrom(x, y, z) {
   const cutId = getBlock(x, y, z) & 255;
   if (typeof fxBreak === 'function') fxBreak(x, y, z, getBlock(x, y, z));
   setBlock(x, y, z, B.AIR);
+  // one step per height: every layer of wood, then every layer of canopy, each bottom to top (0.8142)
+  const steps = [];
+  for (const list of [logs, leaves]) {
+    let cur = null;
+    for (const c of list) {
+      if (!cur || cur[0].y !== c.y) steps.push(cur = []);
+      cur.push(c);
+    }
+  }
+  // the taller the tree, the longer it takes: FELL_TIME_MIN for a sapling-sized one up to FELL_TIME_MAX
+  const top = Math.max(logs[logs.length - 1].y, leaves.length ? leaves[leaves.length - 1].y : 0);
+  const tall = Math.min(1, Math.max(0, (top - logs[0].y + 1 - FELL_H_SHORT) / (FELL_H_TALL - FELL_H_SHORT)));
   FELL_JOBS.push({
-    logs, leaves, li: 0, ci: 0,
-    logStep: Math.min(FELL_MAX_PER_STEP, Math.ceil(logs.length / FELL_STEPS)),
-    leafStep: Math.min(FELL_MAX_PER_STEP, Math.ceil(leaves.length / FELL_STEPS)),
+    steps, si: 0, ci: 0, t: 0,
+    dur: FELL_TIME_MIN + (FELL_TIME_MAX - FELL_TIME_MIN) * tall,
+    total: logs.length + leaves.length,
     kind: logs[0].id, normal: isStrippedLog(cutId) ? 0 : 1, stripped: isStrippedLog(cutId) ? 1 : 0,
     dropX: x, dropY: y, dropZ: z,
     survival: !player.canFly,
@@ -591,34 +603,37 @@ function fellTreeFrom(x, y, z) {
 
 /* ---------------------------------- collapse, one step at a time ---------------------------- */
 const FELL_JOBS = [];
-const FELL_STEPS = 10;              // how many ticks a whole tree takes to come apart
-const FELL_TICK = 0.05;             // seconds per step (so ~0.5s for any size of tree)
-const FELL_MAX_PER_STEP = 24;       // hard ceiling on cells touched per tick, whatever the size
-let _fellTimer = 0;
+/* LAYER BY LAYER (0.8141): one height of the tree at a time — all the wood first, bottom to top, then the
+   leaves, bottom to top. Since 0.8142 the layers are spread evenly over the job's own time (FELL_TIME_MIN to
+   FELL_TIME_MAX by height), and a frame never touches more than a few cells, so a wide layer of canopy runs
+   over several frames instead of landing in one. */
+const FELL_TIME_MIN = 1, FELL_TIME_MAX = 2;     // seconds a whole tree takes to come apart (2-3 until 0.8143)
+const FELL_H_SHORT = 6, FELL_H_TALL = 20;       // tree heights (wood + canopy) that take the least / the most
+const FELL_MIN_PER_FRAME = 3;                   // cells a frame may always touch
+
+function _fellCell(job, c) {
+  if ((getBlock(c.x, c.y, c.z) & 255) !== c.id) return;          // something else claimed it
+  setBlock(c.x, c.y, c.z, B.AIR);
+  if (isAnyLog(c.id)) { if (isStrippedLog(c.id)) job.stripped++; else job.normal++; return; }
+  if (FALLING.length < MAX_FALLING) spawnFallingLeaf(c.id, c.x, c.y, c.z);
+  else settleLeafNow(c.id, c.x, c.y, c.z);
+}
 
 function updateFelling(dt) {
-  if (!FELL_JOBS.length) return;
-  _fellTimer += dt;
-  if (_fellTimer < FELL_TICK) return;
-  _fellTimer = 0;
   for (let j = FELL_JOBS.length - 1; j >= 0; j--) {
     const job = FELL_JOBS[j];
-    const logEnd = Math.min(job.logs.length, job.li + job.logStep);
-    for (; job.li < logEnd; job.li++) {
-      const l = job.logs[job.li];
-      if ((getBlock(l.x, l.y, l.z) & 255) !== l.id) continue;   // something else claimed it
-      if (isStrippedLog(l.id)) job.stripped++; else job.normal++;
-      setBlock(l.x, l.y, l.z, B.AIR);
+    job.t += dt;
+    // the layers due by now: the first goes at once, the last as the job's time runs out
+    const due = Math.min(job.steps.length, Math.ceil(job.t / job.dur * job.steps.length));
+    // about three times the average pace, so it keeps up; dt capped so a stalled frame can't unleash the lot
+    let budget = Math.max(FELL_MIN_PER_FRAME, Math.ceil(3 * job.total * Math.min(dt, 0.05) / job.dur));
+    while (job.si < due && budget > 0) {
+      const layer = job.steps[job.si];
+      for (; job.ci < layer.length && budget > 0; job.ci++, budget--) _fellCell(job, layer[job.ci]);
+      if (job.ci < layer.length) break;
+      job.si++; job.ci = 0;
     }
-    const leafEnd = Math.min(job.leaves.length, job.ci + job.leafStep);
-    for (; job.ci < leafEnd; job.ci++) {
-      const c = job.leaves[job.ci];
-      if ((getBlock(c.x, c.y, c.z) & 255) !== c.id) continue;
-      setBlock(c.x, c.y, c.z, B.AIR);
-      if (FALLING.length < MAX_FALLING) spawnFallingLeaf(c.id, c.x, c.y, c.z);
-      else settleLeafNow(c.id, c.x, c.y, c.z);
-    }
-    if (job.li < job.logs.length || job.ci < job.leaves.length) continue;
+    if (job.si < job.steps.length) continue;
     // finished: pay out the whole trunk at the stump, mostly normal wood plus what you stripped
     if (job.survival) {
       const liveId = UNSTRIPPED_OF[job.kind] || job.kind;

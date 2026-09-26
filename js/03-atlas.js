@@ -151,7 +151,9 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,...MUSHROOM_KINDS.flatMap(k => MUSHROOM_PARTS.map(p => mushroomTileName(k, p)))
                      // 0.8093: flowing water and lava, terracotta brick, band and pillar for every rock
                      ,'water_flow', 'lava_flow', 'terracotta_bricks'
-                     ,...DECOR_ROCKS.flatMap(r => DECOR_PARTS.map(p => `${r}_${p}`))];
+                     ,...DECOR_ROCKS.flatMap(r => DECOR_PARTS.map(p => `${r}_${p}`))
+                     // wheat's growth stages (0.81)
+                     ,...[0, 1, 2, 3, 4, 5, 6].map(s => 'wheat_stage' + s)];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => MUSHROOM_PARTS.map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -363,11 +365,25 @@ function _checkTileOrder() {
    Two floats per tile: the layer the shader samples for it, and the layer of its glow mask (-1: none).
    Every tile maps to itself except an animated one, which steps through its frames. It is a tiny
    texture, rewritten only when a frame changes. */
+/* Third channel (0.81): how the wind moves the tile — 0 not at all, 1 a plant (bends from its foot, by
+   height), 2 leaves (the whole block drifts a little), 3 the top half of a tall plant (carries on from the
+   bottom half's bend). Read by the vertex shader (04-materials.js). */
+/* 0.812: every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
+   the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
+   its segments stay joined; the upper half of tall grass carries on from the lower (3). */
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2 };
+for (let id = 0; id < PROPS.length; id++) {
+  const p = PROPS[id];
+  if (!p || p.model !== 'cross' || p.shroom != null) continue;
+  if (id === B.TORCH || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;
+  const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER ? 3 : 1;
+  for (const t of [...(p.faces || []), ...(p.tilesByVar || [])]) if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
+}
 const TILE_LAYER = (() => {
-  const d = new Float32Array(ATLAS_TILES.length * 2);
-  for (let i = 0; i < ATLAS_TILES.length; i++) { d[i * 2] = i; d[i * 2 + 1] = -1; }
-  for (const e of ATLAS_EMISSIVE) d[e.tile * 2 + 1] = e.layer;
-  const t = new THREE.DataTexture(d, ATLAS_TILES.length, 1, THREE.RGFormat, THREE.FloatType);
+  const d = new Float32Array(ATLAS_TILES.length * 4);
+  for (let i = 0; i < ATLAS_TILES.length; i++) { d[i * 4] = i; d[i * 4 + 1] = -1; d[i * 4 + 2] = SWAY_TILES[ATLAS_TILES[i]] || 0; }
+  for (const e of ATLAS_EMISSIVE) d[e.tile * 4 + 1] = e.layer;
+  const t = new THREE.DataTexture(d, ATLAS_TILES.length, 1, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.needsUpdate = true;
   return t;
@@ -379,7 +395,7 @@ function updateTileAnimation(nowMs) {
   for (const a of ATLAS_ANIM) {
     const f = Math.floor(nowMs / a.ms) % a.frames;
     const layer = f === 0 ? a.tile : a.first + f - 1;
-    if (d[a.tile * 2] !== layer) { d[a.tile * 2] = layer; changed = true; }
+    if (d[a.tile * 4] !== layer) { d[a.tile * 4] = layer; changed = true; }
   }
   if (changed) TILE_LAYER.needsUpdate = true;
 }

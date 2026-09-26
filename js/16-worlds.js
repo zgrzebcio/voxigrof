@@ -144,7 +144,7 @@ function saveWorld(syncToLS = false) {
      +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP (0.775)
   const data = {
     savedAt: Date.now(),
-    edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), benches: serializeBenches(),
+    edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     // mixed layer stacks (0.785): [chunk key, [[cell index, [block ids bottom to top]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
@@ -266,6 +266,7 @@ async function loadWorld(w) {
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
+  restoreSeasons(data && data.seasons);                                // what autumn took, for spring (0.81)
   restoreBenches(data && data.benches);                                   // crafting bench orders (0.76)
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
   restoreStructPlaced(data && data.structPlaced);

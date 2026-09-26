@@ -118,6 +118,9 @@ function buildInventory() {
   const stpEl = invPanel('structPanel');
   if (stpEl) stpEl.style.display = 'none';
 
+  // a rebuild while open (every drag and drop) keeps the creative palette where it was scrolled (0.8142)
+  const oldScroll = invOpen ? invEl.querySelector('.invScroll') : null;
+  const keepScroll = oldScroll ? oldScroll.scrollTop : null;
   invEl.innerHTML =
     '<div class="hint">drag: hold <b>LMB</b>/<b>A</b> &middot; quick-move: <b>Shift+LMB</b>/<b>Y</b> &middot; swap gear: <b>Shift+RMB</b> &middot; drop: <b>Y</b>/<b>Shift+Y</b> &middot; sort: <b>MMB</b> &middot; close: <b>Tab</b>/<b>B</b></div>';
   /* One N×INV_COLS grid bound to a slot array + region; DOM order == slot index (slot 0 =
@@ -155,7 +158,7 @@ function buildInventory() {
     /* Open pinned to the BOTTOM of the palette, so the first rows you see are the ones sitting
        against the main grid. Done twice: once now, and again after layout settles — while the
        panel is still display:none the scroll height is 0 and the first assignment is a no-op. */
-    const _toBottom = () => { scroller.scrollTop = scroller.scrollHeight; };
+    const _toBottom = () => { scroller.scrollTop = keepScroll ?? scroller.scrollHeight; };
     _toBottom();
     requestAnimationFrame(_toBottom);
   } else {
@@ -281,6 +284,22 @@ function _tipTime(sec) {
   const s = Math.max(0, Math.round(sec));
   return s < 60 ? s + 's' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+/* What a block can become (0.8143): its variants straight from BLOCK_VARIANTS (46), its shapes from what the
+   block it places as takes (SHAPE_BLOCKS in 02, through PROPS.shapes), named as the chisel radial names them.
+   Nothing is written per block, so a new variant or shape shows up here on its own. */
+function _blockFormsHTML(id) {
+  const list = (label, names) => `<div class="tipCond"><div class="tcName">${label}:</div>` +
+                                 `<div class="tcEff info">${_tipEsc(names.join(', '))}</div></div>`;
+  let html = '';
+  const vars = typeof BLOCK_VARIANTS !== 'undefined' ? BLOCK_VARIANTS[id] : null;
+  if (vars && vars.length) html += list('Variants', vars.map(v => v.name));
+  const shapes = PROPS[typeof heldBlockOf === 'function' ? heldBlockOf(id) : id]?.shapes;
+  if (shapes && typeof CHISEL_SHAPES !== 'undefined') {
+    const names = CHISEL_SHAPES.filter(s => !s.soon && shapes[CHISEL_BLOCK_SHAPE[s.key]]).map(s => s.name.toLowerCase());
+    if (names.length) html += list('Shapes', names);
+  }
+  return html;
+}
 function itemTooltipHTML(id, dur, fresh, wm) {
   if (id == null) return '';
   const isItem = id >= 256;
@@ -290,6 +309,7 @@ function itemTooltipHTML(id, dur, fresh, wm) {
   const nm = !isItem && typeof variantNameOf === 'function' ? variantNameOf(id) : p.name;
   let html = `<div class="tipName">${_tipEsc(nm || '')}</div>`;   // wear is a stat row here, not in the name (0.7591)
   if (p.desc) html += `<div class="tipDesc">${_tipEsc(p.desc)}</div>`;
+  if (!isItem) html += _blockFormsHTML(id);
   /* Set bonus (0.731). Written once per MATERIAL in ARMOR_SET_BONUS rather than copied into five
      `desc` strings, so the wording can never drift between the helmet and the boots. Gloves are
      not part of the set, so they simply do not carry the line (0.732). */

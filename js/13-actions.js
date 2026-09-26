@@ -90,6 +90,7 @@ const CREATIVE_ORDER = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE,
   B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG,
   B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
+  B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,   // 0.8143
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
@@ -127,7 +128,8 @@ function _defaultCreativeInventory() {
   const inv = new Array(INV_SLOTS).fill(null);
   // overflow palette — scrolls in the UI. Sized well past the current block count so newly
   // registered blocks (structure block, spruce set, ...) don't silently fall off the end.
-  const inv2 = new Array(Math.max(72, INV_SLOTS)).fill(null);
+  // ...and 5 empty rows past the last block (0.814), since the 72 had filled up
+  const inv2 = new Array(Math.max(72, Math.ceil((sorted.length - INV_SLOTS) / INV_COLS) * INV_COLS + 5 * INV_COLS)).fill(null);
   for (let i = 0; i < sorted.length; i++) {
     if (i < INV_SLOTS) inv[i] = mkSlot(sorted[i]);
     else if (i - INV_SLOTS < inv2.length) inv2[i - INV_SLOTS] = mkSlot(sorted[i]);
@@ -446,9 +448,10 @@ function harvestAtPlayer() {
     return BUSH_REPEAT;
   }
   if (id === B.WHEAT) {
+    const ripe = !((getBlock(x, t.y, z) >> 8) & 7);                  // growing wheat gives straw only (0.81)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.WHEAT, 'break', x, t.y, z);
-    for (const d of blockDrop(B.WHEAT)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+    if (ripe) for (const d of blockDrop(B.WHEAT)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
     _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_CHANCE);                 // wheat straw yields fiber as well
     return BUSH_REPEAT;
   }

@@ -21,6 +21,7 @@ function resetWorld(seed, terrainType) {
   clearLitterRot();
   clearSnowMelt();
   clearBerryGrow();
+  clearSeasonState();                       // 0.81
   restoreXP(null);                          // loadWorld restores the real total right after this
   clearStructureState();
   clearEntities();

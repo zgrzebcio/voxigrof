@@ -25,6 +25,9 @@ const sharedUniforms = {
   uGlowColor:  { value: new THREE.Color(1.0, 0.82, 0.45) },   // warm glowstone block-light tint
   uTime:       { value: 0 },
   uTileLayer:  { value: TILE_LAYER },          // tile -> texture-array layer: an animated tile's current frame (0.8093)
+  // the wind where the player stands (0.81, 51-seasons.js): which way it blows, and its ground speed in km/h (0.812)
+  uWindDir:    { value: new THREE.Vector2(0, 0) },
+  uWindSpeed:  { value: 0 },
   /* Per-tile colour multiplier. The spruce needle art is nearly white, so rather than authoring a
      second PNG the tile is tinted at draw time. One slot is enough today; if a second tinted tile
      ever appears, promote these to small uniform arrays and loop. */
@@ -41,6 +44,10 @@ const VSH = /* glsl */`
   in float blockLight;
   uniform float uLightOverride;
   uniform mat4 uShadowMat;
+  uniform highp sampler2D uTileLayer;
+  uniform vec2 uWindDir;
+  uniform float uWindSpeed;
+  uniform float uTime;
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -51,6 +58,18 @@ const VSH = /* glsl */`
     vUv = uv; vTile = tile; vShade = shade;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;                      // flood-filled block-light level (0..15) for this face
     vec4 wp = modelMatrix * vec4(position, 1.0);
+    /* The wind (0.81): plants bend from the foot the way it blows, leaves drift a touch. Every term is a
+       function of world position and time, so two leaf blocks sharing an edge move it together. */
+    /* 0.812: the bend follows the wind's SPEED, the height bonus added here per vertex (51-seasons.js
+       windHeightBonus), and a faster wind shakes it faster too. */
+    float sk = texelFetch(uTileLayer, ivec2(int(tile + 0.5), 0), 0).b;
+    if (sk > 0.5 && uWindSpeed > 0.0) {
+      float hb = wp.y <= 60.0 ? 0.0 : wp.y <= 100.0 ? 5.0 * (wp.y - 60.0) / 40.0 : 5.0 + (wp.y - 100.0) * 0.08;
+      float amp = min(1.6, (uWindSpeed + hb) / 40.0);
+      float gust = 0.6 + 0.4 * sin(uTime * (1.2 + amp * 2.5) + wp.x * 0.37 + wp.z * 0.29);
+      float bend = sk > 2.5 ? (1.0 + uv.y) * 0.18 : sk > 1.5 ? 0.05 : uv.y * 0.22;
+      wp.xz += uWindDir * (amp * bend * gust);
+    }
     vSC = (uShadowMat * wp).xyz;             // position in the shadow map's [0,1] space
     vec4 mv = viewMatrix * wp;
     vDepth = -mv.z;

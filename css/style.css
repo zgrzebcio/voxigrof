@@ -121,10 +121,10 @@
      10 rows since 0.7346 (46px slot + 4px gap each, minus the trailing gap = 496px), which is one
      more than the 9 the 72-slot palette actually fills — so the scrollbar is there for a future
      block rather than for every session. */
-  #inv .invScroll { max-height:496px; overflow-y:auto; overflow-x:hidden; pointer-events:auto;
+  #inv .invScroll { max-height:432px; overflow-y:auto; overflow-x:hidden; pointer-events:auto;
                     padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.12);
-                    scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.30) transparent; }
-  #inv .invScroll::-webkit-scrollbar { width:8px; }
+                    scrollbar-width:none; }   /* 0.814: one row lower, no bar: wheel or right stick */
+  #inv .invScroll::-webkit-scrollbar { display:none; }
   #inv .invScroll::-webkit-scrollbar-track { background:rgba(255,255,255,.05); border-radius:4px; }
   #inv .invScroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.28); border-radius:4px; }
   #inv .invScroll::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.42); }
@@ -229,7 +229,7 @@
 
   /* ---- crafting recipe list (survival) — separate panel ---- */
   /* no left offset since 0.7576: the list keeps the same 6px gap to the grid as equipment does */
-  #craftPanel { display:none; flex-direction:column; gap:6px; width:320px;
+  #craftPanel { display:none; flex-direction:column; gap:6px; width:330px;   /* +10px, grows to the left (0.8141) */
                 position:relative;
                 background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
                 border-radius:10px; padding:12px; }
@@ -444,6 +444,7 @@
   #ctip .tipCond .tcEff { padding-left:10px; color:#7fd6a0; }
   #ctip .tipCond .tcEff.bad  { color:#e8a06a; }
   #ctip .tipCond .tcEff.none { color:#6b7789; font-style:italic; }
+  #ctip .tipCond .tcEff.info { color:#e8eef6; }   /* a block's variants and shapes (0.8143) */
   #ctip .tipStats { margin-top:6px; padding-top:5px; border-top:1px solid rgba(255,255,255,.14);
                     display:flex; flex-direction:column; gap:2px; }
   #ctip .tipRow { display:flex; justify-content:space-between; gap:10px; font-size:11px; }

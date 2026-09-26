@@ -376,7 +376,7 @@ function processHollowMushrooms(dt) {
     if (!shroom || !((v >> 8) & 3)) continue;                            // standing up: a planter, not a rotting log
     const fill = hollowFillOf(v);
     if ((fill !== B.DIRT && fill !== B.GRASS) || (d[i + 256] & 255) !== B.AIR) continue;
-    if (Math.random() >= HOLLOW_SHROOM_CHANCE) continue;
+    if (Math.random() >= HOLLOW_SHROOM_CHANCE * seasonGrowth()) continue;   // by season (0.81)
     setBlock(cx * 16 + (i & 15), (i >> 8) + 1, cz * 16 + ((i >> 4) & 15), shroom);
   }
 }
@@ -864,9 +864,11 @@ function updateTNTs(dt) {
    worldDay against the target; when reached, replace the sapling with a small tree. Growth is
    transient (Map lives in memory only) — saplings placed before a world reload keep sitting as
    saplings forever. Acceptable for a first pass. */
-const SAPLINGS = new Map();     // "x,y,z" -> { type: B.OAK_SAPLING|B.BIRCH_SAPLING, growAt }
+const SAPLINGS = new Map();     // "x,y,z" -> { type, need (days of growing), grown, last (world clock) }
+/* Since 0.81 a sapling counts days of GROWING rather than waiting for a date: the season speeds it up
+   (spring 1.3x), slows it (autumn 0.7x) or stops it (winter), seasonGrowth() in 51-seasons.js. */
 function armSapling(x, y, z, type) {
-  SAPLINGS.set(x + ',' + y + ',' + z, { type, growAt: worldDay + 7 + Math.floor(Math.random() * 8) });
+  SAPLINGS.set(x + ',' + y + ',' + z, { type, need: 7 + Math.floor(Math.random() * 8), grown: 0, last: worldClockDays() });
 }
 function _putSoft(x, y, z, id) {
   if (y < 0 || y > 199) return;
@@ -927,7 +929,10 @@ function updateSaplings() {
     const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
     const cur = getBlock(x, y, z) & 255;
     if (cur !== r.type) { stale.push(k); continue; }               // broken / replaced
-    if (worldDay >= r.growAt) {
+    const now = worldClockDays();
+    r.grown += Math.max(0, now - r.last) * seasonGrowth();
+    r.last = now;
+    if (r.grown >= r.need) {
       stale.push(k);
       _growTree(x, y, z, r.type);
     }
@@ -979,6 +984,7 @@ function frame(now) {
   lastT = now;
   sharedUniforms.uTime.value += dt;
   updateTileAnimation(now);                 // water and lava step through their frames (0.8093)
+  updateWindUniforms();                     // grass and leaves bend with the wind (0.81)
   updateMusic();                            // menu track on/off follows menuScene
   /* Input routing, before anybody is ticked: which pad drives which seat, and — while the player
      is rebinding from the pause menu — whether a device has just spoken up. Both run whether or
@@ -995,6 +1001,7 @@ function frame(now) {
     updateLitterRot(dt);                    // fallen leaves rot off the forest floor
     updateSnowMelt(dt);                     // snow outside a cold biome thins away a layer at a time
     updateBerryGrow(dt);                    // picked berry bushes ripen again, one stage at a time
+    updateSeasons(dt);                      // leaves fall and come back, plants wither and return, wheat grows (0.81)
     updateGrassGrow(dt);                    // bare grass slowly sprouts short grass, short grass grows tall
     updateStructOutline();                  // drop the capture box if its block was broken
     processPlacementQueue();                // villages/dungeons assemble a few cells per frame
@@ -1144,6 +1151,12 @@ function tickPlayer(dt, now, slot) {
   if (fwd || str || dy) {
     const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
     let mdx = (str * cos - fwd * sin) * hSpeed * dt, mdz = (-fwd * cos - str * sin) * hSpeed * dt;
+    // a strong wind carries a walker along or holds them back (0.81; not while flying or swimming)
+    // ...stronger up high, and not indoors or behind a wall (0.812)
+    if (!player.flying && !inWater && (mdx || mdz)) {
+      const wm = windMoveMul(weatherAt(player.pos.x, player.pos.z, player.pos.y), mdx, mdz, windShelter(player));
+      mdx *= wm; mdz *= wm;
+    }
     // sneak edge-catch: cancel horizontal movement that would leave the player unsupported
     if (player.sneaking && (mdx || mdz)) {
       const p = player.pos;
@@ -1165,6 +1178,12 @@ function tickPlayer(dt, now, slot) {
   if (!player.flying && player.spawned && !menuScene && !joining && inWater) {
     if (waterFlowVec(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z), _flowV))
       movePlayer(_flowV.x * 1.7 * dt, 0, _flowV.z * 1.7 * dt);
+  }
+  /* ...and a strong wind pushes a player who is standing still, too (0.812): not flying, swimming, riding
+     or asleep, and not where it is sheltered (windShelter). */
+  if (!player.flying && player.spawned && !menuScene && !joining && !benching && !inWater && !player.riding && !lying && !(fwd || str)) {
+    const dr = windDrift(player, dt);
+    if (dr) movePlayer(dr[0], 0, dr[1]);
   }
   updateFootsteps(grounded);
   // sprint also releases when movement input stops, and on any fly<->walk transition
@@ -1743,6 +1762,22 @@ function renderHandPass() {
   renderer.autoClear = true;
 }
 
+// any other weather blending in here with at least a fifth of the weight (0.813), e.g. " (storm 30%)"
+const _dbgMix = (w) => Object.entries(w.mix || {}).filter(([t, v]) => t !== w.type && v >= 0.2)
+  .map(([t, v]) => ` (${t} ${Math.round(v * 100)}%)`).join('');
+// the date, weather and wind lines of the debug read-out (0.81)
+function _dbgDate() {
+  const d = gameDate(), w = weatherAt(player.pos.x, player.pos.z, player.pos.y);
+  const wdir = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(w.dir / 45) % 8];
+  // where the wind is heading over the next in-game hour (0.812): > rising, < falling, = steady
+  const soon = weatherAt(player.pos.x, player.pos.z, player.pos.y, 1).speed;
+  const trend = soon > w.speed + 1 ? '&gt;' : soon < w.speed - 1 ? '&lt;' : '=';
+  const felt = windShelter(player);
+  return `Day ${worldDay} &middot; ${d.day} ${MONTH_NAMES[d.month]}, year ${d.year} (${SEASON_NAMES[d.season]})<br>` +
+    `weather: ${w.name}${_dbgMix(w)}${w.next ? ` &rarr; ${w.nextName} in ${w.nextIn}h` : ''}<br>` +
+    `wind: ${w.speed.toFixed(0)} km/h ${trend} ${soon.toFixed(0)} &middot; ${w.dir.toFixed(0)}&deg; ${wdir}` +
+    (felt < 1 ? ` &middot; ${felt === 0 ? 'sheltered' : 'felt ' + Math.round(felt * 100) + '%'}` : '');
+}
 // the debug read-out, written into whichever player's pane is currently installed
 function paintDebugHud() {
   if (debugHudHidden(activePlayerSlot())) return;    // F3 / pad Back turned it off for this seat
@@ -1754,7 +1789,9 @@ function paintDebugHud() {
   const cx = Math.floor(p.x / 16), cz = Math.floor(p.z / 16);
   hudEl.innerHTML =
     `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
-    `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock} &middot; Day ${worldDay}<br>` +
+    `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock}<br>` +
+    // the date, the weather and the wind where you stand (0.81, 51-seasons.js)
+    `${_dbgDate()}<br>` +
     `XYZ ${p.x.toFixed(1)} / ${p.y.toFixed(1)} / ${p.z.toFixed(1)}<br>` +
     `biome ${mainGen.biomeAt(Math.floor(p.x), Math.floor(p.z))}<br>` +
     `chunk ${cx} , ${cz} &middot; loaded ${chunks.size}<br>` +

@@ -32,7 +32,8 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.80991';   // 0.80991: blackberry bush art
+const GAME_VERSION = '0.81';      // 0.81: wheat growth stages
+// 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
 // 0.8094: glow masks for light sources

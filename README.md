@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.80991**.
+Current build: **alpha 0.8141**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -357,6 +357,20 @@ same shapes as stone brick. Glass: dark, greenhouse, brick, dark brick. Adobe: b
 Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble, limestone or dolomite bed.
 Furnace: granite, marble, limestone or dolomite. Crafting bench: birch, acacia, cherry or dark wood.
 Chest: birch or spruce (only two chests of the same wood join into a double chest).
+
+## Seasons and weather
+
+A month is 7 days and a new world starts on 1 April. Spring (March-May) makes plants grow 30% faster,
+summer as normal, autumn 30% slower, and in winter (December-February) nothing grows. Through autumn oak and
+birch leaves fall to the ground (spruce keeps its needles) and grass, flowers, mushrooms, berry bushes, wheat
+and gourds wither; by winter the trees are bare. In spring the leaves grow back where they were, and each
+plant that withered has a 50% chance to return (and a small chance to seed one beside it). Caves are not
+touched. Wheat now grows through stages and gives wheat only when ripe.
+
+The world is split into weather regions (16x16 chunks), each with its own weather lasting 6-24 hours, blending smoothly into its neighbours near the edges (the debug screen shows a neighbouring weather that is blending in, e.g. "sunny (storm 30%)"): clear,
+sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes), darky, storm or foggy. There are
+no weather visuals yet; the debug screen (F3) shows the date, the weather, what comes next and the wind. Wind
+bends grass and leaves, and from 25 km/h the wind speeds you up walking with it and slows you against it (a gentle push: under 3% at 30 km/h, at most 7%); standing still, it pushes you along. Under 10 km/h is a light breeze, about 30 a windy day, over 60 very strong (storms). It blows 30% harder over the ocean and harder up high (+5 km/h at y 100, +9 at y 150) and does not reach you indoors or right behind a wall. The debug wind line shows where it is heading in the next hour: > rising, < falling, = steady.
 
 ## Rare and special materials
 

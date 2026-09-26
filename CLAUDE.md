@@ -97,4 +97,5 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 48-menu-ui | `uiConfirm` dialog, menu gamepad cursor (`updateMenuPad`) |
 | 49-particles | particles: pools (`FX.bits`, `FX.sprites`, `FX.decals`), `fx*` emitters, ambient sampling, `updateParticles` |
 | 50-loottable | `LOOT` roll lists (`[[count, chance], ...]`), `rollLoot`, `lootBonus` (Prospector/Butcher), `blockDrop` |
+| 51-seasons | calendar (`gameDate`, `seasonGrowth`), weather and wind (`weatherAt`), season sweep (`SEASON_MEM`, `_seasonChunk`), wheat growth |
 | css/style.css | all UI styling |

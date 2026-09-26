@@ -101,7 +101,9 @@ function VOXEL_CORE() {
     const set = [];
     for (let p = 0; p < 4; p++, t++) { set.push(t); T['DECOR_' + r + '_' + p] = t; }
     DECOR_T.push(set);
-  }                                                       // 0.804                                                  // 0.801                                                 // 0.7947
+  }
+  // wheat's growth stages (0.81), 256-262
+  for (let s = 0; s < 7; s++) T['WHEAT_S' + s] = 256 + s;                                                       // 0.804                                                  // 0.801                                                 // 0.7947
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -669,7 +671,10 @@ function VOXEL_CORE() {
                           stack:60, hardness:0.6, type:'ground', faces:Array(6).fill(T.SALT_CRUST), desc: '' };
   PROPS[B.MELON]    = _gourd('Watermelon', T.MELON_SIDE, T.MELON_TOP);
   PROPS[B.PUMPKIN]  = _gourd('Pumpkin', T.PUMPKIN_SIDE, T.PUMPKIN_TOP);
-  PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT], desc: '' };
+  /* Wheat grows (0.81): variant 0 is RIPE, as every wheat the world ever generated is, and 1-7 are the growing
+     stages 0-6 (51-seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
+  PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
+                        tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S6], desc: '' };
   PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
   PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
   PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
@@ -2539,7 +2544,7 @@ function VOXEL_CORE() {
           if (!(H[gi - 1] < WATER_LEVEL || H[gi + 1] < WATER_LEVEL || H[gi - 20] < WATER_LEVEL || H[gi + 20] < WATER_LEVEL)) continue;
           const wx = cx * 16 + x, wz = cz * 16 + z;
           if (fbm(wx * 0.06 + 4100, wz * 0.06 - 4100, 2) < 0.1) continue;          // patches, not a ribbon round every shore
-          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.55) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097)
+          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.11) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097)
         }
 
       /* ---- wheat: dense billboards scattered across grassy plains/forest tops (big amount) ---- */
