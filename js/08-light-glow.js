@@ -12,7 +12,9 @@ function getLightWorld(x, y, z) {
   if (y < 0 || y > 199) return 0;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.light) return 0;
-  return c.light[(x & 15) + ((z & 15) << 4) + (y << 8)];
+  /* A light brighter than 15 (the glowcrystal block's 18) reaches further, but every reader works in 0..15: capped
+     here, since 16-18 used to spill into the sky nibble and come out BLACK next to the light (0.8094). */
+  return Math.min(15, c.light[(x & 15) + ((z & 15) << 4) + (y << 8)]);
 }
 function setLightWorld(x, y, z, val) {
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
@@ -20,6 +22,9 @@ function setLightWorld(x, y, z, val) {
   chunkLightArr(c)[(x & 15) + ((z & 15) << 4) + (y << 8)] = val;
 }
 const LIGHT_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+/* How far any light can reach (0.8094): the brightest emitter, not GLOW_LEVEL — the glowcrystal block's 18 lit
+   cells past the 14-block box relight() clears, and they kept stale light when it was broken. */
+const LIGHT_REACH = Math.max(GLOW_LEVEL, ...Array.from(PROPS, p => (p && p.light) || 0));   // Array.from: PROPS has gaps
 // effective light emission of a raw voxel value — variant-aware (lit furnace glows, unlit doesn't)
 const FURNACE_GLOW = 5;
 /* Which block IDs can ever emit. Used as a cheap pre-filter in front of blockLightOf on the
@@ -90,7 +95,7 @@ function propagateLight(gx, gy, gz, level = GLOW_LEVEL) {
 
 // recompute block light in a bounded box around a change, then re-mesh the chunks it touches
 function relight(x, y, z) {
-  const R = GLOW_LEVEL;
+  const R = LIGHT_REACH;
   const near = [];
   forEachGlowNear(x, z, 2 * R, (gx, gy, gz) => {
     if (Math.abs(gx - x) > 2 * R || Math.abs(gy - y) > 2 * R || Math.abs(gz - z) > 2 * R) return;
@@ -120,7 +125,7 @@ function updatePlayerLight(slot, nx, ny, nz, level) {
   _plyGlows[slot] = now;
   if (!old && !now) return;
 
-  const R = GLOW_LEVEL;
+  const R = LIGHT_REACH;
   // guard: if old and new are far apart (world reset), skip old in the bounding box
   const skipOld = old && (Math.abs(old[0]-nx) > 2*R || Math.abs(old[1]-ny) > 2*R || Math.abs(old[2]-nz) > 2*R);
 
@@ -154,10 +159,10 @@ function relightForChunk(cx, cz) {
   // calls this again the moment it comes back into range, so nothing is lost by skipping here
   if (!inSimRangeChunk(cx, cz)) return;
   // only emitters in the chunks this one can be reached from — not every light in the world
-  forEachGlowNear(cx * 16 + 8, cz * 16 + 8, GLOW_LEVEL + 8, (gx, gy, gz) => {
+  forEachGlowNear(cx * 16 + 8, cz * 16 + 8, LIGHT_REACH + 8, (gx, gy, gz) => {
     if (!_lightSrcActive(gx, gz)) return;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= GLOW_LEVEL && dz <= GLOW_LEVEL) propagateLight(gx, gy, gz, glowLevelAt(gx, gy, gz));
+    if (dx <= LIGHT_REACH && dz <= LIGHT_REACH) propagateLight(gx, gy, gz, glowLevelAt(gx, gy, gz));
   });
   for (const g of _plyGlows) {
     if (!g) continue;

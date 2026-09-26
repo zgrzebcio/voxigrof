@@ -1,0 +1,151 @@
+{
+  "description": "furnace: full cube + short fieldstone chimney box on top (1/16 units)",
+  "textures": {
+    "furnace_marble_front": "blocks/stations/furnace/marble/furnace_marble_front",
+    "furnace_marble_front_lit": "blocks/stations/furnace/marble/furnace_marble_front_lit",
+    "furnace_marble_side": "blocks/stations/furnace/marble/furnace_marble_side",
+    "furnace_marble_top": "blocks/stations/furnace/marble/furnace_marble_top",
+    "furnace_marble_bottom": "blocks/stations/furnace/marble/furnace_marble_bottom",
+    "chimney_marble_side": "blocks/stations/furnace/marble/chimney_marble_side",
+    "chimney_marble_top": "blocks/stations/furnace/marble/chimney_marble_top"
+  },
+  "variants": {
+    "lit": {
+      "north": "#furnace_marble_front_lit"
+    },
+    "unlit": {
+      "north": "#furnace_marble_front"
+    }
+  },
+  "elements": [
+    {
+      "name": "body",
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#furnace_marble_front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#furnace_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#furnace_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#furnace_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#furnace_marble_top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#furnace_marble_bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "name": "chimney",
+      "from": [
+        5,
+        16,
+        5
+      ],
+      "to": [
+        11,
+        22,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#chimney_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#chimney_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#chimney_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#chimney_marble_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#chimney_marble_top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    }
+  ]
+}

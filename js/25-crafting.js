@@ -19,7 +19,7 @@ const V_LOG    = [B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG];
 const V_OLOG   = [B.LOG, B.STRIPPED_LOG, B.HOLLOW_LOG];
 const V_BLOG   = [B.BIRCH_LOG, B.STRIPPED_BIRCH_LOG, B.HOLLOW_BIRCH_LOG];
 const V_SLOG   = [B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.HOLLOW_SPRUCE_LOG];
-const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE];          // anything that takes cobble takes stone too
+const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE, B.DOLOMITE];   // dolomite 0.809          // anything that takes cobble takes stone too
 const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
 
 // leather gear is riveted, not forged: any soft-metal nugget does the job
@@ -36,7 +36,7 @@ const RECIPES_BASIC = [
   { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 5], timeToCraft: 1.5, xpToGive: 1 },       // 5 since 0.7691
   { in: [[ITEM.CHARCOAL, 1]],                                                out: [ITEM.CHARCOAL_CHUNK, 4], timeToCraft: 1, xpToGive: 1 },   // 0.767
   { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1], timeToCraft: 3, xpToGive: 5 },
-  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [B.BROWN_MUSHROOM, 1], [B.BLUE_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 5, xpToGive: 20 },   // + blue (0.7691)
+  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [[B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM], 1], [B.BLUE_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 5, xpToGive: 20 },   // + blue (0.7691); black or white tall for brown (0.8091)
   { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 2, xpToGive: 2 },
   { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], station: 'mortar', timeToCraft: 3, xpToGive: 2 },
@@ -70,7 +70,7 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.FIBER, 20]],                                                  out: [ITEM.CLOTH, 1], timeToCraft: 6, xpToGive: 10 },
   { in: [[V_PLANKS, 10], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 10]],            out: [B.CHEST, 1], timeToCraft: 6, xpToGive: 25 },
   { in: [[B.WOOL, 4], [V_PLANKS, 4], [ITEM.CLOTH, 5], [ITEM.FIBER, 10]],     out: [B.BED, 1], timeToCraft: 14, xpToGive: 60 },
-  { in: [[V_PLANKS, 8], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 4]],              out: [B.DOOR, 1], timeToCraft: 4, xpToGive: 20 },
+  { in: [[V_PLANKS, 8], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 4]],              out: [B.DOOR, 1], timeToCraft: 4, xpToGive: 20, removed: true },   // disabled (0.809)
   { in: [[ITEM.DIAMOND, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SWORD, 1], timeToCraft: 2.5, xpToGive: 80 },
   { in: [[ITEM.DIAMOND, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_SHOVEL, 1], timeToCraft: 2, xpToGive: 80 },
   { in: [[ITEM.DIAMOND, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 2]],               out: [ITEM.DIAMOND_PICKAXE, 1], timeToCraft: 3, xpToGive: 80 },
@@ -133,7 +133,7 @@ RECIPES_ADVANCED.push(
   { in: [[B.RED_SAND, 5]],    out: [B.RED_SANDSTONE, 1], timeToCraft: 3,   xpToGive: 1 },
   { in: [[ITEM.FIBER, 10]],   out: [B.FIBER_BLOCK, 1],   timeToCraft: 2,   xpToGive: 1 },
   { in: [[B.FIBER_BLOCK, 1]], out: [ITEM.FIBER, 10],     timeToCraft: 1,   xpToGive: 1 },
-  { in: [[ITEM.STICK, 10]],   out: [B.LADDER, 1],        timeToCraft: 3, xpToGive: 5 },
+  { in: [[ITEM.STICK, 10]],   out: [B.LADDER, 1],        timeToCraft: 3, xpToGive: 5, removed: true },   // disabled (0.809)
   // mortar and pestle (0.77; carved from granite with a bone pestle since 0.771)
   // any stone carves a mortar since 0.7992; which rock the bowl LOOKS like is a variant you pick (46-variants.js)
   { in: [[V_STONE, 20], [ITEM.BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 10, xpToGive: 90 },
@@ -166,6 +166,10 @@ RECIPES_ADVANCED.push(
   // the hammer (0.788): the shape tool, and since 0.789 the only one
   { in: [[B.IRON_BLOCK, 1], [ITEM.COPPER_NUGGET, 8], [ITEM.STICK, 4], [B.FIBER_BLOCK, 2], [ITEM.STRING, 10]],
     out: [ITEM.HAMMER, 1], timeToCraft: 15, xpToGive: 200 },
+  // adobe (0.8091): a clay block bound with straw; appended so saved recipe indices hold
+  { in: [[B.CLAY, 1], [ITEM.WHEAT, 5]], out: [B.ADOBE, 4], timeToCraft: 4, xpToGive: 5 },
+  // five stone pebbles press into a stone block (0.8095): the first stone a flint pickaxe cannot give you
+  { in: [[ITEM.STONE_PEBBLE, 5]], out: [B.STONE, 1], timeToCraft: 2, xpToGive: 2 },
 );
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)

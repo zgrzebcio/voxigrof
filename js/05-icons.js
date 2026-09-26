@@ -79,7 +79,9 @@ function _renderIconScene(scene, cam) {
    when that used to happen. So these three declare what they need, and an icon whose art is not
    ready yet is neither drawn nor cached: the next call renders it properly. */
 const ICON_MESH_ART = {
-  [B.CHEST]: ['chest_front', 'chest_side', 'chest_top', 'chest_bottom'],
+  [B.CHEST]: ['chest_front', 'chest_side', 'chest_top', 'chest_bottom',
+              'chest_front_metal', 'chest_side_metal', 'chest_top_metal',
+              'oak_planks', 'birch_planks', 'spruce_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js)
   [B.BED]:   ['bed_top', 'bed_long', 'bed_end', 'bed_leg', 'bed_down'],
   [B.DOOR]:  ['oak_door'],
 };
@@ -97,7 +99,7 @@ function renderBlockIcon(id, variant = 0) {
   if (!iconArtReady(id)) return '';               // art still loading — ask again, don't cache
   if (id === B.CHEST) {                   // chest has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
-    const m = buildChestMesh();
+    const m = buildChestMesh(chestWoodOf(variant));   // its wood, picked on the variant bar (0.809)
     m.group.position.set(-0.5, -0.5, -0.5);   // centre the cell on the origin
     scene.add(m.group);
     const cam = new THREE.OrthographicCamera(-0.95, 0.95, 0.95, -0.95, 0.1, 10);

@@ -1,0 +1,151 @@
+{
+  "description": "furnace: full cube + short fieldstone chimney box on top (1/16 units)",
+  "textures": {
+    "furnace_front": "blocks/stations/furnace/furnace_front",
+    "furnace_front_lit": "blocks/stations/furnace/furnace_front_lit",
+    "furnace_side": "blocks/stations/furnace/furnace_side",
+    "furnace_top": "blocks/stations/furnace/furnace_top",
+    "furnace_bottom": "blocks/stations/furnace/furnace_bottom",
+    "chimney_side": "blocks/stations/furnace/chimney_side",
+    "chimney_top": "blocks/stations/furnace/chimney_top"
+  },
+  "variants": {
+    "lit": {
+      "north": "#furnace_front_lit"
+    },
+    "unlit": {
+      "north": "#furnace_front"
+    }
+  },
+  "elements": [
+    {
+      "name": "body",
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#furnace_front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#furnace_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#furnace_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#furnace_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#furnace_top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#furnace_bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "name": "chimney",
+      "from": [
+        5,
+        16,
+        5
+      ],
+      "to": [
+        11,
+        22,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#chimney_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#chimney_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#chimney_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#chimney_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#chimney_top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    }
+  ]
+}

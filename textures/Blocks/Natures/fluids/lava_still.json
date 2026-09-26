@@ -1,0 +1,8 @@
+{
+  "frames": 16,
+  "frame_width": 128,
+  "frame_height": 128,
+  "layout": "vertical strip",
+  "frametime_ms": 220,
+  "loop": true
+}

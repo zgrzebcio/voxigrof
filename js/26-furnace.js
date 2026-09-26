@@ -159,8 +159,8 @@ function updateFurnaces(dt) {
     }
     if (lit !== f.lit) {                                     // swap the front face + light on/off
       f.lit = lit;
-      const facing = (getBlock(x, y, z) >> 8) & 3;           // keep the rotation bits
-      setBlock(x, y, z, B.FURNACE | ((facing | (lit ? V.FURNACE_ON : 0)) << 8));
+      const keep = ((getBlock(x, y, z) >> 8) & 255) & ~V.FURNACE_ON;   // the rotation and the rock (0.809)
+      setBlock(x, y, z, B.FURNACE | ((keep | (lit ? V.FURNACE_ON : 0)) << 8));
     }
     if (lit) { _furnaceCrackle(k, x, y, z); burning.add(k); }
     // smoke from the top, a flicker at the mouth (0.8, 49-particles.js)

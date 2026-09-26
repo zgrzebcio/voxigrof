@@ -34,6 +34,7 @@ const LOOT = {
   berry:       [[1, 1], [1, 0.75], [1, 0.35]],            // a ripe bush picked
   wheat:       [[1, 1], [1, 0.4]],
   melon:       [[2, 1], [1, 0.7], [1, 0.5], [1, 0.3], [1, 0.15]],
+  salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second (0.8097)
   // leaves, as they decay (or cut with a tool); by bare hand every chance is halved
   stick:       [[1, 0.3], [1, 0.15], [1, 0.03], [1, 0.005]],
   apple:       [[1, 0.01]],
@@ -81,6 +82,8 @@ function blockDrop(blockId, isNatural = false) {
   // a flint stone is never mined by hand (noTarget), but an explosion can still take one out —
   // and when it does it should hand over the same flint a pickup would
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
+  if (blockId === B.STONE_PEBBLE) return [{ id: ITEM.STONE_PEBBLE, count: 1 }];   // 0.8095
+  if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
   // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
   // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)
@@ -107,8 +110,10 @@ function blockDrop(blockId, isNatural = false) {
     return [{ id: B.GRAVEL, count: 1 }];
   }
   // a gourd comes off its vine with a 40% chance of a fiber too (0.799), picked or broken
-  if (blockId === B.MELON || blockId === B.PUMPKIN) {
-    const out = blockId === B.MELON ? _drop(ITEM.MELON_SLICE, rollLoot(LOOT.melon)) : [{ id: B.PUMPKIN, count: 1 }];
+  if (blockId === B.MELON || blockId === B.PUMPKIN || blockId === B.CANTALOUPE) {
+    const out = blockId === B.MELON ? _drop(ITEM.MELON_SLICE, rollLoot(LOOT.melon))
+              : blockId === B.CANTALOUPE ? _drop(ITEM.CANTALOUPE_SLICE, rollLoot(LOOT.melon))   // sliced like the melon (0.8091)
+              : [{ id: B.PUMPKIN, count: 1 }];
     if (Math.random() < GOURD_FIBER_CHANCE) out.push({ id: ITEM.FIBER, count: 1 });
     return out;
   }

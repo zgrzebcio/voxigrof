@@ -32,7 +32,7 @@ function buildItemDropGeom(id, iconName) {
   const tex = new THREE.Texture(img);
   tex.colorSpace = THREE.SRGBColorSpace;  // ColorManagement off + sRGB output: without this the sprite renders washed-out
   tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
   tex.needsUpdate = true;
   const matFace = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
   const faceGeo = new THREE.BufferGeometry();
@@ -89,7 +89,7 @@ function buildDropGeom(id, variant = 0) {
   // Chest has no chunk-mesh model, but unlike the door and bed it IS a full 3D shape — a flat
   // chest_front sprite in the hand looked like a painting. Hand it the real lid-and-body mesh
   // (the same one 05-icons.js renders) as a node the caller adds directly.
-  if (id === B.CHEST) return [{ node: chestItemNode() }];
+  if (id === B.CHEST) return [{ node: chestItemNode(chestWoodOf(variant)) }];   // in its wood (0.809)
   // as an item a log is a full 64-unit block, not whatever width it happened to grow at
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;

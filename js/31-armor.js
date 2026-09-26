@@ -432,7 +432,7 @@ function _armorTex(name) {
   const t = new THREE.Texture(img);
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
   t.needsUpdate = true;
   _pvTexCache[name] = t;
   return t;

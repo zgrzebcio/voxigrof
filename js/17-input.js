@@ -284,6 +284,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyY' && !e.repeat && !invOpen) { dropFromHotbar(e.shiftKey ? 'stack' : 1); return; }
   // KeyE (bush pickup) is HELD, not tapped — driven from the frame loop off `keys`, not here
   if (e.code === 'Space' && !e.repeat && !invOpen) jumpTap();
+  if (e.code === 'KeyR' && !e.repeat && !invOpen && typeof variantBindTap === 'function') variantBindTap();   // double tap: default (0.809)
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !e.repeat && !invOpen) player.fast = !player.fast;
   if (!invOpen && e.code.startsWith('Digit')) {
     const n = +e.code.slice(5);
@@ -550,6 +551,7 @@ function pollGamepad(dt) {
   if (edge(12)) toggleDebugHud(activePlayerSlot());   // D-pad Up hides this seat's debug text
   if (edge(14) && playing && !invOpen) cycleCameraView();         // D-pad Left cycles perspective (F2's twin)
   player._variantHold = btn(15);                      // D-pad Right HELD: the bumpers step the variant bar (0.7944)
+  if (edge(15) && playing && !invOpen && typeof variantBindTap === 'function') variantBindTap();   // double tap: default (0.809)
   /* D-pad Down drops one of the held item — the pad's twin of Y. Deliberately no stack modifier:
      every button that could serve as one already means something while playing (the triggers mine
      and place, the bumpers cycle the hotbar), and a mis-modified drop throws away a whole stack. */

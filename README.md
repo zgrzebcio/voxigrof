@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.792**.
+Current build: **alpha 0.80991**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -15,6 +15,7 @@ the create screen for a world without villages and dungeons.
 - [Food and spoiling](#food-and-spoiling)
 - [Animals and mobs](#animals-and-mobs)
 - [Block shapes](#block-shapes)
+- [Block variants](#block-variants)
 - [Rare and special materials](#rare-and-special-materials)
 - [Handy recipes](#handy-recipes)
 
@@ -30,18 +31,17 @@ the create screen for a world without villages and dungeons.
 | Sprint (toggle) | `Ctrl` | L3 (left stick click) |
 | Break / attack | Left mouse | Right trigger |
 | Place / use / eat / draw bow / raise shield | Right mouse (hold) | Left trigger |
-| Pick up grass, bushes, flint pebbles | Hold `E` | Hold Y |
+| Pick up grass, bushes, flint and stone pebbles | Hold `E` | Hold Y |
 | Work a bench or mortar | Hold `E` (tap to take) | Hold Y (tap to take) |
 | Inventory | `Tab` | B (tap) |
-| Skill tree | `K` | Skill tree tab on top of the right-hand panel |
+| Skill tree | `K` | Back / Share (tap), or its tab on the right-hand panel |
 | Hotbar | `1`–`8` or mouse wheel | LB / RB |
 | Drop one / drop stack | `Y` / `Shift+Y` | D-pad Down / X + D-pad Down |
 | Shape wheel (hammer worn) | Hold `Q`, aim with the mouse, let go | Hold B, aim with the right stick, let go |
-| Pick a variant (chisel in Neck) | Hold `R` + mouse wheel | Hold D-pad Right + LB / RB |
+| Pick a variant (chisel in Neck) | Hold `R` + mouse wheel; tap `R` twice for the plain block | Hold D-pad Right + LB / RB; tap D-pad Right twice for the plain block |
 | Turn the shape wheel's page | Mouse wheel | LB / RB |
 | Pause menu | `Esc` | Start |
 | Fullscreen | `F1` | — |
-| Skill tree | `K` | Back / Share |
 | Camera view | `F2` | D-pad Left |
 | Debug text | `F3` | D-pad Up |
 | Hide the whole HUD | `Backspace` | Hold Back / Share (1 s) |
@@ -63,12 +63,14 @@ of the game is about making your first flint tools.
    5% of the time and an apple 1%. Torn off by bare hand, every chance is halved.
 3. **Flint.** Small flint pebbles lie on the ground; hold `E` on one to pick it up. Gravel also
    drops flint 5% of the time.
-4. **Flint tools.** Open the inventory (`Tab`) and craft a flint pickaxe (5 flint, 3 sticks,
-   10 fiber) and a flint hatchet (4 flint, 3 sticks, 10 fiber).
+4. **Flint hatchet.** Open the inventory (`Tab`) and craft a flint hatchet (4 flint, 3 sticks, 10 fiber).
 5. **Wood.** With the hatchet, chop logs. A log makes 3 planks, a plank makes 3 sticks.
 6. **Crafting bench.** 5 planks and 5 fiber. Right click it to open the full recipe list: stone and
    metal tools, armor, the furnace, chests, beds and more.
-7. **Furnace.** 12 cobblestone, crafted at the bench. Put fuel in the bottom slot and something to smelt
+7. **Stone.** A flint pickaxe breaks natural rock (stone, granite, marble, limestone, dolomite) but keeps
+   nothing; only a stone pickaxe or better does. Crafted blocks (cobblestone, sandstone, terracotta, furnace) it keeps. Pick up **stone pebbles** from the ground
+   (hold `E`) instead; 5 make a stone block at the bench. 5 stone make a stone pickaxe.
+8. **Furnace.** 12 cobblestone, crafted at the bench. Put fuel in the bottom slot and something to smelt
    in the top one.
 
 **Starter quests** in the top-right corner walk you through these steps one at a time, from your first
@@ -260,8 +262,8 @@ grow, rarely, as crystal clusters on cave floors, ceilings and walls in their de
 open mountain rock). Break the block a cluster grows from and the cluster drops as an item, not as gems,
 so you still need a bronze pickaxe. A cluster item can be placed on any face.
 
-Marble, granite and limestone come as big patches in stone — granite below y 60, marble and
-limestone in the middle depths — and any pickaxe takes them.
+Marble, granite, limestone and dolomite come as big patches in stone — granite below y 60, marble and
+limestone in the middle depths, dolomite a little higher (y 40–130) — and a stone pickaxe or better takes them.
 
 ## Food and spoiling
 
@@ -270,7 +272,7 @@ much of it is left; the tooltip gives the time in minutes and seconds. At zero, 
 is lost — the feed says "spoiled" — and the clock starts again on the next one, so a stack rots one
 at a time.
 
-**Yellow berries are poisonous.** Yellow berry bushes grow among the red and blue ones, a little
+**Blackberries are poisonous.** Blackberry bushes grow among the red and blue ones, a little
 rarer. Their berries fill you like the others, but eating one poisons you for 10 seconds: you lose
 half a health point a second, and your health does not regenerate meanwhile, down to your last half heart but never past it. Running effects show as small slots right of the hotbar, with the seconds left.
 
@@ -322,12 +324,12 @@ The wheel has two pages — turn them with the mouse wheel or a bumper:
 
 | Shape | Blocks that take it |
 |---|---|
-| Slab, vertical slab, stairs | Stone, cobblestone, all planks, bricks, stone brick, glass, both sandstones |
-| Pane (a thin plate through the middle) | Wool, glass, all planks, stone, cobblestone, bricks |
-| Fence (a post that joins its neighbours, too tall to jump) | All planks, bricks, iron block, copper block |
+| Slab, vertical slab, stairs | Stone, cobblestone, all planks, terracotta, stone brick, glass, both sandstones |
+| Pane (a thin plate through the middle) | Wool, glass, all planks, stone, cobblestone, terracotta |
+| Fence (a post that joins its neighbours, too tall to jump) | All planks, terracotta, iron block, copper block |
 | Carpet (a layer 1/8 thick) | Wool, all planks, stone, cobblestone, glass, iron and gold block — plus the stacking set below |
-| Cover (a 1/8 plate you walk straight through) | Dirt, grass, stone, cobblestone, all planks, stone brick, bricks, granite, marble, limestone, both sandstones |
-| Wall (solid, thin, a full block tall) | Cobblestone, stone brick, bricks, iron, copper and gold block, granite, marble, limestone, wool, both sandstones |
+| Cover (a 1/8 plate you walk straight through) | Dirt, grass, stone, cobblestone, all planks, stone brick, terracotta, granite, marble, limestone, both sandstones |
+| Wall (solid, thin, a full block tall) | Cobblestone, stone brick, terracotta, iron, copper and gold block, granite, marble, limestone, wool, both sandstones |
 
 Two slabs of the same block in one space become the full block again. Snow, leaves, sand, red sand,
 gravel and fiber block stack up to 8 carpet layers in one space, in any mix, and you walk through
@@ -339,18 +341,32 @@ A cover placed over a hole becomes a lid flush with the ground; in a doorway (wa
 sits flush with the wall on your side; anywhere else it lies against the face you clicked. Mobs
 fall through it too.
 
+## Block variants
+
 The **chisel** (bench: 5 iron ingots, 4 copper nuggets, 2 sticks, 1 fiber block, 5 string) is worn in the
 Neck slot and unlocks block variants. Since 0.803 only the hammer cuts shapes and only the chisel picks variants.
 
-**Variants.** With a chisel worn in the Neck slot, five slots above the health bar show the other
-looks of the block in your hand, drawn in the picked shape, the plain block in the middle. Hold `R`
-and scroll, or hold D-pad Right and press LB / RB, to step through them. The
+With a chisel worn in the Neck slot, seven slots above the health bar show the other
+looks of the block in your hand, drawn in the picked shape, the plain block in the middle (4th) slot. Hold `R`
+and scroll, or hold D-pad Right and press LB / RB, to step through them. Tap `R` or D-pad Right twice to
+go back to the plain block. The
 pick changes every one of that block you carry (no separate stacks), is not saved, and a variant
-breaks back into the plain block. Stone: brick, mossy brick, cracked brick. Cobblestone: mossy.
-Sulfur block, granite, marble, limestone: brick. Variants take the same shapes as stone brick.
-Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble or limestone bed.
+breaks back into the plain block. Stone: brick, mossy brick, polished, band, pillar. Cobblestone: mossy.
+Sulfur block: brick. Granite, marble, limestone, dolomite: brick, mossy brick, polished, band, pillar (a pillar lies along the face you place it on, like a log). Terracotta (the old bricks block): brick. Variants take the
+same shapes as stone brick. Glass: dark, greenhouse, brick, dark brick. Adobe: brick.
+Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble, limestone or dolomite bed.
+Furnace: granite, marble, limestone or dolomite. Crafting bench: birch, acacia, cherry or dark wood.
+Chest: birch or spruce (only two chests of the same wood join into a double chest).
 
 ## Rare and special materials
+
+- **Mushrooms.** Red, brown, blue, black and white tall mushrooms grow on cave floors and in shade under
+  leaves; black and white tall grow where brown does and go into stew in its place. Lava mushrooms grow on
+  cave floors next to lava and glow a little.
+- **Cantaloupe.** A gourd like the watermelon, found in patches on grassland. Gather it and it comes apart
+  into cantaloupe slices you can eat.
+- **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, using up one salt every 20 minutes (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
+- **Adobe.** 1 clay block and 5 wheat make 4 adobe at the crafting bench.
 
 - **Sulfur.** Found in caves as yellow sulfur blocks, often with small sulfur tips growing off them.
   Look 5–10 blocks below lava pools, where they come in clusters; single blocks also appear in cave
@@ -375,14 +391,13 @@ Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, g
   them; cut one with a hatchet to take it. Placed standing up and filled with dirt or grass (right click
   it with the block), it works as a planter for saplings, flowers and grass; filled with sand, for a
   cactus. Breaking it gives back the log and what was inside. Laid down and filled with dirt or grass,
-  it slowly grows mushrooms on top: brown on oak, red on birch, blue on spruce. A hollow log makes 3
+  it slowly grows mushrooms on top: brown (or black or white tall) on oak, red on birch, blue on spruce. A hollow log makes 3
   planks, like a log.
 - **Falling blocks.** Sand, red sand, gravel and fiber blocks fall when nothing is under them and land
   as a loose pile of 8 layers you can walk through. Deserts have dunes of 1–7 layers, exposed gravel has
   loose gravel on top, and gravel rarely lies scattered on other ground.
-- **Ladder.** 10 sticks at the crafting bench. Place it on a wall and climb it like a glow vine; if the
-  wall is broken the ladder drops.
-- **Block recipes.** Snow, clay, glass, bricks, wool and glowstone take 5 of their material; hay bales,
+- **Ladder and door.** Switched off for now: no recipe and not in creative. Ones already placed still work.
+- **Block recipes.** Snow, clay, glass, terracotta (from brick items), wool and glowstone take 5 of their material; hay bales,
   storage blocks and nuggets-to-ingot take 10.
 - **Mortar and pestle.** 20 granite, 1 bone, 2 flint and 1 fiber block at the crafting bench; breaks by
   hand. It works like a crafting bench (pick a recipe, hold `E` to grind, tap `E` to take) but only

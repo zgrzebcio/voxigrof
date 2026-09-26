@@ -3,8 +3,7 @@
 
 /* ================================================================================================
    MATERIALS — one shared shader for all three passes. The `tile` vertex attribute selects
-   the atlas cell; UVs are in tile units and wrapped with fract() in the fragment shader,
-   with explicit textureGrad derivatives so mip selection stays continuous across the wrap.
+   the texture-array layer (0.809); UVs are in tile units and the layer wraps them in hardware.
    ================================================================================================ */
 THREE.ColorManagement.enabled = false;   // raw sRGB passthrough — pixels match the source art
 
@@ -25,6 +24,7 @@ const sharedUniforms = {
   uLightColor: { value: new THREE.Color(1, 1, 1) },
   uGlowColor:  { value: new THREE.Color(1.0, 0.82, 0.45) },   // warm glowstone block-light tint
   uTime:       { value: 0 },
+  uTileLayer:  { value: TILE_LAYER },          // tile -> texture-array layer: an animated tile's current frame (0.8093)
   /* Per-tile colour multiplier. The spruce needle art is nearly white, so rather than authoring a
      second PNG the tile is tinted at draw time. One slot is enough today; if a second tinted tile
      ever appears, promote these to small uniform arrays and loop. */
@@ -57,7 +57,8 @@ const VSH = /* glsl */`
     gl_Position = projectionMatrix * mv;
   }`;
 const FSH = /* glsl */`
-  uniform sampler2D map;
+  uniform highp sampler2DArray map;                 // the block textures, a layer per tile (0.809)
+  uniform highp sampler2D uTileLayer;
   uniform vec3 fogColor;
   uniform float fogNear, fogFar;
   uniform highp sampler2DShadow tShadS;
@@ -85,17 +86,11 @@ const FSH = /* glsl */`
       + texture(s, vec3(uv + vec2( t, -t), d)) + texture(s, vec3(uv + vec2(-t, -t), d)));
   }
   void main() {
-    // atlas is a COLS×COLS grid; each 1/COLS cell samples its centre 0.5/COLS window
-    // (the surrounding 0.25/COLS ring is a wrapped mip gutter). flipY canvas layout.
-    const float COLS = ${ATLAS_COLS}.0, CELL = 1.0 / ${ATLAS_COLS}.0;
-    float col = mod(vTile, COLS);
-    float row = floor(vTile / COLS + 0.001);
-    vec2 off = vec2(col * CELL + CELL * 0.25, 1.0 - (row + 0.75) * CELL);
-    vec2 sc  = vec2(CELL * 0.5);
-    vec2 wUV = int(vTile + 0.5) == 11
-      ? fract(vUv + vec2(uTime * 0.04, uTime * 0.025))
-      : fract(vUv);
-    vec4 tex = textureGrad(map, off + wUV * sc, dFdx(vUv) * sc, dFdy(vUv) * sc);
+    // one layer of the texture array per tile, wrapping on its own (0.809): UVs are in tile units, so a
+    // greedy quad repeats its texture with plain hardware wrapping and the mips never see a neighbour.
+    // An animated tile (water, lava, 0.8093) looks up the layer of its current frame; the rest map to themselves.
+    vec2 tl = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 0), 0).rg;   // .g: its glow mask's layer, or -1 (0.8094)
+    vec4 tex = texture(map, vec3(vUv, tl.x));
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
     // sun/moon shadows: soft PCF compare against the two depth maps; outside the shadow
@@ -120,6 +115,8 @@ const FSH = /* glsl */`
     // quadratic-fading to black; peak slightly above the old 1.15
     vec3 block = uGlowColor * (bl * 0.45 + bl * bl * 0.85);
     vec3 lit = tex.rgb * vShade * (uLightColor * (uAmbient + direct) * skyF + block);
+    // a light source's glowing pixels keep their own colour whatever the light around them (0.8094)
+    if (tl.y >= 0.0) lit = mix(lit, tex.rgb, texture(map, vec3(vUv, tl.y)).a);
     float fog = smoothstep(fogNear, fogFar, vDepth);
     fragColor = vec4(mix(lit, fogColor, fog), tex.a);
   }`;

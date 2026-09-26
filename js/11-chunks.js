@@ -69,6 +69,17 @@ function ensureChunk(cx, cz) {
 
 let playerCX = 1e9, playerCZ = 1e9;
 
+/* LEVEL OF DETAIL (0.8092; the meshing side is in 02-voxel-core.js). From half the render distance a chunk
+   is meshed without its small things, from three quarters at half resolution. `cur` is the level it has
+   now: to LOSE detail it has to be LOD_PAD past the line, so walking along a boundary does not remesh the
+   same chunks back and forth; gaining detail happens at the line itself. */
+const LOD_PAD = 0.75;
+function chunkLod(d2, cur = 0) {
+  const d = Math.sqrt(d2), a = viewDist * 0.5, b = viewDist * 0.75;
+  const past = (edge, lvl) => d >= edge + (lvl > cur ? LOD_PAD : 0);
+  return past(b, 2) ? 2 : past(a, 1) ? 1 : 0;
+}
+
 // rebuild the load/mesh/unload sets — runs when the player crosses a chunk border,
 // the view distance changes, or the world resets
 function rebuildQueues() {
@@ -78,6 +89,7 @@ function rebuildQueues() {
   meshQueue.length = 0;
   const R = viewDist, RG = R + 1;
   const requeue = [];                       // chunks that were awaiting a (re-)mesh
+  const lodChange = [];                     // drawn chunks whose level of detail moved (0.8092)
 
   /* Distances are to the NEAREST player (0.72). With split screen the loaded set is the union of
      every player's ring, so a chunk only unloads once it is out of range of all of them — and the
@@ -90,6 +102,8 @@ function rebuildQueues() {
       chunks.delete(k);                     // (edits are kept in editStore)
     } else if (d2 > R * R) {
       disposeChunkMeshes(c);                // data ring beyond render radius: keep data only
+    } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
+      if (c.meshing) c.dirty = true; else lodChange.push([c, d2]);
     }
   }
   const seen = PLAYER_CHUNKS.length > 1 ? new Set() : null;   // rings overlap only in split screen
@@ -106,6 +120,7 @@ function rebuildQueues() {
       }
     }
   }
+  for (const [c, d2] of lodChange) tryQueueMesh(c, d2);   // far work, so it sorts behind what is near
   genQueue.sort((a, b) => a.d2 - b.d2);
   meshQueue.sort((a, b) => a.d2 - b.d2);
   for (const c of requeue)
@@ -168,7 +183,7 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain7992:';
+const TERRAIN_KEY = 'terrain8097:';   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
@@ -189,14 +204,16 @@ function dispatchMesh(worker, c) {
   const nw = getChunk(c.cx - 1, c.cz), ne = getChunk(c.cx + 1, c.cz);
   const nn = getChunk(c.cx, c.cz - 1), ns = getChunk(c.cx, c.cz + 1);
   c.meshing = true; c.queuedMesh = false; c.dirty = false; c.rev++;
+  c.lod = chunkLod(chunkDist2ToPlayers(c.cx, c.cz), c.lod | 0);   // its level of detail (0.8092)
   const data = c.data.slice();              // copy: main thread keeps the authoritative data
   // pack glow (low nibble) + sky (high nibble) into one byte per cell for the mesher
   const glow = c.light, skyA = c.sky;
   const light = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   for (let i = 0; i < light.length; i++)
-    light[i] = (glow ? glow[i] : 0) | ((skyA ? skyA[i] : SKY_LEVEL) << 4);
+    light[i] = (glow ? Math.min(15, glow[i]) : 0) | ((skyA ? skyA[i] : SKY_LEVEL) << 4);   // capped: 16+ turned black (0.8094)
   const packedEdge = (n, side) => {
     const g = edgeSlice(n.light || ZERO_LIGHT, side, Uint8Array);
+    for (let i = 0; i < g.length; i++) if (g[i] > 15) g[i] = 15;   // same cap as above (0.8094)
     if (n.sky) {
       const s = edgeSlice(n.sky, side, Uint8Array);
       for (let i = 0; i < g.length; i++) g[i] |= s[i] << 4;
@@ -210,7 +227,8 @@ function dispatchMesh(worker, c) {
   worker.postMessage({ type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
                        data: data.buffer, sxn: sxn.buffer, sxp: sxp.buffer, szn: szn.buffer, szp: szp.buffer,
                        light: light.buffer, lxn: lxn.buffer, lxp: lxp.buffer, lzn: lzn.buffer, lzp: lzp.buffer,
-                       layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null },          // mixed layer stacks (0.785)
+                       layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks (0.785)
+                       lod: c.lod },
                      [data.buffer, sxn.buffer, sxp.buffer, szn.buffer, szp.buffer,
                       light.buffer, lxn.buffer, lxp.buffer, lzn.buffer, lzp.buffer]);
 }
@@ -747,17 +765,18 @@ function layerBreakInfo(x, y, z, v = getBlock(x, y, z)) {
   return { layerId, apply: () => setLayerStack(x, y, z, ids) };
 }
 // is any glowstone within light range of (x,y,z)? (so opaque edits there re-shadow correctly)
+// is any light close enough to reach (x, y, z)? LIGHT_REACH, the brightest emitter's reach (0.8094)
 function glowNear(x, y, z) {
   let hit = false;
-  forEachGlowNear(x, z, GLOW_LEVEL, (gx, gy, gz) => {
-    if (Math.abs(gx - x) <= GLOW_LEVEL && Math.abs(gy - y) <= GLOW_LEVEL && Math.abs(gz - z) <= GLOW_LEVEL) {
+  forEachGlowNear(x, z, LIGHT_REACH, (gx, gy, gz) => {
+    if (Math.abs(gx - x) <= LIGHT_REACH && Math.abs(gy - y) <= LIGHT_REACH && Math.abs(gz - z) <= LIGHT_REACH) {
       hit = true;
       return false;                       // found one — stop walking
     }
   });
   if (hit) return true;
   for (const g of _plyGlows)
-    if (g && Math.abs(g[0]-x) <= GLOW_LEVEL && Math.abs(g[1]-y) <= GLOW_LEVEL && Math.abs(g[2]-z) <= GLOW_LEVEL) return true;
+    if (g && Math.abs(g[0]-x) <= LIGHT_REACH && Math.abs(g[1]-y) <= LIGHT_REACH && Math.abs(g[2]-z) <= LIGHT_REACH) return true;
   return false;
 }
 function markDirty(c) {

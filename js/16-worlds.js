@@ -166,7 +166,7 @@ function saveWorld(syncToLS = false) {
               cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
               craftQueue: serializeCraftQueue(player),                     // 0.76
               skills: serializeSkills(player),                             // 0.79
-              quest: serializeQuests(player) },                            // the starter quest reached (0.798)
+              quest: serializeQuests(player), saltT: player._saltT || 0 },   // salt timer (0.8099)                            // the starter quest reached (0.798)
     /* One record per person who has played this world, tagged with their profile (0.721) — see
        the header of 36-splitscreen.js's persistence section. Player one ALSO keeps writing the
        original top-level fields above, so an older build still opens this save. */
@@ -301,6 +301,7 @@ async function loadWorld(w) {
      stack the inventory below is allowed to hold. */
   player.skills = restoreSkills(_own && _own.skills);
   player.questIdx = restoreQuests(_own && _own.quest);   // 0.798
+  player._saltT = +(_own && _own.saltT) || 0;             // 0.8099
   // only restore survival inventory when there is a real record to restore (proves they played it).
   // Any other case (fresh world, ID collision, corrupt/missing data) starts empty.
   survStash = _own

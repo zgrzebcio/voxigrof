@@ -32,7 +32,14 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.804';     // 0.804: the blinking TNT's own top   // 0.801: the furnace's open top   // 0.7943 brick textures; 0.7945/0.7946 gem clusters; 0.7947 yellow berries: cached art must go
+const GAME_VERSION = '0.80991';   // 0.80991: blackberry bush art
+// 0.8099: blackberries icon, pumpkin pie art
+// 0.8098: item textures moved (containers, powders, raw ores)
+// 0.8094: glow masks for light sources
+// 0.8093: textures moved, animated fluids, built grass sides and gem ores, band/pillar
+// 0.8091: mushroom models, trees moved, sand sides, adobe, glass looks, salt, cantaloupe
+// 0.809: texture array, furnace/bench/chest variants, dolomite
+// earlier bumps: 0.808: 128px art, moved furnace/bench/chest   // 0.807: stripped log files renamed   // 0.804: the blinking TNT's own top   // 0.801: the furnace's open top   // 0.7943 brick textures; 0.7945/0.7946 gem clusters; 0.7947 yellow berries: cached art must go
 const CHUNK_X = 16, CHUNK_Y = 200, CHUNK_Z = 16;
 const WATER_Y = 99;                       // top water surface fills up to this y
 const DEFAULT_VIEW_DIST = 10;             // in chunks (radius)

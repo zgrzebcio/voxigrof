@@ -93,8 +93,8 @@ function _packMat() {
     _packTex = new THREE.TextureLoader().load('textures/Entity/equipment/backpack.png');
     _packTex.colorSpace = THREE.SRGBColorSpace;
     _packTex.magFilter = THREE.NearestFilter;
-    _packTex.minFilter = THREE.NearestFilter;
-    _packTex.generateMipmaps = false;
+    _packTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+    _packTex.generateMipmaps = true;   // (0.8092)
   }
   return new THREE.MeshBasicMaterial({ map: _packTex, transparent: true, alphaTest: 0.5 });
 }

@@ -810,6 +810,7 @@ function _serializeSlot(i) {
     craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken (0.76)
     skills: serializeSkills(p),           // learned skills (0.79)
     quest: serializeQuests(p),            // the starter quest reached (0.798)
+    saltT: p._saltT || 0,                 // 0.8099
     survHot: g.survStash.hot, survInv: g.survStash.inv, survInv2: g.survStash.inv2,
     survEquip: _packSlots(g.survEquip || []), survBelt: _packSlots(g.survBelt || []),   // packed, as restoreEquip reads it
     xp: g.playerXP,
@@ -940,6 +941,7 @@ function applyExtraPlayerRestore(slot) {
   player.craftQueue = restoreCraftQueue(rec.craftQueue);
   player.skills = restoreSkills(rec.skills);   // 0.79
   player.questIdx = restoreQuests(rec.quest);  // 0.798
+  player._saltT = +rec.saltT || 0;             // 0.8099
   survStash = migrateStash(rec.survHot, rec.survInv, rec.survInv2);
   restoreEquip(rec.survEquip, rec.survBelt);
   loadInventoryForMode(currentInvMode);

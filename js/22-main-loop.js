@@ -369,7 +369,10 @@ function processHollowMushrooms(dt) {
   if (!c || !c.data || !inSimRangeChunk(cx, cz)) return;
   const d = c.data;
   for (let i = 0; i < d.length - 256; i++) {
-    const v = d[i], shroom = HOLLOW_SHROOM[v & 255];
+    const v = d[i];
+    let shroom = HOLLOW_SHROOM[v & 255];
+    // an oak log grows brown, black or white tall, as brown grows in the wild (0.8091)
+    if (shroom === B.BROWN_MUSHROOM) shroom = [B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM][(Math.random() * 3) | 0];
     if (!shroom || !((v >> 8) & 3)) continue;                            // standing up: a planter, not a rotting log
     const fill = hollowFillOf(v);
     if ((fill !== B.DIRT && fill !== B.GRASS) || (d[i + 256] & 255) !== B.AIR) continue;
@@ -975,6 +978,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   sharedUniforms.uTime.value += dt;
+  updateTileAnimation(now);                 // water and lava step through their frames (0.8093)
   updateMusic();                            // menu track on/off follows menuScene
   /* Input routing, before anybody is ticked: which pad drives which seat, and — while the player
      is rebinding from the pause menu — whether a device has just spoken up. Both run whether or
@@ -1407,6 +1411,10 @@ function tickPlayer(dt, now, slot) {
             } else if (L === B.GRAVEL) {
               // a gravel layer gives no gravel, but its flint as often as a gravel block does (0.799)
               if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, mx, my, mz);
+            } else if (L === B.SALT_CRUST) {
+              // each salt layer rolls its salt like a whole crust does (0.8097)
+              for (const drop of blockDrop(L, false))
+                for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
             } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand/fiber layer gives nothing (0.786)
           }
         } else {

@@ -23,7 +23,7 @@ function bedTexture(name) {
     t = _bedTexCache[name] = new THREE.Texture(IMAGES[name]);
     t.colorSpace = THREE.SRGBColorSpace;
     t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
     t.needsUpdate = true;
   } else if (!t.image && IMAGES[name]) {
     t.image = IMAGES[name];

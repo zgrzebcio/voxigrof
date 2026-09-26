@@ -113,7 +113,7 @@ const LEAF_DRAG_IDS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 // slowdown per layer of each block you wade through (0.785: sand, gravel and fiber stacks join snow and leaves)
 const DRAG_PER_LAYER = { [B.SNOW]: DRAG_PER_SNOW, [B.LEAVES]: DRAG_PER_LEAF, [B.BIRCH_LEAVES]: DRAG_PER_LEAF,
                          [B.SPRUCE_LEAVES]: DRAG_PER_LEAF, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.GRAVEL]: 0.05,
-                         [B.FIBER_BLOCK]: 0.04 };
+                         [B.FIBER_BLOCK]: 0.04, [B.SALT_CRUST]: 0.03 };   // salt 0.8097
 // speed multiplier this cell imposes, given how far the feet sit above the cell floor
 function _cellDrag(val, feetOff, x, y, z) {
   const id = val & 255, n = CORE.layerCount(val);

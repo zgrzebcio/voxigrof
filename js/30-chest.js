@@ -24,85 +24,208 @@ const mkChest = () => ({ slots: new Array(CHEST_SLOTS).fill(null) });
 // art is a 16px grid: lid occupies the top 5 rows, body the lower 10 (see mkchest.ps1)
 const CHEST_LID_H = 5 / 16, CHEST_BASE_H = 10 / 16;
 const CHEST_INSET = 1 / 16;                           // chest is 14/16 wide, centred in the cell
+const CHEST_WALL = 1 / 16;                            // the body is a box you can see into (0.809)
 
-/* Cached per name, but NEVER cached blank (0.724): a texture built while IMAGES was still empty
-   used to keep its missing image for the rest of the session and render the chest solid black.
-   The image is re-checked on every call, so a late arrival heals the material in place. */
+/* WOOD (0.809): the chest art is grey wood with its metal fittings on separate overlay sheets. Each wood
+   tints the grey by the colour of its planks, then the metal goes on top untinted. The wood sits in bits
+   4-5 of the variant byte, picked on the variant bar (46-variants.js); 0 is oak, as every older chest is. */
+const CHEST_WOODS = ['oak', 'birch', 'spruce'];
+const CHEST_WOOD_SHIFT = 4;
+const chestWoodOf = (va) => { const w = (va >> CHEST_WOOD_SHIFT) & 3; return w < CHEST_WOODS.length ? w : 0; };
+const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33]];
+const _chestTints = [];
+/* The planks' mean colour over the grey art's mean, so a tinted chest averages out to its planks. It can
+   pass 1: the grey is darker than any plank, and the tint is applied per pixel, which may brighten. */
+function _chestTint(wood) {
+  if (_chestTints[wood]) return _chestTints[wood];
+  const planks = IMAGES[CHEST_WOODS[wood] + '_planks'], grey = IMAGES.chest_side;
+  if (!planks || !grey) return _CHEST_TINT_FALLBACK[wood];
+  const mean = (img) => {
+    const c = document.createElement('canvas'); c.width = c.height = 16;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 16, 16);
+    const d = g.getImageData(0, 0, 16, 16).data;
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 127) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
+    return n ? [r / n / 255, gg / n / 255, b / n / 255] : [0.5, 0.5, 0.5];
+  };
+  const p = mean(planks), gm = mean(grey), l = Math.max(0.05, (gm[0] + gm[1] + gm[2]) / 3);
+  return (_chestTints[wood] = p.map(v => v / l));
+}
+
+/* One texture per wood and sheet: the grey wood multiplied by the tint, its own alpha kept, the metal
+   drawn over it. Cached per key, but NEVER cached blank (0.724): a texture built before its art arrived
+   keeps asking, and heals in place the moment IMAGES has it — otherwise the chest renders solid black. */
 const _chestTexCache = {};
-function chestTexture(name) {
-  let t = _chestTexCache[name];
+function chestTexture(wood, sheet, metal) {
+  const key = wood + ':' + sheet + ':' + (metal || '');
+  let t = _chestTexCache[key];
   if (!t) {
-    t = _chestTexCache[name] = new THREE.Texture(IMAGES[name]);
+    t = _chestTexCache[key] = new THREE.Texture();
     t.colorSpace = THREE.SRGBColorSpace;
     t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    t.needsUpdate = true;
-  } else if (!t.image && IMAGES[name]) {
-    t.image = IMAGES[name];
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+  }
+  if (!t.image && IMAGES[sheet] && (!metal || IMAGES[metal])) {
+    const src = IMAGES[sheet], c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0);
+    // per pixel rather than a canvas multiply, which can only darken: alpha is left as it is
+    const [r, gg, b] = _chestTint(wood), px = g.getImageData(0, 0, c.width, c.height), d = px.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * r); d[i + 1] = Math.min(255, d[i + 1] * gg); d[i + 2] = Math.min(255, d[i + 2] * b); }
+    g.putImageData(px, 0, 0);
+    if (metal) g.drawImage(IMAGES[metal], 0, 0, c.width, c.height);   // the fittings, untinted
+    t.image = c;
     t.needsUpdate = true;
   }
   return t;
 }
-const chestMat = (n) => new THREE.MeshBasicMaterial({ map: chestTexture(n) });
+// the inside of a chest is plain planks of its wood, no frame, so the two halves of a double meet cleanly (0.809)
+const _chestInnerTex = [];
+function chestInnerTexture(wood) {
+  let t = _chestInnerTex[wood];
+  if (!t) {
+    t = _chestInnerTex[wood] = new THREE.Texture();
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+  }
+  const img = IMAGES[CHEST_WOODS[wood] + '_planks'];
+  if (!t.image && img) { t.image = img; t.needsUpdate = true; }
+  return t;
+}
+// k: how bright it draws against the light at the chest (the inside is in its own shade)
+const chestMat = (tex, k = 1) => { const m = new THREE.MeshBasicMaterial({ map: tex }); m.userData.k = k; m.color.setScalar(k); return m; };
 
-// squeeze a box's side-face V range into one horizontal slice of the sheet
-function _cropSideV(geo, v0, v1) {
-  const uv = geo.attributes.uv;
-  for (const base of [0, 4, 16, 20])                  // +X, -X, +Z, -Z
-    for (let i = base; i < base + 4; i++) uv.setY(i, v0 + uv.getY(i) * (v1 - v0));
-  for (const base of [4, 20])                         // -X and -Z read mirrored otherwise
-    for (let i = base; i < base + 4; i++) uv.setX(i, 1 - uv.getX(i));
-  uv.needsUpdate = true;
+/* One face of an axis box, with its normal `dir` pointing out of the box: 'px' 'nx' 'py' 'ny' 'pz' 'nz'.
+   UVs read the picture the right way round from the side the face is seen from; a side face maps its
+   height onto the rows v0..v1 of the sheet, and `ref` (a box) lets a strip of a top take its UVs from the
+   whole top rather than stretching the picture over itself. The inside of the chest is these same faces
+   turned inward: a wall seen from within is the outward face of the opposite direction. */
+function _chestFace(A, dir, b, mat, v0 = 0, v1 = 1, ref = b) {
+  const [x0, y0, z0, x1, y1, z1] = b;
+  const [rx0, ry0, rz0, rx1, ry1, rz1] = ref;
+  const U = (x) => (x - rx0) / (rx1 - rx0), W = (z) => (z - rz0) / (rz1 - rz0), Vy = (y) => v0 + (y - ry0) / (ry1 - ry0) * (v1 - v0);
+  let P;
+  switch (dir) {
+    case 'pz': P = [[x0,y0,z1, U(x0),Vy(y0)], [x1,y0,z1, U(x1),Vy(y0)], [x1,y1,z1, U(x1),Vy(y1)], [x0,y1,z1, U(x0),Vy(y1)]]; break;
+    case 'nz': P = [[x1,y0,z0, 1-U(x1),Vy(y0)], [x0,y0,z0, 1-U(x0),Vy(y0)], [x0,y1,z0, 1-U(x0),Vy(y1)], [x1,y1,z0, 1-U(x1),Vy(y1)]]; break;
+    case 'px': P = [[x1,y0,z1, 1-W(z1),Vy(y0)], [x1,y0,z0, 1-W(z0),Vy(y0)], [x1,y1,z0, 1-W(z0),Vy(y1)], [x1,y1,z1, 1-W(z1),Vy(y1)]]; break;
+    case 'nx': P = [[x0,y0,z0, W(z0),Vy(y0)], [x0,y0,z1, W(z1),Vy(y0)], [x0,y1,z1, W(z1),Vy(y1)], [x0,y1,z0, W(z0),Vy(y1)]]; break;
+    case 'py': P = [[x0,y1,z1, U(x0),1-W(z1)], [x1,y1,z1, U(x1),1-W(z1)], [x1,y1,z0, U(x1),1-W(z0)], [x0,y1,z0, U(x0),1-W(z0)]]; break;
+    case 'ny': P = [[x0,y0,z0, U(x0),W(z0)], [x1,y0,z0, U(x1),W(z0)], [x1,y0,z1, U(x1),W(z1)], [x0,y0,z1, U(x0),W(z1)]]; break;
+  }
+  const base = A.pos.length / 3;
+  for (const p of P) { A.pos.push(p[0], p[1], p[2]); A.uv.push(p[3], p[4]); }
+  A.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  A.groups.push({ start: A.idx.length - 6, count: 6, mat });
+}
+function _chestGeo(A) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(A.pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(A.uv, 2));
+  geo.setIndex(A.idx);
+  for (const g of A.groups) geo.addGroup(g.start, g.count, g.mat);
+  return geo;
 }
 
-/* Authored with the FRONT at +Z; registerChest rotates the group onto the real facing.
-   Cell-local coords: the chest body spans 1/16..15/16 on X and Z. */
-function buildChestMesh() {
-  const front = chestMat('chest_front'), side = chestMat('chest_side');
-  const top = chestMat('chest_top'), bottom = chestMat('chest_bottom');
-  const mats = [front, side, top, bottom];
+/* Authored with the FRONT at +Z; registerChest rotates the group onto the real facing. Cell-local coords.
+   `half`: null for a single chest, or 'left' / 'right' for one half of a double (0.809) — seen from the
+   front, 'left' is the half at local -X. A half reaches the shared edge, has no wall there, and draws the
+   double chest's own sheets, so the pair reads as one wide chest with one cavity. */
+function buildChestMesh(wood = 0, half = null) {
+  const L = half === 'left', R = half === 'right', other = L ? 'right' : 'left';
+  const tex = half
+    ? { front: chestTexture(wood, `chest_double_front_${half}`, `chest_double_front_${half}_metal`),
+        back:  chestTexture(wood, `chest_double_front_${other}`, null),
+        top:   chestTexture(wood, `chest_double_top_${half}`, `chest_double_top_${half}_metal`),
+        bottom: chestTexture(wood, `chest_double_bottom_${half}`, null) }
+    : { front: chestTexture(wood, 'chest_front', 'chest_front_metal'),
+        back:  chestTexture(wood, 'chest_side', 'chest_side_metal'),
+        top:   chestTexture(wood, 'chest_top', 'chest_top_metal'),
+        bottom: chestTexture(wood, 'chest_bottom', null) };
+  const mats = [chestMat(tex.front), chestMat(tex.back), chestMat(chestTexture(wood, 'chest_side', 'chest_side_metal')),
+                chestMat(tex.top), chestMat(tex.bottom), chestMat(chestInnerTexture(wood), 0.6)];
+  const [FRONT, BACK, SIDE, TOP, BOTTOM, INNER] = [0, 1, 2, 3, 4, 5];
+  const BODY_V = 1 - CHEST_LID_H;                       // body art = lower rows, lid art = the top 5
 
-  const w = 1 - CHEST_INSET * 2;
-  const baseGeo = new THREE.BoxGeometry(w, CHEST_BASE_H, w);
-  baseGeo.translate(0.5, CHEST_BASE_H / 2, 0.5);
-  _cropSideV(baseGeo, 0, 1 - CHEST_LID_H);            // body art = lower 10 rows
-  const base = new THREE.Mesh(baseGeo, [side, side, side, bottom, front, side]);
+  // the body: outer walls, a rim, and the cavity inside
+  const x0 = R ? 0 : CHEST_INSET, x1 = L ? 1 : 1 - CHEST_INSET, z0 = CHEST_INSET, z1 = 1 - CHEST_INSET, H = CHEST_BASE_H;
+  const Wl = R ? 0 : CHEST_WALL, Wr = L ? 0 : CHEST_WALL;   // no wall on the shared edge
+  const ix0 = x0 + Wl, ix1 = x1 - Wr, iz0 = z0 + CHEST_WALL, iz1 = z1 - CHEST_WALL, iy0 = CHEST_WALL;
+  const A = { pos: [], uv: [], idx: [], groups: [] };
+  const body = [x0, 0, z0, x1, H, z1];
+  _chestFace(A, 'pz', body, FRONT, 0, BODY_V);
+  _chestFace(A, 'nz', body, BACK, 0, BODY_V);
+  if (!R) _chestFace(A, 'nx', body, SIDE, 0, BODY_V);
+  if (!L) _chestFace(A, 'px', body, SIDE, 0, BODY_V);
+  _chestFace(A, 'ny', body, BOTTOM);
+  // the rim: the top of the walls, its UVs taken from the whole top so the wood lines up
+  _chestFace(A, 'py', [x0, 0, iz1, x1, H, z1], SIDE, 0, 1, body);
+  _chestFace(A, 'py', [x0, 0, z0, x1, H, iz0], SIDE, 0, 1, body);
+  if (Wl) _chestFace(A, 'py', [x0, 0, iz0, ix0, H, iz1], SIDE, 0, 1, body);
+  if (Wr) _chestFace(A, 'py', [ix1, 0, iz0, x1, H, iz1], SIDE, 0, 1, body);
+  // the cavity: its floor and the four walls seen from inside
+  _chestFace(A, 'py', [ix0, 0, iz0, ix1, iy0, iz1], INNER);
+  _chestFace(A, 'nz', [ix0, iy0, iz1, ix1, H, iz1], INNER, iy0 / H * BODY_V, BODY_V);
+  _chestFace(A, 'pz', [ix0, iy0, iz0, ix1, H, iz0], INNER, iy0 / H * BODY_V, BODY_V);
+  if (Wl) _chestFace(A, 'px', [ix0, iy0, iz0, ix0, H, iz1], INNER, iy0 / H * BODY_V, BODY_V);
+  if (Wr) _chestFace(A, 'nx', [ix1, iy0, iz0, ix1, H, iz1], INNER, iy0 / H * BODY_V, BODY_V);
+  const base = new THREE.Mesh(_chestGeo(A), mats);
 
   // lid pivots on its BACK edge so it swings up and away from the player
   const lidPivot = new THREE.Group();
-  lidPivot.position.set(0.5, CHEST_BASE_H, CHEST_INSET);
-  const lidGeo = new THREE.BoxGeometry(w, CHEST_LID_H, w);
-  lidGeo.translate(0, CHEST_LID_H / 2, w / 2);        // hinge at the local origin
-  _cropSideV(lidGeo, 1 - CHEST_LID_H, 1);             // lid art = top 5 rows
-  lidPivot.add(new THREE.Mesh(lidGeo, [side, side, top, bottom, front, side]));
+  lidPivot.position.set(0, H, z0);
+  const lid = [x0, 0, 0, x1, CHEST_LID_H, z1 - z0];
+  const B2 = { pos: [], uv: [], idx: [], groups: [] };
+  _chestFace(B2, 'pz', lid, FRONT, BODY_V, 1);
+  _chestFace(B2, 'nz', lid, BACK, BODY_V, 1);
+  if (!R) _chestFace(B2, 'nx', lid, SIDE, BODY_V, 1);
+  if (!L) _chestFace(B2, 'px', lid, SIDE, BODY_V, 1);
+  _chestFace(B2, 'py', lid, TOP);
+  _chestFace(B2, 'ny', lid, INNER);                     // its underside, seen when it is open
+  lidPivot.add(new THREE.Mesh(_chestGeo(B2), mats));
 
   const group = new THREE.Group();
   group.add(base, lidPivot);
   return { group, lidPivot, mats };
 }
 
-/* Chest as a held/dropped item: one shared prototype, cloned per use so every copy shares the
+/* Chest as a held/dropped item: one shared prototype per wood, cloned per use so every copy shares the
    geometry and materials. Built lazily — IMAGES isn't populated when this file is parsed.
    buildChestMesh authors in cell-local 0..1 space; drops and hands expect the model centred on
    the origin, hence the offset. */
-let _chestItemProto = null;
-function chestItemNode() {
-  if (!_chestItemProto) {
-    const m = buildChestMesh();
+const _chestItemProto = [];
+function chestItemNode(wood = 0) {
+  if (!_chestItemProto[wood]) {
+    const m = buildChestMesh(wood);
     m.group.position.set(-0.5, -0.5, -0.5);
-    _chestItemProto = new THREE.Group();
-    _chestItemProto.add(m.group);
+    _chestItemProto[wood] = new THREE.Group();
+    _chestItemProto[wood].add(m.group);
   }
-  return _chestItemProto.clone();
+  return _chestItemProto[wood].clone();
 }
 
 /* ---------------------------------- lifecycle ---------------------------------- */
+/* Which half of a double chest this cell is, seen from the front: 'left' when its partner lies to the
+   local +X (the viewer's right), 'right' when to the -X, null when single (0.809). */
+function _chestHalf(x, y, z, facing) {
+  const p = chestPartner(x, y, z);
+  if (!p) return null;
+  const ang = [0, Math.PI, Math.PI / 2, -Math.PI / 2][facing & 3];
+  const rx = Math.round(Math.cos(ang)), rz = Math.round(-Math.sin(ang));   // local +X in the world
+  return (p.x - x) * rx + (p.z - z) * rz > 0 ? 'left' : 'right';
+}
 function registerChest(x, y, z, facing) {
   const k = chestKey(x, y, z);
   let rec = CHESTS.get(k);
   if (!rec) { rec = mkChest(); CHESTS.set(k, rec); }
   if (rec.group) return rec;                          // mesh already built
-  const m = buildChestMesh();
+  const va = (getBlock(x, y, z) >> 8) & 255;
+  const half = _chestHalf(x, y, z, facing);
+  const m = buildChestMesh(chestWoodOf(va), half);
   m.group.position.set(x, y, z);
   m.group.rotation.y = [0, Math.PI, Math.PI / 2, -Math.PI / 2][facing & 3];
   // rotating about the cell corner swings the body off its cell — shift it back
@@ -113,6 +236,13 @@ function registerChest(x, y, z, facing) {
   Object.assign(rec, { group: m.group, lidPivot: m.lidPivot, mats: m.mats,
                        x, y, z, facing, lid: 0, lastB: -1 });
   return rec;
+}
+// a chest that became, or stopped being, half of a pair draws again as what it is now (0.809)
+function rebuildChestMesh(x, y, z) {
+  const k = chestKey(x, y, z);
+  if (!CHESTS.get(k)?.group) return;
+  removeChestMesh(k);
+  registerChest(x, y, z, (getBlock(x, y, z) >> 8) & 3);
 }
 function removeChestMesh(k) {
   const c = CHESTS.get(k);
@@ -163,12 +293,15 @@ function tryPairChest(x, y, z, facing) {
     const [dx, dz] = dirs[i];
     const nv = getBlock(x + dx, y, z + dz);
     if ((nv & 255) !== B.CHEST) continue;
-    const nva = (nv >> 8) & 255;
+    const nva = (nv >> 8) & 255, va = (getBlock(x, y, z) >> 8) & 255;
     if ((nva & 3) !== facing || (nva & CHEST_PAIRED)) continue;
-    const mine  = facing | CHEST_PAIRED | (i === 1 ? CHEST_PAIR_NEG : 0);
-    const their = facing | CHEST_PAIRED | (i === 1 ? 0 : CHEST_PAIR_NEG);
+    if (chestWoodOf(nva) !== chestWoodOf(va)) continue;   // one wood per double chest (0.809)
+    const wood = chestWoodOf(va) << CHEST_WOOD_SHIFT;     // kept through the pairing (0.809)
+    const mine  = facing | CHEST_PAIRED | (i === 1 ? CHEST_PAIR_NEG : 0) | wood;
+    const their = facing | CHEST_PAIRED | (i === 1 ? 0 : CHEST_PAIR_NEG) | wood;
     setBlock(x, y, z, B.CHEST | (mine << 8));
     setBlock(x + dx, y, z + dz, B.CHEST | (their << 8));
+    rebuildChestMesh(x + dx, y, z + dz);                  // the neighbour turns into its half (0.809)
     return true;
   }
   return false;
@@ -182,7 +315,9 @@ function unpairChestNeighbour(x, y, z, oldVal) {
   const [dx, dz] = chestPairDirs(va & 3)[(va & CHEST_PAIR_NEG) ? 1 : 0];
   const nv = getBlock(x + dx, y, z + dz);
   if ((nv & 255) !== B.CHEST) return;
-  setBlock(x + dx, y, z + dz, B.CHEST | (((nv >> 8) & 3) << 8));
+  const keep = ((nv >> 8) & 3) | (chestWoodOf((nv >> 8) & 255) << CHEST_WOOD_SHIFT);   // facing and wood (0.809)
+  setBlock(x + dx, y, z + dz, B.CHEST | (keep << 8));
+  rebuildChestMesh(x + dx, y, z + dz);                    // a whole chest again (0.809)
 }
 // deterministic ordering so both halves agree which cell is "first"
 function chestPairOrdered(x, y, z) {
@@ -265,7 +400,7 @@ function updateChests(dt) {
     const br = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
     if (Math.abs(br - c.lastB) > 0.02) {
       c.lastB = br;
-      for (const mt of c.mats) mt.color.setScalar(br).convertSRGBToLinear();
+      for (const mt of c.mats) mt.color.setScalar(br * (mt.userData.k ?? 1)).convertSRGBToLinear();   // the inside darker (0.809)
     }
   }
 }
@@ -320,7 +455,8 @@ function serializeChests() {
   const out = [];
   for (const [k, c] of CHESTS) {
     if (!c.slots.some(s => s)) continue;               // skip empties, they rebuild from the block
-    out.push([k, c.slots.map(s => s ? [s.id, s.count, s.dur ?? null, s.fresh ?? null, s.wm ? 1 : 0] : null)]);
+    out.push([k, c.slots.map(s => s ? [s.id, s.count, s.dur ?? null, s.fresh ?? null, s.wm ? 1 : 0] : null),
+              { t: c.spoilT ?? null, s: c.saltT || 0 }]);   // the world-clock time it last spoiled, its salt timer (0.8099)
   }
   return out;
 }
@@ -342,6 +478,9 @@ function restoreChests(list) {
       if (wm) slot.wm = 1;                        // 0.79
       c.slots[i] = slot;
     }
+    const meta = rec[2] && typeof rec[2] === 'object' ? rec[2] : null;   // 0.8099
+    if (meta && typeof meta.t === 'number') c.spoilT = meta.t;
+    if (meta && typeof meta.s === 'number') c.saltT = meta.s;
     CHESTS.set(rec[0], c);
   }
 }

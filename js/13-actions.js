@@ -93,7 +93,7 @@ const CREATIVE_ORDER = [
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
-  B.MARBLE, B.GRANITE, B.LIMESTONE, B.BRICKS,
+  B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST,   // dolomite 0.809; adobe, salt crust 0.8091
   B.GLASS, B.GLOWSTONE, B.WOOL,
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
   B.COAL_ORE, B.IRON_ORE, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
@@ -105,11 +105,11 @@ const CREATIVE_ORDER = [
   B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.OBSIDIAN,
   B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
   B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
-  B.MELON, B.PUMPKIN, B.SUGAR_CANE, B.TORCH,
-  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
+  B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091
+  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
-  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.FLINT_ROCK,
+  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
   B.GLOW_VINE, B.COBWEB,
 ];
 function _defaultCreativeInventory() {
@@ -310,10 +310,12 @@ BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
 BUSH_NAME[B.REDBERRY_BUSH] = 'red berry bush';
 BUSH_NAME[B.BLUEBERRY_BUSH] = 'blue berry bush';
-BUSH_NAME[B.YELLOWBERRY_BUSH] = 'yellow berry bush';
+BUSH_NAME[B.YELLOWBERRY_BUSH] = 'blackberry bush';   // renamed 0.8099
 BUSH_NAME[B.FLINT_ROCK] = 'flint pebble';
+BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
+BUSH_NAME[B.CANTALOUPE] = 'cantaloupe';   // 0.8091
 // which fruit each bush hands over when it is ripe
 const BERRY_FRUIT = [];
 BERRY_FRUIT[B.REDBERRY_BUSH] = ITEM.BERRIES;
@@ -358,7 +360,8 @@ function findBushPickup() {
      shield as long as it is not raised; anything else there (a torch) leaves no hand free. */
   if (typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined') {
     const off = equipSlots[EQUIP_INDEX.offhand];
-    if (off && !(isShieldId(off.id) && !player.blocking && !(player._shieldUp > 0.05))) return null;
+    // ...but an empty main hand picks whatever the offhand holds (0.8096: a torch no longer blocks it)
+    if (off && HOTBAR[hotbarSel] && !(isShieldId(off.id) && !player.blocking && !(player._shieldUp > 0.05))) return null;
   }
   const p = player.pos, r = player.R * BUSH_REACH;
   const y0 = Math.floor(p.y);
@@ -427,15 +430,15 @@ function harvestAtPlayer() {
   /* Flint stone: the one pickup with a GUARANTEED yield. Fiber comes in rolls because grass is
      everywhere; a flint nodule is rare enough (see FLINT_ROCK_CHANCE) that walking to one and
      getting nothing would just be a punishment. */
-  if (id === B.FLINT_ROCK) {
+  if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE) {   // the stone pebble the same way (0.8095)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.COBBLE, 'break', x, t.y, z);
-    bushGive(ITEM.FLINT, x, t.y, z);
+    bushGive(id === B.FLINT_ROCK ? ITEM.FLINT : ITEM.STONE_PEBBLE, x, t.y, z);
     return BUSH_REPEAT;
   }
   /* Gourds: picked up whole, and they hand over exactly what breaking them used to (0.7343) —
      a melon comes apart into slices, a pumpkin comes away as itself. */
-  if (id === B.MELON || id === B.PUMPKIN) {
+  if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE) {   // cantaloupe 0.8091
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(id, 'break', x, t.y, z);
     for (const d of blockDrop(id, true))
@@ -906,9 +909,11 @@ function _doPlace() {
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
     varb = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
   } else if (rot === 'all') {
-    if (id === B.LOG || isHollowLog(id)) varb = hit.nx ? 1 : hit.nz ? 2 : 0;   // axis = clicked face normal (hollow logs 0.7842)
+    if (id === B.LOG || isHollowLog(id) || PROPS[id].pillar) varb = hit.nx ? 1 : hit.nz ? 2 : 0;   // axis = clicked face normal (hollow logs 0.7842, pillars 0.8093)
   }
   if (shaped) varb = _shapeVariantFor(shaped.key, hit, px, py, pz);   // the chisel's shape (0.783)
+  // a furnace's rock, a bench's or a chest's wood, picked on the variant bar (0.809)
+  else if (typeof heldVariantBitsOf === 'function') varb |= heldVariantBitsOf(slotId(slot));
   clearPlantAt(px, py, pz);                 // grass in the way is destroyed, not a blocker
   setBlock(px, py, pz, id | (varb << 8));
   playBlockSound(id, 'place', px, py, pz);

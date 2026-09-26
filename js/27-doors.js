@@ -42,7 +42,7 @@ function doorTexture() {
     _doorTex = new THREE.Texture(IMAGES.oak_door);
     _doorTex.colorSpace = THREE.SRGBColorSpace;
     _doorTex.magFilter = THREE.NearestFilter;
-    _doorTex.minFilter = THREE.NearestFilter;
+    _doorTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
     _doorTex.needsUpdate = true;
   } else if (!_doorTex.image && IMAGES.oak_door) {
     _doorTex.image = IMAGES.oak_door;

@@ -21,18 +21,24 @@ const _reqAny = (test, need, label) => ({ test, need, label });
 const QUESTS = [
   { name: 'Gather fiber',           hint: 'Hold E on grass, wheat or bushes',        reqs: [_req(ITEM.FIBER, 5)],  xp: 10 },
   { name: 'Find sticks',            hint: 'Break leaves',                            reqs: [_req(ITEM.STICK, 3)],  xp: 10 },
-  { name: 'Pick up flint',          hint: 'Hold E on a flint pebble, or dig gravel', reqs: [_req(ITEM.FLINT, 5)],  xp: 10 },
+  { name: 'Pick up flint',          hint: 'Hold E on a flint pebble, or dig gravel', reqs: [_req(ITEM.FLINT, 4)],  xp: 10 },   // 4, the hatchet's worth (0.8095)
   { name: 'Gather food',            hint: 'Berries, apples, meat — anything edible counts',
-    reqs: [_reqAny((id) => (id >= 256 ? ITEM_PROPS[id]?.food : 0) > 0, 20, 'food')], xp: 15 },
-  { name: 'Craft a flint pickaxe',  hint: 'Open the inventory (Tab) and craft it',   reqs: [_req(ITEM.FLINT_PICKAXE)], xp: 15 },
-  { name: 'Craft a flint hatchet',  hint: 'It cuts logs',                            reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
+    reqs: [_reqAny((id) => (id >= 256 ? ITEM_PROPS[id]?.food : 0) > 0 || id === ITEM.CANTALOUPE_SLICE, 15, 'food')], xp: 15 },
+  // the flint pickaxe left the chain in 0.8095: it breaks stone but keeps none
+  { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
   { name: 'Chop wood',              hint: 'Use the hatchet on a tree',
     reqs: [_req([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG], 4)], xp: 15 },
   { name: 'Make planks',            hint: 'A log makes 3 planks',                    reqs: [_req([B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS], 10)], xp: 10 },
   { name: 'Build a crafting bench', hint: '5 planks and 5 fiber',                    reqs: [_req(B.CRAFTING_BENCH)], xp: 20 },
-  { name: 'Mine stone',             hint: 'Use the pickaxe on stone',                reqs: [_req(B.COBBLE, 15)], xp: 15 },
-  { name: 'Stone tools',            hint: 'Pickaxe, hatchet, shovel, hoe and sword, at the bench',
-    reqs: [ITEM.STONE_PICKAXE, ITEM.STONE_HATCHET, ITEM.STONE_SHOVEL, ITEM.STONE_HOE, ITEM.STONE_SWORD].map(id => _req(id)), xp: 30 },
+  /* The way into the stone age (0.8095): a flint pickaxe keeps no stone, so the first five come from stone
+     pebbles (five make a stone at the bench) — enough for a stone pickaxe, which then mines the rest. */
+  { name: 'Stone for a pickaxe',    hint: 'Hold E on stone pebbles; 5 make a stone at the bench',
+    reqs: [_req([B.STONE, B.COBBLE], 5)], xp: 15 },
+  { name: 'Craft a stone pickaxe',  hint: '5 stone, 3 sticks and 10 fiber, at the bench', reqs: [_req(ITEM.STONE_PICKAXE)], xp: 20 },
+  { name: 'Mine stone',             hint: 'Only a stone pickaxe or better keeps what it breaks',
+    reqs: [_req([B.STONE, B.COBBLE], 10)], xp: 15 },
+  { name: 'Stone tools',            hint: 'Hatchet, shovel, hoe and sword, at the bench',
+    reqs: [ITEM.STONE_HATCHET, ITEM.STONE_SHOVEL, ITEM.STONE_HOE, ITEM.STONE_SWORD].map(id => _req(id)), xp: 30 },
   { name: 'Build a furnace',        hint: '12 cobblestone, at the bench',            reqs: [_req(B.FURNACE)], xp: 25 },
   { name: 'Smelt iron',             hint: 'Raw iron in the furnace, fuel under it',  reqs: [_req(ITEM.IRON_INGOT)], xp: 30 },
   { name: 'Make a bucket',          hint: 'It takes 3 iron ingots',                  reqs: [_req(ITEM.BUCKET)], xp: 20 },

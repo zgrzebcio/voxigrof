@@ -17,7 +17,12 @@
    something it has just cooked, a crafting bench, a fresh drop — the incoming item is brand new by
    definition, the minimum is the destination's own clock, and that site needs no code at all.
 
-   Spoilage is a cost of CARRYING food. Chests are not ticked: what is in storage keeps. */
+   Spoilage was a cost of CARRYING food only; since 0.8098 food in a chest spoils at the same rate.
+
+   SALT (0.8098): carried salt, or salt in the same chest, makes food last 50% longer (its clock runs at 2/3
+   speed). It is used up, one every SALT_USE_S of salting, but only while there is food to salt — with no food
+   beside it, it keeps. */
+const SALT_LIFE = 1.5, SALT_USE_S = 1200;   // food lasts 1.5x as long; one salt per 20 minutes of it
 
 // blocks can carry a clock too since 0.7992 (the pumpkin)
 const spoilMax = (id) => (id == null ? 0 : ((id >= 256 ? ITEM_PROPS[id]?.spoil : PROPS[id]?.spoil) || 0));
@@ -61,7 +66,16 @@ function tickSpoilage(dt) {
   // Collected and handed over AFTER the sweep, so a pickup cannot write into a slot being drained.
   const leftovers = [];
   // returns 0 = not food, 1 = clock moved, 2 = an item was lost
-  const rate = spoilRate();
+  // salt in the pack: food carried alongside it lasts 50% longer, and it is used up while it works (0.8098)
+  let rate = spoilRate();
+  if (_carries(isPerishable) && _carries((id) => id === ITEM.SALT)) {
+    rate /= SALT_LIFE;
+    player._saltT = (player._saltT || 0) + steps;
+    if (player._saltT >= SALT_USE_S) {
+      player._saltT -= SALT_USE_S;
+      if (_takeCarried(ITEM.SALT)) { if (typeof feedItem === 'function') feedItem(ITEM.SALT, -1, 'used'); hotLost = invLost = true; }
+    }
+  }
   const drain = (slot, onEmpty) => {
     if (!slot || !isPerishable(slot.id)) return 0;
     const max = spoilMax(slot.id);
@@ -110,6 +124,8 @@ function tickSpoilage(dt) {
     if (typeof spawnDrop === 'function' && typeof player !== 'undefined')
       spawnDrop(id, Math.floor(player.pos.x), Math.floor(player.pos.y + 0.5), Math.floor(player.pos.z));
   }
+  // chests once per frame, whoever's seat this is (0.8098)
+  if (typeof PLAYERS === 'undefined' || PLAYERS.indexOf(player) <= 0) _tickChestSpoil();
   if (hotLost && typeof saveHotbar === 'function') saveHotbar();
   if (invLost && typeof saveInv === 'function') saveInv();
   if (offLost && typeof saveEquip === 'function') saveEquip();
@@ -117,5 +133,94 @@ function tickSpoilage(dt) {
   if ((invPaint || offPaint) && typeof invOpen !== 'undefined' && invOpen) {
     if (typeof buildInventory === 'function') buildInventory();
     if (offPaint && typeof buildEquipPanel === 'function') buildEquipPanel();
+  }
+}
+
+/* ---- carried slots and chests (0.8098) ---- */
+// every slot the player carries food in: hotbar, grid, a worn backpack, the offhand
+function _carriedSlots() {
+  const out = [];
+  if (typeof HOTBAR !== 'undefined') for (let i = 0; i < HOTBAR.length; i++) out.push([HOTBAR, i]);
+  if (typeof invSlots !== 'undefined') for (let i = 0; i < invSlots.length; i++) out.push([invSlots, i]);
+  if (typeof invSlots2 !== 'undefined') {
+    const n = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+    for (let i = 0; i < n; i++) out.push([invSlots2, i]);
+  }
+  if (typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined') out.push([equipSlots, EQUIP_INDEX.offhand]);
+  return out;
+}
+const _carries = (test) => _carriedSlots().some(([a, i]) => a[i] && test(a[i].id));
+function _takeCarried(id) {
+  for (const [a, i] of _carriedSlots()) {
+    const s = a[i];
+    if (!s || s.id !== id) continue;
+    if (--s.count <= 0) a[i] = null;
+    return true;
+  }
+  return false;
+}
+/* Food in a chest spoils at the carried rate; salt in the same chest stretches it 50% and is used one per
+   SALT_USE_S. Only chests inside the simulation radius tick — but a chest keeps the WORLD CLOCK time it was
+   last ticked (spoilT), so one that was out of range catches up the moment it is back (0.8099): the salt
+   there is spent first, one per 20 minutes for as long as it lasts, and the food then loses that salted
+   time at 2/3 speed and the rest at full speed. Two hours with enough salt cost the food 80 minutes. */
+const spoilClock = () => (typeof worldDay !== 'undefined' ? worldDay + worldTime : 0) * (typeof DAY_LEN !== 'undefined' ? DAY_LEN : 1200);
+function _tickChestSpoil() {
+  if (typeof CHESTS === 'undefined') return;
+  const now = spoilClock();
+  for (const [k, c] of CHESTS) {
+    if (!c.slots) continue;
+    if (c.spoilT == null || c.spoilT > now) { c.spoilT = now; continue; }   // a new chest, or a clock set back
+    const [x, y, z] = k.split(',').map(Number);
+    if (typeof inSimRangeChunk === 'function' && !inSimRangeChunk(Math.floor(x / 16), Math.floor(z / 16))) continue;
+    const elapsed = Math.floor(now - c.spoilT);
+    if (elapsed < 1) continue;
+    c.spoilT += elapsed;
+    const sl = c.slots;
+    if (!sl.some(s => s && isPerishable(s.id))) continue;               // no food: time passes, salt keeps
+    let changed = false;
+    // the salt first: how much of the elapsed time it covered, and how many it took to do it
+    let salted = 0;
+    const saltHeld = sl.reduce((n, s) => n + (s && s.id === ITEM.SALT ? s.count : 0), 0);
+    if (saltHeld > 0) {
+      const saltT = c.saltT || 0;
+      salted = Math.min(elapsed, saltHeld * SALT_USE_S - saltT);
+      let used = Math.floor((saltT + salted) / SALT_USE_S);
+      c.saltT = salted < elapsed ? 0 : (saltT + salted) % SALT_USE_S;
+      for (let i = 0; i < sl.length && used > 0; i++) {
+        const s = sl[i];
+        if (!s || s.id !== ITEM.SALT) continue;
+        const take = Math.min(used, s.count);
+        s.count -= take; used -= take;
+        if (s.count <= 0) sl[i] = null;
+        changed = true;
+      }
+    }
+    const drain = salted / SALT_LIFE + (elapsed - salted);              // seconds off the food's clocks
+    const leftovers = [];
+    for (let i = 0; i < sl.length; i++) {
+      const s = sl[i];
+      if (!s || !isPerishable(s.id)) continue;
+      const max = spoilMax(s.id);
+      let f = slotFresh(s) - drain, lost = 0;
+      while (f <= 0 && s.count - lost > 0) { lost++; f += max; }
+      s.fresh = Math.max(0, f);
+      if (!lost) continue;
+      s.count -= lost;
+      const into = (s.id >= 256 ? ITEM_PROPS[s.id] : PROPS[s.id])?.spoilInto;
+      if (into != null) for (let n = 0; n < lost; n++) leftovers.push(into);
+      if (s.count <= 0) sl[i] = null;
+      changed = true;
+    }
+    // what spoiled food leaves (a bucket, rotten flesh) stays in the chest, or drops beside it when full
+    for (const id of leftovers) {
+      const same = sl.find(s => s && s.id === id && s.count < ((id >= 256 ? ITEM_PROPS[id] : PROPS[id])?.stack || 60) && !s.dur);
+      if (same) { same.count++; continue; }
+      const free = sl.indexOf(null);
+      if (free >= 0) sl[free] = mkSlot(id, 1);
+      else if (typeof spawnDrop === 'function') spawnDrop(id, x, y + 1, z);
+    }
+    if (changed && typeof invOpen !== 'undefined' && invOpen && (activeChest === k || activeChest2 === k)
+        && typeof buildChestPanel === 'function') buildChestPanel();
   }
 }

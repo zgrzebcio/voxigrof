@@ -106,8 +106,8 @@ function buildShieldNode(id) {
     _shieldBackTex = new THREE.Texture(IMAGES.shield_back);
     _shieldBackTex.colorSpace = THREE.SRGBColorSpace;
     _shieldBackTex.magFilter = THREE.NearestFilter;
-    _shieldBackTex.minFilter = THREE.NearestFilter;
-    _shieldBackTex.generateMipmaps = false;
+    _shieldBackTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+    _shieldBackTex.generateMipmaps = true;   // (0.8092)
     _shieldBackTex.needsUpdate = true;
   }
   if (_shieldBackTex) {

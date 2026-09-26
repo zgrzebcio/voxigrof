@@ -37,7 +37,7 @@
 const FX_RANGE = 48;                   // blocks from the nearest player
 const FX_SPAWN_BUDGET = 240;           // new particles per frame, every kind together
 const FX_AMB_RADIUS = 12, FX_AMB_SAMPLES = 110;   // ambient cells sampled per frame (per 60 fps frame)
-const FX_LOW = typeof atlasCellPx === 'function' && atlasCellPx() < 128;   // the phone texture tier
+const FX_LOW = typeof atlasTilePx === 'function' && atlasTilePx() < ART_PX;   // the phone texture tier
 let _fxQuality = (() => { try { return localStorage.getItem('vg_fx') || 'all'; } catch { return 'all'; } })();
 let _fxScale = 1, _fxBudget = FX_SPAWN_BUDGET;
 function _fxApplyQuality() {
@@ -140,11 +140,21 @@ const _FX_VSH = `
     vColor = aColor; vRect = aRect;
   }`;
 const _FX_FSH = `
+  #ifdef ARRAY
+  uniform highp sampler2DArray map;
+  #else
   uniform sampler2D map;
+  #endif
   varying vec4 vColor;
   varying vec4 vRect;
   void main() {
+  #ifdef ARRAY
+    // a bit of a block: the whole part of the rect's u is the texture-array layer (0.809)
+    float layer = floor(vRect.x);
+    vec4 tex = texture(map, vec3(vec2(vRect.x - layer, vRect.y) + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y) * vRect.zw, layer));
+  #else
     vec4 tex = texture2D(map, vRect.xy + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y) * vRect.zw);
+  #endif
   #ifdef CUTOUT
     if (tex.a < 0.5) discard;
     gl_FragColor = vec4(tex.rgb * vColor.rgb, 1.0);
@@ -165,7 +175,7 @@ const fxOwner = (p) => (typeof PLAYERS !== 'undefined' ? PLAYERS.indexOf(p) + 1 
 class FxPool {
   /* `target` is the scene it draws in; `onlyOwner` makes it the first-person hand pool (0.801): drawn
      with the hand, in the hand scene's space, and each seat sees only the particles it owns. */
-  constructor(max, cutout, mapFn, target = scene, onlyOwner = false) {
+  constructor(max, cutout, mapFn, target = scene, onlyOwner = false, array = false) {
     this.max = max; this.n = 0; this.staticDirty = false;
     const F = (k) => new Float32Array(max * k);
     this.x = F(1); this.y = F(1); this.z = F(1); this.vx = F(1); this.vy = F(1); this.vz = F(1);
@@ -190,7 +200,7 @@ class FxPool {
       uniforms: { map: { value: mapFn() }, uScale: { value: 600 }, uHide: { value: 0 },
                   uOnly: { value: onlyOwner ? 1 : 0 }, uMaxPt: { value: _fxMaxPt } },
       vertexShader: _FX_VSH, fragmentShader: _FX_FSH,
-      defines: cutout ? { CUTOUT: 1 } : {},
+      defines: { ...(cutout ? { CUTOUT: 1 } : {}), ...(array ? { ARRAY: 1 } : {}) },   // ARRAY: samples the block textures (0.809)
       transparent: !cutout, depthWrite: !!cutout,
     });
     this.points = new THREE.Points(geo, this.mat);
@@ -367,7 +377,7 @@ class FxDecals {
 
 /* ---------------------------------- the pools ---------------------------------- */
 const FX = {
-  bits:    new FxPool(FX_LOW ? 500 : 1200, true, () => sharedUniforms.map.value),
+  bits:    new FxPool(FX_LOW ? 500 : 1200, true, () => sharedUniforms.map.value, scene, false, true),
   sprites: new FxPool(FX_LOW ? 700 : 1600, false, () => _fxSheet),
   decals:  new FxDecals(FX_LOW ? 64 : 160),
   // what the first-person hand holds: a torch's flame, a gem's glint, crumbs while eating (0.801)
@@ -394,9 +404,9 @@ function _fxNear(x, y, z) {
 const _fxLight = (x, y, z) => (typeof _lightAt === 'function' ? _lightAt(x, y, z) : 1);
 // a random square, `frac` of its side, out of the visible centre of an atlas tile, onto particle i
 function _fxTileRect(pool, i, tile, frac) {
-  const CELL = 1 / ATLAS_COLS, col = tile % ATLAS_COLS, row = (tile / ATLAS_COLS) | 0;
-  const u0 = col * CELL + CELL * 0.25, v0 = 1 - (row + 0.75) * CELL, win = CELL * 0.5, s = win * frac;
-  pool.setRect(i, u0 + Math.random() * (win - s), v0 + Math.random() * (win - s), s, s);
+  // u carries the layer in its whole part: the square sits inside [0,1) of layer `tile` (0.809)
+  const s = Math.min(0.999, frac);
+  pool.setRect(i, tile + Math.random() * (1 - s), Math.random() * (1 - s), s, s);
 }
 // a grass top is stored grey and tinted in the shader; a bit of it is tinted the same way
 function _fxTileTint(tile) {
@@ -843,7 +853,11 @@ function fxPlace(x, y, z, val) {
   if (_fxScale <= 0 || !_fxNear(x + 0.5, y + 0.5, z + 0.5)) return;
   const id = val & 255;
   if (!PROPS[id] || !PROPS[id].faces) return;
-  const L = _fxLight(x + 0.5, y + 0.5, z + 0.5);
+  /* The light the bits land in, not the light inside the block just placed: that cell is solid now and
+     reads as pitch dark, which drew every placed bit black (0.809). The brightest open side wins. */
+  let L = 0;
+  for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]])
+    L = Math.max(L, _fxLight(x + 0.5 + dx, y + 0.5 + dy, z + 0.5 + dz));
   for (let k = 0, n = _fxN(6); k < n; k++) {
     const a = Math.random() * 6.283;
     const i = _fxBit(id, x + 0.5 + Math.cos(a) * 0.55, y + 0.05, z + 0.5 + Math.sin(a) * 0.55, _rnd(0.3, 0.5), _rnd(0.05, 0.08), L);
@@ -859,7 +873,7 @@ function fxPlace(x, y, z, val) {
 const _FX_BERRY_COL = {};
 _FX_BERRY_COL[B.REDBERRY_BUSH] = [0.82, 0.12, 0.16];
 _FX_BERRY_COL[B.BLUEBERRY_BUSH] = [0.25, 0.36, 0.88];
-_FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.96, 0.84, 0.2];
+_FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.25, 0.12, 0.3];   // blackberries (0.80991)
 const _FX_LEAF_DARK = [0.2, 0.38, 0.14], _FX_WHEAT = [0.88, 0.76, 0.36];
 function _fxGrassCol() {
   const t = sharedUniforms.uTintColor && sharedUniforms.uTintColor.value;

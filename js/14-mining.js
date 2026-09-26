@@ -25,8 +25,8 @@ const crackTextures = [];
   for (let i = 0; i < CRACK_STAGES; i++) {
     const t = loader.load(`textures/Cracks/destroy_stage_${i}.png`);
     t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    t.generateMipmaps = false;
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+    t.generateMipmaps = true;   // (0.8092)
     if ('colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace;
     crackTextures.push(t);
   }

@@ -17,8 +17,8 @@ const PX = 1.8 / MODEL_PX;                           // world units per skin pix
 const _skinTex = new THREE.TextureLoader().load('textures/Entity/player.png');
 _skinTex.colorSpace = THREE.SRGBColorSpace;
 _skinTex.magFilter = THREE.NearestFilter;
-_skinTex.minFilter = THREE.NearestFilter;
-_skinTex.generateMipmaps = false;
+_skinTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+_skinTex.generateMipmaps = true;   // (0.8092)
 // Every humanoid owns its material so it can be lit (and hurt-flashed) independently. The skin
 // is a MeshBasicMaterial — it never sees the world shader's lighting — so brightness is baked
 // into the material colour each frame from the sky/block light at the entity's own cell.
@@ -32,8 +32,8 @@ const _BURN_COL = new THREE.Color(0xff8a2a).convertSRGBToLinear();   // sunlight
 const _zombieTex = new THREE.TextureLoader().load('textures/Entity/zombie.png');
 _zombieTex.colorSpace = THREE.SRGBColorSpace;
 _zombieTex.magFilter = THREE.NearestFilter;
-_zombieTex.minFilter = THREE.NearestFilter;
-_zombieTex.generateMipmaps = false;
+_zombieTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+_zombieTex.generateMipmaps = true;   // (0.8092)
 function _newZombieMat() {
   return new THREE.MeshBasicMaterial({ map: _zombieTex, transparent: true, alphaTest: 0.5 });
 }
@@ -45,8 +45,8 @@ function _newZombieMat() {
 const _skeletonTex = new THREE.TextureLoader().load('textures/Entity/skeleton.png');
 _skeletonTex.colorSpace = THREE.SRGBColorSpace;
 _skeletonTex.magFilter = THREE.NearestFilter;
-_skeletonTex.minFilter = THREE.NearestFilter;
-_skeletonTex.generateMipmaps = false;
+_skeletonTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+_skeletonTex.generateMipmaps = true;   // (0.8092)
 function _newSkeletonMat() {
   return new THREE.MeshBasicMaterial({ map: _skeletonTex, transparent: true, alphaTest: 0.5 });
 }
@@ -230,8 +230,8 @@ function shadeHumanoid(m, x, y, z, hurt, burn) {
 const _sheepTex = new THREE.TextureLoader().load('textures/Entity/sheep.png');
 _sheepTex.colorSpace = THREE.SRGBColorSpace;
 _sheepTex.magFilter = THREE.NearestFilter;
-_sheepTex.minFilter = THREE.NearestFilter;
-_sheepTex.generateMipmaps = false;
+_sheepTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+_sheepTex.generateMipmaps = true;   // (0.8092)
 function _newSheepMat() {
   return new THREE.MeshBasicMaterial({ map: _sheepTex, transparent: true, alphaTest: 0.5 });
 }
@@ -243,8 +243,8 @@ function _newWoolMat() {
     _woolTex = new THREE.Texture(IMAGES.wool);
     _woolTex.colorSpace = THREE.SRGBColorSpace;
     _woolTex.magFilter = THREE.NearestFilter;
-    _woolTex.minFilter = THREE.NearestFilter;
-    _woolTex.generateMipmaps = false;
+    _woolTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+    _woolTex.generateMipmaps = true;   // (0.8092)
     _woolTex.needsUpdate = true;
   }
   return new THREE.MeshBasicMaterial({ map: _woolTex || null, color: _woolTex ? 0xffffff : 0xf2f2f2 });
@@ -350,8 +350,8 @@ function _nearestTex(url) {
   const t = new THREE.TextureLoader().load(url);
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestFilter;
-  t.generateMipmaps = false;
+  t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+  t.generateMipmaps = true;   // (0.8092)
   return t;
 }
 const _cowBodyTex = _nearestTex('textures/Entity/cow_body.png');
@@ -858,8 +858,8 @@ const PIG_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest', 'Swamp']);
 const _horseTex = new THREE.TextureLoader().load('textures/Entity/horse.png');
 _horseTex.colorSpace = THREE.SRGBColorSpace;
 _horseTex.magFilter = THREE.NearestFilter;
-_horseTex.minFilter = THREE.NearestFilter;
-_horseTex.generateMipmaps = false;
+_horseTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+_horseTex.generateMipmaps = true;   // (0.8092)
 function _newHorseMat() {
   return new THREE.MeshBasicMaterial({ map: _horseTex, transparent: true, alphaTest: 0.5 });
 }
@@ -950,8 +950,8 @@ function _newSaddleMat() {
     _saddleTex = new THREE.Texture(IMAGES.saddle);
     _saddleTex.colorSpace = THREE.SRGBColorSpace;
     _saddleTex.magFilter = THREE.NearestFilter;
-    _saddleTex.minFilter = THREE.NearestFilter;
-    _saddleTex.generateMipmaps = false;
+    _saddleTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+    _saddleTex.generateMipmaps = true;   // (0.8092)
     _saddleTex.needsUpdate = true;
   }
   return new THREE.MeshBasicMaterial({ map: _saddleTex || null,
