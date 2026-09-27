@@ -66,51 +66,85 @@ function _lightSrcActive(sx, sz) {
 // endlessly (queue blowup = the save-load lag near placed lights); relightForChunk pours
 // light into those chunks once they load, so nothing is missed.
 function propagateLight(gx, gy, gz, level = GLOW_LEVEL) {
-  const q = [gx, gy, gz, level + 1];    // seed one above so neighbours get `level`
-  let head = 0;
+  propagateLightMany([[gx, gy, gz, level]]);
+}
+/* Every source in ONE flood (0.8196). Relighting beside a lava lake meant thousands of sources, and flooding them
+   one by one visited the same cells thousands of times: one relight took 300 ms. Here each source seeds a bucket
+   by level, the buckets are worked from the brightest down, and a cell is only ever lit at its highest level, so
+   each cell is expanded once however many sources reach it. `srcs`: [[x, y, z, level], ...]. */
+function propagateLightMany(srcs) {
+  if (!srcs.length) return;
+  const B = [];                          // B[lv]: flat x,y,z of cells whose light leaves them at lv
+  let top = 0;
+  for (const s of srcs) {
+    const lv = s[3] + 1;                 // seed one above so neighbours get the source's level
+    (B[lv] || (B[lv] = [])).push(s[0], s[1], s[2]);
+    if (lv > top) top = lv;
+  }
   let ccx = 1e9, ccz = 1e9, cData = null, cLight = null;   // cached chunk arrays
-  while (head < q.length) {
-    const x = q[head++], y = q[head++], z = q[head++], lv = q[head++];
+  for (let lv = top; lv >= 2; lv--) {
+    const q = B[lv];
+    if (!q) continue;
     const nl = lv - 1;
-    if (nl <= 0) continue;
-    for (const d of LIGHT_DIRS) {
-      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
-      if (ny < 0 || ny > 199) continue;
-      const kx = Math.floor(nx / 16), kz = Math.floor(nz / 16);
-      if (kx !== ccx || kz !== ccz) {
-        ccx = kx; ccz = kz;
-        const c = getChunk(kx, kz);
-        cData = c && c.data ? c.data : null;
-        cLight = cData ? chunkLightArr(c) : null;
+    for (let h = 0; h < q.length; h += 3) {
+      const x = q[h], y = q[h + 1], z = q[h + 2];
+      for (const d of LIGHT_DIRS) {
+        const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+        if (ny < 0 || ny > 199) continue;
+        const kx = Math.floor(nx / 16), kz = Math.floor(nz / 16);
+        if (kx !== ccx || kz !== ccz) {
+          ccx = kx; ccz = kz;
+          const c = getChunk(kx, kz);
+          cData = c && c.data ? c.data : null;
+          cLight = cData ? chunkLightArr(c) : null;
+        }
+        if (!cData) continue;             // unloaded: relightForChunk handles it on load
+        const i = (nx & 15) + ((nz & 15) << 4) + (ny << 8);
+        if (CORE.opaqueVal(cData[i])) continue;       // by value: chiseled shapes let light through (0.783)
+        if (cLight[i] >= nl) continue;
+        cLight[i] = nl;
+        const out = nl - CORE.lightDim(cData[i]);     // passes on less out of a shaped cell (0.819)
+        if (out >= 2) (B[out] || (B[out] = [])).push(nx, ny, nz);
       }
-      if (!cData) continue;             // unloaded: relightForChunk handles it on load
-      const i = (nx & 15) + ((nz & 15) << 4) + (ny << 8);
-      if (CORE.opaqueVal(cData[i])) continue;       // by value: chiseled shapes let light through (0.783)
-      if (cLight[i] >= nl) continue;
-      cLight[i] = nl;
-      q.push(nx, ny, nz, nl);
     }
+    B[lv] = null;
   }
 }
+// zero block light in a box, a chunk's row at a time (0.8196; was one lookup per cell). No light array: already dark.
+function _clearLightBox(x0, y0, z0, x1, y1, z1) {
+  for (let cz = Math.floor(z0 / 16); cz <= Math.floor(z1 / 16); cz++)
+    for (let cx = Math.floor(x0 / 16); cx <= Math.floor(x1 / 16); cx++) {
+      const c = getChunk(cx, cz);
+      if (!c || !c.data || !c.light) continue;
+      const L = c.light;
+      const lx0 = Math.max(0, x0 - cx * 16), lx1 = Math.min(15, x1 - cx * 16);
+      const lz0 = Math.max(0, z0 - cz * 16), lz1 = Math.min(15, z1 - cz * 16);
+      for (let y = y0; y <= y1; y++)
+        for (let lz = lz0; lz <= lz1; lz++) { const base = (lz << 4) + (y << 8); L.fill(0, base + lx0, base + lx1 + 1); }
+    }
+}
 
-// recompute block light in a bounded box around a change, then re-mesh the chunks it touches
-function relight(x, y, z) {
+// recompute block light in a bounded box around a change, then re-mesh the chunks it touches.
+// x2, y2, z2 (0.8193): the far corner of a whole area of changes, relit once for all of them
+function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   const R = LIGHT_REACH;
   const near = [];
-  forEachGlowNear(x, z, 2 * R, (gx, gy, gz) => {
-    if (Math.abs(gx - x) > 2 * R || Math.abs(gy - y) > 2 * R || Math.abs(gz - z) > 2 * R) return;
+  const bx0 = Math.min(x, x2), bx1 = Math.max(x, x2), by0 = Math.min(y, y2), by1 = Math.max(y, y2), bz0 = Math.min(z, z2), bz1 = Math.max(z, z2);
+  const cxm = (bx0 + bx1) >> 1, czm = (bz0 + bz1) >> 1, ext = Math.max(bx1 - bx0, bz1 - bz0);
+  forEachGlowNear(cxm, czm, 2 * R + ext, (gx, gy, gz) => {
+    if (gx < bx0 - 2 * R || gx > bx1 + 2 * R || gy < by0 - 2 * R || gy > by1 + 2 * R || gz < bz0 - 2 * R || gz > bz1 + 2 * R) return;
     if (!_lightSrcActive(gx, gz)) return;
     near.push([gx, gy, gz, glowLevelAt(gx, gy, gz)]);
   });
   for (const g of _plyGlows) {
     if (!g) continue;
-    if (Math.abs(g[0] - x) <= 2 * R && Math.abs(g[1] - y) <= 2 * R && Math.abs(g[2] - z) <= 2 * R) near.push(g);
+    if (g[0] >= bx0 - 2 * R && g[0] <= bx1 + 2 * R && g[1] >= by0 - 2 * R && g[1] <= by1 + 2 * R && g[2] >= bz0 - 2 * R && g[2] <= bz1 + 2 * R) near.push(g);
   }
-  let x0 = x - R, x1 = x + R, y0 = y - R, y1 = y + R, z0 = z - R, z1 = z + R;
+  let x0 = bx0 - R, x1 = bx1 + R, y0 = by0 - R, y1 = by1 + R, z0 = bz0 - R, z1 = bz1 + R;
   for (const g of near) { x0 = Math.min(x0, g[0]-R); x1 = Math.max(x1, g[0]+R); y0 = Math.min(y0, g[1]-R); y1 = Math.max(y1, g[1]+R); z0 = Math.min(z0, g[2]-R); z1 = Math.max(z1, g[2]+R); }
   y0 = Math.max(0, y0); y1 = Math.min(199, y1);
-  for (let yy = y0; yy <= y1; yy++) for (let zz = z0; zz <= z1; zz++) for (let xx = x0; xx <= x1; xx++) setLightWorld(xx, yy, zz, 0);
-  for (const g of near) propagateLight(g[0], g[1], g[2], g[3]);
+  _clearLightBox(x0, y0, z0, x1, y1, z1);
+  propagateLightMany(near);                // all of them in one flood (0.8196)
   for (let ccz = Math.floor(z0/16); ccz <= Math.floor(z1/16); ccz++)
     for (let ccx = Math.floor(x0/16); ccx <= Math.floor(x1/16); ccx++) {
       const c = getChunk(ccx, ccz); if (c && c.data) markDirty(c);
@@ -145,8 +179,8 @@ function updatePlayerLight(slot, nx, ny, nz, level) {
   if (!skipOld && old) { x0=Math.min(x0,old[0]-R); x1=Math.max(x1,old[0]+R); y0=Math.min(y0,old[1]-R); y1=Math.max(y1,old[1]+R); z0=Math.min(z0,old[2]-R); z1=Math.max(z1,old[2]+R); }
   for (const g of sources) { x0=Math.min(x0,g[0]-R); x1=Math.max(x1,g[0]+R); y0=Math.min(y0,g[1]-R); y1=Math.max(y1,g[1]+R); z0=Math.min(z0,g[2]-R); z1=Math.max(z1,g[2]+R); }
   y0=Math.max(0,y0); y1=Math.min(199,y1);
-  for (let yy=y0;yy<=y1;yy++) for (let zz=z0;zz<=z1;zz++) for (let xx=x0;xx<=x1;xx++) setLightWorld(xx,yy,zz,0);
-  for (const g of sources) propagateLight(g[0],g[1],g[2],g[3]);
+  _clearLightBox(x0, y0, z0, x1, y1, z1);
+  propagateLightMany(sources);             // 0.8196
   for (let ccz=Math.floor(z0/16);ccz<=Math.floor(z1/16);ccz++)
     for (let ccx=Math.floor(x0/16);ccx<=Math.floor(x1/16);ccx++) {
       const c=getChunk(ccx,ccz); if(c&&c.data) markDirty(c);
@@ -159,17 +193,19 @@ function relightForChunk(cx, cz) {
   // calls this again the moment it comes back into range, so nothing is lost by skipping here
   if (!inSimRangeChunk(cx, cz)) return;
   // only emitters in the chunks this one can be reached from — not every light in the world
+  const srcs = [];                         // gathered, then poured in one flood (0.8196)
   forEachGlowNear(cx * 16 + 8, cz * 16 + 8, LIGHT_REACH + 8, (gx, gy, gz) => {
     if (!_lightSrcActive(gx, gz)) return;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= LIGHT_REACH && dz <= LIGHT_REACH) propagateLight(gx, gy, gz, glowLevelAt(gx, gy, gz));
+    if (dx <= LIGHT_REACH && dz <= LIGHT_REACH) srcs.push([gx, gy, gz, glowLevelAt(gx, gy, gz)]);
   });
   for (const g of _plyGlows) {
     if (!g) continue;
     const [gx, gy, gz, lv] = g;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= lv && dz <= lv) propagateLight(gx, gy, gz, lv);
+    if (dx <= lv && dz <= lv) srcs.push([gx, gy, gz, lv]);
   }
+  propagateLightMany(srcs);
 }
 
 // Dev test — run _dbgHeldLight() in browser console while holding a light block

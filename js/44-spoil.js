@@ -20,9 +20,11 @@
    Spoilage was a cost of CARRYING food only; since 0.8098 food in a chest spoils at the same rate.
 
    SALT (0.8098): carried salt, or salt in the same chest, makes food last 50% longer (its clock runs at 2/3
-   speed). It is used up, one every SALT_USE_S of salting, but only while there is food to salt — with no food
-   beside it, it keeps. */
-const SALT_LIFE = 1.5, SALT_USE_S = 1200;   // food lasts 1.5x as long; one salt per 20 minutes of it
+   speed). Since 0.8192 a salt is used up the MOMENT it has work to do — salt put in beside food, or food put in
+   beside salt — and then keeps that inventory's food for SALT_USE_S on a clock of its own (player._saltT, a
+   chest's saltT: hidden, no count or bar). The clock only runs while there is food; when it runs out and there
+   is still food and salt, the next one goes in at once. With no food beside it, salt keeps. */
+const SALT_LIFE = 1.5, SALT_USE_S = 1200;   // food lasts 1.5x as long; one salt keeps it 20 minutes
 
 // blocks can carry a clock too since 0.7992 (the pumpkin)
 const spoilMax = (id) => (id == null ? 0 : ((id >= 256 ? ITEM_PROPS[id]?.spoil : PROPS[id]?.spoil) || 0));
@@ -68,12 +70,16 @@ function tickSpoilage(dt) {
   // returns 0 = not food, 1 = clock moved, 2 = an item was lost
   // salt in the pack: food carried alongside it lasts 50% longer, and it is used up while it works (0.8098)
   let rate = spoilRate();
-  if (_carries(isPerishable) && _carries((id) => id === ITEM.SALT)) {
-    rate /= SALT_LIFE;
-    player._saltT = (player._saltT || 0) + steps;
-    if (player._saltT >= SALT_USE_S) {
-      player._saltT -= SALT_USE_S;
-      if (_takeCarried(ITEM.SALT)) { if (typeof feedItem === 'function') feedItem(ITEM.SALT, -1, 'used'); hotLost = invLost = true; }
+  if (_carriedFood() > 0) {
+    // nothing salting yet, and salt at hand: one goes into use at once, good for SALT_USE_S (0.8192)
+    if (!(player._saltT > 0) && _takeCarried(ITEM.SALT)) {
+      player._saltT = SALT_USE_S;
+      if (typeof feedItem === 'function') feedItem(ITEM.SALT, -1, 'used');
+      hotLost = invLost = offLost = hotPaint = invPaint = offPaint = true;   // the salt's own slot shows it
+    }
+    if (player._saltT > 0) {
+      rate /= SALT_LIFE;
+      player._saltT = Math.max(0, player._saltT - steps);
     }
   }
   const drain = (slot, onEmpty) => {
@@ -150,6 +156,8 @@ function _carriedSlots() {
   return out;
 }
 const _carries = (test) => _carriedSlots().some(([a, i]) => a[i] && test(a[i].id));
+// how many items of food are carried (0.8191)
+const _carriedFood = () => _carriedSlots().reduce((n, [a, i]) => n + (a[i] && isPerishable(a[i].id) ? a[i].count : 0), 0);
 function _takeCarried(id) {
   for (const [a, i] of _carriedSlots()) {
     const s = a[i];
@@ -180,22 +188,20 @@ function _tickChestSpoil() {
     if (!sl.some(s => s && isPerishable(s.id))) continue;               // no food: time passes, salt keeps
     let changed = false;
     // the salt first: how much of the elapsed time it covered, and how many it took to do it
-    let salted = 0;
-    const saltHeld = sl.reduce((n, s) => n + (s && s.id === ITEM.SALT ? s.count : 0), 0);
-    if (saltHeld > 0) {
-      const saltT = c.saltT || 0;
-      salted = Math.min(elapsed, saltHeld * SALT_USE_S - saltT);
-      let used = Math.floor((saltT + salted) / SALT_USE_S);
-      c.saltT = salted < elapsed ? 0 : (saltT + salted) % SALT_USE_S;
-      for (let i = 0; i < sl.length && used > 0; i++) {
-        const s = sl[i];
-        if (!s || s.id !== ITEM.SALT) continue;
-        const take = Math.min(used, s.count);
-        s.count -= take; used -= take;
-        if (s.count <= 0) sl[i] = null;
-        changed = true;
+    /* The chest's own salt clock (0.8192): what is left of the salt in use, then a new salt the moment it runs
+       out while there is one, SALT_USE_S at a time, until the elapsed time is covered or the salt is gone. */
+    let salted = 0, left = c.saltT || 0, rest = elapsed;
+    while (rest > 0) {
+      if (left <= 0) {
+        const si = sl.findIndex(s => s && s.id === ITEM.SALT);
+        if (si < 0) break;
+        if (--sl[si].count <= 0) sl[si] = null;
+        left = SALT_USE_S; changed = true;
       }
+      const d = Math.min(rest, left);
+      salted += d; left -= d; rest -= d;
     }
+    c.saltT = left;
     const drain = salted / SALT_LIFE + (elapsed - salted);              // seconds off the food's clocks
     const leftovers = [];
     for (let i = 0; i < sl.length; i++) {

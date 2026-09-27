@@ -1108,8 +1108,9 @@ function _fxIsFlower(id) {
   }
   return _FX_FLOWERS.has(id);
 }
-const _fxNight = () => typeof worldTime !== 'undefined' && worldTime > 0.53 && worldTime < 0.97;
-const _fxDay = () => typeof worldTime !== 'undefined' && worldTime > 0.03 && worldTime < 0.45;
+// by the day's own sunrise and sunset since 0.818 (isDarkTime, 07-sky.js): a little after dusk, and the bright part of the day
+const _fxNight = () => typeof isDarkTime === 'function' && isDarkTime(worldTime, -0.03);
+const _fxDay = () => typeof isDarkTime === 'function' && !isDarkTime(worldTime, 0.05) && !isDarkTime(worldTime - 0.03, 0);
 
 /* ---------------------------------- per frame ---------------------------------- */
 // the top of the fluid a body stands in: where a splash sits

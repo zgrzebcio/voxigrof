@@ -139,6 +139,8 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // world that never had one should not sprout half-filled player records later
               split: !!newSplitChk.checked,
               structures: !!newStructChk.checked,   // villages and dungeons, fixed at creation (0.7594)
+              seasons: !!newSeasonChk.checked,      // off: always 1 July, fixed at creation (0.818)
+              biomeRev: 3,                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193); older worlds keep theirs
               createdVersion: GAME_VERSION, lastVersion: GAME_VERSION,
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);

@@ -11,6 +11,7 @@ vctx.imageSmoothingEnabled = false;
 
 // pre-render the 4 icon variants (full/half/empty × heart/drumstick) into offscreen buffers
 const ICON_SZ = 16, ICON_SCALE = 1;         // stamps are 16px drawn 1:1 (fits above the hotbar)
+const LAVA_FIRE_S = 10;                      // seconds you stay alight after touching lava (0.8195)
 const GUI_SZ = 36;                           // sprite display size: native 36px, no downscaling
 function makeIconCanvas() {
   const c = document.createElement('canvas'); c.width = c.height = ICON_SZ; return c;
@@ -434,6 +435,11 @@ function updateVitals(dt) {
     const feetId  = getBlock(Math.floor(p.x), Math.floor(p.y - 0.1), Math.floor(p.z)) & 255;
     const bodyId  = getBlock(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)) & 255;
     if (feetId === B.LAVA || bodyId === B.LAVA) {
+      // ...and it sets you alight: you keep burning for LAVA_FIRE_S after you get out (0.8195)
+      if (!player.canFly) {
+        if (!(player.fireT > 0) && typeof playSound === 'function') playSound('fireIgnite', { gain: 0.8, pos: { x: p.x, y: p.y, z: p.z } });
+        player.fireT = Math.max(player.fireT || 0, LAVA_FIRE_S);
+      }
       updateVitals._lavaT = (updateVitals._lavaT || 0) - dt;
       if (updateVitals._lavaT <= 0) {
         updateVitals._lavaT = 0.5;
@@ -441,6 +447,26 @@ function updateVitals(dt) {
         player._dmgCause = 'burned to death';
       }
     } else updateVitals._lavaT = 0;
+  }
+  /* On fire (0.819, a lightning strike, 53-storms.js): 1 health a second until it burns out, or at once in water.
+     The clock is on the player, since this runs once per seat. */
+  if (player.fireT > 0) {
+    const p = player.pos;
+    const wet = (getBlock(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)) & 255) === B.WATER;
+    if (wet || player.canFly || player.dead) {
+      if (wet && typeof playSound === 'function') playSound('fireOff', { gain: 0.8, pos: { x: p.x, y: p.y, z: p.z } });   // 0.8191
+      player.fireT = 0;
+    }
+    else {
+      player.fireT -= dt;
+      player._fireHurtT = (player._fireHurtT || 0) - dt;
+      if (player._fireHurtT <= 0) {
+        player._fireHurtT = 1;
+        player.hp = Math.max(0, player.hp - 1 * skillHazardMul());
+        player._dmgCause = 'burned to death';
+      }
+      if (typeof fxOnFire === 'function') fxOnFire(p.x, p.y, p.z, player.H || 1.8, dt);
+    }
   }
   if (player._kbT > 0) {
     player._kbT -= dt;

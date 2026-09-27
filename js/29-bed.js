@@ -199,8 +199,8 @@ function tryPlaceBed(px, py, pz) {
 }
 
 /* ---------------------------------- sleeping ---------------------------------- */
-// night runs from dusk to dawn; worldTime is 0 = sunrise, .25 noon, .5 sunset, .75 midnight
-const BED_NIGHT_FROM = 0.48;
+// night runs from dusk to dawn: the day's own sunset and sunrise since 0.818 (sunTimes, 07-sky.js)
+const BED_NIGHT_EARLY = 0.02;      // a bed takes you this long (in worldTime) before sunset; 0.48 was fixed
 const BED_WAKE_TIME = 0.005;       // just after sunrise
 /* Sleeping skips the world's clock, so it is a WORLD action even though one person does it: the
    fade covers the whole screen and everyone wakes to the same morning. `_sleeper` remembers who
@@ -215,7 +215,7 @@ Object.assign(_sleepEl.style, {
 });
 document.body.appendChild(_sleepEl);
 
-const isNightForSleep = () => worldTime >= BED_NIGHT_FROM;
+const isNightForSleep = () => isDarkTime(worldTime, BED_NIGHT_EARLY);
 
 /* ---- lying down (0.7294) ----
    Getting into bed is a STATE now, not an instant fade to dawn. The player is laid out on the
@@ -355,8 +355,10 @@ function updateBed(dt) {
   _sleepFade = Math.min(1, _sleepFade + dt * 2.2);
   _sleepEl.style.opacity = _sleepFade.toFixed(3);
   if (_sleepFade >= 1) {                        // fully black: advance to dawn
-    worldDay++;
-    worldTime = BED_WAKE_TIME;
+    /* A winter night runs past 06:00 (worldTime 0, where the day count turns over), so a bed can be used after
+       it: then it is already the new day, and only the clock moves on — to sunrise, not 06:00 (0.818). */
+    if (worldTime > 0.25) worldDay++;
+    worldTime = Math.max(0, sunTimes().rise) + BED_WAKE_TIME;
     for (const p of live) {
       p.food = Math.max(p.food, 6);             // a night's rest staves off starving
       if (p.hp > 0) p.hp = Math.min(playerMaxHP(p), p.hp + 4);

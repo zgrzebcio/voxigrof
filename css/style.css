@@ -813,3 +813,6 @@
 .dropZone.hot { animation:none; border-style:solid; background:rgba(24,30,44,.95); transform:scale(1.03); }
 .dropZone.hot .dzText { color:#eaf2ff; }
 @keyframes dzBreathe { 0%, 100% { box-shadow:0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow:0 0 12px 1px rgba(255,255,255,.18); } }
+/* the title backdrop's day and season, top left (0.8194) */
+#titleDate { position: fixed; top: 14px; left: 18px; z-index: 30; pointer-events: none; color: #f2f5f8;
+  font: 600 15px/1.2 system-ui, sans-serif; letter-spacing: .02em; text-shadow: 0 1px 3px rgba(0,0,0,.7); }

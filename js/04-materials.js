@@ -35,8 +35,81 @@ const sharedUniforms = {
   // packed light byte forced onto every vertex, or -1 for "use the baked one" (0.7521: drops)
   uLightOverride: { value: -1 },
   uTintColor:  { value: new THREE.Color(0.42, 0.66, 0.46) },   // cold blue-green conifer
+  // the cloud layer (0.815, 52-clouds.js): its shape noise, the weather over it, how far it has drifted,
+  // and the way to the sun or moon, so the ground under a cloud gets its shade. Off for icons and hands.
+  uCloudOn:    { value: 0 },
+  uCloudNoise: { value: null },
+  uCloudWx:    { value: null },
+  uCloudBox:   { value: new THREE.Vector3(0, 0, 256) },   // the weather texture's first region x, z, and a region's size in blocks
+  uCloudOff:   { value: new THREE.Vector2(0, 0) },
+  uCloudSun:   { value: new THREE.Vector3(0, 1, 0) },
+  // the sky's haze (0.817, 07-sky.js): the sun's halo and the sunset glow, which the fog takes on too so the far
+  // land melts into the sky round the sun; uHaze 0 in water, lava. uSkyFog: how far the sky itself is fogged over.
+  uSunDir:     { value: new THREE.Vector3(1, 0, 0) },
+  uSunHalo:    { value: new THREE.Color(0, 0, 0) },
+  uDuskCol:    { value: new THREE.Color(0, 0, 0) },
+  uHaze:       { value: 1 },
+  uSkyFog:     { value: 0 },
+  // the moon's pull on the sea (0.8191, 07-sky.js): how far the sea surface stands below full height now, and how big its waves are
+  uTide:       { value: 0 },
+  uWaveMul:    { value: 1 },
+  // how much of a chunk is showing, 0..1: a chunk fades in when it arrives and out when it leaves (0.8195, 11-chunks.js).
+  // Always 1 here; a fading chunk's meshes carry a material of their own with their own value.
+  uFade:       { value: 1 },
 };
+/* The haze of the sky in a direction (0.817): added to the fog colour, so it is the same on the sky dome, the
+   clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
+   sun's side. */
+const SKY_GLSL = /* glsl */`
+  uniform vec3 uSunDir, uSunHalo, uDuskCol;
+  uniform float uHaze;
+  vec3 skyHaze(vec3 d) {
+    float mu = max(dot(d, uSunDir), 0.0);
+    vec2 hz = normalize(d.xz + vec2(1e-4)), sz = normalize(uSunDir.xz + vec2(1e-4));
+    float side = max(dot(hz, sz), 0.0);
+    return (uSunHalo * (0.22 * pow(mu, 5.0) + 0.55 * pow(mu, 48.0))
+          + uDuskCol * exp(-abs(d.y) * 5.0) * (0.2 + 0.8 * side * side)) * uHaze;
+  }`;
 const GLOW_LEVEL = 14;   // glowstone emission (light reaches this many blocks through open air)
+
+/* ---- clouds (0.815) ----
+   One layer of block clouds from CLOUD_Y0, up to CLOUD_H blocks thick. Its shape is a tiling noise texture
+   (CLOUD_N cells a side, a cell a block), read in CLOUD SPACE — world minus uCloudOff, so the whole layer
+   drifts with the wind. How much of it is cloud comes from the weather under it: uCloudWx holds, per weather
+   region, the noise level a cell must reach to be cloud (r), how dark the cloud is (g) and its cover (b).
+   The same functions draw the clouds (52-clouds.js) and shade the ground beneath them (FSH below). */
+const CLOUD_Y0 = 175, CLOUD_H = 7, CLOUD_N = 256, CLOUD_WX_N = 8;   // 4 tall until 0.816
+const CLOUD_SHADE = 0.2;     // light a white cloud takes; a dark one takes 75%
+const CLOUD_GLSL = /* glsl */`
+  uniform float uCloudOn;
+  uniform highp sampler2D uCloudNoise;
+  uniform highp sampler2D uCloudWx;
+  uniform vec3 uCloudBox;
+  uniform vec2 uCloudOff;
+  uniform vec3 uCloudSun;
+  const float CLOUD_Y0 = ${CLOUD_Y0}.0, CLOUD_H = ${CLOUD_H}.0, CLOUD_N = ${CLOUD_N}.0;
+  // the weather's cloud at a world xz: (level, dark, cover), eased between region centres like weatherAt
+  vec3 cloudWx(vec2 w) {
+    vec2 u = clamp(w / uCloudBox.z - 0.5 - uCloudBox.xy, vec2(0.0), vec2(${CLOUD_WX_N - 1}.0 - 0.001));
+    vec2 i0 = floor(u), f = u - i0;
+    f = f * f * (3.0 - 2.0 * f);
+    ivec2 a = ivec2(i0), b = min(a + 1, ivec2(${CLOUD_WX_N - 1}));
+    vec3 c00 = texelFetch(uCloudWx, a, 0).rgb, c10 = texelFetch(uCloudWx, ivec2(b.x, a.y), 0).rgb;
+    vec3 c01 = texelFetch(uCloudWx, ivec2(a.x, b.y), 0).rgb, c11 = texelFetch(uCloudWx, b, 0).rgb;
+    return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+  }
+  // the shape noise at a cloud-space xz: exactly one cell's value at its centre, eased in between
+  float cloudN(vec2 p) {
+    return 0.7 * textureLod(uCloudNoise, p / CLOUD_N, 0.0).r + 0.3 * textureLod(uCloudNoise, p / (4.0 * CLOUD_N), 0.0).r;
+  }
+  // how much of the sun (or moon) reaches a world point past the clouds, 1 = all of it
+  float cloudShade(vec3 wp) {
+    if (uCloudOn < 0.5 || wp.y >= CLOUD_Y0) return 1.0;
+    vec2 at = wp.xz + uCloudSun.xz / max(uCloudSun.y, 0.2) * (CLOUD_Y0 - wp.y);   // up the ray to the light
+    vec3 wx = cloudWx(at);
+    float cov = smoothstep(wx.x - 0.03, wx.x + 0.01, cloudN(at - uCloudOff));
+    return 1.0 - cov * mix(${CLOUD_SHADE}, 0.75, wx.y);
+  }`;
 
 const VSH = /* glsl */`
   in float tile;
@@ -48,12 +121,14 @@ const VSH = /* glsl */`
   uniform vec2 uWindDir;
   uniform float uWindSpeed;
   uniform float uTime;
+  uniform float uFade;                       // a chunk fading in: plants grow up with it (0.8196)
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
   out float vDepth;
   out float vBlock;
   out vec3 vSC;
+  out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
     vUv = uv; vTile = tile; vShade = shade;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;                      // flood-filled block-light level (0..15) for this face
@@ -63,13 +138,33 @@ const VSH = /* glsl */`
     /* 0.812: the bend follows the wind's SPEED, the height bonus added here per vertex (51-seasons.js
        windHeightBonus), and a faster wind shakes it faster too. */
     float sk = texelFetch(uTileLayer, ivec2(int(tile + 0.5), 0), 0).b;
+    /* A chunk fading in (0.8196): its grass and flowers grow up out of the ground as it comes, a beat behind the
+       land, rather than being there at once. A plant's height above its foot is uv.y (a tall plant's top half
+       carries on from 1), so squashing that keeps every foot where it is and both halves joined. */
+    if (uFade < 0.999 && (sk > 0.5 && sk < 1.5 || sk > 2.5)) {
+      float grow = smoothstep(0.25, 1.0, uFade);
+      wp.y -= (sk > 2.5 ? 1.0 + uv.y : uv.y) * (1.0 - grow);
+    }
+    /* 0.819: plants LEAN the way the wind blows, harder the stronger it is, and gusts roll across a field as waves
+       travelling with the wind (their phase runs along the wind, not scattered per plant). Leaves are big and
+       stiff: in a light wind they only stir a little every which way; a strong one leans the canopy with it.
+       Every term uses the vertex's world position only (never a greedy quad's UVs), so shared corners agree. */
     if (sk > 0.5 && uWindSpeed > 0.0) {
       float hb = wp.y <= 60.0 ? 0.0 : wp.y <= 100.0 ? 5.0 * (wp.y - 60.0) / 40.0 : 5.0 + (wp.y - 100.0) * 0.08;
       float amp = min(1.6, (uWindSpeed + hb) / 40.0);
-      float gust = 0.6 + 0.4 * sin(uTime * (1.2 + amp * 2.5) + wp.x * 0.37 + wp.z * 0.29);
-      float bend = sk > 2.5 ? (1.0 + uv.y) * 0.18 : sk > 1.5 ? 0.05 : uv.y * 0.22;
-      wp.xz += uWindDir * (amp * bend * gust);
+      float along = dot(wp.xz, uWindDir);
+      if (sk > 1.5 && sk < 2.5) {
+        float strong = smoothstep(0.35, 1.1, amp);
+        vec2 stir = vec2(sin(uTime * 1.9 + wp.x * 0.9 + wp.y * 0.4), sin(uTime * 1.6 + wp.z * 0.8 + wp.y * 0.6));
+        float gust = 0.55 + 0.45 * sin(uTime * (0.9 + amp * 1.5) - along * 0.15);
+        wp.xz += stir * (0.012 + 0.018 * amp) * (1.0 - 0.6 * strong) + uWindDir * (0.08 * strong * gust);
+      } else {
+        float h = sk > 2.5 ? 1.0 + uv.y : uv.y;          // the upper half of a tall plant carries on from the lower
+        float wave = 0.65 + 0.35 * sin(uTime * (1.0 + amp * 2.0) - along * 0.35);
+        wp.xz += uWindDir * (amp * h * 0.2 * wave);
+      }
     }
+    vWp = wp.xyz;
     vSC = (uShadowMat * wp).xyz;             // position in the shadow map's [0,1] space
     vec4 mv = viewMatrix * wp;
     vDepth = -mv.z;
@@ -82,7 +177,7 @@ const FSH = /* glsl */`
   uniform float fogNear, fogFar;
   uniform highp sampler2DShadow tShadS;
   uniform highp sampler2DShadow tShadL;
-  uniform float uAmbient, uDirect, uLeafShadow, uShadowOn;
+  uniform float uAmbient, uDirect, uLeafShadow, uShadowOn, uFade;
   uniform vec3 uLightColor;
   uniform float uTintTile;
   uniform vec3 uTintColor;
@@ -94,7 +189,10 @@ const FSH = /* glsl */`
   in float vDepth;
   in float vBlock;
   in vec3 vSC;
+  in vec3 vWp;
   out vec4 fragColor;
+  ${CLOUD_GLSL}
+  ${SKY_GLSL}
   // soft 5-tap PCF: spreads the shadow edge across a few texels so the small per-update
   // sub-texel shifts of the moving sun read as a smooth gradient crawl, never a hard flicker
   // (and gives chunky, low-detail soft shadows that suit the voxel look)
@@ -108,8 +206,13 @@ const FSH = /* glsl */`
     // one layer of the texture array per tile, wrapping on its own (0.809): UVs are in tile units, so a
     // greedy quad repeats its texture with plain hardware wrapping and the mips never see a neighbour.
     // An animated tile (water, lava, 0.8093) looks up the layer of its current frame; the rest map to themselves.
-    vec2 tl = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 0), 0).rg;   // .g: its glow mask's layer, or -1 (0.8094)
+    // a chunk fading in or out is drawn in a fine dither, more of it each frame (0.8195): no sorting, no pop
+    if (uFade < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= uFade) discard;
+    vec4 tlv = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 0), 0);
+    vec2 tl = tlv.rg;                                 // .g: its glow mask's layer, or -1 (0.8094)
     vec4 tex = texture(map, vec3(vUv, tl.x));
+    // an animated tile eases into its next frame (0.8193): .a is that frame's layer plus how far along it is
+    if (tlv.a >= 0.0) tex = mix(tex, texture(map, vec3(vUv, floor(tlv.a))), fract(tlv.a));
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
     // sun/moon shadows: soft PCF compare against the two depth maps; outside the shadow
@@ -133,11 +236,14 @@ const FSH = /* glsl */`
     // part-linear curve: light-source edges (low levels) stay visibly bright instead of
     // quadratic-fading to black; peak slightly above the old 1.15
     vec3 block = uGlowColor * (bl * 0.45 + bl * bl * 0.85);
-    vec3 lit = tex.rgb * vShade * (uLightColor * (uAmbient + direct) * skyF + block);
+    // under a cloud the sky's light is less (0.815): a little for a white one, 75% for a dark one; caves never notice
+    vec3 lit = tex.rgb * vShade * (uLightColor * (uAmbient + direct) * skyF * mix(1.0, cloudShade(vWp), sky) + block);
     // a light source's glowing pixels keep their own colour whatever the light around them (0.8094)
     if (tl.y >= 0.0) lit = mix(lit, tex.rgb, texture(map, vec3(vUv, tl.y)).a);
     float fog = smoothstep(fogNear, fogFar, vDepth);
-    fragColor = vec4(mix(lit, fogColor, fog), tex.a);
+    vec3 fogC = fogColor;
+    if (fog > 0.0) fogC += skyHaze(normalize(vWp - cameraPosition));   // the far land takes the sky's glow (0.817)
+    fragColor = vec4(mix(lit, fogC, fog), tex.a);
   }`;
 
 // Water-specific vertex shader: sinusoidal Y-wave on top faces (shade ≈ 1.0)
@@ -147,13 +253,14 @@ const VSH_WATER = /* glsl */`
   in float blockLight;
   uniform float uLightOverride;
   uniform mat4 uShadowMat;
-  uniform float uTime;
+  uniform float uTime, uTide, uWaveMul;
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
   out float vDepth;
   out float vBlock;
   out vec3 vSC;
+  out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
     vUv = uv; vTile = tile; vShade = shade;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
@@ -169,13 +276,17 @@ const VSH_WATER = /* glsl */`
          harmless.) A low-frequency swell field varies wave height across the ocean instead: it is
          smooth in world space, so both sides of any shared edge always agree. */
       float swell = 0.65 + 0.35 * sin(wp.x * 0.035 + 1.7) * cos(wp.z * 0.028 - 0.9);
-      float amp = 0.085 * swell;
+      float amp = 0.085 * swell * uWaveMul;             // bigger waves round a full or new moon (0.8191)
+      /* The tide (0.8191): the sea's surface (sea-level water only, so a mountain lake keeps still) sinks by uTide
+         at low water. Only ever DOWN from full: raised above its cell the sheet would float over the beach. */
+      if (wp.y > 99.4 && wp.y < 100.3) wp.y -= uTide;
       // three octaves at low spatial frequency: long rolling swells rather than fast ripples,
       // with a diagonal cross-wave so the pattern never looks like a plain grid
       wp.y += sin(wp.x * 0.55 + uTime * 1.5) * amp
             + cos(wp.z * 0.42 + uTime * 1.15) * amp * 0.75
             + sin((wp.x + wp.z) * 0.9 + uTime * 2.4) * amp * 0.35;
     }
+    vWp = wp.xyz;
     vSC = (uShadowMat * wp).xyz;
     vec4 mv = viewMatrix * wp;
     vDepth = -mv.z;
@@ -211,6 +322,7 @@ const VSH_LAVA = /* glsl */`
   out float vDepth;
   out float vBlock;
   out vec3 vSC;
+  out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
     vUv = uv; vTile = tile; vShade = shade;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
@@ -219,6 +331,7 @@ const VSH_LAVA = /* glsl */`
       wp.y += sin(wp.x * 0.55 + uTime * 0.45) * 0.045
             + cos(wp.z * 0.45 + uTime * 0.35) * 0.03;
     }
+    vWp = wp.xyz;
     vSC = (uShadowMat * wp).xyz;
     vec4 mv = viewMatrix * wp;
     vDepth = -mv.z;

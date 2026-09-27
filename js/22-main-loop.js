@@ -37,14 +37,113 @@ const FALL_MAX_PER_TICK = 24;
    DELETED on sight — leaving them is what let a few hundred dead keys sit at the head of the map
    and starve every live one behind them. */
 const FALL_SCAN_LIMIT = 512;
+/* BLOCKS IN THE AIR (0.8193). A whole block (sand, gravel) used to step down one cell a tick, and every step was two
+   setBlocks that each changed a column's opacity, so each re-flooded sky light (~4ms): a sand column collapsing
+   cost hundreds of those and froze the game. Now it leaves its cell once, falls as a moving block, and lands once,
+   and the lighting of a whole tick's worth of those edits is redone once per area (_litEdits). Past
+   FALL_BLOCKS_MAX in the air, or away from every player, a block drops straight to where it would land. Layer
+   stacks (snow, litter, loose piles) are see-through, cost no relight, and still step down cell by cell. */
+const FALL_BLOCKS = [];                 // { group, val, x, z, y (its bottom), vy }
+const FALL_BLOCKS_MAX = 64;
+const FALL_G = 32, FALL_VMAX = 40;
+/* Block edits with lighting held back, then relit once per 16x16 area they touched: one sky rebuild over the area
+   (reskyAround's box form) and, where a light is near, one block-light rebuild. */
+function _litEdits(cells, fn) {
+  const prev = structBulkLight;
+  structBulkLight = true;
+  try { fn(); } finally { structBulkLight = prev; }
+  if (prev || !cells.length) return;
+  const areas = new Map();
+  for (const [x, y, z] of cells) {
+    const k = (x >> 4) + ',' + (z >> 4);
+    let a = areas.get(k);
+    if (!a) areas.set(k, a = { x0: x, x1: x, y0: y, y1: y, z0: z, z1: z, glow: false });
+    a.x0 = Math.min(a.x0, x); a.x1 = Math.max(a.x1, x); a.y0 = Math.min(a.y0, y); a.y1 = Math.max(a.y1, y);
+    a.z0 = Math.min(a.z0, z); a.z1 = Math.max(a.z1, z);
+    if (!a.glow && glowNear(x, y, z)) a.glow = true;
+  }
+  for (const a of areas.values()) {
+    reskyAround(a.x0, 0, a.z0, a.x1, a.z1);
+    if (a.glow) relight(a.x0, a.y0, a.z0, a.x1, a.y1, a.z1);
+  }
+}
+// where a block dropped from (x, y, z) comes to rest: the lowest open cell it can reach
+function _landingY(x, y, z) {
+  let c = y;
+  while (c > 1 && _fallOpen(getBlock(x, c - 1, z) & 255)) c--;
+  return c;
+}
+/* A whole sand, gravel or fiber block lands as a loose pile of 8 walk-through layers, pouring into a stack below
+   that takes it (0.786); a falling stack pours the same way (0.785). */
+function _settlePile(x, y, z, val) {
+  const top = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : new Array(LAYER_MAX).fill(val & 255);
+  if (!top) return;
+  const below = getBlock(x, y - 1, z);
+  if (canStackLayer(below, top[0])) {
+    const bottom = layerIdsAt(x, y - 1, z, below), room = LAYER_MAX - bottom.length;
+    setLayerStack(x, y - 1, z, bottom.concat(top.slice(0, room)));
+    setLayerStack(x, y, z, top.slice(room));
+  } else if (!CORE.layerCount(val)) setLayerStack(x, y, z, top);   // a whole block settles into its pile
+}
+function _landBlocks(list) {
+  _litEdits(list, () => {
+    for (const [x, y0, z, val] of list) {
+      let y = y0;
+      for (let k = 0; k < 4 && y < 199 && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
+      if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
+        if (!player.canFly) for (const d of blockDrop(val & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
+        continue;
+      }
+      crushBillboard(x, y, z);
+      setBlock(x, y, z, val);
+      if (LOOSE_LAYER_BLOCKS.has(val)) _settlePile(x, y, z, val);
+    }
+  });
+}
+function _spawnFallBlock(x, y, z, val) {
+  const passes = buildDropGeom(val & 255, (val >> 8) & 255);
+  if (!passes.length) return false;
+  const group = new THREE.Group();
+  for (const { p, geo, mat, node } of passes) group.add(node || new THREE.Mesh(geo, mat || MATERIALS[p]));
+  group.traverse(o => o.layers.set(1));          // drawn, but kept out of the shadow maps
+  group.position.set(x + 0.5, y + 0.5, z + 0.5);
+  scene.add(group);
+  FALL_BLOCKS.push({ group, val, x, z, y, vy: 0 });
+  return true;
+}
+function _updateFallBlocks(dt) {
+  if (!FALL_BLOCKS.length) return;
+  const landed = [];
+  for (let i = FALL_BLOCKS.length - 1; i >= 0; i--) {
+    const f = FALL_BLOCKS[i];
+    if (!inSimRange(f.x, f.z)) continue;                             // frozen out of range, like the queue
+    f.vy = Math.max(-FALL_VMAX, f.vy - FALL_G * dt);
+    const ny = f.y + f.vy * dt;
+    // the first whole cell it reaches this frame that has no room under it is where it stops
+    let land = null;
+    for (let c = Math.floor(f.y); c >= Math.ceil(ny); c--)
+      if (c <= 1 || !_fallOpen(getBlock(f.x, c - 1, f.z) & 255)) { land = c; break; }
+    if (land == null) { f.y = ny; f.group.position.y = ny + 0.5; continue; }
+    landed.push([f.x, Math.max(1, land), f.z, f.val]);
+    scene.remove(f.group);
+    FALL_BLOCKS.splice(i, 1);
+  }
+  if (landed.length) _landBlocks(landed);
+}
+function clearFallBlocks() {
+  for (const f of FALL_BLOCKS) scene.remove(f.group);
+  FALL_BLOCKS.length = 0;
+  fallingBlocks.clear();
+}
 function processFalling(dt) {
+  _updateFallBlocks(dt);
   _fallTimer += dt;
   if (_fallTimer < 0.08) return;
   _fallTimer -= 0.08;
-  const todo = [], settle = [];
+  const todo = [], starts = [], settle = [];
   let scanned = 0;
   for (const [k, val] of fallingBlocks) {         // deleting during iteration is safe on a Map
-    if (todo.length >= FALL_MAX_PER_TICK || ++scanned > FALL_SCAN_LIMIT) break;
+    if (todo.length + starts.length >= FALL_MAX_PER_TICK || ++scanned > FALL_SCAN_LIMIT) break;
     const [x, y, z] = k.split(',').map(Number);
     if (!inSimRange(x, z)) continue;              // frozen out of range — keep it queued
     if (getBlock(x, y, z) !== val) { fallingBlocks.delete(k); continue; }        // stale
@@ -57,7 +156,9 @@ function processFalling(dt) {
       continue;
     }
     fallingBlocks.delete(k);
-    todo.push([x, y, z, val]);
+    // a see-through stack steps down a cell; a whole block takes to the air (0.8193)
+    if (CORE.layerCount(val) || !CORE.opaqueVal(val)) todo.push([x, y, z, val]);
+    else starts.push([x, y, z, val]);
   }
   for (const [x, y, z, val] of todo) {
     // a mixed stack carries its list of blocks down with it (0.785)
@@ -67,16 +168,18 @@ function processFalling(dt) {
     if (ids) setLayerStack(x, y - 1, z, ids);
     else setBlock(x, y - 1, z, val);             // variant travels with it
   }
-  for (const [x, y, z, val] of settle) {
-    const top = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : new Array(LAYER_MAX).fill(val & 255);
-    if (!top) continue;
-    const below = getBlock(x, y - 1, z);
-    if (canStackLayer(below, top[0])) {
-      const bottom = layerIdsAt(x, y - 1, z, below), room = LAYER_MAX - bottom.length;
-      setLayerStack(x, y - 1, z, bottom.concat(top.slice(0, room)));
-      setLayerStack(x, y, z, top.slice(room));
-    } else if (!CORE.layerCount(val)) setLayerStack(x, y, z, top);   // a whole block settles into its pile
+  if (starts.length) {
+    const now = [];
+    _litEdits(starts, () => {
+      for (const [x, y, z, val] of starts) {
+        setBlock(x, y, z, B.AIR);
+        const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
+        if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) now.push([x, _landingY(x, y, z), z, val]);
+      }
+    });
+    if (now.length) _landBlocks(now);
   }
+  if (settle.length) _litEdits(settle, () => { for (const [x, y, z, val] of settle) _settlePile(x, y, z, val); });
 }
 
 /* ---- simulation wake-up (0.7141) ----
@@ -1006,6 +1109,7 @@ function frame(now) {
     updateStructOutline();                  // drop the capture box if its block was broken
     processPlacementQueue();                // villages/dungeons assemble a few cells per frame
     updateFallingLeaves(dt);                // canopy coming down after a tree was felled
+    updateStorms(dt);                       // lightning, fire, hail, the aurora (0.819)
   }
 
   // fps
@@ -1183,7 +1287,17 @@ function tickPlayer(dt, now, slot) {
      or asleep, and not where it is sheltered (windShelter). */
   if (!player.flying && player.spawned && !menuScene && !joining && !benching && !inWater && !player.riding && !lying && !(fwd || str)) {
     const dr = windDrift(player, dt);
-    if (dr) movePlayer(dr[0], 0, dr[1]);
+    if (dr) {
+      // sneaking holds the edge against it, the same catch a sneaking walk gets (0.818)
+      let [ddx, ddz] = dr;
+      const p = player.pos;
+      if (player.sneaking && onGroundAt(p.x, p.y, p.z) && !onGroundAt(p.x + ddx, p.y, p.z + ddz)) {
+        if (onGroundAt(p.x + ddx, p.y, p.z))      ddz = 0;
+        else if (onGroundAt(p.x, p.y, p.z + ddz)) ddx = 0;
+        else                                      ddx = ddz = 0;
+      }
+      if (ddx || ddz) movePlayer(ddx, 0, ddz);
+    }
   }
   updateFootsteps(grounded);
   // sprint also releases when movement input stops, and on any fly<->walk transition
@@ -1434,7 +1548,12 @@ function tickPlayer(dt, now, slot) {
               // each salt layer rolls its salt like a whole crust does (0.8097)
               for (const drop of blockDrop(L, false))
                 for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-            } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand/fiber layer gives nothing (0.786)
+            } else if (L === B.ASH) {
+              if (rollLoot(LOOT.ashLayer)) spawnDrop(ITEM.ASHES, mx, my, mz);   // an ash carpet: ashes half the time (0.8191)
+            } else if (L === B.FIBER_BLOCK) {
+              // a fiber carpet comes apart into fiber (0.819): LOOT.fiberCarpet
+              for (let i = rollLoot(LOOT.fiberCarpet); i > 0; i--) spawnDrop(ITEM.FIBER, mx, my, mz);
+            } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand layer gives nothing (0.786)
           }
         } else {
           setBlock(mx, my, mz, B.AIR);
@@ -1578,6 +1697,7 @@ function runWorldTick(dt, now) {
   const _catchUp = genFinishQueue.length > 6 || meshResults.length > 12;
   const _streamDeadline = performance.now() + (_rush ? 30 : _catchUp ? 12 : 5);
   processGenFinish(_rush ? 8 : _catchUp ? 6 : 2, _streamDeadline);
+  updateChunkFades(dt);                     // chunks fading in and out (0.8195)
   applyMeshResults(_rush ? 48 : _catchUp ? 32 : 12, _streamDeadline);
   pump();
 
@@ -1588,7 +1708,7 @@ function runWorldTick(dt, now) {
   if (menuScene) {
     if (_menuVeil) {
       let ready = true;
-      const R = viewDist;
+      const R = drawDist();                  // the far ring too (0.8194): nothing pops in behind the title
       outerMenu: for (let dz = -R; dz <= R; dz++)
         for (let dx = -R; dx <= R; dx++) {
           if (dx * dx + dz * dz > R * R) continue;
@@ -1704,6 +1824,7 @@ function runWorldTick(dt, now) {
 
   /* ---- sky, lighting & shadow maps, then one render pass per player ---- */
   updateDayNight(worldJoining() ? 0 : dt);     // the clock waits for the world too (0.759)
+  updateClouds(worldJoining() ? 0 : dt);        // the cloud layer drifts with the wind (0.815)
   renderAllViews(dt);
 
   /* ---- HUD text (after the render so draw/tri stats reflect the main pass) ---- */
@@ -1719,7 +1840,7 @@ function runWorldTick(dt, now) {
    must not turn everyone else's view blue. */
 function applyEyeVolumeFog() {
   const eyeId = getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) & 255;
-  const far = viewDist * 16;
+  const far = drawDist() * 16;              // over the far ring (0.8193)
   if (eyeId === B.LAVA) {
     sharedUniforms.fogColor.value.set(0.72, 0.22, 0.0);
     renderer.setClearColor(sharedUniforms.fogColor.value);
@@ -1737,12 +1858,23 @@ function applyEyeVolumeFog() {
     // restore whatever updateDayNight computed for this instant — the previous viewport may have
     // been submerged and left the murk behind
     sharedUniforms.fogColor.value.copy(_skyFogColor);
-    renderer.setClearColor(sharedUniforms.fogColor.value);
     sharedUniforms.uAmbient.value = _skyAmbient;
     sharedUniforms.uDirect.value  = _skyDirect;
     sharedUniforms.fogNear.value = far * 0.55;
     sharedUniforms.fogFar.value  = far * 0.98;
+    sharedUniforms.uSkyFog.value = 0; sharedUniforms.uHaze.value = 1;   // open sky (0.817); applyMist may fog it
+    applyMist(camera);                                    // weather fog and the rainbow where this eye is (0.816)
+    renderer.setClearColor(sharedUniforms.fogColor.value);
   }
+  // under water or in lava the sky is only murk: no dome, sun, moon, stars, flare or haze (0.817)
+  if (eyeId === B.LAVA || eyeId === B.WATER) {
+    sharedUniforms.uSkyFog.value = 1; sharedUniforms.uHaze.value = 0;
+    skyVisibility(0); rainbowMesh.visible = false;
+  }
+  // everything drawn with three's own materials (mobs, gear, doors) fogs with the land since 0.816
+  scene.fog.color.copy(sharedUniforms.fogColor.value);
+  scene.fog.near = sharedUniforms.fogNear.value;
+  scene.fog.far = sharedUniforms.fogFar.value;
 }
 
 /* The first-person arm, drawn on top of the finished view with its own cleared depth buffer.
@@ -1753,11 +1885,14 @@ function renderHandPass() {
   /* hand scene: force neutral-bright uniforms so held items are never dark at night or in caves.
      Shadow coords (vSC) are in world space and meaningless for hand geometry, so disable shadow. */
   const _hsa = sharedUniforms.uAmbient.value, _hsd = sharedUniforms.uDirect.value, _hss = sharedUniforms.uShadowOn.value;
+  const _hsc = sharedUniforms.uCloudOn.value;   // cloud shade is world space too (0.815)
   _handSaveLC.copy(sharedUniforms.uLightColor.value);
   sharedUniforms.uAmbient.value = 1.0; sharedUniforms.uDirect.value = 0.0; sharedUniforms.uShadowOn.value = 0.0;
+  sharedUniforms.uCloudOn.value = 0;
   sharedUniforms.uLightColor.value.set(1, 1, 1);
   renderer.render(handScene, handCam);
   sharedUniforms.uAmbient.value = _hsa; sharedUniforms.uDirect.value = _hsd; sharedUniforms.uShadowOn.value = _hss;
+  sharedUniforms.uCloudOn.value = _hsc;
   sharedUniforms.uLightColor.value.copy(_handSaveLC);
   renderer.autoClear = true;
 }
@@ -1765,6 +1900,12 @@ function renderHandPass() {
 // any other weather blending in here with at least a fifth of the weight (0.813), e.g. " (storm 30%)"
 const _dbgMix = (w) => Object.entries(w.mix || {}).filter(([t, v]) => t !== w.type && v >= 0.2)
   .map(([t, v]) => ` (${t} ${Math.round(v * 100)}%)`).join('');
+// the morning / after-rain fog and a rainbow where the player stands, when there is any (0.816)
+const _dbgMist = () => {
+  const m = mistAt(player.pos.x, player.pos.z);
+  return (m.light >= 0.05 ? ` &middot; mist ${Math.round(m.light * 100)}%` : '') + (m.bow >= 0.05 ? ` &middot; rainbow ${Math.round(m.bow * 100)}%` : '')
+       + (typeof isBloodMoon === 'function' && isBloodMoon() ? ' &middot; blood moon' : '');   // 0.8192
+};
 // the date, weather and wind lines of the debug read-out (0.81)
 function _dbgDate() {
   const d = gameDate(), w = weatherAt(player.pos.x, player.pos.z, player.pos.y);
@@ -1773,8 +1914,10 @@ function _dbgDate() {
   const soon = weatherAt(player.pos.x, player.pos.z, player.pos.y, 1).speed;
   const trend = soon > w.speed + 1 ? '&gt;' : soon < w.speed - 1 ? '&lt;' : '=';
   const felt = windShelter(player);
-  return `Day ${worldDay} &middot; ${d.day} ${MONTH_NAMES[d.month]}, year ${d.year} (${SEASON_NAMES[d.season]})<br>` +
-    `weather: ${w.name}${_dbgMix(w)}${w.next ? ` &rarr; ${w.nextName} in ${w.nextIn}h` : ''}<br>` +
+  // today's sunrise and sunset (0.818): the days lengthen and shorten with the season
+  const st = sunTimes(), hm = (t) => { const m = Math.round((((t * 24 + 6) % 24) + 24) % 24 * 60); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  return `Day ${worldDay} &middot; ${d.day} ${MONTH_NAMES[d.month]}, year ${d.year} (${SEASON_NAMES[d.season]}) &middot; ${moonPhaseName()} &middot; sun ${hm(st.rise)}-${hm(st.set)}<br>` +   // moon 0.817
+    `weather: ${w.name}${_dbgMix(w)}${w.next ? ` &rarr; ${w.nextName} in ${w.nextIn}h` : ''}${_dbgMist()}<br>` +
     `wind: ${w.speed.toFixed(0)} km/h ${trend} ${soon.toFixed(0)} &middot; ${w.dir.toFixed(0)}&deg; ${wdir}` +
     (felt < 1 ? ` &middot; ${felt === 0 ? 'sheltered' : 'felt ' + Math.round(felt * 100) + '%'}` : '');
 }

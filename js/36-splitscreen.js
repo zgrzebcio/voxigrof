@@ -733,7 +733,7 @@ function renderAllViews(dt) {
        else's — that is the whole point of sharing a world. */
     for (let j = 0; j < n; j++) {
       const other = PSTATE[j];
-      other.selfModel.root.visible = (j === i)
+      other.selfModel.root.visible = menuScene ? false : (j === i)   // nobody stands in the title view (0.8194)
         ? !!other.player._bodyVisibleToSelf
         : (other.player.spawned && !menuScene);
       // a name tag is for everyone ELSE — nobody needs their own name hanging over their head
@@ -761,7 +761,7 @@ function renderAllViews(dt) {
       const off = HAND_RIGS[j].root.userData.off;       // the shield arm follows the same rule
       if (off) off.root.visible = (j === i) && !!PSTATE[j].offVisible;
     }
-    if (camView === 0 && PSTATE[i].handVisible && !(typeof hudHidden !== 'undefined' && hudHidden)) {   // Backspace hides it (0.801)
+    if (!menuScene && camView === 0 && PSTATE[i].handVisible && !(typeof hudHidden !== 'undefined' && hudHidden)) {   // no hand on the title (0.8194)   // Backspace hides it (0.801)
       handCam.aspect = v.w / Math.max(1, v.h);
       handCam.updateProjectionMatrix();
       renderHandPass();

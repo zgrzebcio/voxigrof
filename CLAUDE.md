@@ -53,6 +53,13 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   relight radii use `LIGHT_REACH` (08), not `GLOW_LEVEL`.
 - **Look variants in bits (0.809):** furnace rock bits 3-5, bench wood bits 2-4 (`V` in 02), chest wood
   bits 4-5 (`CHEST_WOOD_SHIFT`, 30). The variant bar places them through `bits` in `BLOCK_VARIANTS` (46).
+- **Light through shapes (0.819):** `CORE.lightDim(v)` is how many extra levels light loses LEAVING a shaped cell of an
+  opaque block (slab 4, stairs 6...). Sky/block light queues carry the outgoing level; setBlock relights when it changes.
+- **Biome revision (0.819):** `makeGen(seed, type, biomeRev)`; worlds keep `w.biomeRev` (missing = 1; 2 bigger snow/desert;
+  3 (0.8193) fewer desert hills — new worlds), so old worlds' new chunks still match their old ones.
+- **Far ring (0.8193):** `drawDist()` = `viewDist` + `FAR_RING` (4) chunks loaded and drawn at LOD 2, no creatures shown; fog and camera
+  reach use drawDist. `viewDist` is still the full-detail setting.
+- **Batched lighting (0.8193):** `relight`/`reskyAround` take a box (x2, y2, z2); `_litEdits` (22) runs edits with light held and relights once per area.
 - **Value-based helpers.** Ask a whole cell value what it is with `CORE.shapeOfVal`, `solidVal`,
   `opaqueVal` and `shapeBoxesAt`. Do not check the bare id.
 
@@ -63,7 +70,7 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 01-textures-data / 03-atlas / 04-materials | texture list, texture array build and cache, three.js materials and shaders |
 | 02-voxel-core | block ids `B`, `PROPS`, items, shapes (`SHAPE_*`, `shapeBoxesAt`), worldgen (`genChunk`), trees, mesher (`meshChunk`, `emitLog`, water) |
 | 05-icons | inventory icons, rendered from the mesher |
-| 06-renderer / 07-sky | scene and camera, sky, day/night |
+| 06-renderer / 07-sky | scene and camera, sky, day/night. Sky 0.817: dome shader (`skyDomeMat`, haze `SKY_GLSL` in 04 shared with fog), sun, moon phase (`moonPhase`, own wheel `moonSky`), stars, meteors, lens flare (`_aimFlare`); `skyLightDir` = shadow light. 0.818: sun path by season (`SKY_LAT`, `sunDeclination`), `sunTimes`/`isDarkTime` = night for mobs, beds, particles |
 | 08-light-glow / 09-light-sky | block light, sky light |
 | 10-workers | worker pool for meshing and worldgen |
 | 11-chunks | chunk load/unload, `getBlock`/`setBlock`, layer stacks, snow/grass hooks, terrain cache |
@@ -97,5 +104,7 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 48-menu-ui | `uiConfirm` dialog, menu gamepad cursor (`updateMenuPad`) |
 | 49-particles | particles: pools (`FX.bits`, `FX.sprites`, `FX.decals`), `fx*` emitters, ambient sampling, `updateParticles` |
 | 50-loottable | `LOOT` roll lists (`[[count, chance], ...]`), `rollLoot`, `lootBonus` (Prospector/Butcher), `blockDrop` |
-| 51-seasons | calendar (`gameDate`, `seasonGrowth`), weather and wind (`weatherAt`), season sweep (`SEASON_MEM`, `_seasonChunk`), wheat growth |
+| 51-seasons | calendar (`gameDate`, `seasonGrowth`; `seasonsOn()` false = world fixed on 1 July, 0.818; title backdrop's random day `randomTitleDay` + `seasonDressChunk`, 0.8194), weather and wind (`weatherAt`), season sweep (`SEASON_MEM`, `_seasonChunk`), wheat growth |
+| 52-clouds | cloud layer: raymarched in a shader (`cloudMat`), cover/dark per weather (`CLOUD_COVER`), wind drift (`updateClouds`); shared GLSL + ground shade `CLOUD_GLSL` in 04. Fog per eye (`applyMist`, schedule `mistAt` in 51), rainbow (`rainbowMesh`) |
+| 53-storms | lightning (`strikeLightning`, bolts, thunder), fire on players/creatures (`fireT`, `_entBurnDeath` in 28), hail (`hailAt` in 51), aurora strength (`uAurora` on the sky dome). Fire blocks (0.8191): `B.FIRE` (model 'none', light 13) tracked in `FIRE_CELLS`, `igniteAt`, burn table `_BURN`, ash `B.ASH` |
 | css/style.css | all UI styling |

@@ -35,6 +35,8 @@ const LOOT = {
   wheat:       [[1, 1], [1, 0.4]],
   melon:       [[2, 1], [1, 0.7], [1, 0.5], [1, 0.3], [1, 0.15]],
   salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second (0.8097)
+  fiberCarpet: [[1, 0.6], [1, 0.05]],                         // a fiber carpet layer: 60% one fiber, 5% a second (0.819)
+  ashLayer:    [[1, 0.5]],                                    // an ash layer: ashes half the time (0.8191)
   // leaves, as they decay (or cut with a tool); by bare hand every chance is halved
   stick:       [[1, 0.3], [1, 0.15], [1, 0.03], [1, 0.005]],
   apple:       [[1, 0.01]],
@@ -84,6 +86,8 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
   if (blockId === B.STONE_PEBBLE) return [{ id: ITEM.STONE_PEBBLE, count: 1 }];   // 0.8095
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
+  if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash (0.8191)
+  if (blockId === B.FIRE) return [];
   // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
   // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)

@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.81';      // 0.81: wheat growth stages
+const GAME_VERSION = '0.8191';    // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
@@ -64,6 +64,13 @@ let   simRadius = clampi(parseInt(localStorage.getItem('vg_sim')) || DEFAULT_SIM
 /* Never larger than the render distance — simulating chunks that do not exist is meaningless,
    so lowering render distance quietly clamps the effective simulation radius with it. */
 const simDist = () => Math.max(SIM_DIST_MIN, Math.min(simRadius, viewDist));
+/* ---- the far ring (0.8193) ----
+   FAR_RING more chunks are always built and drawn past the render distance, cheaply: at the lowest level of
+   detail (a 2x2x2 downsample, no small things), with no creatures shown and no simulation, and the fog pushed out
+   over them. The world reads as reaching further than the full-detail radius the machine is set to carry.
+   The title backdrop has it too since 0.8194. `drawDist()` is how far chunks are drawn; `viewDist` stays the full-detail setting. */
+const FAR_RING = 4;
+const drawDist = () => viewDist + FAR_RING;
 /* ---- split screen (0.72) ----
    Every radius in the game is measured from "the player". With up to four of them on one screen
    the honest question is always "how far is the NEAREST player", so that is what this answers.

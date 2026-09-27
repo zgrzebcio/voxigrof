@@ -37,7 +37,12 @@ const WEATHER_AHEAD_H = 12;
 const worldClockDays = () => (typeof worldDay !== 'undefined' ? worldDay + worldTime : 0);
 /* The date at a moment (in days since the world began): day of month, month, year, season, and how far
    through that season it is (0..1). */
+/* A world made with seasons off (0.818, the create screen) stays on 1 July for good: summer weather, summer
+   growth, July's long days, and no season sweep. Worlds from before it have no flag and keep their seasons. */
+const seasonsOn = () => !(typeof currentWorld !== 'undefined' && currentWorld && currentWorld.seasons === false);
+const FIXED_DAY = ((6 - START_MONTH + 12) % 12) * MONTH_DAYS;   // 1 July, in days from the world's start
 function gameDate(t = worldClockDays()) {
+  if (!seasonsOn()) t = FIXED_DAY + (t - Math.floor(t));
   const dayIdx = Math.floor(t);
   const monthsIn = Math.floor(dayIdx / MONTH_DAYS);
   const month = (START_MONTH + monthsIn) % 12;
@@ -96,7 +101,10 @@ function _weatherStretch(rx, rz, H) {
   while (cuts[i + 1] <= h) i++;
   return { start: E * 24 + cuts[i], end: E * 24 + cuts[i + 1] };
 }
+// the title backdrop has no weather (0.8198): always clear skies, a light breeze, fair-weather clouds, no fog
+const _titleCalm = () => typeof menuScene !== 'undefined' && menuScene;
 function _pickWeather(rx, rz, start) {
+  if (_titleCalm()) return 'clear';
   const season = gameDate(start / 24).season, kind = regionKind(rx, rz);
   const w = WEATHER_TYPES.map(t => {
     let v = WEATHER_WEIGHT[t] * ((WEATHER_SEASON[t] || [1, 1, 1, 1])[season]);
@@ -188,14 +196,162 @@ function windShelter(p) {
   return (row(fy) + row(hy)) / 2;
 }
 /* A player standing still in a strong wind is pushed along by it (0.812): the same push, as a share of a
-   walking pace, in the direction it blows. */
+   walking pace, in the direction it blows — half of it since 0.818 (WIND_DRIFT_SCALE). A sneaking player is
+   never carried off an edge by it (22-main-loop.js). */
+const WIND_DRIFT_SCALE = 0.5;
 function windDrift(p, dt) {
   const w = weatherAt(p.pos.x, p.pos.z, p.pos.y), push = windPush(w);
   if (!push) return null;
   const s = push * windShelter(p);
   if (!s) return null;
-  const [wx, wz] = windVector(w.dir), v = (p.walkSpeed || 4.3) * s * dt;
+  const [wx, wz] = windVector(w.dir), v = (p.walkSpeed || 4.3) * s * WIND_DRIFT_SCALE * dt;
   return [wx * v, wz * v];
+}
+
+/* ================================== fog and rainbows (0.816) ==================================
+   Besides foggy weather (thick: FOG_DENSE_FAR in 52-clouds.js), a region can have a lighter fog: on a quarter
+   of mornings from 3 to 6 o'clock, and after half the rains and storms for FOG_AFTER_H hours once they end.
+   One rain or storm in ten leaves a rainbow for RAINBOW_H hours. All of it is hashed like the weather, so it is
+   the same for everyone and after a reload. */
+const FOG_MORNING_CHANCE = 0.25, FOG_AFTER_RAIN_CHANCE = 0.5, RAINBOW_CHANCE = 0.1;
+const FOG_MORNING_FROM = 3, FOG_MORNING_TO = 6;           // o'clock, with half an hour to come and go each side
+const FOG_AFTER_H = 2.5, RAINBOW_H = 2.5;                 // in-game hours after the rain ends
+const _WET = new Set(['rainy', 'storm']);
+// the hour the region's rain or storm ended, if the stretch it is in now came straight after one; else null
+function _rainEndedAt(rx, rz, H) {
+  const s = _weatherStretch(rx, rz, H);
+  if (_WET.has(_pickWeather(rx, rz, s.start))) return null;
+  return _WET.has(_pickWeather(rx, rz, _weatherStretch(rx, rz, s.start - 0.01).start)) ? s.start : null;
+}
+// a 0..1 bump: rises over `inH` from `from`, holds, falls over `outH` to `to`
+const _bump = (h, from, to, inH, outH) => Math.max(0, Math.min(1, (h - from) / inH, (to - h) / outH));
+// one region's light fog (0..1) and rainbow (0..1) at hour H
+function _regionMist(rx, rz, H) {
+  let fog = 0, bow = 0;
+  const clock = ((H + 6) % 24 + 24) % 24, day = Math.floor((H + 6) / 24);   // the clock reads 06:00 at sunrise
+  if (regionKind(rx, rz) !== 'warm' && sHash(rx, rz, day, 31) < FOG_MORNING_CHANCE)
+    fog = _bump(clock, FOG_MORNING_FROM - 0.5, FOG_MORNING_TO + 0.5, 0.5, 0.5);
+  const end = _rainEndedAt(rx, rz, H);
+  if (end != null) {
+    const since = H - end, e = Math.floor(end);
+    if (sHash(rx, rz, e, 33) < FOG_AFTER_RAIN_CHANCE) fog = Math.max(fog, _bump(since, 0, FOG_AFTER_H, 0.25, 0.75));
+    if (sHash(rx, rz, e, 35) < RAINBOW_CHANCE) bow = _bump(since, 0, RAINBOW_H, 0.25, 0.75);
+  }
+  return { fog, bow };
+}
+/* The mist at a world position, blended between region centres like weatherAt: `dense` is foggy weather's
+   share, `light` the morning / after-rain fog, `bow` the rainbow. */
+function mistAt(x, z) {
+  if (_titleCalm()) return { dense: 0, light: 0, bow: 0 };        // no fog or rainbow on the title (0.8198)
+  const H = worldClockDays() * 24;
+  const u = x / REGION_BLOCKS - 0.5, v = z / REGION_BLOCKS - 0.5;
+  const i0 = Math.floor(u), j0 = Math.floor(v), fu = _smooth(u - i0), fv = _smooth(v - j0);
+  let dense = 0, light = 0, bow = 0;
+  for (const [di, dj, wgt] of [[0, 0, (1 - fu) * (1 - fv)], [1, 0, fu * (1 - fv)], [0, 1, (1 - fu) * fv], [1, 1, fu * fv]]) {
+    if (wgt <= 0) continue;
+    const rx = i0 + di, rz = j0 + dj, m = _regionMist(rx, rz, H);
+    if (_pickWeather(rx, rz, _weatherStretch(rx, rz, H).start) === 'foggy') dense += wgt;
+    light += m.fog * wgt; bow += m.bow * wgt;
+  }
+  return { dense, light, bow };
+}
+
+/* HAIL (0.819): about a third of storms bring hail, rolled once per storm like the rest of the weather. The share
+   at a position, blended between region centres like weatherAt; 53-storms.js does the rest. */
+const HAIL_CHANCE = 0.35;
+function hailAt(x, z) {
+  if (_titleCalm()) return 0;
+  const H = worldClockDays() * 24;
+  const u = x / REGION_BLOCKS - 0.5, v = z / REGION_BLOCKS - 0.5;
+  const i0 = Math.floor(u), j0 = Math.floor(v), fu = _smooth(u - i0), fv = _smooth(v - j0);
+  let hail = 0;
+  for (const [di, dj, wgt] of [[0, 0, (1 - fu) * (1 - fv)], [1, 0, fu * (1 - fv)], [0, 1, (1 - fu) * fv], [1, 1, fu * fv]]) {
+    if (wgt <= 0) continue;
+    const rx = i0 + di, rz = j0 + dj, s = _weatherStretch(rx, rz, H);
+    if (_pickWeather(rx, rz, s.start) === 'storm' && sHash(rx, rz, Math.floor(s.start), 51) < HAIL_CHANCE) hail += wgt;
+  }
+  return hail;
+}
+
+/* SNOWLINE (0.819): above it the ground keeps a cover of snow, in every biome. It follows the sun's year
+   (07-sky.js), so it sits high in summer and comes down the mountains in winter, and it is ragged by a block or
+   two either way. The season sweep lays the snow (_snowlineChunk); snow melt leaves anything above it alone
+   (33-felling.js), and below it the snow melts away as any snow outside a cold biome does. */
+const SNOWLINE_SUMMER = 176, SNOWLINE_WINTER = 134;
+function snowlineY(x, z) {
+  const s = typeof sunDeclination === 'function' ? sunDeclination() / SUN_DECL_MAX : 1;   // -1 midwinter .. 1 midsummer
+  return SNOWLINE_WINTER + (SNOWLINE_SUMMER - SNOWLINE_WINTER) * (s + 1) / 2
+       + 2 * Math.sin(x * 0.11 + z * 0.07) + 1.5 * Math.sin(z * 0.13 - x * 0.05);
+}
+// one chunk's columns: a snow cover on open ground above the snowline, deeper the higher it is
+function _snowlineChunk(c) {
+  const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16;
+  const line0 = snowlineY(wx0 + 8, wz0 + 8) - 4;              // nothing in this chunk can be near it: skip fast
+  for (let col = c._snowCol || 0; col < 256; col++) {
+    const lx = col & 15, lz = col >> 4, li = lx + (lz << 4);
+    let y = 199;
+    while (y > line0 && !data[li + (y << 8)]) y--;
+    if (y <= line0) continue;
+    const top = data[li + (y << 8)], x = wx0 + lx, z = wz0 + lz, line = snowlineY(x, z);
+    if (y < line || y >= 199) continue;
+    // on bare, solid, open ground only: not on leaves, snow already there, sand, or a plant
+    const tid = top & 255;
+    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND) continue;
+    if (_skyAt(c, li + ((y + 1) << 8)) < 15) continue;
+    if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._snowCol = col; return false; }
+    _seasonOps++;
+    setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1 + Math.min(3, Math.floor((y - line) / 6))));
+  }
+  c._snowCol = 0;
+  return true;
+}
+
+/* ================================== the title's season (0.8194) ==================================
+   The title backdrop has no seasons running, but it is set on a random day each time it is shown, so you see the
+   world in some season: winter 5% of the time, spring, summer and autumn a third of the rest each (31.7%). Its
+   chunks are dressed for that day as they arrive from the generator (seasonDressChunk: the leaves and plants that
+   season would have taken, and snow above the snowline), straight into their data, and the day is shown top left. */
+function randomTitleDay() {
+  const r = Math.random();
+  const season = r < 0.05 ? 3 : r < 0.05 + 0.95 / 3 ? 0 : r < 0.05 + 0.95 * 2 / 3 ? 1 : 2;
+  const month = [[2, 3, 4], [5, 6, 7], [8, 9, 10], [11, 0, 1]][season][(Math.random() * 3) | 0];
+  return ((month - START_MONTH + 12) % 12) * MONTH_DAYS + ((Math.random() * MONTH_DAYS) | 0);
+}
+function seasonDressChunk(c) {
+  const d = gameDate(), data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16;
+  if (d.season >= 2) {
+    const level = d.season === 3 ? 1.01 : d.progress;           // as far through the fall as the day is
+    for (let i = 95 << 8; i < data.length; i++) {               // above the caves: they have no seasons
+      const v = data[i], id = v & 255;
+      if (!(SEASON_LEAVES.has(id) || SEASON_PLANTS.has(id)) || CORE.layerCount(v)) continue;
+      const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
+      if (sHash(x, y, z, SEASON_LEAVES.has(id) ? 1 : 2) >= level) continue;
+      data[i] = 0;
+      if (id === B.TALL_LOWER && i + 256 < data.length && (data[i + 256] & 255) === B.TALL_UPPER) data[i + 256] = 0;
+    }
+  }
+  // the snowline, as _snowlineChunk lays it, and the grass under it snowy
+  for (let col = 0; col < 256; col++) {
+    const li = (col & 15) + ((col >> 4) << 4), x = wx0 + (col & 15), z = wz0 + (col >> 4), line = snowlineY(x, z);
+    let y = 198;
+    while (y > line && !data[li + (y << 8)]) y--;
+    if (y < line) continue;
+    const top = data[li + (y << 8)], tid = top & 255;
+    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || data[li + ((y + 1) << 8)]) continue;
+    data[li + ((y + 1) << 8)] = CORE.layerVal(B.SNOW, 1 + Math.min(3, Math.floor((y - line) / 6)));
+    if (tid === B.GRASS) data[li + (y << 8)] = B.GRASS | (V.GRASS_SNOWY << 8);
+  }
+}
+// the day and season in the title's top left corner
+const titleDateEl = document.createElement('div');
+titleDateEl.id = 'titleDate';
+titleDateEl.style.display = 'none';
+document.body.appendChild(titleDateEl);
+function showTitleDate(on) {
+  if (!on) { titleDateEl.style.display = 'none'; return; }
+  const d = gameDate();
+  titleDateEl.textContent = `${d.day} ${MONTH_NAMES[d.month]} · ${SEASON_NAMES[d.season]}`;
+  titleDateEl.style.display = '';
 }
 
 /* ================================== the seasons on the land ================================== */
@@ -234,6 +390,7 @@ function _placePlant(x, y, z, v) {
    have given. Returns false when it ran out of budget (it carries on next frame). */
 let _seasonOps = 0;
 function _seasonChunk(c) {
+  if (!seasonsOn()) return _snowlineChunk(c);                  // always July: only the high snow (0.819)
   const d = gameDate(), k = key(c.cx, c.cz), wx0 = c.cx * 16, wz0 = c.cz * 16;
   if (d.season >= 2) {
     const level = d.season === 3 ? 1.01 : d.progress;           // how much of the fall has happened
@@ -269,7 +426,8 @@ function _seasonChunk(c) {
         if (isLeaf) { if ((getBlock(x, y, z) & 255) === B.AIR) setBlock(x, y, z, v); continue; }
         // wheat comes back as a sprout and grows; the rest as they were
         const back = id === B.WHEAT ? (B.WHEAT | (1 << 8)) : v;
-        if (sHash(x, y, z, 5 + d.year * 16) < 0.5 && _plantFits(x, y, z))   // the year in the roll: a new 50% each spring _placePlant(x, y, z, back);
+        // the year in the roll: a new 50% each spring (this call sat inside the comment until 0.819, so none came back)
+        if (sHash(x, y, z, 5 + d.year * 16) < 0.5 && _plantFits(x, y, z)) _placePlant(x, y, z, back);
         if (sHash(x, y, z, 6 + d.year * 16) < 0.001) {                          // ...and a rare seed beside it, come back or not
           const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]], [dx, dz] = dirs[(sHash(x, y, z, 8 + d.year * 16) * 4) | 0];
           if (_plantFits(x + dx, y, z + dz)) _placePlant(x + dx, y, z + dz, back);
@@ -278,7 +436,7 @@ function _seasonChunk(c) {
       if (!mem.size) SEASON_MEM.delete(k);
     }
   }
-  return true;
+  return _snowlineChunk(c);                                      // and the snowline, every season (0.819)
 }
 // per frame: a couple of chunks inside the simulation radius whose hour has come round
 let _seasonKeys = [], _seasonCursor = 0, _seasonListT = 0;

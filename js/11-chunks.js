@@ -75,7 +75,11 @@ let playerCX = 1e9, playerCZ = 1e9;
    same chunks back and forth; gaining detail happens at the line itself. */
 const LOD_PAD = 0.75;
 function chunkLod(d2, cur = 0) {
-  const d = Math.sqrt(d2), a = viewDist * 0.5, b = viewDist * 0.75;
+  const d = Math.sqrt(d2), a = viewDist * 0.5, b = viewDist * 0.75;   // the far ring past viewDist is always 2 (0.8193)
+  /* The title backdrop (0.8199): its view distance is only 5, so the usual steps put all but the nearest few chunks
+     at a level with no grass or flowers and coarse trees. It is one still view: full detail out to its view
+     distance, the far ring coarse. */
+  if (typeof menuScene !== 'undefined' && menuScene) return d >= viewDist ? 2 : 0;
   const past = (edge, lvl) => d >= edge + (lvl > cur ? LOD_PAD : 0);
   return past(b, 2) ? 2 : past(a, 1) ? 1 : 0;
 }
@@ -87,7 +91,7 @@ function rebuildQueues() {
   PLAYER_CHUNKS[0][0] = playerCX; PLAYER_CHUNKS[0][1] = playerCZ;
   genQueue.length = 0;
   meshQueue.length = 0;
-  const R = viewDist, RG = R + 1;
+  const R = drawDist(), RG = R + 1;         // the far ring too (0.8193)
   const requeue = [];                       // chunks that were awaiting a (re-)mesh
   const lodChange = [];                     // drawn chunks whose level of detail moved (0.8092)
 
@@ -98,10 +102,10 @@ function rebuildQueues() {
     if (c.queuedMesh) { c.queuedMesh = false; requeue.push(c); }  // queue was just cleared
     const d2 = chunkDist2ToPlayers(c.cx, c.cz);
     if (d2 > (R + 2) * (R + 2)) {           // unload: dispose GPU resources, drop voxel data
-      disposeChunkMeshes(c);
+      retireChunkMeshes(c);                 // ...after a short fade out (0.8195)
       chunks.delete(k);                     // (edits are kept in editStore)
     } else if (d2 > R * R) {
-      disposeChunkMeshes(c);                // data ring beyond render radius: keep data only
+      retireChunkMeshes(c);                 // data ring beyond render radius: keep data only (fading out, 0.8195)
     } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
       if (c.meshing) c.dirty = true; else lodChange.push([c, d2]);
     }
@@ -131,11 +135,73 @@ function rebuildQueues() {
 function disposeChunkMeshes(c) {
   for (let i = 0; i < 4; i++) {
     if (c.meshes[i]) {
+      _fadeDrop(c.meshes[i]);               // a remesh mid-fade: the new meshes carry the fade on (0.8195)
       scene.remove(c.meshes[i]);
       c.meshes[i].geometry.dispose();       // materials/texture are shared — never disposed
       c.meshes[i] = null;
     }
   }
+}
+
+/* ---- chunks fade in and out (0.8195) ----
+   A chunk no longer pops into view: when its first meshes arrive it is drawn in a fine dither that fills in over
+   CHUNK_FADE_IN_S (uFade in 04-materials.js), and when it drops out of range its meshes thin out over
+   CHUNK_FADE_OUT_S before they are thrown away. A fading mesh borrows a material of its own (pooled, sharing every
+   other uniform) and gives it back when done; a remesh mid-fade carries the fade on from where it was. */
+const CHUNK_FADE_IN_S = 0.6, CHUNK_FADE_OUT_S = 0.45;
+const FADING = [];                          // { mesh, p, mat, t, dur, out }
+const _fadeMatPool = [[], [], [], []];
+function _fadeMat(p) {
+  const pooled = _fadeMatPool[p].pop();
+  if (pooled) return pooled;
+  const m = MATERIALS[p].clone();
+  m.uniforms = { ...sharedUniforms, uFade: { value: 0 } };
+  return m;
+}
+function _fadeStart(mesh, p, out, t0 = 0) {
+  const mat = _fadeMat(p);
+  mat.uniforms.uFade.value = out ? 1 : Math.min(1, t0 / CHUNK_FADE_IN_S);
+  mesh.material = mat;
+  FADING.push({ mesh, p, mat, t: t0, dur: out ? CHUNK_FADE_OUT_S : CHUNK_FADE_IN_S, out });
+}
+function _fadeDrop(mesh) {
+  const i = FADING.findIndex(f => f.mesh === mesh);
+  if (i < 0) return;
+  const f = FADING[i];
+  FADING.splice(i, 1);
+  _fadeMatPool[f.p].push(f.mat);
+}
+function updateChunkFades(dt) {
+  for (let i = FADING.length - 1; i >= 0; i--) {
+    const f = FADING[i];
+    f.t += dt;
+    const k = Math.min(1, f.t / f.dur);
+    f.mat.uniforms.uFade.value = f.out ? 1 - k : k;
+    if (k < 1) continue;
+    FADING.splice(i, 1);
+    if (f.out) { scene.remove(f.mesh); f.mesh.geometry.dispose(); }
+    else f.mesh.material = MATERIALS[f.p];
+    _fadeMatPool[f.p].push(f.mat);
+  }
+}
+// a chunk leaving the drawn range: its meshes fade out on their own, and it will fade in again if it comes back
+function retireChunkMeshes(c) {
+  for (let i = 0; i < 4; i++) {
+    const m = c.meshes[i];
+    if (!m) continue;
+    _fadeDrop(m);
+    _fadeStart(m, i, true);
+    c.meshes[i] = null;
+  }
+  c.shownAt = null;
+}
+// a world swap: whatever is still fading out goes at once
+function clearChunkFades() {
+  for (const f of FADING) {
+    if (f.out) { scene.remove(f.mesh); f.mesh.geometry.dispose(); } else f.mesh.material = MATERIALS[f.p];
+    _fadeMatPool[f.p].push(f.mat);
+  }
+  FADING.length = 0;
 }
 
 function neighborsReady(c) {
@@ -183,7 +249,7 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain8141:';   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
+const TERRAIN_KEY = 'terrain8193:';   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
@@ -333,6 +399,8 @@ const genFinishQueue = [];
 
 function finishChunkGen(c) {
   if (!c.data || !chunks.has(key(c.cx, c.cz))) return;      // unloaded while it waited
+  // the title backdrop wears its random season straight from the generator (0.8194, 51-seasons.js)
+  if (menuScene && typeof seasonDressChunk === 'function') seasonDressChunk(c);
   /* Register world-generated emitters (lava, natural glowstone) so they actually cast light.
 
      This walks all 102,400 voxels of the chunk, so what it does PER voxel dominates the pass. It
@@ -360,7 +428,7 @@ function finishChunkGen(c) {
   // night mobs roll on EVERY load instead, so dusk repopulates ground the player already knows
   trySpawnNightMobsInChunk(c.cx, c.cz);
   // this chunk (and each neighbour that was waiting on it) may be meshable now
-  const R2 = viewDist * viewDist;
+  const R2 = drawDist() * drawDist();       // the far ring too (0.8193)
   for (const [dx, dz] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
     const n = getChunk(c.cx + dx, c.cz + dz);
     if (!n || !n.data || n.meshes[0] || n.meshes[1] || n.meshes[2] || n.meshes[3] || n.meshing || n.queuedMesh) continue;
@@ -445,14 +513,22 @@ function applyMeshResults(maxPerFrame, deadline) {
     // stop at the frame's deadline rather than trusting the count. The rest wait one frame.
     if (deadline && performance.now() > deadline) break;
   }
-  if (n > 0) shadowDirty = true;            // new/changed geometry must reach the shadow maps
+  // new/changed geometry must reach the shadow maps — but only geometry the maps can see (0.8196): far chunks
+  // streaming in used to redraw both maps every frame they arrived
+  if (_shadowTouched) { shadowDirty = true; _shadowTouched = false; }
 }
+let _shadowTouched = false;
 function applyOneMesh(m) {
   {
     const c = getChunk(m.cx, m.cz);
     if (!c || m.rev !== c.rev) return false;
+    { const r = shadowR / 16 + 2; if (chunkDist2ToPlayers(m.cx, m.cz) <= r * r) _shadowTouched = true; }   // inside the shadow maps (0.8196)
     c.editRush = false;
     disposeChunkMeshes(c);
+    // first shown now, or still fading in from its first showing: the new meshes fade on from there (0.8195)
+    const nowS = performance.now() / 1000;
+    if (c.shownAt == null) c.shownAt = nowS;
+    const fadeAge = nowS - c.shownAt;
     const midY = (m.minY + m.maxY) / 2;
     const sphere = new THREE.Sphere(new THREE.Vector3(8, midY, 8),
                                     Math.sqrt(128 + Math.pow((m.maxY - m.minY) / 2 + 1, 2)) + 1);
@@ -475,6 +551,7 @@ function applyOneMesh(m) {
       mesh.matrixAutoUpdate = false;                        // static geometry
       scene.add(mesh);
       c.meshes[i] = mesh;
+      if (fadeAge < CHUNK_FADE_IN_S) _fadeStart(mesh, i, false, fadeAge);
     }
     return true;
   }
@@ -555,7 +632,8 @@ function setBlock(x, y, z, val) {
     /* Light only stops at opaque cells, so an edit that keeps the opacity (a leaf, a log, a plant or
        litter going to air) cannot change it (0.8142). Relighting those anyway near a torch — even one
        in the hand — was a 37-block box per cell: the tree-felling spike. */
-    const opaqueChanged = CORE.opaqueVal(oldVal) !== CORE.opaqueVal(val);
+    // ...nor a change in how much a shaped cell holds back (a slab placed or taken, 0.819)
+    const opaqueChanged = CORE.opaqueVal(oldVal) !== CORE.opaqueVal(val) || CORE.lightDim(oldVal) !== CORE.lightDim(val);
     if (oldLit || newLit || (opaqueChanged && glowNear(x, y, z))) relight(x, y, z);
     // sky light changes on ANY opacity edit (dig opens daylight in, place casts shade)
     if (opaqueChanged) reskyAround(x, y, z);   // by value: chiseling a block opens it (0.783)

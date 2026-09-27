@@ -50,8 +50,10 @@ function _renderIconScene(scene, cam) {
   const buf = _iconBuffers(SIZE);
   const u = sharedUniforms;
   const save = { a: u.uAmbient.value, d: u.uDirect.value, s: u.uShadowOn.value,
-                 fn: u.fogNear.value, ff: u.fogFar.value, lc: u.uLightColor.value.clone(), wa: u.uWindSpeed.value };
+                 fn: u.fogNear.value, ff: u.fogFar.value, lc: u.uLightColor.value.clone(), wa: u.uWindSpeed.value,
+                 co: u.uCloudOn.value };
   u.uWindSpeed.value = 0;                             // an icon never bends in the wind (0.81)
+  u.uCloudOn.value = 0;                               // ...nor sits under a cloud (0.815)
   u.uAmbient.value = 0.30; u.uDirect.value = 0.70;   // the material defaults: a flat, full 1.0
   u.uShadowOn.value = 0.0;
   u.uLightColor.value.set(1, 1, 1);
@@ -65,7 +67,7 @@ function _renderIconScene(scene, cam) {
   renderer.setRenderTarget(null);
   renderer.setClearColor(SKY, 1);
   u.uAmbient.value = save.a; u.uDirect.value = save.d; u.uShadowOn.value = save.s;
-  u.fogNear.value = save.fn; u.fogFar.value = save.ff; u.uWindSpeed.value = save.wa;
+  u.fogNear.value = save.fn; u.fogFar.value = save.ff; u.uWindSpeed.value = save.wa; u.uCloudOn.value = save.co;
   u.uLightColor.value.copy(save.lc);
   for (let y = 0; y < SIZE; y++)
     img.data.set(px.subarray((SIZE - 1 - y) * SIZE * 4, (SIZE - y) * SIZE * 4), y * SIZE * 4);

@@ -94,7 +94,7 @@ const CREATIVE_ORDER = [
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
-  B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST,   // dolomite 0.809; adobe, salt crust 0.8091
+  B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
   B.GLASS, B.GLOWSTONE, B.WOOL,
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
   B.COAL_ORE, B.IRON_ORE, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
@@ -318,6 +318,10 @@ BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
 BUSH_NAME[B.CANTALOUPE] = 'cantaloupe';   // 0.8091
+// flowers and mushrooms are foraged too (0.819): picked whole, straight into the bag
+const FORAGE_WHOLE = new Set([B.POPPY, B.ORCHID, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
+                              B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM]);
+for (const id of FORAGE_WHOLE) BUSH_NAME[id] = PROPS[id].name.toLowerCase();
 // which fruit each bush hands over when it is ripe
 const BERRY_FRUIT = [];
 BERRY_FRUIT[B.REDBERRY_BUSH] = ITEM.BERRIES;
@@ -432,6 +436,12 @@ function harvestAtPlayer() {
   /* Flint stone: the one pickup with a GUARANTEED yield. Fiber comes in rolls because grass is
      everywhere; a flint nodule is rare enough (see FLINT_ROCK_CHANCE) that walking to one and
      getting nothing would just be a punishment. */
+  if (FORAGE_WHOLE.has(id)) {                        // a flower or a mushroom: the plant itself (0.819)
+    setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
+    for (const d of blockDrop(id)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+    return BUSH_REPEAT;
+  }
   if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE) {   // the stone pebble the same way (0.8095)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.COBBLE, 'break', x, t.y, z);

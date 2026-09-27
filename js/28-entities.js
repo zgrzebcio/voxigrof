@@ -57,7 +57,10 @@ function _lightAt(x, y, z) {
   const blk = getLightWorld(bx, by, bz) / 15;
   const amb = sharedUniforms.uAmbient.value, dir = sharedUniforms.uDirect.value;
   const daylight = (amb + dir * sky) * sky;
-  return Math.min(1, Math.max(0.24, Math.max(daylight, blk * 0.95)));   // floor tracks skyF
+  /* A creature never goes fully to the dark (0.8191): a little glow of its own, a little more under a bright moon,
+     so it stays readable at night rather than melting into the ground. */
+  const floor = 0.3 + 0.12 * (typeof _skyMoonGlow === 'number' ? _skyMoonGlow : 0);
+  return Math.min(1, Math.max(floor, Math.max(daylight, blk * 0.95)));   // floor tracked skyF (0.24) before 0.8191
 }
 
 /* Write the six MC skin regions into a BoxGeometry's uv attribute.
@@ -619,6 +622,7 @@ function _brightMat(p) {
   m.uniforms.uAmbient.value = 1.0;
   m.uniforms.uDirect.value = 0.0;
   m.uniforms.uShadowOn.value = 0.0;
+  m.uniforms.uCloudOn.value = 0.0;                // its own copy never follows the clouds (0.815)
   m.uniforms.uLightColor.value.set(1, 1, 1);
   if (m.uniforms.fogNear) m.uniforms.fogNear.value = 1e6;
   if (m.uniforms.fogFar) m.uniforms.fogFar.value = 1e7;
@@ -1115,10 +1119,13 @@ var _zombieSpawnT = -1e9;
 const ZOMBIE_BURN_GRACE = 0.7;           // seconds in the open before it catches
 const ZOMBIE_BURN_DPS = 1.8;
 const ZOMBIE_SPAWN_MIN_DIST = 14;        // never sprouts in the player's face
-const ZOMBIE_NIGHT_FROM = 0.47;          // worldTime: 0 sunrise, .5 sunset, .75 midnight
-const ZOMBIE_DAY_UNTIL = 0.45;           // ...and this is when the sun is high enough to burn
-const isNightForMobs = () => worldTime >= ZOMBIE_NIGHT_FROM;
-const isBurningDaylight = () => worldTime < ZOMBIE_DAY_UNTIL;
+/* Night mobs come out this long before sunset (in days of worldTime), and daylight burns them from sunrise until
+   this long before it. By the day's own sunrise and sunset since 0.818 (sunTimes, 07-sky.js): late in summer,
+   early in winter. They were 0.47 and 0.45 of a fixed 06:00-18:00 day. */
+const ZOMBIE_NIGHT_EARLY = 0.03;
+const ZOMBIE_BURN_STOPS = 0.05;
+const isNightForMobs = () => isDarkTime(worldTime, ZOMBIE_NIGHT_EARLY);
+const isBurningDaylight = () => !isDarkTime(worldTime, ZOMBIE_BURN_STOPS);
 
 /* ---- skeletons (0.735): the ranged night mob ----
    Everything a zombie is — spawned by the night, clawed up out of the ground, burnt by the
@@ -1714,6 +1721,26 @@ function _entDropLoot(ent, byPlayer = false) {
   for (const s of ent.inventory) pop(s.id, s.count);
 }
 
+/* Burnt to death (0.819, lightning's fire, 53-storms.js): an animal leaves its meat already cooked and nothing
+   else — no wool, leather or fat; a fish comes out cooked. Anything else drops as it would. No experience. */
+function _entBurnDeath(ent) {
+  if (!player.canFly) {
+    const raw = ent.kind === 'sheep' ? ITEM.MUTTON : ent.kind === 'cow' ? ITEM.BEEF : ent.kind === 'pig' ? ITEM.PORK
+              : ent.kind === 'fish' ? (FISH[ent.species] || FISH.cod).item : null;
+    if (raw != null) {
+      const cooked = (typeof SMELT_RECIPES !== 'undefined' && SMELT_RECIPES.find(r => r.in === raw)?.out) || raw;
+      const n = ent.kind === 'fish' ? rollLoot(LOOT.fish) : rollLoot(LOOT.meat);
+      for (let i = 0; i < n; i++)
+        spawnDrop(cooked, Math.floor(ent.x), Math.floor(ent.y + 0.5), Math.floor(ent.z),
+                  { x: (Math.random() - 0.5) * 3, y: 2.4 + Math.random() * 1.4, z: (Math.random() - 0.5) * 3 }, 0.6);
+    } else if (!ANIMAL_KINDS.has(ent.kind)) _entDropLoot(ent);
+    if (ent.kind === 'horse' && ent.saddled) spawnDrop(ITEM.SADDLE, Math.floor(ent.x), Math.floor(ent.y + 0.5), Math.floor(ent.z));   // tack survives
+  }
+  if (typeof fxDeath === 'function') fxDeath(ent.x, ent.y, ent.z, entH(ent));
+  const i = ENTITIES.indexOf(ent);
+  if (i >= 0) _removeEntity(i);
+}
+
 /* Right-clicking a woolly sheep with shears takes the fleece: drops wool (LOOT.shearWool), leaves the sheep
    shorn so it starts looking for grass to eat. Called from doPlace before block placement. */
 function tryShearSheep() {
@@ -1964,6 +1991,7 @@ function entitySnowballHit(ent, vx, vy, vz) {
   if (_entBlocked(ent.x, ent.y - 0.02, ent.z)) ent.vy = ENT_KNOCK_HOP * 0.5;
   playSound('hit', { gain: 0.5, rate: 1.3 + Math.random() * 0.1, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
 }
+const TORCH_FIRE_S = 1.5;                    // seconds a creature burns after a torch hits it (0.8192; 4 until 0.8195)
 function tryAttackEntity(ent) {
   if (_atkCooldown > 0) return false;
   if (!ent) ent = pickEntity();
@@ -1972,6 +2000,11 @@ function tryAttackEntity(ent) {
   playSound('hit', { gain: 0.9, rate: 0.95 + Math.random() * 0.1, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
   _atkCooldown = attackCooldownFor(held);
   const died = damageEntity(ent, attackDamageFor(held));
+  // a torch swung at a creature sets it alight (0.8192): the same fire lightning starts (53-storms.js)
+  if (!died && held === B.TORCH && !player.canFly) {
+    if (!(ent.fireT > 0)) playSound('fireIgnite', { gain: 0.8, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
+    ent.fireT = Math.max(ent.fireT || 0, TORCH_FIRE_S);
+  }
   // Knockback: push along player -> entity. When the two overlap that vector is ~zero and
   // normalising it produced a random direction (the occasional "pulled toward me" hit), so fall
   // back to the aim direction, which is always outward.
@@ -2135,7 +2168,9 @@ function restoreEntities(list) {
    is skipped entirely by the update loop and its model is hidden — it holds its position and its
    state, and costs nothing per frame beyond the array slot. See updateEntities. */
 const _entChunks = new Set();            // "cx,cz" of every chunk that has already rolled
-const ENT_CHUNK_CHANCE = 0.030;          // a wanderer in ~1 chunk in 33
+const NPC_TORCH_CHANCE = 0.5;            // villagers who light a torch as night falls (0.8191)
+const _npcTorchPos = new THREE.Vector3();
+const ENT_CHUNK_CHANCE = 0.0075;         // a wanderer in ~1 chunk in 133 (a quarter of the 0.03 before 0.8191)
 const SHEEP_CHUNK_CHANCE = 0.028;        // a flock in ~1 chunk in 36 — sheep were far too common
 const SHEEP_FLOCK_MIN = 1, SHEEP_FLOCK_MAX = 3;
 const COW_CHUNK_CHANCE = 0.010;          // a herd in ~1 chunk in 100 (0.7341: was 1 in 45)
@@ -2221,13 +2256,18 @@ function trySpawnNightMobsInChunk(cx, cz) {
   if (menuScene || !currentWorld || !anyPlayerSpawned()) return;
   if (!isNightForMobs()) return;
   const nowS = performance.now() / 1000;
-  if (nowS - _zombieSpawnT < ZOMBIE_SPAWN_GAP) return;   // still inside the world-wide cooldown
-  if (Math.random() >= ZOMBIE_CHUNK_CHANCE) return;
+  if (nowS - _zombieSpawnT < ZOMBIE_SPAWN_GAP * (typeof isBloodMoon === 'function' && isBloodMoon() ? 0.5 : 1)) return;   // still inside the world-wide cooldown
+  /* The moon (0.8191): a full moon brings half as many again, a new moon a quarter fewer — the chunk roll and
+     the cap both scale with how much of it is lit. */
+  const blood = typeof isBloodMoon === 'function' && isBloodMoon();   // a blood moon: twice again, twice as often (0.8192)
+  const moonMul = (0.75 + 0.75 * (typeof moonLit === 'function' ? moonLit() : 0.5)) * (blood ? 2 : 1);
+  const cap = Math.round(ZOMBIE_CAP * moonMul);
+  if (Math.random() >= ZOMBIE_CHUNK_CHANCE * moonMul) return;
   let live = 0;
   // one population, two species: the cap, the cooldown and the chunk roll are shared, so adding
   // skeletons made the night more varied rather than twice as crowded
   for (const e of ENTITIES) if (isNightMob(e)) live++;
-  if (live >= ZOMBIE_CAP) return;
+  if (live >= cap) return;
   const s = _findChunkSpot(cx, cz, null);              // any biome — night is night everywhere
   if (!s) return;
   // "in the player's face" means ANY player's face in split screen
@@ -2235,7 +2275,7 @@ function trySpawnNightMobsInChunk(cx, cz) {
     const dx = s.x - p.pos.x, dz = s.z - p.pos.z;
     if (dx * dx + dz * dz < ZOMBIE_SPAWN_MIN_DIST * ZOMBIE_SPAWN_MIN_DIST) return;
   }
-  const n = Math.min(ZOMBIE_CAP - live, _ri(ZOMBIE_PACK_MIN, ZOMBIE_PACK_MAX));
+  const n = Math.min(cap - live, _ri(ZOMBIE_PACK_MIN, ZOMBIE_PACK_MAX));
   if (n > 0) _zombieSpawnT = nowS;                  // armed only when one actually comes up
   for (let i = 0; i < n; i++) {
     const spawn = Math.random() < SKEL_SPAWN_SHARE ? spawnSkeleton : spawnZombie;
@@ -2461,6 +2501,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
   if (e.hazCd > 0) e.hazCd -= dt;
   const feetId = getBlock(Math.floor(e.x), Math.floor(e.y + 0.1), Math.floor(e.z)) & 255;
   const headId = getBlock(Math.floor(e.x), Math.floor(e.y + 1.0), Math.floor(e.z)) & 255;
+  if (feetId === B.LAVA || headId === B.LAVA) e.fireT = Math.max(e.fireT || 0, LAVA_FIRE_S);   // alight for 10 s (0.8195)
   if (e.hazCd <= 0) {
     let dmg = 0;
     if (feetId === B.LAVA || headId === B.LAVA) dmg = ENT_LAVA_DMG;
@@ -2735,7 +2776,9 @@ function updateEntities(dt) {
     const ecx = Math.floor(e.x / 16), ecz = Math.floor(e.z / 16);
     const ec = getChunk(ecx, ecz);
     const loaded = !!(ec && ec.data);
-    if (e.model.root.visible !== loaded) e.model.root.visible = loaded;
+    // shown only inside the full-detail radius: the far ring draws land, not creatures (0.8193)
+    const shown = loaded && chunkDist2ToPlayers(ecx, ecz) <= viewDist * viewDist;
+    if (e.model.root.visible !== shown) e.model.root.visible = shown;
     const sim = loaded && inSimRangeChunk(ecx, ecz);
     /* WAKE-UP AUDIT. The moment a parked mob starts simulating again, check it is somewhere it
        can actually live. A mob embedded in solid blocks — walled in by a player build, buried by
@@ -3038,6 +3081,7 @@ function updateEntities(dt) {
     for (const [cx2, cz2] of [[1,0],[-1,0],[0,1],[0,-1]])
       if ((getBlock(Math.floor(e.x) + cx2, Math.floor(e.y + 0.9), Math.floor(e.z) + cz2) & 255) === B.CACTUS)
         { touchCactus = true; break; }
+    if (feetId === B.LAVA || headId === B.LAVA) e.fireT = Math.max(e.fireT || 0, LAVA_FIRE_S);   // alight for 10 s (0.8195)
     if (e.hazCd <= 0) {
       let dmg = 0;
       if (feetId === B.LAVA || headId === B.LAVA) dmg = ENT_LAVA_DMG;
@@ -3122,8 +3166,22 @@ function updateEntities(dt) {
     /* A drawing mob poses from the SAME animateHumanoid draw as a drawing player, and reveals
        the arrow it actually has nocked — so multi-ammo weapons show what is about to hit you. */
     const drawP = (e.drawT > 0 && e.arm === 'bow') ? Math.min(1, e.drawT / SKEL_DRAW_TIME) : 0;
-    animateHumanoid(m, e.walk, swing, lookPitch, Math.max(0, e.atkAnimT) / ENT_ATK_ANIM,
-                    drawP > 0 ? { draw: drawP } : undefined);
+    /* A villager's torch (0.8191): as each night falls, half of them light one and carry it in the left hand
+       till morning. Rolled once a night per villager. */
+    if (e.kind === 'npc') {
+      const dark = isDarkTime(worldTime, 0.02), night = Math.floor(worldDay + worldTime + 0.25);
+      if (dark && e._torchNight !== night) { e._torchNight = night; e.torchL = Math.random() < NPC_TORCH_CHANCE; }
+      if (!dark) e.torchL = false;
+      if (!m.offGrp) { m.offGrp = new THREE.Group(); m.armL.add(m.offGrp); m._offId = null; }
+      const want = e.torchL ? B.TORCH : null;
+      if (m._offId !== want) { m._offId = want; setHeldOnArm(m.offGrp, want); }
+      if (e.torchL && typeof _fxFlame === 'function' && Math.random() < dt * 6) {
+        m.offGrp.getWorldPosition(_npcTorchPos);
+        _fxFlame(_npcTorchPos.x, _npcTorchPos.y + 0.35, _npcTorchPos.z, 0.35, 0.1);
+      }
+    }
+    const hopts = drawP > 0 ? { draw: drawP } : e.torchL ? { holdL: true } : undefined;
+    animateHumanoid(m, e.walk, swing, lookPitch, Math.max(0, e.atkAnimT) / ENT_ATK_ANIM, hopts);
     /* Every frame, for every skeleton — NOT only the bow-armed ones (0.7351). A shooter that
        empties its quiver drops to `hands`, and skipping this call then left the last nocked
        arrow floating in the fist of a mob that has no bow any more. */

@@ -77,6 +77,15 @@ const SOUND_FILES = {
   fillWater: 'Sound/VFX/Items/fill_water.ogg',
   snowball:  'Sound/VFX/Items/throw_snowball.ogg',
   toolBreak: 'Sound/VFX/Items/tool_break.ogg',
+  // weather (0.819, 53-storms.js): the crack of a strike close by, and its thunder near, far and rolling
+  lightningImpact: 'Sound/Weather/lightning_impact.ogg',
+  thunder:         'Sound/Weather/thunder.ogg',
+  thunderFar:      'Sound/Weather/thunder_distance.ogg',
+  thunderLong:     'Sound/Weather/thunder_long.ogg',
+  // fire (0.8191): the crackle of something burning, catching light, and being put out
+  fire:            'Sound/Fire/fire.ogg',
+  fireIgnite:      'Sound/Fire/ignite.ogg',
+  fireOff:         'Sound/Fire/off.ogg',
   // gui — one chime for the feed, pitched per row kind (42-feed.js, 0.7576)
   feedAlert: 'Sound/VFX/GUI/feed_alert.wav',
 };

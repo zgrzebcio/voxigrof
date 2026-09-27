@@ -21,28 +21,38 @@ function getSkyWorld(x, y, z) {
   if (!c || !c.sky) return 0;
   return c.sky[(x & 15) + ((z & 15) << 4) + (y << 8)];
 }
-// BFS-spread seeded sky light; touched collects chunks whose values changed (for re-meshing)
+// BFS-spread seeded sky light; touched collects chunks whose values changed (for re-meshing).
+// The queue carries the level LEAVING each cell (0.819): a shaped cell keeps what reached it but passes on less (CORE.lightDim).
+/* 0.8196: the chunk a neighbour falls in is looked up only when it CHANGES (it used to build a string key and hit the
+   chunk map for all six neighbours of every cell), and a chunk goes into `touched` once per run of cells, not per
+   cell. This flood is most of what a newly generated chunk costs, and it had grown to 40-60 ms over deep water. */
 function propagateSky(q, touched) {
-  let head = 0;
+  let head = 0, ccx = 1e9, ccz = 1e9, cc = null, cData = null, lastT = null;
   while (head < q.length) {
     const x = q[head++], y = q[head++], z = q[head++], lv = q[head++];
     if (lv <= 1) continue;
-    for (const d of LIGHT_DIRS) {
+    for (let k = 0; k < 6; k++) {
+      const d = LIGHT_DIRS[k];
       const nx = x + d[0], ny = y + d[1], nz = z + d[2];
       if (ny < 0 || ny > 199) continue;
-      const c = getChunk(Math.floor(nx / 16), Math.floor(nz / 16));
-      if (!c || !c.data) continue;                    // never spread into unloaded space
+      const kx = nx >> 4, kz = nz >> 4;                // floor for whole numbers, negatives too
+      if (kx !== ccx || kz !== ccz) {
+        ccx = kx; ccz = kz;
+        cc = getChunk(kx, kz);
+        cData = cc && cc.data ? cc.data : null;
+      }
+      if (!cData) continue;                            // never spread into unloaded space
       const i = (nx & 15) + ((nz & 15) << 4) + (ny << 8);
-      const nid = c.data[i] & 255;
-      if (CORE.opaqueVal(c.data[i])) continue;       // a chiseled slab or stairs lets daylight past (0.783)
+      const v = cData[i];
+      if (CORE.opaqueVal(v)) continue;                 // a chiseled slab or stairs lets daylight past (0.783)
       // water absorbs during sideways spread too, matching the vertical step
-      const nl = lv - (nid === B.WATER ? WATER_ABSORB : 1);
+      const nl = lv - ((v & 255) === B.WATER ? WATER_ABSORB : 1);
       if (nl <= 0) continue;
-      const sky = chunkSkyArr(c);
+      const sky = cc.sky || chunkSkyArr(cc);           // made on the first light it takes, as before
       if (sky[i] >= nl) continue;
       sky[i] = nl;
-      if (touched) touched.add(key(c.cx, c.cz));
-      q.push(nx, ny, nz, nl);
+      if (touched && cc !== lastT) { lastT = cc; touched.add(key(cc.cx, cc.cz)); }
+      q.push(nx, ny, nz, nl - CORE.lightDim(v));
     }
   }
 }
@@ -70,6 +80,7 @@ function seedSkyForChunk(c) {
         const i = li + (y << 8);
         sky[i] = lv;
         if ((data[i] & 255) === B.WATER) lv = Math.max(0, lv - WATER_ABSORB);
+        else lv = Math.max(0, lv - CORE.lightDim(data[i]));   // a slab roof shades the column under it (0.819)
       }
     }
   const q = [];
@@ -87,7 +98,7 @@ function seedSkyForChunk(c) {
       // seed with the STORED (water-attenuated) value, not raw 15 — otherwise border
       // columns re-flood deep water with full daylight and erase the depth darkness
       for (let y = top + 1, yMax = Math.min(199, hi); y <= yMax; y++) {
-        const v = sky[lx + (lz << 4) + (y << 8)];
+        const ci = lx + (lz << 4) + (y << 8), v = sky[ci] - CORE.lightDim(data[ci]);
         if (v > 1) q.push(wx0 + lx, y, wz0 + lz, v);
       }
     }
@@ -103,7 +114,9 @@ function seedSkyForChunk(c) {
         if (v <= 1) continue;
         const wx = dx === -1 ? wx0 - 1 : dx === 1 ? wx0 + 16 : wx0 + i;
         const wz = dz === -1 ? wz0 - 1 : dz === 1 ? wz0 + 16 : wz0 + i;
-        q.push(wx, y, wz, v);
+        // the neighbour's own cell: what it holds back leaving it (0.819), read straight from its data
+        const nlx = dx === -1 ? 15 : dx === 1 ? 0 : i, nlz = dz === -1 ? 15 : dz === 1 ? 0 : i;
+        q.push(wx, y, wz, v - CORE.lightDim(n.data[nlx + (nlz << 4) + (y << 8)]));
       }
   }
   const touched = new Set();
@@ -112,12 +125,13 @@ function seedSkyForChunk(c) {
   for (const k of touched) { const t = chunks.get(k); if (t) markDirty(t); }
 }
 // after a block edit: rebuild sky in a box around the change (straight-down reseed per column,
-// then BFS from in-box relief + light pulled through the box walls), re-mesh changed chunks
-function reskyAround(x, y, z) {
+// then BFS from in-box relief + light pulled through the box walls), re-mesh changed chunks.
+// x2, z2 (0.8193): the far corner of a whole area of changes, so a batch of edits costs one rebuild, not one each
+function reskyAround(x, y, z, x2 = x, z2 = z) {
   const R = SKY_LEVEL;
-  const x0 = x - R, x1 = x + R, z0 = z - R, z1 = z + R;
-  const W = x1 - x0 + 1;
-  const tops = new Int16Array(W * W).fill(-2);          // -2 = column not loaded
+  const x0 = Math.min(x, x2) - R, x1 = Math.max(x, x2) + R, z0 = Math.min(z, z2) - R, z1 = Math.max(z, z2) + R;
+  const W = x1 - x0 + 1, D = z1 - z0 + 1;
+  const tops = new Int16Array(W * D).fill(-2);          // -2 = column not loaded
   const touched = new Set();
   for (let zz = z0; zz <= z1; zz++)
     for (let xx = x0; xx <= x1; xx++) {
@@ -133,7 +147,7 @@ function reskyAround(x, y, z) {
       for (let yy = 199; yy >= 0; yy--) {
         const i = li + (yy << 8);
         let v = 0;
-        if (yy > top) { v = lv; if ((c.data[i] & 255) === B.WATER) lv = Math.max(0, lv - WATER_ABSORB); }
+        if (yy > top) { v = lv; lv = Math.max(0, lv - ((c.data[i] & 255) === B.WATER ? WATER_ABSORB : CORE.lightDim(c.data[i]))); }
         if (sky[i] !== v) { sky[i] = v; changed = true; }
       }
       if (changed) touched.add(key(c.cx, c.cz));
@@ -152,7 +166,7 @@ function reskyAround(x, y, z) {
         hi = Math.max(hi, nt === -2 ? -1 : nt);
       }
       for (let yy = top + 1, yMax = Math.min(199, hi); yy <= yMax; yy++) {
-        const v = getSkyWorld(xx, yy, zz);   // stored, water-attenuated value
+        const v = getSkyWorld(xx, yy, zz) - CORE.lightDim(getBlock(xx, yy, zz));   // stored, water-attenuated value, less what it holds back
         if (v > 1) q.push(xx, yy, zz, v);
       }
       const onWall = xx === x0 || xx === x1 || zz === z0 || zz === z1;
@@ -160,7 +174,7 @@ function reskyAround(x, y, z) {
         for (let yy = 0; yy <= Math.min(199, top === -1 ? 199 : top + 1); yy++) {
           const ox = xx === x0 ? xx - 1 : xx === x1 ? xx + 1 : xx;
           const oz = zz === z0 ? zz - 1 : zz === z1 ? zz + 1 : zz;
-          const v = getSkyWorld(ox, yy, oz);
+          const v = getSkyWorld(ox, yy, oz) - CORE.lightDim(getBlock(ox, yy, oz));
           if (v > 1) q.push(ox, yy, oz, v);
         }
     }

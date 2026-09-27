@@ -103,7 +103,8 @@ function VOXEL_CORE() {
     DECOR_T.push(set);
   }
   // wheat's growth stages (0.81), 256-262
-  for (let s = 0; s < 7; s++) T['WHEAT_S' + s] = 256 + s;                                                       // 0.804                                                  // 0.801                                                 // 0.7947
+  for (let s = 0; s < 7; s++) T['WHEAT_S' + s] = 256 + s;
+  T.ASH = 263;                                                     // ash, what fire leaves (0.8191)                                                       // 0.804                                                  // 0.801                                                 // 0.7947
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -162,6 +163,7 @@ function VOXEL_CORE() {
               STONE_BAND:167, STONE_PILLAR:168, GRANITE_BAND:169, GRANITE_PILLAR:170, MARBLE_BAND:171,
               MARBLE_PILLAR:172, LIMESTONE_BAND:173, LIMESTONE_PILLAR:174, DOLOMITE_BAND:175, DOLOMITE_PILLAR:176,
               STONE_PEBBLE:177,                                                       // 0.8095
+              ASH:178, FIRE:179,                                                      // 0.8191
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -434,7 +436,8 @@ function VOXEL_CORE() {
      `shroom` is the kind: its sheets in SHROOM_T and its boxes in SHROOM_MODEL. Black and white tall grow and
      cook like brown; lava grows by lava in caves and glows a little. */
   const _shroom = (name, kind, extra) => ({ name, solid:false, opaque:false, raycast:true, pass:0, model:'cross', stack:99,
-    hardness:0, type:'grass', shroom: kind, boxes: [kind === 5 ? [5/16, 0, 5/16, 11/16, 1, 11/16] : [3/16, 0, 3/16, 13/16, 12/16, 13/16]],
+    // boxes fit the largest a mushroom grows in the world since 0.819 (0.6 of the model; emitShroom)
+    hardness:0, type:'grass', shroom: kind, boxes: [kind === 5 ? [6/16, 0, 6/16, 10/16, 10/16, 10/16] : [5/16, 0, 5/16, 11/16, 7/16, 11/16]],
     faces: Array(6).fill(SHROOM_T[kind][1]), desc: '', ...extra });
   PROPS[B.RED_MUSHROOM]        = _shroom('Red mushroom', 0);
   PROPS[B.BROWN_MUSHROOM]      = _shroom('Brown mushroom', 1);
@@ -669,6 +672,14 @@ function VOXEL_CORE() {
      salt (50-loottable.js), and each layer slows you a little (12-player.js). */
   PROPS[B.SALT_CRUST] = { name:'Salt crust', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
                           stack:60, hardness:0.6, type:'ground', faces:Array(6).fill(T.SALT_CRUST), desc: '' };
+  /* Ash (0.8191): what fire leaves on the ground. Piles in layers like sand and falls like it; a layer gives ashes
+     half the time (50-loottable.js). */
+  PROPS[B.ASH] = { name:'Ash', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
+                   stack:60, hardness:0.3, type:'ground', faces:Array(6).fill(T.ASH), desc: '' };
+  /* Fire (0.8191): a burning cell. It draws nothing — the flames are particles (53-storms.js) — but it is a light
+     source, and it is what burns its neighbours: wood, leaves, grass. Never an item. */
+  PROPS[B.FIRE] = { name:'Fire', solid:false, opaque:false, raycast:false, noTarget:true, noInv:true, pass:1, model:'none',
+                    stack:1, hardness:0, type:'grass', light:13, faces:Array(6).fill(T.ASH), boxes:[[0,0,0,1,1,1]], desc: '' };
   PROPS[B.MELON]    = _gourd('Watermelon', T.MELON_SIDE, T.MELON_TOP);
   PROPS[B.PUMPKIN]  = _gourd('Pumpkin', T.PUMPKIN_SIDE, T.PUMPKIN_TOP);
   /* Wheat grows (0.81): variant 0 is RIPE, as every wheat the world ever generated is, and 1-7 are the growing
@@ -789,14 +800,14 @@ function VOXEL_CORE() {
              ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],
     pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],   // 0.784
     fence:  [..._ALL_PLANKS, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK],                         // 0.784
-    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST,   // 0.785; salt 0.8097
+    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.GLASS, B.IRON_BLOCK, B.GOLD_BLOCK, B.MOSSY_COBBLE],
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST];   // salt 0.8097
+  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   for (const b of LAYER_STACKING) PROPS[b].layerStack = true;
@@ -900,6 +911,23 @@ function VOXEL_CORE() {
   const opaqueVal = (v) => {
     const p = PROPS[v & 255];
     return !!p && !!p.opaque && !(((v >> 8) & 255) && p.shapes && shapeOfVal(v));
+  };
+  /* ...but it is not nothing either (0.819): light LEAVING a shaped cell of an opaque block loses this many levels
+     more than the usual one, so a slab roof shades what is under it and a stack of layers darkens by its depth.
+     The cell itself keeps the light that reached it, so a slab's own top still reads as lit. Glass, leaves and
+     the like are see-through as full blocks and stay so as shapes. */
+  const SHAPE_DIM = { slab: 4, stairs: 6, pane: 2, fence: 1, wall: 2, cover: 2 };
+  const lightDim = (v) => {
+    const va = (v >> 8) & 255;
+    if (!va) return 0;
+    const p = PROPS[v & 255];
+    if (!p || !p.opaque || !p.shapes) return 0;
+    /* Layer stacks hold nothing back (0.8196; 0.819 dimmed them by depth): snow, litter, ash and sand piles change
+       all the time — falling, melting, laid by the snowline — and every change of a dimming cell relit its whole
+       neighbourhood, which is what made streaming stutter. */
+    if (layerCount(v)) return 0;
+    const s = shapeOfVal(v);
+    return s ? (SHAPE_DIM[s] || 0) : 0;
   };
   // the boxes a shaped value fills — mesh, collision and raycast all ask here — or null when it is not shaped
   // coll: the collision set, where it differs (a fence stands 1.5 tall to anything walking into it)
@@ -1031,8 +1059,12 @@ function VOXEL_CORE() {
   }
 
   /* ---------- terrain generator ---------- */
-  function makeGen(seedStr, terrainType) {
+  /* biomeRev (0.819): 1 for worlds made before 0.819, so their unexplored land still joins what they already have;
+     2 gives bigger snow and desert biomes (see `temp` below). Fixed per world at creation (w.biomeRev). */
+  function makeGen(seedStr, terrainType, biomeRev = 1) {
     const FLAT = terrainType === 'flat';
+    const BIG_CLIMATE = biomeRev >= 2;
+    const FEWER_HILLS = biomeRev >= 3;                // 0.8193: about 30% fewer desert hills
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
     const seedInt = seedFn();
@@ -1097,26 +1129,32 @@ function VOXEL_CORE() {
       // temperate spawn: 99% of seeds pull the temperature field toward 0 near origin so
        // the player lands in Forest/Plains, not Snow/Desert. 1% skip the bias so extreme
        // spawns still happen occasionally (future temperature-system stress test).
-       let temp = fbm(x * 0.00075 + 811.3, z * 0.00075 - 442.1, 2);
+       /* Bigger climates (biomeRev 2, 0.819): the temperature field at two thirds the frequency, snow and desert
+          from a lower threshold, and a desert is the hot climate itself rather than hot AND the biome selector's
+          plains band. The product of two fields is what cut deserts into 10-block slivers where both edges ran
+          side by side; one smooth field cannot, so every desert and snowfield is hundreds of blocks across. */
+       let temp = fbm(x * (BIG_CLIMATE ? 0.0005 : 0.00075) + 811.3, z * (BIG_CLIMATE ? 0.0005 : 0.00075) - 442.1, 2);
        if ((seedInt >>> 0) % 100 !== 0) {
          const bias = 1 - smooth01(Math.hypot(x, z), 120, 480);   // 1 at origin, 0 past 480
          temp *= (1 - bias * 0.95);
        }
-      const warm = smooth01(temp, 0.02, 0.30);
-      const cold = smooth01(-temp, 0.02, 0.30);
+      const warm = BIG_CLIMATE ? smooth01(temp, 0.0, 0.22) : smooth01(temp, 0.02, 0.30);
+      const cold = BIG_CLIMATE ? smooth01(-temp, 0.0, 0.22) : smooth01(-temp, 0.02, 0.30);
 
       const fPlains = smooth01(t, 0.0, 0.1);            // narrower band -> smaller plains
-      const fDesert = smooth01(t, 0.16, 0.28) * warm;  // wider band = bigger deserts; hot climate only
+      const fDesert = BIG_CLIMATE ? warm : smooth01(t, 0.16, 0.28) * warm;  // wider band = bigger deserts; hot climate only
       const fSnow   = cold;                             // snowy surface in cold climate
 
       // `flat` saturates at fPlains=0.5 — the exact point where the biome label flips to
       // Plains/Desert — so everywhere labelled Plains is genuinely flat (no half-suppressed
-      // mountains leaking across the border band)
-      const flat    = Math.min(1, fPlains * 2);
+      // mountains leaking across the border band). A big desert is flat too, bar its dunes (0.819).
+      const flat    = Math.min(1, Math.max(fPlains * 2, BIG_CLIMATE ? fDesert * 2 : 0));
       const hillAmp = 6 * (1 - flat) + (0.8 + 1.2 * fDesert) * flat;       // plains ~dead flat; deserts mostly flat too
       const mTerm   = mMask * ridge * ridge * 90 * (1 - flat);             // mountains only in forest zones
       // desert hills sub-biome: tall dunes / small sandy mountains with rocky tops
-      const dh     = smooth01(fbm(x * 0.0035 + 641.3, z * 0.0035 - 141.7, 2), 0.25, 0.62) * fDesert;   // rarer dune hills = flatter deserts
+      // rarer dune hills = flatter deserts; biomeRev 3 (0.8193) about 30% fewer again
+      const dh     = (FEWER_HILLS ? smooth01(fbm(x * 0.0035 + 641.3, z * 0.0035 - 141.7, 2), 0.33, 0.68)
+                                  : smooth01(fbm(x * 0.0035 + 641.3, z * 0.0035 - 141.7, 2), 0.25, 0.62)) * fDesert;
       // red sand sub-desert: separate low-freq mask splits hot deserts into normal / red zones
       const fRed = smooth01(fbm(x * 0.00065 - 911.7, z * 0.00065 + 617.3, 2), 0.22, 0.36) * fDesert;   // half freq = 2x patch size
       // red spike hills: narrow ridged spikes (all red sand — no sandstone yet), clustered
@@ -2356,13 +2394,13 @@ function VOXEL_CORE() {
           for (let y = 3; y < caveTop; y++) {
             if ((data[idx(x, y, z)] & 255) === B.STONE &&
                 (data[idx(x, y + 1, z)] & 255) === B.AIR &&
-                hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.001)              // halved in 0.799 (was 0.002)
+                hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.0005)             // halved in 0.799 (was 0.002), again 0.819
               data[idx(x, y + 1, z)] = hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 1 / 3
                 ? B.RED_MUSHROOM : hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 2 / 3
                 ? brownish(hash3(cx * 1181 + x, y + 4100, cz * 941 + z)) : B.BLUE_MUSHROOM;   // thirds since 0.7691
             // a lava mushroom on cave floor near lava (0.8091)
             else if ((data[idx(x, y, z)] & 255) === B.STONE && (data[idx(x, y + 1, z)] & 255) === B.AIR &&
-                     hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < 0.03 && lavaNear(x, y, z))
+                     hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < 0.015 && lavaNear(x, y, z))   // halved 0.819
               data[idx(x, y + 1, z)] = B.LAVA_MUSHROOM;
           }
           // surface under leaves: air at h+1 with leaves within 2..5 blocks above
@@ -2374,7 +2412,7 @@ function VOXEL_CORE() {
               for (let dy = 2; dy <= 5 && h + dy < 200; dy++) {
                 if ((data[idx(x, h + dy, z)] & 255) === B.LEAVES) { hasLeaves = true; break; }
               }
-              if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.00035)   // halved in 0.799
+              if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.000175)   // halved in 0.799, again 0.819
                 data[idx(x, h + 1, z)] = hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 1 / 3
                   ? B.RED_MUSHROOM : hash3(cx * 1279 + x, h + 6000, cz * 1031 + z) < 2 / 3
                   ? brownish(hash3(cx * 1289 + x, h + 6100, cz * 1039 + z)) : B.BLUE_MUSHROOM;   // thirds since 0.7691
@@ -2420,10 +2458,10 @@ function VOXEL_CORE() {
             const shroom = (mx, mz, salt) => {
               if (mx < 0 || mx > 15 || mz < 0 || mz > 15 || H[(mx + 2) + (mz + 2) * 20] !== h) return;
               const roll = hash3(cx * 1301 + mx, h + 7400 + salt, cz * 1307 + mz);
-              if (roll >= 0.06) return;                                                   // 0.3 before 0.7845, 0.12 before 0.799
+              if (roll >= 0.03) return;                                                   // 0.3 before 0.7845, 0.12 before 0.799, 0.06 before 0.819
               if (!ground(data[idx(mx, h, mz)] & 255) || !open(data[idx(mx, h + 1, mz)])) return;
-              data[idx(mx, h + 1, mz)] = roll < 0.02 ? B.RED_MUSHROOM
-                : roll < 0.04 ? brownish(hash3(cx * 1303 + mx, h + 7500 + salt, cz * 1309 + mz)) : B.BLUE_MUSHROOM;
+              data[idx(mx, h + 1, mz)] = roll < 0.01 ? B.RED_MUSHROOM
+                : roll < 0.02 ? brownish(hash3(cx * 1303 + mx, h + 7500 + salt, cz * 1309 + mz)) : B.BLUE_MUSHROOM;
             };
             cells.forEach(([lx, lz], k) => { shroom(lx + (alongX ? 0 : 1), lz + (alongX ? 1 : 0), k * 2);
                                              shroom(lx - (alongX ? 0 : 1), lz - (alongX ? 1 : 0), k * 2 + 1); });
@@ -2544,7 +2582,7 @@ function VOXEL_CORE() {
           if (!(H[gi - 1] < WATER_LEVEL || H[gi + 1] < WATER_LEVEL || H[gi - 20] < WATER_LEVEL || H[gi + 20] < WATER_LEVEL)) continue;
           const wx = cx * 16 + x, wz = cz * 16 + z;
           if (fbm(wx * 0.06 + 4100, wz * 0.06 - 4100, 2) < 0.1) continue;          // patches, not a ribbon round every shore
-          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.11) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097)
+          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.0275) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097); a quarter of 0.11 since 0.8193
         }
 
       /* ---- wheat: dense billboards scattered across grassy plains/forest tops (big amount) ---- */
@@ -2603,7 +2641,7 @@ function VOXEL_CORE() {
           const meadow = isPlains && fbm(wx * 0.006 + 6006, wz * 0.006 - 3003, 2) > 0.32;
           const r = hash3(cx * 97 + lx + 5500, 71, cz * 83 + lz + 5500);
           // flowers cut ~95%: forest tiny, plains small, meadows the main place they gather
-          const flowerCh = (meadow ? 0.02 : isPlains ? 0.0015 : 0.0003) * 0.3;   // 70% fewer flowers (0.799)
+          const flowerCh = (meadow ? 0.02 : isPlains ? 0.0015 : 0.0003) * 0.15;  // 70% fewer flowers (0.799), half again (0.819)
           // short grass thins with altitude (full at y100, ~1/4 at y200) but never disappears
           const alt = Math.min(1, Math.max(0, (h - 100) / 100));
           const grassCh  = 0.22 * (1 - alt * 0.75);
@@ -2683,7 +2721,10 @@ function VOXEL_CORE() {
           const gi = (x + 2) + (z + 2) * 20;
           if (!DES[gi]) continue;
           const wx = cx * 16 + x, wz = cz * 16 + z;
-          const chance = RED[gi] ? 0.0005 : 0.001;             // desert 0.1%, red sand 0.05%
+          /* A fifth as many as before 0.8193, and gathered: a slow noise makes stands of cactus with open sand between
+             (0.8 of the old chance inside a stand, none outside; about a fifth over the whole desert). */
+          const stand = smooth01(fbm(wx * 0.012 + 3333.3, wz * 0.012 - 777.7, 2), 0.1, 0.5);
+          const chance = (RED[gi] ? 0.0005 : 0.001) * 0.8 * stand;   // desert 0.1%, red sand 0.05% at the most
           if (hash3(wx, 7777, wz) >= chance) continue;
           const h = H[gi];
           const top = data[idx(x, h, z)] & 255;
@@ -2757,7 +2798,7 @@ function VOXEL_CORE() {
         }
         if (!waterAdj) continue;
         const isBeach = (top === B.SAND || top === B.RED_SAND);
-        const chance = isBeach ? 0.85 : 0.25;
+        const chance = (isBeach ? 0.85 : 0.25) * 0.01;                     // 99% fewer (0.8191)
         const wx = cx * 16 + x, wz = cz * 16 + z;
         if (hash3(wx * 11 + 3301, 4242, wz * 13 + 5501) >= chance) continue;
         const tall = 1 + Math.floor(hash3(wx, 9191, wz) * 3);           // 1..3
@@ -2940,7 +2981,8 @@ function VOXEL_CORE() {
 
   // layers (0.785): Map(cell index -> block ids bottom to top) for this chunk's mixed layer stacks, or null
   // lod (0.8092): 0 full detail, 1 no small things, 2 half resolution (see LEVEL OF DETAIL above)
-  function meshChunk(dataBuf, sxnB, sxpB, sznB, szpB, lightBuf, lxnB, lxpB, lznB, lzpB, layers, lod = 0) {
+  // ox, oz: the chunk's world origin, for things that vary by place (a mushroom's size, 0.819); null for icons and drops
+  function meshChunk(dataBuf, sxnB, sxpB, sznB, szpB, lightBuf, lxnB, lxpB, lznB, lzpB, layers, lod = 0, ox = null, oz = 0) {
     let data = new Uint32Array(dataBuf);
     const sxn = new Uint32Array(sxnB), sxp = new Uint32Array(sxpB);
     const szn = new Uint32Array(sznB), szp = new Uint32Array(szpB);
@@ -3165,10 +3207,21 @@ function VOXEL_CORE() {
     }
     /* A mushroom (0.8091): SHROOM_MODEL's boxes, each face on its sheet at 8 texels a model pixel. The sheet
        sits in its layer's bottom-left corner (03-atlas.js), so one model pixel is 1/16 of the layer's UV. */
+    /* In the world (0.819) a mushroom is 40% of its model, and each place grows its own: 0.5x to 1.5x of that,
+       from a hash of where it stands, scaled about the middle of its foot. The art is squeezed with it (the UVs
+       keep the model's own sizes). Icons and drops (no ox) keep the full model. */
+    const SHROOM_SCALE = 0.4;
     function emitShroom(x, y, z, kind) {
       const set = SHROOM_T[kind], L = gl(x, y, z), P = 1 / 16;
+      let s = 1;
+      if (ox != null) {
+        let hh = Math.imul((ox + x) | 0, 374761393) + Math.imul(y | 0, 217645177) + Math.imul((oz + z) | 0, 668265263);
+        hh = Math.imul(hh ^ (hh >>> 13), 1274126177); hh ^= hh >>> 16;
+        s = SHROOM_SCALE * (0.5 + (hh >>> 0) / 4294967296);
+      }
+      const sx = (a) => x + (8 + (a - 8) * s) * P, sz = (c) => z + (8 + (c - 8) * s) * P, sy = (b) => y + b * s * P;
       for (const [a0, b0, c0, a1, b1, c1, side, top, bot] of SHROOM_MODEL[kind]) {
-        const x0 = x + a0 * P, x1 = x + a1 * P, y0 = y + b0 * P, y1 = y + b1 * P, z0 = z + c0 * P, z1 = z + c1 * P;
+        const x0 = sx(a0), x1 = sx(a1), y0 = sy(b0), y1 = sy(b1), z0 = sz(c0), z1 = sz(c1);
         const w = (a1 - a0) * P, h = (b1 - b0) * P, d = (c1 - c0) * P;
         if (side) {
           const t = set[side[0]], u0 = side[1] * P, v0 = side[2] * P;
@@ -3628,7 +3681,7 @@ function VOXEL_CORE() {
 
   return { B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
            SHAPE_MASK, ROT_MASK, shapeOfVal,
-           HOLLOW_FILLS, opaqueVal, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
+           HOLLOW_FILLS, opaqueVal, lightDim, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK,
            SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, solidVal,
            BERRY_STAGE, berryStage, isBerryBush };
@@ -3641,12 +3694,13 @@ function WORKER_MAIN() {
     const m = e.data;
     try {
       if (m.type === 'init') {
-        gen = CORE.makeGen(m.seed, m.terrainType);
+        gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1);   // biome sizes by world (0.819)
       } else if (m.type === 'gen') {
         const buf = gen.genChunk(m.cx, m.cz);
         self.postMessage({ type: 'gen', cx: m.cx, cz: m.cz, data: buf }, [buf]);
       } else if (m.type === 'mesh') {
-        const r = CORE.meshChunk(m.data, m.sxn, m.sxp, m.szn, m.szp, m.light, m.lxn, m.lxp, m.lzn, m.lzp, m.layers, m.lod | 0);   // lod 0.8092
+        const r = CORE.meshChunk(m.data, m.sxn, m.sxp, m.szn, m.szp, m.light, m.lxn, m.lxp, m.lzn, m.lzp, m.layers, m.lod | 0,
+                                 m.cx * 16, m.cz * 16);   // lod 0.8092; world origin for per-place sizes (0.819)
         const transfers = [];
         for (const p of r.passes) if (p) transfers.push(p.pos.buffer, p.uv.buffer, p.tile.buffer, p.shade.buffer, p.lite.buffer, p.index.buffer);
         self.postMessage({ type: 'mesh', cx: m.cx, cz: m.cz, rev: m.rev, passes: r.passes, minY: r.minY, maxY: r.maxY }, transfers);
@@ -4026,7 +4080,7 @@ function mineDropAllowed(heldId, blockId) {
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
-  shovel: new Set([B.SAND, B.RED_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST]),   // salt crust 0.8091
+  shovel: new Set([B.SAND, B.RED_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH]),   // ash 0.8191   // salt crust 0.8091
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK,
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
@@ -4103,7 +4157,7 @@ function isWrongTool(heldId, blockId) {
 const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 /* Loose blocks (0.786): they fall, land as a pile of 8 walk-through layers (pouring into a pile below), and
    a layer of one breaks away to nothing. */
-const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK]);
+const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK]);   // not ash: a whole ash block stands, its layers fall (0.8193)
 /* FURNITURE comes apart by hand too (0.7442). A bench, a chest, a bed and a hay bale are things
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in

@@ -2,15 +2,17 @@
 /* voxiGrof — world reset, surface scan, valid spawn search */
 
 /* ---------------------------------- world reset (new seed) ---------------------------------- */
-function resetWorld(seed, terrainType) {
+function resetWorld(seed, terrainType, biomeRev = 1) {
   SEED = seed;
   TERRAIN_TYPE = terrainType || 'default';
-  mainGen = CORE.makeGen(seed, TERRAIN_TYPE);
+  TERRAIN_BIOMES = biomeRev;                // 0.819
+  mainGen = CORE.makeGen(seed, TERRAIN_TYPE, TERRAIN_BIOMES);
   // the title backdrop's seed never goes in the URL: a reload prefilled it into Create World (0.8031)
   if (typeof MENU_SEED === 'undefined' || seed !== MENU_SEED) history.replaceState(null, '', '?seed=' + encodeURIComponent(seed));
   else history.replaceState(null, '', location.pathname);
   genQueue.length = 0; meshQueue.length = 0; meshResults.length = 0; genFinishQueue.length = 0;
   for (const [, c] of chunks) disposeChunkMeshes(c);
+  clearChunkFades();                        // 0.8195
   chunks.clear();
   editStore.clear();
   glowClear();
@@ -22,6 +24,8 @@ function resetWorld(seed, terrainType) {
   clearSnowMelt();
   clearBerryGrow();
   clearSeasonState();                       // 0.81
+  clearStorms();                            // 0.819
+  clearFallBlocks();                        // blocks in the air (0.8193)
   restoreXP(null);                          // loadWorld restores the real total right after this
   clearStructureState();
   clearEntities();
@@ -30,7 +34,7 @@ function resetWorld(seed, terrainType) {
   clearBeds();
   clearChests();
   clearBenches();
-  initWorkers(seed, TERRAIN_TYPE);
+  initWorkers(seed, TERRAIN_TYPE, TERRAIN_BIOMES);
   // every split-screen player restarts unspawned; the frame loop re-seats each of them
   for (const p of PLAYERS) {
     p.spawnPos = null; p.homeSpawn = null; p.spawnBedKey = null;

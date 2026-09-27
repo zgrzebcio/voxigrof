@@ -195,6 +195,7 @@ Object.assign(TEXTURES, {
   glass_bricks:      'textures/Blocks/Decorations/Glass/glass_bricks.png',
   dark_glass_bricks: 'textures/Blocks/Decorations/Glass/dark_glass_bricks.png',
   salt_crust:        'textures/Blocks/Natures/salt_crust.png',
+  ash_block:         'textures/Blocks/Natures/ash_block.png',                // 0.8191
   cantaloupe_side:   'textures/Blocks/Plants/cantaloupe_side.png',
   cantaloupe_top:    'textures/Blocks/Plants/cantaloupe_top.png',
   cantaloupe_bottom: 'textures/Blocks/Plants/cantaloupe_bottom.png',
@@ -231,11 +232,12 @@ Object.assign(TEXTURES, {
   // terracotta's brick look (0.8093; the old clay bricks block is terracotta now)
   terracotta_bricks: 'textures/Blocks/Decorations/Clay/terracotta_bricks.png',
 });
+// ms per frame: water a quarter of its old speed, lava a tenth (0.8191; 150 and 220 before)
 const ANIMATED_TILES = {
-  water:      { frames: 16, ms: 150 },
-  water_flow: { frames: 16, ms: 150 },
-  lava:       { frames: 16, ms: 220 },
-  lava_flow:  { frames: 16, ms: 220 },
+  water:      { frames: 16, ms: 600 },
+  water_flow: { frames: 16, ms: 600 },
+  lava:       { frames: 16, ms: 2200 },
+  lava_flow:  { frames: 16, ms: 2200 },
 };
 /* ---- glowing parts (0.8094) ----
    A light source's glowing pixels draw at full brightness whatever the light around them. The mask is a

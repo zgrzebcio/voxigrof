@@ -31,6 +31,7 @@ const newModeSel  = document.getElementById('newModeSel');
 const newTerrainSel = document.getElementById('newTerrainSel');
 const newSplitChk = document.getElementById('newSplitChk');
 const newStructChk = document.getElementById('newStructChk');
+const newSeasonChk = document.getElementById('newSeasonChk');   // 0.818
 const tickInput   = document.getElementById('tickInput');
 const modeLabel   = document.getElementById('modeLabel');
 
@@ -152,6 +153,7 @@ function saveWorld(syncToLS = false) {
     structPlaced: serializeStructPlaced(), structLoot: serializePendingLoot(),
     structBlocks: serializeStructBlocks(),
     time: worldTime, worldDay, curMode: currentInvMode,
+    bloodLast: bloodMoonLast,               // the night of the last blood moon (0.8192, 53-storms.js)
     survHot: survStash.hot, survInv: survStash.inv, survInv2: survStash.inv2,
     survEquip: serializeEquip(), survBelt: serializeBelt(),
     xp: serializeXP(),                    // total experience + the player-placed block ledger
@@ -192,6 +194,7 @@ async function loadWorld(w) {
   if (currentWorld && currentWorld !== w) saveWorld();   // switching worlds: save the old one first
   currentWorld = w;
   menuScene = false;
+  showTitleDate(false);                      // the title's date goes with it (0.8194)
   setHudVisible(true);
   _loadingWorld = true;
   worldLoadingNameEl.textContent = w.name;
@@ -200,7 +203,8 @@ async function loadWorld(w) {
   // the loading screen, where there is already something covering the wait
   ensureGameAssets();
   const vd = clampi(+distInput.value || 10, 4, 32);      // leave the short panorama distance
-  if (vd !== viewDist) { viewDist = vd; applyViewDist(); }
+  // always, even at the same distance: the backdrop had no far ring, and the camera's reach must grow by it (0.8193)
+  viewDist = vd; applyViewDist();
   randomTickSpeed = clampi(+w.tickSpeed || 3, 0, 20);     // world's simulation-speed setting
   if (!w.createdVersion) w.createdVersion = 'pre-0.443';  // legacy worlds predate version stamping
   w.lastVersion = GAME_VERSION;                           // record the version this session joined on
@@ -214,7 +218,7 @@ async function loadWorld(w) {
   player.chiselShape = null;          // the chisel's shape is not kept between worlds (0.7844)
   player._variantPick = null;         // ...nor the picked variants (0.794)
   player._chiselRad = null;
-  resetWorld(w.seed, w.terrain);      // worlds saved before 0.665 have no `terrain` -> 'default'
+  resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world (0.785)
   if (data && Array.isArray(data.layers))
     for (const rec of data.layers) {
@@ -267,6 +271,7 @@ async function loadWorld(w) {
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
   restoreSeasons(data && data.seasons);                                // what autumn took, for spring (0.81)
+  restoreBloodMoon(data && data.bloodLast);                            // 0.8192
   restoreBenches(data && data.benches);                                   // crafting bench orders (0.76)
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
   restoreStructPlaced(data && data.structPlaced);
@@ -521,6 +526,8 @@ function startMenuBackdrop() {
   resetWorld(MENU_SEED);
   viewDist = 5; applyViewDist(false);       // backdrop only — never persist this short distance
   worldTime = 0.15;                         // late morning: bright, long shadows
+  worldDay = randomTitleDay();              // on a random day of a random season, shown top left (0.8194)
+  showTitleDate(true);
   player.pos.set(MENU_SPOT.x, MENU_SPOT.y, MENU_SPOT.z);
   player.spawned = true;                    // skip the spawn snap entirely
   player.canFly = true; player.flying = true; player.vy = 0;

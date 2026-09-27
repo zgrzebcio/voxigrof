@@ -376,7 +376,11 @@ const _skNodeEl = (id) => { const sp = invPanel('skillPanel'); return sp ? sp.qu
 const SKILL_REMIND = 10;                  // seconds between "points to spend" reminders (0.807)
 function updateSkillHold(dt) {
   // unspent points nag gently on the feed, every SKILL_REMIND seconds, in gold (0.807)
-  if (!player.canFly && !player.dead && playing && typeof feedSkillPoints === 'function') {
+  // ...but not while the tree is open: the reminder on screen goes, and the count starts again when it closes (0.8191)
+  if (invOpen && skillViewOn()) {
+    player._skRemindT = SKILL_REMIND;
+    if (typeof _feedRetire === 'function') _feedRetire('skillpts');
+  } else if (!player.canFly && !player.dead && playing && typeof feedSkillPoints === 'function') {
     player._skRemindT = (player._skRemindT ?? 3) - dt;
     if (player._skRemindT <= 0) {
       player._skRemindT = SKILL_REMIND;

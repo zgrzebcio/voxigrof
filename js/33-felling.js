@@ -199,6 +199,8 @@ function snowHeat(x, y, z) {
       }
   return heat;
 }
+// above the season's snowline (51-seasons.js, 0.819): snow there stays, whatever the biome
+const _aboveSnowline = (x, y, z) => typeof snowlineY === 'function' && y >= snowlineY(x, z);
 // index of the topmost SNOW layer in this cell's stack, or -1 if it holds none
 function snowLayerTopAt(x, y, z) {
   const ids = layerIdsAt(x, y, z);
@@ -216,7 +218,7 @@ function sweepSnowMelt() {
     if (snowLayerTopAt(x, y, z) < 0) continue;
     const k = x + ',' + y + ',' + z;
     if (snowMelt.has(k)) continue;
-    if (!_isWarmColumn(x, z) && snowHeat(x, y, z) === 1) continue;   // cold and no heat source: keep it
+    if ((!_isWarmColumn(x, z) || _aboveSnowline(x, y, z)) && snowHeat(x, y, z) === 1) continue;   // cold or up high, no heat: keep it
     snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
 }
@@ -233,7 +235,7 @@ function updateSnowMelt(dt) {
     const si = snowLayerTopAt(x, y, z);
     if (si < 0) { snowMelt.delete(k); continue; }                 // mined, replaced, or already gone
     const heat = snowHeat(x, y, z);
-    if (!_isWarmColumn(x, z) && heat === 1) { snowMelt.delete(k); continue; }  // heat removed, cold biome
+    if ((!_isWarmColumn(x, z) || _aboveSnowline(x, y, z)) && heat === 1) { snowMelt.delete(k); continue; }  // heat removed, cold biome or high up
     const left = t - step * heat;
     if (left > 0) { snowMelt.set(k, left); continue; }
     removeLayerAt(x, y, z, si);

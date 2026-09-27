@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.8141**.
+Current build: **alpha 0.8195**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -365,12 +365,33 @@ summer as normal, autumn 30% slower, and in winter (December-February) nothing g
 birch leaves fall to the ground (spruce keeps its needles) and grass, flowers, mushrooms, berry bushes, wheat
 and gourds wither; by winter the trees are bare. In spring the leaves grow back where they were, and each
 plant that withered has a 50% chance to return (and a small chance to seed one beside it). Caves are not
-touched. Wheat now grows through stages and gives wheat only when ripe.
+touched. Wheat now grows through stages and gives wheat only when ripe. Days follow the seasons: about 04:35 to
+19:25 with a high sun in June, 07:25 to 16:35 with a low one in December; night mobs and beds go by the real
+sunset and sunrise. Above the snowline (about y 176 in summer, down to about y 134 in winter) open ground keeps
+a cover of snow. A world can be created with seasons off: it stays on 1 July for good (summer weather and
+growth, long days).
 
 The world is split into weather regions (16x16 chunks), each with its own weather lasting 6-24 hours, blending smoothly into its neighbours near the edges (the debug screen shows a neighbouring weather that is blending in, e.g. "sunny (storm 30%)"): clear,
-sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes), darky, storm or foggy. There are
-no weather visuals yet; the debug screen (F3) shows the date, the weather, what comes next and the wind. Wind
-bends grass and leaves, and from 25 km/h the wind speeds you up walking with it and slows you against it (a gentle push: under 3% at 30 km/h, at most 7%); standing still, it pushes you along. Under 10 km/h is a light breeze, about 30 a windy day, over 60 very strong (storms). It blows 30% harder over the ocean and harder up high (+5 km/h at y 100, +9 at y 150) and does not reach you indoors or right behind a wall. The debug wind line shows where it is heading in the next hour: > rising, < falling, = steady.
+sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes), darky, storm or foggy. Clouds
+float at y 175-182 as blocks you can fly through: few on clear and sunny days, most of the sky when cloudy, a
+dark sheet in darky and storm weather. They drift with the wind (at a tenth of its speed) and shade the ground
+a little; under dark clouds the sunlight is 75% weaker. Foggy weather closes the view to about 8 blocks. A lighter
+fog (about 40 blocks) comes on a quarter of mornings from 3 to 6 o'clock (not in deserts), and after half of all
+rains and storms for about 2.5 hours; one rain or storm in ten leaves a rainbow for about 2.5 hours, opposite the
+sun. The sky fades from a pale horizon to a deeper blue overhead, glows round the sun and along the horizon at
+sunrise and sunset, and turns grey under heavy cloud. At night there are twinkling stars, the Milky Way and the
+odd shooting star. The moon goes through its phases once a month (new on the 1st, full on the 4th) and rises
+later each day; moonlit nights are brighter than moonless ones. Looking towards the sun gives a small lens flare
+unless a block or a cloud is in the way. Storms bring lightning: it strikes the highest thing around, and a hit does heavy damage and sets you (or a
+creature) on fire until it burns out or you reach water; an animal that burns to death leaves cooked meat, and a
+woolly sheep burns faster until its fleece is gone. A third of storms also bring hail, which hurts anyone out
+in the open without a helmet. On clear nights over the big snow biomes the aurora shows in the northern sky.
+Clouds are near black at night. Lightning can set trees, leaves and grass alight: fire lights up its surroundings,
+spreads through a tree's crown more than along the grass (and much less in the rain), burns logs to ash and grass
+to dirt with a carpet of ash, and water puts it out. An ash carpet gives ashes half the time; an ash block stands like any block, while its carpets are walk-through, fall, and mix with other layers. Around a full or new
+moon the sea's tides run wider (it drops at low water twice a day) and its waves are bigger, and a full moon brings
+half as many monsters again; moonlit nights are a little lighter. Half the villagers carry a torch at night, and a torch swung at a creature sets it on fire for 1.5 seconds (lightning: 6, lava: 10, and lava sets you alight too). About every 15-21 days (never in the first 7) a blood moon rises on the first night that is clear, sunny, cloudy or darky: a red moon and a red night, and twice the monsters. The debug screen (F3) shows the date, moon phase and today's sunrise and sunset, the weather (with any mist or rainbow), what comes next and the wind. Wind
+bends grass and leaves, and from 25 km/h the wind speeds you up walking with it and slows you against it (a gentle push: under 3% at 30 km/h, at most 7%); standing still, it pushes you along gently, but never off an edge while you sneak. Under 10 km/h is a light breeze, about 30 a windy day, over 60 very strong (storms). It blows 30% harder over the ocean and harder up high (+5 km/h at y 100, +9 at y 150) and does not reach you indoors or right behind a wall. The debug wind line shows where it is heading in the next hour: > rising, < falling, = steady.
 
 ## Rare and special materials
 
@@ -379,7 +400,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
   cave floors next to lava and glow a little.
 - **Cantaloupe.** A gourd like the watermelon, found in patches on grassland. Gather it and it comes apart
   into cantaloupe slices you can eat.
-- **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, using up one salt every 20 minutes (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
+- **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, a salt is used the moment it has food to keep (salt put in beside food, or food beside salt) and keeps that inventory's food for 20 minutes, then the next goes in (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
 - **Adobe.** 1 clay block and 5 wheat make 4 adobe at the crafting bench.
 
 - **Sulfur.** Found in caves as yellow sulfur blocks, often with small sulfur tips growing off them.

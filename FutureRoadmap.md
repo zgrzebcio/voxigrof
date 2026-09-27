@@ -93,9 +93,9 @@ legends: B = big update, M= medium update, S = small update
 *and it has to emit per viewport in split screen (see the layer notes in 06-renderer.js).*
 
 87. S: ~~fishes: cod, pike, salmon, catfish~~ v0.805
-88. M: weather and season system. v0.81
-89. S: cloud with dark version v0.815
-90. M: drinking and temperature system with cloth armor. v0.82
+88. M: ~~weather and season system~~. v0.81
+89. S: ~~cloud with dark version~~ v0.815
+90. M: drinking and temperature system with cloth armor and update stats add new ones. v0.82
 91. S: heatstroke and sandstorm weather. v0.825
 92. M: rain weather and snowing with snow carpet block v0.83
 93. S: ice block new mores biomes winter season. v0.835
@@ -183,9 +183,22 @@ legends: B = big update, M= medium update, S = small update
 
 
 
+cloud more dark and blueish in darky stormy day, remove fog above cloud and any effect that prevent visible like in real life above cloud it clear sky
 
 
 
+block: drain grate, mossy plank bricks, obsidian bricks, terracotta roof, termite hill, thatch, mud bricks, mossy sandstone bricks, amethyst block with brick, Mossy Cobblestone Bricks, Kelp Block Dried, resin block with brick, rust iron , oxidated copper, sandy glass,
+shape: slopes, doors, ladders, buttons, pressure plate, levers,
+item:::
+food: candy apple, fruit stew, bacon, fries, carrot cake, chocolate cake, cream cake, all meat as jerky, compress rotten flesh, grilled mushroom cactus juice
+materials: fertilizer, cocoa powder,  amethyst, rabbit fur, ash lye,
+tools: spear,
+useable: soap, canteen
+equipment: rain gauge, scuba set
+model: feeding trough, metal bowl, iron wire, stone path, banners, wind info, juicer
+grass carpet: flowers, gloves, leaves, mushroom
+plants:  lily pad with flower
+billboard: reed,
 
 
 

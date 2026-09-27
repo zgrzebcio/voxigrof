@@ -43,7 +43,7 @@ window.addEventListener('resize', () => {
 });
 
 function applyViewDist(persist = true) {
-  const far = viewDist * 16;
+  const far = drawDist() * 16;              // the fog reaches over the far ring (0.8193)
   sharedUniforms.fogNear.value = far * 0.55;
   sharedUniforms.fogFar.value  = far * 0.98;
   for (const c of CAMERAS) { c.far = far + 96; c.updateProjectionMatrix(); }

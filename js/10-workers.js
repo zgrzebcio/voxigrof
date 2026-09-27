@@ -11,6 +11,7 @@ const WORKER_COUNT = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4
 let SEED = (new URLSearchParams(location.search).get('seed') || '').replace(/[^a-z0-9]/gi, '')
         || Math.random().toString(36).slice(2, 10).toUpperCase();
 let TERRAIN_TYPE = 'default';               // 'default' | 'flat' — chosen per world at creation
+let TERRAIN_BIOMES = 1;                     // biome sizes: 1 before 0.819, 2 bigger snow and desert (makeGen)
 let mainGen = CORE.makeGen(SEED, TERRAIN_TYPE);   // main-thread twin of the worker generator (HUD biome label)
 
 const workers = [];
@@ -20,10 +21,10 @@ for (let i = 0; i < WORKER_COUNT; i++) {
   w.onmessage = (e) => { w.busy--; onWorkerMessage(e.data); pump(); };
   workers.push(w);
 }
-function initWorkers(seed, terrainType) {
+function initWorkers(seed, terrainType, biomeRev = 1) {
   // a world swap abandons whatever was in flight; the throttle's counter must not leak with it
   if (typeof resetGenThrottle === 'function') resetGenThrottle();
-  for (const w of workers) w.postMessage({ type: 'init', seed, terrainType: terrainType || 'default' });
+  for (const w of workers) w.postMessage({ type: 'init', seed, terrainType: terrainType || 'default', biomeRev });
 }
 initWorkers(SEED, TERRAIN_TYPE);
 

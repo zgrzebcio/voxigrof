@@ -1,10 +1,9 @@
 desktop.ini
 .idea
 .DS_Store
-xd.txt
+
 *.txt
 *.ini
 *.zip
-.codegraph
 .mcp.json
 toolsrc
