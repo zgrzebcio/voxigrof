@@ -45,7 +45,7 @@ the create screen for a world without villages and dungeons.
 | Camera view | `F2` | D-pad Left |
 | Debug text | `F3` | D-pad Up |
 | Hide the whole HUD | `Backspace` | Hold Back / Share (1 s) |
-| Climb a wall (up to 3 blocks, costs hunger) | Hold `Space` + `W` facing it | Hold A + stick forward |
+| Climb a wall (up to 3 blocks, costs stamina) | Hold `Space` + `W` facing it | Hold A + stick forward |
 
 In the inventory: `Shift+click` quick-moves a stack, `Shift+right click` wears gear, middle click
 sorts, and clicking outside the panels throws what you are carrying. On a pad the sticks move a
@@ -90,7 +90,7 @@ walk away or leave the world.
 when hit, flops and suffocates on land, and drops one raw fish of its kind. Cook them in the furnace.
 
 **Wall climbing.** In survival you can climb a bare wall up to 3 blocks, enough to get out of a pit. It
-uses a lot of hunger and both hands, so you can't mine or place while climbing. Ladders show the same
+uses a lot of stamina and both hands, so you can't mine or place while climbing. Ladders show the same
 climbing arms but cost nothing extra. Sprint only works forward and never while sneaking.
 
 **Sound.** The Audio tab has master, music and sound-effects volume sliders. Music starts at 50%.
@@ -113,7 +113,28 @@ Dropped items stay where they fall, even when you walk away and the area unloads
 while you are near: everything you carried lies 20 minutes after you die, what you throw down 10,
 anything else 5.
 
-Watch your hunger and air. Starving and drowning hurt, and drowning hurts more with every hit.
+**Vitals (0.82).** Every bar is out of 100, five icons each: health and armor left of the hotbar, food and
+thirst right, the temperature dial in the middle with stamina and oxygen over it (those two only while not
+full). With the inventory open you also see energy, vegetables, fruit and protein, and hovering a bar shows
+its numbers. Food, thirst, stamina, energy, fruit, vegetables and protein can go past full into an
+**over-stat** (up to 50, the white outline) that is used up first; you start (and respawn) with every one
+full. From full, food lasts 40 minutes, thirst 20, energy 50 (two and a half days without
+sleep) and fruit, vegetables and protein 35. Health heals while food is above 30 and thirst above 20.
+Eating takes 20% longer than it used to.
+- **Stamina** pays for sprinting, jumping and wall climbing. It comes back while you rest (20% faster
+  sneaking), using food and thirst. Empty, you cannot sprint, jump or climb until it is back to 20.
+- **Thirst** drops over time and hurts at 0. Look at water with an empty hand and hold `E` to drink to
+  full; berries, melons, apples, cantaloupe, milk and stew help too.
+- **Energy** drops over time, faster when you use stamina or get hurt. A night in bed fills it.
+- **Fruit, vegetables, protein** drop over time and come from food. They do nothing yet.
+- **Temperature** follows the season, the hour, the biome, height, weather, water and fire nearby. Under
+  10°C you are **Chilly** and under -5°C **Cold** (food and protein drain faster); over 30°C **Warm** and over
+  45°C **Hot** (thirst and fruit do). Cold and Hot also cost 5 health every 6 s. All show in the effects.
+
+**Creatures (0.823)** are on the same 100 scale: their health, hunger and every damage number (weapons and
+mobs alike) are 5 times what they were. They also get thirsty now, though nothing drinks yet.
+
+Starving, thirst and drowning hurt, and drowning hurts more with every hit.
 Zombies and skeletons come out at night and burn up at sunrise. Food you carry also goes off in
 time — see [Food and spoiling](#food-and-spoiling).
 
@@ -210,6 +231,7 @@ The book button in the furnace's corner lists every smelt with its time, fuel an
 | Raw pumpkin pie | Pumpkin pie | 15 s |
 | Flour | Bread | 7 s |
 | Rotten flesh | Leather | 7 s |
+| Any mushroom but lava | Grilled mushroom (food) | 4 s |
 | Sand | Glass | 5 s |
 | Cobblestone | Stone | 5 s |
 | Clay ball | Brick | 5 s |
@@ -274,7 +296,7 @@ at a time.
 
 **Blackberries are poisonous.** Blackberry bushes grow among the red and blue ones, a little
 rarer. Their berries fill you like the others, but eating one poisons you for 10 seconds: you lose
-half a health point a second, and your health does not regenerate meanwhile, down to your last half heart but never past it. Running effects show as small slots right of the hotbar, with the seconds left.
+2.5 health a second, and your health does not regenerate meanwhile, down to your last 5 but never past it. Running effects show as small slots right of the hotbar, with the seconds left.
 
 - **Chests do not tick.** Anything in storage keeps, and comes back out with the time it went in.
 - Stacking two lots of the same food takes the **shorter** clock, so fresh meat never refreshes old.
@@ -293,16 +315,18 @@ The golden apple never spoils.
 
 ## Animals and mobs
 
-- **Sheep** drop raw mutton, and wool and string while woolly. Wool makes beds, string makes bows.
-- **Cows** drop raw beef and leather. Leather makes the first armor set and the backpack. Use an
+- **Sheep** like the cold: spruce forests and mountains, in flocks of 3–5. They drop raw mutton, and wool and
+  string while woolly. Wool makes beds, string makes bows.
+- **Cows** graze flat plains and cold plains in herds of 2–4. They drop raw beef and leather. Leather makes the first armor set and the backpack. Use an
   empty bucket on a female cow for milk; each cow refills after 10 minutes.
-- **Pigs** live in plains, forest, birch forest and swamp, in groups of up to three. They drop 1–3
+- **Pigs** live by ponds and lakes in plains and forests, in groups of up to three. They drop 1–3
   raw pork and up to 2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
   berkshire and tamworth.
-- **Horses** can be tamed, then ridden with a saddle.
-- **Zombies** drop rotten flesh, which a furnace turns into leather, and pick up what they find.
+- **Horses** (mild plains and forests, 1–4 together) can be tamed, then ridden with a saddle.
+- **Zombies** drop rotten flesh, which a furnace turns into leather, and pick up what they find. At the bench,
+  5 rotten flesh press into compressed rotten flesh, which a bench works into leather in 20 s (5 XP).
 - **Skeletons** drop bones and arrows.
-- **Villagers** go about their business, and **monsters hunt them as well as you**. A villager
+- **Villagers** walk the plains and above all the beaches, alone or in pairs. They go about their business, and **monsters hunt them as well as you**. A villager
   stands and fights any monster that comes near it, and they are evenly matched one-on-one.
   Anything killed by another creature leaves **nothing at all** — no loot, no XP — so leading a
   zombie into a village is not a way to farm either side.
@@ -360,9 +384,25 @@ Chest: birch or spruce (only two chests of the same wood join into a double ches
 
 ## Seasons and weather
 
+**Biomes (0.823, new worlds).** Every land biome is half as big again, and there is more land and less deep
+ocean. Forests have **deep** patches (deep forest, deep birch forest, deep spruce forest) with about twice the
+trees, more big oaks and taller trees. The chilly band beside the snow grows a **spruce forest**, and cold plains
+have the odd spruce. Plains and oceans are warm or cold by the climate, and the grass is paler and drier in warm
+places and darker in cold ones (all worlds). Since 0.8231 the colours blend smoothly, and water is tinted too: deep
+blue in the cold, a little cyan in the warm. Spruce forest trees (new worlds) stand on a bare stem 4-8 blocks high.
+
+**Climate ladder (0.8232, new worlds).** Every land biome has a temperature level, and the land only steps one level
+at a time, so a forest never borders a desert or the snow:
+deep snow -3 · snow, snow forest -2 · cold plains, spruce forest -1 · plains, forest 0 · warm plains 1 · desert 2 ·
+red sand 3. Deep snow is treeless and mostly solid snow. The level also sets how warm the air feels.
+
+**What grows where (0.8233).** Pumpkins in the cold (cold plains, spruce forest), watermelons in the warm plains,
+rare cantaloupes and wild wheat patches (4+) on mild plains and meadows, sugar cane in stands on warm and hot shores,
+berry bushes in forests only. The odd oak grows among the spruces; salt crust is a bit commoner by the sea.
+
 A month is 7 days and a new world starts on 1 April. Spring (March-May) makes plants grow 30% faster,
 summer as normal, autumn 30% slower, and in winter (December-February) nothing grows. Through autumn oak and
-birch leaves fall to the ground (spruce keeps its needles) and grass, flowers, mushrooms, berry bushes, wheat
+birch leaves fall to the ground (spruce keeps its needles) and grass, flowers, berry bushes, wheat
 and gourds wither; by winter the trees are bare. In spring the leaves grow back where they were, and each
 plant that withered has a 50% chance to return (and a small chance to seed one beside it). Caves are not
 touched. Wheat now grows through stages and gives wheat only when ripe. Days follow the seasons: about 04:35 to
@@ -395,9 +435,14 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 
 ## Rare and special materials
 
-- **Mushrooms.** Red, brown, blue, black and white tall mushrooms grow on cave floors and in shade under
-  leaves; black and white tall grow where brown does and go into stew in its place. Lava mushrooms grow on
-  cave floors next to lava and glow a little.
+- **Mushrooms.** Red, brown, blue, black, white and yellow mushrooms grow on cave floors and in shade under
+  leaves; black, white and yellow grow where brown does. Lava mushrooms grow on cave floors next to lava and
+  glow a little. They cannot be planted in survival. **Autumn is mushroom time:** forests grow new ones (brown,
+  black, white and yellow under oaks, red among birches, blue among spruces), most of all beside fallen hollow
+  logs. A new mushroom comes up small and grows to its own size over about 15 minutes of daylight (not at
+  night); picked before it is 40% grown it gives nothing. Out in the open a grown mushroom lasts about 30
+  minutes and then rots away, and winter clears them all; cave and lava mushrooms stay. A furnace grills any
+  but the lava one into food. Mushroom stew takes a bowl and one brown, black, yellow and white mushroom.
 - **Cantaloupe.** A gourd like the watermelon, found in patches on grassland. Gather it and it comes apart
   into cantaloupe slices you can eat.
 - **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, a salt is used the moment it has food to keep (salt put in beside food, or food beside salt) and keeps that inventory's food for 20 minutes, then the next goes in (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
@@ -419,14 +464,16 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 - **Storage blocks.** At the crafting bench, 10 coal, charcoal, iron/gold/tin/copper ingots, diamonds,
   emeralds, rubies, sapphires or raw iron/gold/tin/copper press into one block, and a block breaks back
   into 10. Coal and charcoal blocks burn in a furnace as long as the ten they were made from.
-- **Sandstone.** 5 sand make sandstone and 5 red sand make red sandstone at the crafting bench.
+- **Sandstone.** 5 sand make sandstone, 5 red sand red sandstone and 5 pink sand pink sandstone at the
+  crafting bench; each has a brick and a polished look on the variant bar. Pink sand lies on some warm beaches
+  near deserts (new worlds).
 - **Fiber block.** 10 fiber pressed into a block (and back), breakable by hand. Loose fiber tufts grow
   beside fallen hollow logs, and very rarely a plains grass block turns out to be one.
 - **Hollow logs.** Fallen hollow oak, birch and spruce logs lie in forests, often with mushrooms around
   them; cut one with a hatchet to take it. Placed standing up and filled with dirt or grass (right click
   it with the block), it works as a planter for saplings, flowers and grass; filled with sand, for a
   cactus. Breaking it gives back the log and what was inside. Laid down and filled with dirt or grass,
-  it slowly grows mushrooms on top: brown (or black or white tall) on oak, red on birch, blue on spruce. A hollow log makes 3
+  it slowly grows mushrooms on top from spring to autumn: brown (or black, white or yellow) on oak, red on birch, blue on spruce. A hollow log makes 3
   planks, like a log.
 - **Falling blocks.** Sand, red sand, gravel and fiber blocks fall when nothing is under them and land
   as a loose pile of 8 layers you can walk through. Deserts have dunes of 1–7 layers, exposed gravel has

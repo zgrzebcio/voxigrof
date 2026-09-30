@@ -851,7 +851,7 @@ function _planVillage(g, cx, cz) {
   const originX = cx * 16 + 8, originZ = cz * 16 + 8;
   const gy = structGroundY(originX, originZ);
   if (gy < (g.minY ?? 0) || gy > (g.maxY ?? 255)) return false;
-  if (Array.isArray(g.biomes) && g.biomes.length && !g.biomes.includes(mainGen.biomeAt(originX, originZ))) return false;
+  if (Array.isArray(g.biomes) && g.biomes.length && !g.biomes.includes(BIOMES.biomeBase(mainGen.biomeAt(originX, originZ)))) return false;   // base name (0.823)
 
   const [nMin, nMax] = Array.isArray(g.count) ? g.count : [4, 7];
   const n = nMin + Math.floor(_structHash(cx, cz, 301) * (nMax - nMin + 1));
@@ -1052,7 +1052,7 @@ function trySpawnStructureInChunk(cx, cz) {
     const ax = cx * 16 + 1 + Math.floor(_structHash(cx, cz, 91) * Math.max(1, 15 - w));
     const az = cz * 16 + 1 + Math.floor(_structHash(cx, cz, 97) * Math.max(1, 15 - l));
     if (Array.isArray(s.biomes) && s.biomes.length) {
-      const bio = mainGen.biomeAt(ax, az);
+      const bio = BIOMES.biomeBase(mainGen.biomeAt(ax, az));   // base name (0.823)
       if (!s.biomes.includes(bio)) continue;
     }
     const minY = s.minY ?? 0, maxY = s.maxY ?? 255;

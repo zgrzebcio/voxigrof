@@ -39,7 +39,11 @@ const BLOCK_VARIANTS = {
                      { id: B.POLISHED_DOLOMITE, name: 'polished' }],
   // the mortar's bowl in another rock (0.7945)
   [B.MORTAR]:       [{ id: B.GRANITE_MORTAR, name: 'granite' }, { id: B.MARBLE_MORTAR, name: 'marble' },
-                     { id: B.LIMESTONE_MORTAR, name: 'limestone' }],
+                     { id: B.LIMESTONE_MORTAR, name: 'limestone' }, { id: B.DOLOMITE_MORTAR, name: 'dolomite' }],   // dolomite 0.822
+  // the sandstones' brick and polished looks (0.822)
+  [B.SANDSTONE]:      [{ id: B.SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_SANDSTONE, name: 'polished' }],
+  [B.RED_SANDSTONE]:  [{ id: B.RED_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_RED_SANDSTONE, name: 'polished' }],
+  [B.PINK_SANDSTONE]: [{ id: B.PINK_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_PINK_SANDSTONE, name: 'polished' }],
 };
 /* A gem cluster's bed (0.7948): the same block with the rock in its variant bits rather than a block of
    its own, so an option can also carry `bits`, OR'd into the variant byte when it is placed. */
@@ -161,7 +165,8 @@ function syncVariantHud() {
   const id = slotId(HOTBAR[hotbarSel]);
   const o = variantOptions(id);
   let el = hotbarEl.querySelector(':scope > .variantBar');
-  if (!o) { if (el) el.remove(); return; }
+  // gone while the inventory is open (0.82): it sits higher now, over the vitals, and would cover the panel
+  if (!o || invOpen) { if (el) el.remove(); return; }
   const cur = variantIndex(id);
   // each variant drawn in the chisel's picked shape when it can take it, like the hotbar slots (0.7941)
   const shp = o.map(v => (typeof chiselHeldVariant === 'function' ? chiselHeldVariant(v.id) : 0) || v.bits || 0);   // + a bed (0.7948)

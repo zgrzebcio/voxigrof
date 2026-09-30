@@ -296,7 +296,7 @@ function _snowlineChunk(c) {
     if (y < line || y >= 199) continue;
     // on bare, solid, open ground only: not on leaves, snow already there, sand, or a plant
     const tid = top & 255;
-    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND) continue;
+    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || tid === B.PINK_SAND) continue;
     if (_skyAt(c, li + ((y + 1) << 8)) < 15) continue;
     if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._snowCol = col; return false; }
     _seasonOps++;
@@ -337,7 +337,7 @@ function seasonDressChunk(c) {
     while (y > line && !data[li + (y << 8)]) y--;
     if (y < line) continue;
     const top = data[li + (y << 8)], tid = top & 255;
-    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || data[li + ((y + 1) << 8)]) continue;
+    if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || tid === B.PINK_SAND || data[li + ((y + 1) << 8)]) continue;
     data[li + ((y + 1) << 8)] = CORE.layerVal(B.SNOW, 1 + Math.min(3, Math.floor((y - line) / 6)));
     if (tid === B.GRASS) data[li + (y << 8)] = B.GRASS | (V.GRASS_SNOWY << 8);
   }
@@ -356,8 +356,8 @@ function showTitleDate(on) {
 
 /* ================================== the seasons on the land ================================== */
 const SEASON_LEAVES = new Set([B.LEAVES, B.BIRCH_LEAVES]);               // spruce keeps its needles
+// mushrooms left this list in 0.821: they have their own year now (mushroom growth, below)
 const SEASON_PLANTS = new Set([B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
-  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.LAVA_MUSHROOM, B.WHITE_TALL_MUSHROOM,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHEAT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
 // "cx,cz" -> Map(cell index -> the value that stood there): what autumn took and spring may give back. Saved.
 const SEASON_MEM = new Map();
@@ -390,7 +390,7 @@ function _placePlant(x, y, z, v) {
    have given. Returns false when it ran out of budget (it carries on next frame). */
 let _seasonOps = 0;
 function _seasonChunk(c) {
-  if (!seasonsOn()) return _snowlineChunk(c);                  // always July: only the high snow (0.819)
+  if (!seasonsOn()) { _shroomChunk(c); return _snowlineChunk(c); }   // always July: the high snow (0.819), mushrooms (0.821)
   const d = gameDate(), k = key(c.cx, c.cz), wx0 = c.cx * 16, wz0 = c.cz * 16;
   if (d.season >= 2) {
     const level = d.season === 3 ? 1.01 : d.progress;           // how much of the fall has happened
@@ -436,6 +436,7 @@ function _seasonChunk(c) {
       if (!mem.size) SEASON_MEM.delete(k);
     }
   }
+  _shroomChunk(c);                                               // mushrooms, every season (0.821)
   return _snowlineChunk(c);                                      // and the snowline, every season (0.819)
 }
 // per frame: a couple of chunks inside the simulation radius whose hour has come round
@@ -457,6 +458,7 @@ function updateSeasons(dt) {
     else break;                                                   // out of budget: same chunk next frame
   }
   updateWheatGrow(dt);
+  updateShroomGrow(dt);                                          // 0.821
 }
 function serializeSeasons() {
   const out = [];
@@ -509,7 +511,107 @@ function updateWheatGrow(dt) {
     if (next) wheatGrow.set(k, _wheatLife()); else wheatGrow.delete(k);
   }
 }
-function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); _regionKind.clear(); _seasonKeys = []; }
+/* ---- mushrooms grow (0.821) ----
+   A mushroom's variant: bits 0-2 the size it grows to (1..7 = 0.5x..1.5x; 0 = one from the world generator or from
+   before, grown, sized by where it stands), bits 3-7 how many of SHROOM_STEPS steps it still has to grow — the
+   mesher draws it at the share it has (emitShroom, 02-voxel-core.js). New ones come up as sprouts (sproutShroom):
+     - in autumn on the forest floor, a few a chunk (_shroomAutumn), and more beside a fallen hollow log;
+     - on top of a hollow log packed with dirt or grass, spring to autumn (both processHollowMushrooms, 22).
+   They grow by day only, SHROOM_GROW_S from sprout to full. Under the open sky (not in a cave, and never the lava
+   kind) a grown one lasts SHROOM_LIFE_S and is gone, and in winter they all go, a few at a time. Picked while
+   under 40% grown, a mushroom gives nothing (shroomTooSmall). The clocks are not saved: a chunk's mushrooms are
+   picked up again on its next hourly season pass (_shroomChunk), which restarts a grown one's time. */
+const SHROOM_STEPS = 31, SHROOM_GROW_S = 900, SHROOM_LIFE_S = 1800;
+const SHROOM_WILD = new Set([B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM,
+                             B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM]);      // not the lava one
+const SHROOM_OAK = [B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM];
+// what an autumn forest grows, by its biome (read once per chunk)
+const SHROOM_BY_BIOME = { 'Forest': SHROOM_OAK, 'Birch Forest': [B.RED_MUSHROOM], 'Snow Forest': [B.BLUE_MUSHROOM],
+                          'Spruce Forest': [B.BLUE_MUSHROOM] };   // spruce forest 0.823; deep ones by their base (biomeBase)
+const SHROOM_AUTUMN_TRIES = 2, SHROOM_AUTUMN_CHANCE = 0.03;   // per chunk, per hourly pass: a few standing at once
+const SHROOM_AUTUMN_MAX = 6;                                  // a chunk with this many out already grows no more
+const shroomLeft = (vr) => ((vr || 0) >> 3) & 31;
+const shroomTooSmall = (id, vr) => PROPS[id]?.shroom != null && shroomLeft(vr) > SHROOM_STEPS * 0.6;
+const shroomGrow = new Map();       // "x,y,z" -> seconds to its next step (growing) or until it goes (grown)
+const _shroomStepS = () => SHROOM_GROW_S / SHROOM_STEPS;
+// a new mushroom, just come up: a random full size, all its growing ahead of it
+function sproutShroom(x, y, z, id) {
+  const size = 1 + ((Math.random() * 7) | 0);
+  setBlock(x, y, z, id | ((size | ((SHROOM_STEPS - 1) << 3)) << 8));
+  shroomGrow.set(x + ',' + y + ',' + z, _shroomStepS());
+}
+// a random kind of those an oak-type place grows
+const shroomOak = () => SHROOM_OAK[(Math.random() * SHROOM_OAK.length) | 0];
+// one chunk on its hourly season pass: pick up its open-air mushrooms, clear some away in winter, grow some in autumn
+function _shroomChunk(c) {
+  const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
+  const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16;
+  let out = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i], id = v & 255;
+    if (!SHROOM_WILD.has(id) || _skyAt(c, i) === 0) continue;      // a cave's stay as they are
+    const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
+    if (season === 3 && sHash(x, y, z, 9 + d.year * 16) < d.progress * 1.5) {   // winter takes them
+      if (_seasonOps < SEASON_OPS_PER_FRAME) { _seasonOps++; setBlock(x, y, z, B.AIR); }
+      continue;
+    }
+    out++;
+    const k = x + ',' + y + ',' + z;
+    if (!shroomGrow.has(k))
+      shroomGrow.set(k, shroomLeft(v >> 8) ? _shroomStepS() : SHROOM_LIFE_S * (0.5 + 0.5 * Math.random()));
+  }
+  if (season === 2 && out < SHROOM_AUTUMN_MAX) _shroomAutumn(c);
+}
+// autumn: now and then a sprout on a forest chunk's floor — grass or dirt with air over it
+function _shroomAutumn(c) {
+  if (c._shroomBiome === undefined)
+    c._shroomBiome = typeof mainGen !== 'undefined' && mainGen ? BIOMES.biomeBase(mainGen.biomeAt(c.cx * 16 + 8, c.cz * 16 + 8)) : '';
+  const kinds = SHROOM_BY_BIOME[c._shroomBiome];
+  if (!kinds) return;
+  for (let t = 0; t < SHROOM_AUTUMN_TRIES; t++) {
+    if (Math.random() >= SHROOM_AUTUMN_CHANCE || _seasonOps >= SEASON_OPS_PER_FRAME) continue;
+    const lx = (Math.random() * 16) | 0, lz = (Math.random() * 16) | 0;
+    // down from the sky past air and the canopy to the first ground
+    for (let y = 198; y > 1; y--) {
+      const i = lx + (lz << 4) + (y << 8), id = c.data[i] & 255;
+      if (id === B.AIR || !CORE.solidVal(c.data[i]) || PROPS[id]?.type === 'wood' || id === B.LEAVES
+          || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES) continue;
+      if ((id === B.GRASS || id === B.DIRT) && (c.data[i + 256] & 255) === B.AIR) {
+        _seasonOps++;
+        sproutShroom(c.cx * 16 + lx, y + 1, c.cz * 16 + lz, kinds[(Math.random() * kinds.length) | 0]);
+      }
+      break;
+    }
+  }
+}
+// once a second: the growing take a step by day, the grown under the sky run out
+let _shroomTickT = 0;
+function updateShroomGrow(dt) {
+  _shroomTickT += dt;
+  if (_shroomTickT < 1) return;
+  const step = _shroomTickT * (typeof tickFactor === 'function' ? tickFactor() : 1);
+  _shroomTickT = 0;
+  const day = !(typeof isDarkTime === 'function' && isDarkTime());
+  for (const [k, t] of shroomGrow) {
+    const [x, y, z] = k.split(',').map(Number);
+    if (!inSimRange(x, z)) continue;                              // its clock waits while nobody is near
+    const v = getBlock(x, y, z), id = v & 255;
+    if (!SHROOM_WILD.has(id)) { shroomGrow.delete(k); continue; }
+    const vr = (v >> 8) & 255, left = shroomLeft(vr);
+    if (left) {
+      if (!day) continue;                                         // growing waits for morning
+      if (t - step > 0) { shroomGrow.set(k, t - step); continue; }
+      setBlock(x, y, z, id | (((vr & 7) | ((left - 1) << 3)) << 8));
+      shroomGrow.set(k, left > 1 ? _shroomStepS() : SHROOM_LIFE_S);
+      continue;
+    }
+    if (getSkyWorld(x, y, z) === 0) { shroomGrow.delete(k); continue; }   // grown in the dark: it stays
+    if (t - step > 0) { shroomGrow.set(k, t - step); continue; }
+    setBlock(x, y, z, B.AIR);                                     // its time is up
+    shroomGrow.delete(k);
+  }
+}
+function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); _regionKind.clear(); _seasonKeys = []; }
 
 /* ---- the wind the renderer bends plants with: player one's (0.81) ---- */
 function updateWindUniforms() {

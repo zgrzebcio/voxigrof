@@ -159,6 +159,7 @@ function saveWorld(syncToLS = false) {
     xp: serializeXP(),                    // total experience + the player-placed block ledger
     player: { pos: [player.pos.x, player.pos.y, player.pos.z], yaw: player.yaw, pitch: player.pitch,
               hp: player.hp, food: player.food, saturation: player.saturation, flying: player.flying,
+              vit: serializeVitals(player),   // the other bars, and the mark that these are out of 100 (0.82)
               hotSel: hotbarSel, profile: player.profileId || null,
               spawnPos: player.spawnPos ? player.spawnPos.toArray() : null,
               homeSpawn: player.homeSpawn ? player.homeSpawn.toArray() : null,

@@ -541,6 +541,7 @@ function applyOneMesh(m) {
       geo.setAttribute('tile',     new THREE.BufferAttribute(p.tile, 1, false));
       geo.setAttribute('shade',    new THREE.BufferAttribute(p.shade, 1, true));
       geo.setAttribute('blockLight', new THREE.BufferAttribute(p.lite, 1, false));
+      geo.setAttribute('clim',     new THREE.BufferAttribute(p.clim, 1, true));   // grass and water climate colour (0.8231)
       geo.setIndex(new THREE.BufferAttribute(p.index, 1));
       geo.boundingSphere = sphere.clone();                  // manual: skip costly compute
       const mesh = new THREE.Mesh(geo, MATERIALS[i]);

@@ -33,7 +33,7 @@ const RANGED = {
    stickPick how long a recoverable one waits to be collected — far longer than a spent one,
              because the whole point is that you go and fetch your arrows back */
 const AMMO = {
-  [ITEM.ARROW]: { damage: 6, gravity: 11, drag: 0.06, stick: 20, stickPick: 150,
+  [ITEM.ARROW]: { damage: 30, gravity: 11, drag: 0.06, stick: 20, stickPick: 150,
                   recover: 0.5, knock: 5.5 },
 };
 
@@ -127,7 +127,7 @@ function fireRanged(rp, slot, draw) {
   }
   camera.getWorldDirection(_rvFwd);
   if (camView === 2) _rvFwd.negate();        // front view: the camera looks back at the player
-  const ap = ammoProps(ammoId) || { damage: 4, gravity: 11, drag: 0.05, stick: 20, recover: 0, knock: 4 };
+  const ap = ammoProps(ammoId) || { damage: 20, gravity: 11, drag: 0.05, stick: 20, recover: 0, knock: 4 };
   // a snatched shot scatters; a full draw goes where you pointed it
   const sp = rp.spread * (1.6 - draw) * 2;
   const vx = _rvFwd.x + (Math.random() - 0.5) * sp;
@@ -318,7 +318,7 @@ function _arrowHitPlayer(x, y, z) {
   return null;
 }
 function _arrowHitsPlayer(a, tp, x, y, z) {
-  tp.hp -= a.dmg;
+  tp.hp -= a.dmg;              // out of 100 on both sides since 0.823
   tp._dmgCause = `was shot by a ${a.byName}`;
   const m = Math.hypot(a.vx, a.vz) || 1;
   const kick = playerKick(tp);
@@ -349,7 +349,7 @@ function mobShoot(e, tp, opts = {}) {
   const vz = (dz * inv + (Math.random() - 0.5) * spread) * speed;
   const a = spawnArrow(e.x, e.y + 1.45, e.z, vx, vy, vz, {
     ammoId: opts.ammoId != null ? opts.ammoId : ITEM.ARROW,
-    dmg: opts.dmg != null ? opts.dmg : 4,
+    dmg: opts.dmg != null ? opts.dmg : 20,                // out of 100 health since 0.823
     fromPlayer: false, shooter: e, byName: e.name || 'Skeleton',
   });
   if (a) a.shooterKind = e.kind;

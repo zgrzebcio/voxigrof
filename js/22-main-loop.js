@@ -459,6 +459,7 @@ function processGrassSpread(dt) {
    around the player; each chunk comes round about every 100 s at normal tick speed. ---- */
 const HOLLOW_SHROOM = { [B.HOLLOW_LOG]: B.BROWN_MUSHROOM, [B.HOLLOW_BIRCH_LOG]: B.RED_MUSHROOM, [B.HOLLOW_SPRUCE_LOG]: B.BLUE_MUSHROOM };
 const HOLLOW_SHROOM_CHANCE = 0.15;              // per log, per visit of its chunk: roughly one every 10 minutes
+const HOLLOW_SIDE_SHROOM_CHANCE = 0.03;         // autumn, per log cell, per visit: a few round each log at a time (0.821)
 let _shroomTimer = 0, _shroomStep = 0;
 function processHollowMushrooms(dt) {
   if (menuScene || !player.spawned) return;
@@ -471,23 +472,33 @@ function processHollowMushrooms(dt) {
   const c = getChunk(cx, cz);
   if (!c || !c.data || !inSimRangeChunk(cx, cz)) return;
   const d = c.data;
+  const autumn = seasonsOn() && gameDate().season === 2;
   for (let i = 0; i < d.length - 256; i++) {
     const v = d[i];
     let shroom = HOLLOW_SHROOM[v & 255];
-    // an oak log grows brown, black or white tall, as brown grows in the wild (0.8091)
-    if (shroom === B.BROWN_MUSHROOM) shroom = [B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM][(Math.random() * 3) | 0];
+    // an oak log grows brown, black, white or (0.821) yellow, as brown grows in the wild (0.8091)
+    if (shroom === B.BROWN_MUSHROOM) shroom = shroomOak();
     if (!shroom || !((v >> 8) & 3)) continue;                            // standing up: a planter, not a rotting log
+    const x = cx * 16 + (i & 15), y = i >> 8, z = cz * 16 + ((i >> 4) & 15);
+    /* Autumn (0.821): mushrooms come up on the ground beside a fallen hollow log, whatever it holds — the best
+       place in the woods to find them. One side at random, on grass or dirt with air over it. */
+    if (autumn && Math.random() < HOLLOW_SIDE_SHROOM_CHANCE) {
+      const [dx, dz] = [[1, 0], [-1, 0], [0, 1], [0, -1]][(Math.random() * 4) | 0];
+      const g = getBlock(x + dx, y - 1, z + dz) & 255;
+      if ((g === B.GRASS || g === B.DIRT) && (getBlock(x + dx, y, z + dz) & 255) === B.AIR) sproutShroom(x + dx, y, z + dz, shroom);
+    }
     const fill = hollowFillOf(v);
     if ((fill !== B.DIRT && fill !== B.GRASS) || (d[i + 256] & 255) !== B.AIR) continue;
-    if (Math.random() >= HOLLOW_SHROOM_CHANCE * seasonGrowth()) continue;   // by season (0.81)
-    setBlock(cx * 16 + (i & 15), (i >> 8) + 1, cz * 16 + ((i >> 4) & 15), shroom);
+    if (Math.random() >= HOLLOW_SHROOM_CHANCE * seasonGrowth()) continue;   // by season (0.81): spring to autumn
+    sproutShroom(x, y + 1, z, shroom);                                    // a sprout that grows (0.821)
   }
 }
 
 /* ---- throwing ---- */
 // blocks whose right-click opens a GUI or actuates something; throwing must yield to them
 const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.DOOR, B.BED,
-                                  B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR]);   // mortar variants 0.7945
+                                  B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR,   // mortar variants 0.7945
+                                  B.DOLOMITE_MORTAR]);   // 0.822
 function tryThrow() {
   if (!playing || player.canFly || invOpen || menuScene) return false;
   const slot = HOTBAR[hotbarSel];
@@ -512,51 +523,54 @@ function tryThrow() {
 
 /* ---- eating ---- */
 var _eatTimer = 0;
-const EAT_TIME = 1.1;   // default eat duration; override per-item via eatTime in ITEM_PROPS
+const EAT_TIME = 1.32;  // default eat duration; override per-item via eatTime in ITEM_PROPS (every one 20% longer in 0.821)
 function updateEating(dt, wantPlace) {
   if (!playing || player.canFly || invOpen || menuScene) { _eatTimer = 0; return 0; }
   const slot = HOTBAR[hotbarSel];
   const id = slot ? slot.id : null;
-  const isFood = id !== null && ITEM_PROPS[id]?.food > 0;
-  const eatDur = (id !== null && ITEM_PROPS[id]?.eatTime) || EAT_TIME;
+  // an item or a block (the grilled mushrooms, 0.821): foodPropsOf in 54-stats-effects.js
+  const fp = foodPropsOf(id), isFood = !!fp;
+  const eatDur = (fp && fp.eatTime) || EAT_TIME;
   if (wantPlace && isFood) {
     _eatTimer = Math.min(eatDur, _eatTimer + dt);
     if (typeof fxEat === 'function') fxEat(player, id, dt);   // crumbs, or milk splashing (0.801)
     if (_eatTimer >= eatDur) {
       _eatTimer = 0;
-      const foodAmt = ITEM_PROPS[id].food || 0;
-      const foodSat = ITEM_PROPS[id].foodSat || 0;
+      const foodAmt = fp.food || 0;
+      const foodSat = fp.foodSat || 0;
       if (player.food < MAX_FOOD) {
         player.food = Math.min(MAX_FOOD, player.food + foodAmt);
         player.saturation = Math.min(MAX_SATURATION, player.saturation + foodSat);
       } else {
-        const fullSat = ITEM_PROPS[id].foodSatFull ?? foodSat;
+        const fullSat = fp.foodSatFull ?? foodSat;
         player.saturation = Math.min(MAX_SATURATION, player.saturation + fullSat);
       }
+      // ...and thirst, fruit, vegetables, protein (0.82, FOOD_NUTRITION in 54-stats-effects.js)
+      if (typeof eatNutrition === 'function') eatNutrition(player, fp);
       /* What the food does beyond filling you (0.758). Its effect lands FIRST, so the heal it carries is
          already boosted by it: a golden apple starts Rapid regen, then its 2 health arrive doubled as 4. */
       // milk (0.767): washes out every running effect, good or bad, before anything else lands
-      if (ITEM_PROPS[id].foodClearEffects && player.effects && player.effects.length) {
+      if (fp.foodClearEffects && player.effects && player.effects.length) {
         player.effects = [];
         if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
       }
-      const eff = ITEM_PROPS[id].foodEffect;
+      const eff = fp.foodEffect;
       // some effects are only a chance: raw food and rotten flesh may or may not turn your stomach (0.761)
-      const effChance = ITEM_PROPS[id].foodEffectChance ?? 1;
+      const effChance = fp.foodEffectChance ?? 1;
       if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff);
-      const heal = ITEM_PROPS[id].foodHeal || 0;
+      const heal = fp.foodHeal || 0;
       if (heal > 0) {
         const before = player.hp;
         player.hp = Math.min(playerMaxHP(), player.hp + heal * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1));
         // green hearts for what the food healed, seen by everyone but you in first person (0.8)
         if (typeof fxHearts === 'function' && player.hp > before)
-          fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, true, player.hp - before, fxOwner(player));   // one per point healed (0.8031)
+          fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, true, (player.hp - before) / VITAL_K, fxOwner(player));   // one per 5 healed (0.8031; per point of 20)
       }
       slot.count--;
       if (slot.count <= 0) HOTBAR[hotbarSel] = null;
       if (typeof feedItem === 'function') feedItem(id, -1, 'eaten');
       // give back container item (e.g. bowl from mushroom stew)
-      const returnId = ITEM_PROPS[id].foodReturn;
+      const returnId = fp.foodReturn;
       if (returnId != null) {
         const cap = stackSize(returnId);
         let placed = false;
@@ -1148,6 +1162,7 @@ function tickPlayer(dt, now, slot) {
   /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
      which is all a one-frame-late cancel needs. */
   if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
+  if (playerTired()) player.fast = false;   // out of stamina: no sprint until it is back to 20 (0.82)
   const len = Math.hypot(fwd, str);
   if (len > 1) { fwd /= len; str /= len; }
 
@@ -1216,8 +1231,8 @@ function tickPlayer(dt, now, slot) {
       player.fallStart = null;
     } else {
       // jump strength is a HEIGHT multiplier and height goes with velocity squared, hence the root (0.756)
-      // ...and no jumping while a crafting queue runs (0.804)
-      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerIsCrafting()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
+      // ...and no jumping while a crafting queue runs (0.804), or out of stamina (0.82)
+      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerIsCrafting() && !playerTired()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
       player.vy = Math.max(-58, player.vy - 27 * dt);           // gravity
       // in a cobweb you sink slowly and barely hop (0.766)
       if (playerInCobweb()) player.vy = Math.max(-COBWEB_VY_MAX, Math.min(COBWEB_VY_MAX, player.vy));
@@ -1332,9 +1347,7 @@ function tickPlayer(dt, now, slot) {
         player.pos.set(pr.pos[0], pr.pos[1], pr.pos[2]);
         if (typeof pr.yaw === 'number') player.yaw = pr.yaw;
         if (typeof pr.pitch === 'number') player.pitch = pr.pitch;
-        player.hp         = typeof pr.hp         === 'number' ? pr.hp         : MAX_HP;
-        player.food       = typeof (pr.food ?? pr.hunger) === 'number' ? (pr.food ?? pr.hunger) : MAX_FOOD;
-        player.saturation = typeof pr.saturation  === 'number' ? pr.saturation  : MAX_SATURATION;
+        restoreVitals(player, pr);             // every bar; a save from before 0.82 is scaled up (54-stats-effects.js)
         player.flying = !!pr.flying && player.canFly;
         player.vy = 0; player.fallStart = null;
         player.spawnPos = Array.isArray(pr.spawnPos)
@@ -1358,7 +1371,7 @@ function tickPlayer(dt, now, slot) {
       if (s) {
         player.pos.set(s.x, s.y, s.z);
         player.spawned = true;
-        player.saturation = MAX_SATURATION;  // new world: start fully saturated
+        fillVitals(player);                  // new world: every bar full, the over-stats too (0.82; all but thirst's 0.821)
         if (!player.spawnPos) player.spawnPos = player.pos.clone();
         // the world spawn, kept apart from spawnPos so a broken bed has somewhere to fall back to
         if (!player.homeSpawn) player.homeSpawn = player.pos.clone();
@@ -1437,8 +1450,10 @@ function tickPlayer(dt, now, slot) {
      the right button cancels its order. Runs before bush pickup, which it replaces while aimed at one. */
   const _eHeld = (playing && !invOpen && !menuScene && !joining) && ((kbOwner && !!keys['KeyE']) || act.padPick);
   updateBenchWork(dt, _eHeld, (playing && !invOpen && !menuScene) && ((mousePlace && pointerLocked) || act.padPlace));
+  // drinking (0.82): crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs
+  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim);
   // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
-  updateBushPickup(dt, _eHeld && !player._benchAim);
+  updateBushPickup(dt, _eHeld && !player._benchAim && !(player._drinkProg > 0));
 
   // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
   const _didThrow = (wantPlace && !act.place) ? tryThrow() : false;
@@ -1461,7 +1476,8 @@ function tickPlayer(dt, now, slot) {
         setBlock(hit.x, hit.y, hit.z, B.AIR);
         queueWaterAround(hit.x, hit.y, hit.z);
         queueLavaAround(hit.x, hit.y, hit.z);
-        for (const drop of blockDrop(minedId, false))
+
+
           for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, hit.x, hit.y, hit.z);
         act.lastBreak = now;
         }
@@ -1621,7 +1637,8 @@ function tickPlayer(dt, now, slot) {
   }
 
   /* ---- eating ---- */
-  const eatProg = updateEating(dt, wantPlace);
+  // a drink lifts the arm the same way (0.82): walking pace, no sprint, and the body shows it
+  const eatProg = Math.max(updateEating(dt, wantPlace), player._drinkProg || 0);
   // the third-person body mirrors it next frame, so everyone else sees this player eating
   player._eatProg = eatProg;
 

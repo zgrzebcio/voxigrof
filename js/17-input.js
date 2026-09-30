@@ -74,7 +74,7 @@ function applySettings() {
     if (!creative) {
       p.flying = false;
       // fresh vitals when entering survival, and skip fall-damage from the current arc
-      if (wasCreative) { p.hp = playerMaxHP(p); p.food = MAX_FOOD; p.fallStart = null; p.vy = 0; }
+      if (wasCreative) { fillVitals(p, false); p.fallStart = null; p.vy = 0; }   // every bar (0.82)
     }
   }
   // swap inventory sets when the mode changes. Survival persists via saveHotbar/saveInv (they
@@ -140,7 +140,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               split: !!newSplitChk.checked,
               structures: !!newStructChk.checked,   // villages and dungeons, fixed at creation (0.7594)
               seasons: !!newSeasonChk.checked,      // off: always 1 July, fixed at creation (0.818)
-              biomeRev: 3,                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193); older worlds keep theirs
+              biomeRev: 7,                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232); older worlds keep theirs
               createdVersion: GAME_VERSION, lastVersion: GAME_VERSION,
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);

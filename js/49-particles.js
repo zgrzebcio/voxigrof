@@ -600,12 +600,12 @@ function fxHearts(x, y, z, heal, amt = 1, owner = 0) {
     S.drag[i] = 1.6; S.fade[i] = 0.35; S.own[i] = owner;
   }
 }
-// healing arrives a sliver at a time: one green heart per 2 health gained (one heart on the bar)
+// healing arrives a sliver at a time: one green heart per VITAL_K health gained
 function fxHealTick(p, amount) {
   if (!(amount > 0) || !p) return;
   p._fxHeal = (p._fxHeal || 0) + amount;
-  while (p._fxHeal >= 1) {                // one per point healed (0.8031; was one per 2)
-    p._fxHeal -= 1;
+  while (p._fxHeal >= VITAL_K) {          // one per 5 of 100 (0.82; per point of 20 since 0.8031)
+    p._fxHeal -= VITAL_K;
     fxHearts(p.pos.x, p.pos.y + 1.3, p.pos.z, true, 1, fxOwner(p));
   }
 }
@@ -696,7 +696,7 @@ const FX_FEET = {
 const FX_FOOT_OF = { cow: 'hoof', horse: 'hoof', sheep: 'small', pig: 'small' };   // everything else walks in boots
 // the grounds that take a print: [r, g, b, alpha] of the print on it
 const FX_SOFT = {
-  [B.SAND]: [0.6, 0.5, 0.34, 0.42], [B.RED_SAND]: [0.52, 0.26, 0.15, 0.42], [B.SNOW]: [0.6, 0.67, 0.8, 0.55],
+  [B.SAND]: [0.6, 0.5, 0.34, 0.42], [B.RED_SAND]: [0.52, 0.26, 0.15, 0.42], [B.PINK_SAND]: [0.62, 0.42, 0.42, 0.42], [B.SNOW]: [0.6, 0.67, 0.8, 0.55],
   [B.DIRT]: [0.2, 0.14, 0.1, 0.34], [B.GRAVEL]: [0.24, 0.23, 0.22, 0.3], [B.CLAY]: [0.34, 0.36, 0.41, 0.32],
 };
 const FX_PRINT_LIFE = 7;
@@ -817,13 +817,14 @@ function fxHeldTick(dt, held, id, off) {
 }
 /* Eating or drinking (from updateEating, while the eat timer runs): crumbs of the food's own colour
    fall from it in your hand, and — for everyone else — from your mouth. Milk splashes white. */
-function fxEat(p, id, dt) {
+// `water`: drinking from a lake or river with the bare hand (0.82) — blue drops, no item behind them
+function fxEat(p, id, dt, water = false) {
   if (_fxScale <= 0) return;
   p._fxEatT = (p._fxEatT || 0) - dt;
   if (p._fxEatT > 0) return;
   p._fxEatT = 0.16;
-  const drink = !!ITEM_PROPS[id]?.drink;
-  const rgb = drink ? [0.95, 0.96, 1] : _fxColorOf(id), own = fxOwner(p);
+  const drink = water || !!ITEM_PROPS[id]?.drink;
+  const rgb = water ? [0.45, 0.66, 1] : drink ? [0.95, 0.96, 1] : _fxColorOf(id), own = fxOwner(p);
   // in the hand (first person)
   if (typeof heldGroup !== 'undefined' && heldGroup && heldGroup.parent) {
     heldGroup.updateWorldMatrix(true, false);

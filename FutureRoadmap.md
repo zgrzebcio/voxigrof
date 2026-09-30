@@ -95,7 +95,7 @@ legends: B = big update, M= medium update, S = small update
 87. S: ~~fishes: cod, pike, salmon, catfish~~ v0.805
 88. M: ~~weather and season system~~. v0.81
 89. S: ~~cloud with dark version~~ v0.815
-90. M: drinking and temperature system with cloth armor and update stats add new ones. v0.82
+90. M: drinking and temperature system with cloth armor and update stats add new ones vegetables. v0.82
 91. S: heatstroke and sandstorm weather. v0.825
 92. M: rain weather and snowing with snow carpet block v0.83
 93. S: ice block new mores biomes winter season. v0.835
@@ -181,24 +181,18 @@ legends: B = big update, M= medium update, S = small update
 
 
 
-
-
-cloud more dark and blueish in darky stormy day, remove fog above cloud and any effect that prevent visible like in real life above cloud it clear sky
-
-
-
-block: drain grate, mossy plank bricks, obsidian bricks, terracotta roof, termite hill, thatch, mud bricks, mossy sandstone bricks, amethyst block with brick, Mossy Cobblestone Bricks, Kelp Block Dried, resin block with brick, rust iron , oxidated copper, sandy glass,
-shape: slopes, doors, ladders, buttons, pressure plate, levers,
+block: drain grate, termite hill, rust iron , oxidated copper, charred wood planks, machines,
+shape: slopes, doors, ladders, buttons, pressure plate, levers, trapdoors
 item:::
-food: candy apple, fruit stew, bacon, fries, carrot cake, chocolate cake, cream cake, all meat as jerky, compress rotten flesh, grilled mushroom cactus juice
-materials: fertilizer, cocoa powder,  amethyst, rabbit fur, ash lye,
+food: candy apple, fruit stew, bacon, fries, all meat as jerky, compress rotten flesh, grilled mushroom cactus juice
+materials: -
 tools: spear,
-useable: soap, canteen
+useable: canteen, paint brush
 equipment: rain gauge, scuba set
-model: feeding trough, metal bowl, iron wire, stone path, banners, wind info, juicer
+model: feeding trough, metal bowl, iron wire, stone path, banners, wind info, juicer, machines, barrel, wooden drain bowl for collecting water , carrot cake, chocolate cake, cream cake
 grass carpet: flowers, gloves, leaves, mushroom
 plants:  lily pad with flower
-billboard: reed,
+billboard: reed, sugar cane with stages and seeds,
 
 
 
@@ -206,14 +200,13 @@ Final to beta version:
 
 * 100 different item:
 
-  1. 30\~ resources: stick, coal, diamond, emerald, feather, flint, clay, energetic, fiber, cloth, leather, quartz, black quartz, gunpowder,
-glow dust, bone, string, polymer, fat, bio fuel, quality oil, iron, copper, tin, bronze, gold, steel, sugar, paper, wood bark, sulfur, carbon fiber.
-* 6 ingot: iron, copper, tin, bronze, gold, steel.
-* 6 chunks/raw: coal, iron, copper, tin, gold, quartz.
-* 6 nugget: iron, copper, tin, bronze, gold, steel.
-* 6 powder: iron, copper, tin, bronze, gold, steel.
+  1. 30\~ resources: stick ✔, coal✔, diamond✔, emerald✔,¶ feather✔, flint✔, clay✔, energetic, fiber✔, cloth✔, leather✔, quartz≠✔, black quartz≠✔, gunpowder✔, glow dust✔, bone✔, string✔, polymer≠✔, fat✔, bio fuel≠✔, quality oil **X**, iron✔, copper✔, tin✔, bronze✔, gold✔, steel≠✔, sugar✔, paper✔, wood bark✔, sulfur✔, carbon fiber≠✔.
+* 6 ingot: iron, copper, tin, bronze, gold, steel.✔
+* 6 chunks/raw: coal, iron, copper, tin, gold, quartz.✔
+* 6 nugget: iron, copper, tin, bronze, gold, steel.✔
+* 6 powder: iron, copper, tin, bronze, gold, steel.✔
 
-  2. 10 usable: bucket, battery, saddle, glass bottle, egg, snowball, bowl, exp bottle, fire charge.
+  2. 10 usable: bucket✔, battery, saddle✔, glass bottle✔, egg✔, snowball✔, bowl✔, exp bottle, fire charge✔.
   3. 9 utilities: compass, clock, spyglass, note map, shears, fishing rod, belt, backpack, boat.
   4. 11 dyes: red, blue, yellow, green, black, white, orange, pink, gray, purple, brown.
 

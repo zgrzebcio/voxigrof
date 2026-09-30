@@ -359,10 +359,8 @@ function updateBed(dt) {
        it: then it is already the new day, and only the clock moves on — to sunrise, not 06:00 (0.818). */
     if (worldTime > 0.25) worldDay++;
     worldTime = Math.max(0, sunTimes().rise) + BED_WAKE_TIME;
-    for (const p of live) {
-      p.food = Math.max(p.food, 6);             // a night's rest staves off starving
-      if (p.hp > 0) p.hp = Math.min(playerMaxHP(p), p.hp + 4);
-    }
+    // a night's rest: energy full (the rest banked as over-energy), a little health, nobody wakes starving (0.82)
+    for (const p of live) wakeRested(p);
     /* Nobody is stood up (0.7341). The night skipping used to end with leaveBed for everyone, so
        the fade came back on a player already dumped beside the bed — you never saw yourself wake.
        They stay lying; `isNightForSleep` is false now, so _sleeping drops on the next tick and the

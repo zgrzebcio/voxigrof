@@ -392,7 +392,7 @@ function _newPlayerState(index) {
   p.sleepingAt = null;                // ...nor player one's bed, which Object.assign would copy
   p.spawnPos = null; p.homeSpawn = null; p.spawnBedKey = null;
   p.vy = 0; p.fallStart = null; p.dead = false; p.spawned = false;
-  p.hp = MAX_HP; p.food = MAX_FOOD; p.saturation = MAX_SATURATION; p.air = MAX_AIR;
+  fillVitals(p);                      // every bar full (0.82, 54-stats-effects.js)
   p.flying = src.canFly; p.fast = false; p.sneaking = false;
   p.aliveT = 0; p._dmgCause = null; p._kick = { x: 0, z: 0 };
   p.yaw = Math.random() * Math.PI * 2; p.pitch = 0;
@@ -802,6 +802,7 @@ function _serializeSlot(i) {
     name: p.name || defaultPlayerName(i),
     pos: [+p.pos.x.toFixed(2), +p.pos.y.toFixed(2), +p.pos.z.toFixed(2)],
     yaw: p.yaw, pitch: p.pitch, hp: p.hp, food: p.food, saturation: p.saturation,
+    vit: serializeVitals(p),              // thirst, stamina, energy... and the mark that these are out of 100 (0.82)
     flying: p.flying, hotSel: g.hotbarSel,
     spawnPos: p.spawnPos ? p.spawnPos.toArray() : null,
     homeSpawn: p.homeSpawn ? p.homeSpawn.toArray() : null,
@@ -887,7 +888,7 @@ function resetExtraPlayers() {
     withSlot(i, () => {
       player.spawned = false; player.dead = false;
       player.vy = 0; player.fallStart = null; player.aliveT = 0; player._dmgCause = null;
-      player.hp = MAX_HP; player.food = MAX_FOOD; player.saturation = MAX_SATURATION; player.air = MAX_AIR;
+      fillVitals(player);   // 0.82
       player.spawnPos = null;
       survStash = { hot: new Array(HOTBAR_SLOTS).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
       restoreEquip(null, null);
@@ -925,9 +926,7 @@ function applyExtraPlayerRestore(slot) {
   player.pos.set(rec.pos[0], rec.pos[1], rec.pos[2]);
   if (typeof rec.yaw === 'number') player.yaw = rec.yaw;
   if (typeof rec.pitch === 'number') player.pitch = rec.pitch;
-  player.hp = typeof rec.hp === 'number' ? rec.hp : MAX_HP;
-  player.food = typeof rec.food === 'number' ? rec.food : MAX_FOOD;
-  player.saturation = typeof rec.saturation === 'number' ? rec.saturation : MAX_SATURATION;
+  restoreVitals(player, rec);                  // every bar; a save from before 0.82 is scaled up
   player.flying = !!rec.flying && player.canFly;
   player.vy = 0; player.fallStart = null;
   player.spawnPos = Array.isArray(rec.spawnPos)

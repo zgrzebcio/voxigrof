@@ -27,6 +27,7 @@ const SMELT_RECIPES = [
   { in: ITEM.GOLD_POWDER,   out: ITEM.GOLD_INGOT,    time: 7, xp: 4, cat: 'metals' },
   { in: ITEM.BRONZE_POWDER, out: ITEM.BRONZE_INGOT,  time: 8, xp: 8, cat: 'metals' },   // 0.774
   { in: B.SAND,             out: B.GLASS,            time: 5, xp: 1, cat: 'blocks' },
+  { in: B.PINK_SAND,        out: B.GLASS,            time: 5, xp: 1, cat: 'blocks' },   // 0.822
   { in: B.COBBLE,           out: B.STONE,            time: 5, xp: 1, cat: 'blocks' },
   { in: B.LOG,              out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.BIRCH_LOG,        out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
@@ -43,6 +44,13 @@ const SMELT_RECIPES = [
   { in: ITEM.PIKE,          out: ITEM.COOKED_PIKE,    time: 6, xp: 3, cat: 'food' },
   { in: ITEM.CATFISH,       out: ITEM.COOKED_CATFISH, time: 6, xp: 3, cat: 'food' },
   { in: ITEM.PUMPKIN_PIE,   out: ITEM.COOKED_PUMPKIN_PIE, time: 15, xp: 10, cat: 'food' },   // bake the raw pie (0.761)
+  // grilled mushrooms (0.821): every kind but the lava one
+  { in: B.RED_MUSHROOM,        out: B.GRILLED_RED_MUSHROOM,    time: 4, xp: 1, cat: 'food' },
+  { in: B.BROWN_MUSHROOM,      out: B.GRILLED_BROWN_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
+  { in: B.BLUE_MUSHROOM,       out: B.GRILLED_BLUE_MUSHROOM,   time: 4, xp: 1, cat: 'food' },
+  { in: B.BLACK_MUSHROOM,      out: B.GRILLED_BLACK_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
+  { in: B.WHITE_TALL_MUSHROOM, out: B.GRILLED_WHITE_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
+  { in: B.YELLOW_MUSHROOM,     out: B.GRILLED_YELLOW_MUSHROOM, time: 4, xp: 1, cat: 'food' },
 ];
 const SMELT = {};                                              // input id -> recipe
 for (const r of SMELT_RECIPES) SMELT[r.in] = r;

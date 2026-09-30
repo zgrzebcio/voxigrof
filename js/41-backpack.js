@@ -1,7 +1,7 @@
 'use strict';
 /* voxiGrof — the backpack (0.75)
 
-   Worn in the BACK equipment slot (31-armor.js), which until now took nothing. Wearing one opens
+   Worn in the BACK equipment slot (31-equipment.js), which until now took nothing. Wearing one opens
    the SECOND inventory grid — two more rows under the main one — and it is a real bag, not a
    display: picked-up drops fall into it once the hotbar and the main grid are full, quick-move
    reaches it, and crafting spends out of it.

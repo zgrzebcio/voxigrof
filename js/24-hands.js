@@ -220,14 +220,14 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
     || (curId != null && typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(curId) : 0);   // a cluster's bed (0.7948)
   if (curBlk !== _heldId || curVar !== _heldVar) _rebuildHeld(curBlk, curVar);
   const hasItem = curId !== null;
-  const heldIsFood = curId !== null && ITEM_PROPS[curId]?.food > 0;
+  const heldIsFood = !!foodPropsOf(curId);   // a grilled mushroom is a block, and food (0.821)
 
   /* inactivity — right hand always shown when holding something */
   const moving = !!player._movingH;
   const looked = Math.abs(player.yaw - _prevYaw) + Math.abs(player.pitch - _prevPitch) > 0.0005;
   const acting = wantBreak || (mousePlace && pointerLocked) || act.padBreak || act.padPlace;
   _prevYaw = player.yaw; _prevPitch = player.pitch;
-  if (moving || looked || acting) _inactive = 0; else _inactive += dt;
+  if (moving || looked || acting || eatProg > 0) _inactive = 0; else _inactive += dt;   // an empty hand drinking stays up (0.82)
   const inactive = !hasItem && _inactive > 0.8;
   handRoot.visible = true;
   // a held torch's flame and a held gem's glint, in the hand scene (0.801, 49-particles.js)

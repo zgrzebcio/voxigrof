@@ -388,9 +388,13 @@ function itemTooltipHTML(id, dur, fresh, wm) {
   }
   if (p.food != null) {
     rows.push(['food', _tipNum(p.food)]);
-    if (p.foodSat != null) rows.push(['sat', _tipNum(p.foodSat)]);
-    if (p.foodSatFull != null) rows.push(['satAtFull', _tipNum(p.foodSatFull)]);
+    // saturation is food's over-stat since 0.82
+    if (p.foodSat != null) rows.push(['over-food', _tipNum(p.foodSat)]);
+    if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull)]);
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
+    // what else it fills (0.82, FOOD_NUTRITION in 54-stats-effects.js)
+    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein']])
+      if (p[k]) rows.push([label, '+' + _tipNum(p[k])]);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
     /* How long this food has left before one of it spoils, against how long it keeps from fresh
        (0.7891). A recipe icon has no instance behind it, so it shows the full shelf life. */
@@ -1019,6 +1023,11 @@ function toggleInventory(open, mode) {
 function invBounds() {
   const a = invWrapEl.getBoundingClientRect(), b = hotbarEl.getBoundingClientRect();
   const out = { l: Math.min(a.left, b.left) - 8, r: Math.max(a.right, b.right) + 8, t: a.top - 8, bm: b.bottom + 8 };
+  // ...and the vitals strip, whose side bars reach past the hotbar, so every bar can be hovered (0.82)
+  if (typeof vitalsEl !== 'undefined' && vitalsEl && vitalsShown) {
+    const v = vitalsEl.getBoundingClientRect();
+    if (v.width) { out.l = Math.min(out.l, v.left - 8); out.r = Math.max(out.r, v.right + 8); }
+  }
   // the furnace book floats above the panel, outside the wrapper's box — the cursor has to reach it (0.7762)
   const bk = invOpen && activeFurnace ? invWrapEl.querySelector('#furnacePanel .fbook') : null;
   if (bk) {
@@ -1087,7 +1096,9 @@ function updateInvCursorVisual(dt) {
   } else if (infoEl) {
     showTooltip(ne.tip());                           // what a stat means, or what an effect is doing
   } else {
-    ctipEl.style.display = 'none';
+    // a bar in the vitals above the hotbar: its value out of its max, and its over-stat (0.82, 19-vitals.js)
+    const vt = typeof vitalsTipAt === 'function' ? vitalsTipAt(invCursor.x, invCursor.y) : '';
+    if (vt) showTooltip(vt); else ctipEl.style.display = 'none';
   }
   if (dragHeld) {
     vdragEl.style.display = 'block';

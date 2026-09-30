@@ -1,7 +1,7 @@
 'use strict';
 /* voxiGrof — shields, the offhand, and the arm that holds it (0.745, 0.7451)
 
-   The OFFHAND is an equipment slot (31-armor.js). It takes a shield or a torch; anything in it
+   The OFFHAND is an equipment slot (31-equipment.js). It takes a shield or a torch; anything in it
    shows in a second arm on the left of the view and on the body's left arm.
 
    A shield works from EITHER hand (0.7451). In the main hand it raises the right arm; in the
@@ -76,7 +76,7 @@ function shieldBlock(tp, fromX, fromZ, dmg) {
   withPlayer(tp, () => {
     const a = _activeShield();
     if (!a || tp.canFly || a.slot.dur == null) return;
-    const w = wearSlot(a.slot, Math.max(1, Math.ceil(dmg || 1)));
+    const w = wearSlot(a.slot, Math.max(1, Math.ceil((dmg || 5) / 5)));   // wear in the old 20-point damage (0.823)
     if (w === 'gone') {
       if (a.hand === 'main') HOTBAR[hotbarSel] = null;
       else equipSlots[EQUIP_INDEX.offhand] = null;

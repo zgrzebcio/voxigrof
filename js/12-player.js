@@ -15,8 +15,11 @@ var player = {
   flying: true, vy: 0, lastJumpTap: 0,
   fast: false,                              // sprint is a toggle (Ctrl / L3), auto-released
   canFly: true,                             // false in survival mode
-  hp: 20, food: 20, saturation: 0,          // 10 hearts / 10 drumsticks; saturation = gold-outlined buffer
-  air: 10,                                  // oxygen bubbles — drains underwater, drowning at 0
+  // vitals out of 100 since 0.82 (54-stats-effects.js); saturation is food's over-stat, the other
+  // over-stats are thirstO, energyO, fruitO, vegO, proteinO (0..50); temp is °C, null until measured
+  hp: 100, food: 100, saturation: 0, thirst: 100, stamina: 100, energy: 100, fruit: 100, veg: 100, protein: 100,
+  thirstO: 0, energyO: 0, fruitO: 0, vegO: 0, proteinO: 0, staminaO: 0, temp: null,   // staminaO 0.821
+  air: 100,                                 // oxygen — drains underwater, drowning at 0
   fallStart: null, prevOnGround: true,      // fall-height tracker + jump edge detection
   spawned: false,
   spawnPos: null,                           // first-spawn point — respawn target after death
@@ -48,24 +51,7 @@ function sweepOriginPlayer() {
   return pick;
 }
 
-const MAX_HP = 20, MAX_FOOD = 20, MAX_SATURATION = 20, MAX_AIR = 10;
-/* One player's health ceiling (0.79). Thick Skin raised it by 10% until 0.791, when it became damage
-   reduction instead (armorDamageMultiplier); nothing raises it now, but everything that caps or refills
-   health already asks here, and the hearts row already draws past ten, for whatever does next. */
-const playerMaxHP = (p = player) => MAX_HP;
-// food economy — baseline is passive (very slow); activity + regen speed it up
-const FOOD_IDLE_PER_S      = 1 / 150;       // 150s per food point when standing still
-const FOOD_SPRINT_MULT     = 2.8;           // sprinting drains 2.8x idle rate (-30% from 4)
-const FOOD_JUMP_COST       = 0.105;         // per jump (-30% from 0.15)
-const FOOD_REGEN_COST_PER_S = 1 / 4;        // regen costs 1 food per 4s while healing
-const REGEN_FOOD_MIN       = 12;            // regen kicks in above this food (per user)
-const REGEN_FAST_FOOD      = 18;            // above this the regen is 2x fast (per user)
-const REGEN_HP_PER_S       = 0.5;           // slow tier rate; 2x above REGEN_FAST_FOOD
-// how long healing waits after a hit (0.7992), and the shorter wait while Rapid regen runs
-const REGEN_HIT_WAIT = 5, REGEN_HIT_WAIT_FAST = 2;
-const STARVE_HP_PER_S      = 0.25;          // HP drain when food is 0
-const DROWN_DMG_BASE = 2, DROWN_DMG_STEP = 1;    // first drowning hit, and what each further one adds (0.7573)
-const AIR_REGEN_EMPTY = 3, AIR_REGEN_FULL = 0.6; // bubbles/s refilled when empty, easing down to this near full (0.7573)
+// the vital caps (MAX_HP...), playerMaxHP and the whole food / thirst / stamina economy: 54-stats-effects.js (0.82)
 
 // double-tap jump (Space / gamepad A) toggles flying, Minecraft-creative style
 function jumpTap() {
@@ -112,7 +98,7 @@ const DRAG_PER_SNOW = 0.10, DRAG_PER_LEAF = 0.05, DRAG_FLOOR = 0.2;
 const LEAF_DRAG_IDS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 // slowdown per layer of each block you wade through (0.785: sand, gravel and fiber stacks join snow and leaves)
 const DRAG_PER_LAYER = { [B.SNOW]: DRAG_PER_SNOW, [B.LEAVES]: DRAG_PER_LEAF, [B.BIRCH_LEAVES]: DRAG_PER_LEAF,
-                         [B.SPRUCE_LEAVES]: DRAG_PER_LEAF, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.GRAVEL]: 0.05,
+                         [B.SPRUCE_LEAVES]: DRAG_PER_LEAF, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.PINK_SAND]: 0.06, [B.GRAVEL]: 0.05,
                          [B.FIBER_BLOCK]: 0.04, [B.SALT_CRUST]: 0.03, [B.ASH]: 0.03 };   // salt 0.8097, ash 0.8191
 // speed multiplier this cell imposes, given how far the feet sit above the cell floor
 function _cellDrag(val, feetOff, x, y, z) {
@@ -197,10 +183,11 @@ function playerOnClimbable() {
 
 /* Wall climbing (0.804). In survival, jump and forward held against a wall pull you up it, at most
    WALL_CLIMB_MAX blocks above where your feet last stood: enough to get out of a pit you dug, never a
-   way up a cliff. It is hard work — WALL_CLIMB_FOOD hunger a second — and both hands are on the wall,
+   way up a cliff. It is hard work — stamina a second since 0.82 (STAMINA_CLIMB_PER_S, 54-stats-effects.js; hunger
+   before), and none left means no climb — and both hands are on the wall,
    so nothing is mined, placed or eaten on the way (22-main-loop.js). Not while falling fast either:
    grabbing a wall is no way to cancel a fall. */
-const WALL_CLIMB_MAX = 3, WALL_CLIMB_SPEED = 1.7, WALL_CLIMB_FOOD = 0.8, WALL_CLIMB_MIN_FOOD = 2;
+const WALL_CLIMB_MAX = 3, WALL_CLIMB_SPEED = 1.7;
 const WALL_CLIMB_GRAB_VY = -5, WALL_CLIMB_MANTLE_VY = 5.5;
 // a solid block right in front of the body, feet to chest, within a hand's reach of it
 function wallAhead() {
@@ -212,7 +199,7 @@ function wallAhead() {
 function wallClimbWanted(upHeld, fwd, grounded, inWater) {
   if (player.canFly || player.flying || inWater || player.riding || player.sleepingAt || player.dead) return false;
   if (grounded) player._climbBase = player.pos.y;
-  if (!upHeld || fwd <= 0.1 || player.food <= WALL_CLIMB_MIN_FOOD) return false;
+  if (!upHeld || fwd <= 0.1 || playerTired()) return false;   // out of stamina (0.82)
   if (!player._wallClimbing && player.vy < WALL_CLIMB_GRAB_VY) return false;
   if (player.pos.y >= (player._climbBase ?? player.pos.y) + WALL_CLIMB_MAX) return false;
   // a climb only STARTS at a wall two blocks high or more: a one-block step is a jump, not a climb (0.8041)

@@ -104,7 +104,30 @@ function VOXEL_CORE() {
   }
   // wheat's growth stages (0.81), 256-262
   for (let s = 0; s < 7; s++) T['WHEAT_S' + s] = 256 + s;
-  T.ASH = 263;                                                     // ash, what fire leaves (0.8191)                                                       // 0.804                                                  // 0.801                                                 // 0.7947
+  T.ASH = 263;                                                     // ash, what fire leaves (0.8191)
+  /* 0.821: the yellow mushroom (kind 6) and the grilled ones (7-12: red, brown, blue, black, white, yellow), from 264,
+     their part tiles in MUSHROOM_KINDS order; the yellow shape has a sixth, the flare between stem and cap */
+  for (let k = 6, t = 264; k < 13; k++) {
+    const set = [];
+    for (let p = 0, n = (k === 6 || k === 12) ? 6 : 5; p < n; p++, t++) { set.push(t); T['SHROOM_' + k + '_' + p] = t; }
+    SHROOM_T.push(set);
+  }
+  // 0.822: pink sand (top, side), pink sandstone, and the brick and polished looks of all three sandstones, from 301
+  Object.assign(T, { PINK_SAND:301, PINK_SAND_SIDE:302, PINK_SANDSTONE:303, SANDSTONE_BRICKS:304, POLISHED_SANDSTONE:305,
+                     RED_SANDSTONE_BRICKS:306, POLISHED_RED_SANDSTONE:307, PINK_SANDSTONE_BRICKS:308, POLISHED_PINK_SANDSTONE:309 });
+  /* 0.823: the grass in a warm climate (pale, dry) and a cold one (dark, cool), from 310, built at atlas build (03):
+     block top, block side, tall grass bottom and top, short grass — warm then cold of each */
+  Object.assign(T, { GRASS_TOP_WARM:310, GRASS_TOP_COLD:311, GRASS_SIDE_WARM:312, GRASS_SIDE_COLD:313,
+                     TALL_BOT_WARM:314, TALL_BOT_COLD:315, TALL_TOP_WARM:316, TALL_TOP_COLD:317,
+                     GRASS_PLANT_WARM:318, GRASS_PLANT_COLD:319 });
+  /* The climate colour (0.8231): grass and water blend smoothly toward their warm or cold look by a value per
+     vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
+     above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
+  const TINTED = new Uint8Array(1024);
+  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW]) TINTED[t] = 1;
+  // the climate sampler (climAt, 55-biomes.js): the worker sets it from its world's generator; icons have none
+  let _climAt = null;
+  const setTintSampler = (fn) => { _climAt = fn || null; };                                                       // 0.804                                                  // 0.801                                                 // 0.7947
   const B = { AIR:0, GRASS:1, DIRT:2, STONE:3, LOG:4, PLANKS:5, LEAVES:6, SAND:7,
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
@@ -164,6 +187,12 @@ function VOXEL_CORE() {
               MARBLE_PILLAR:172, LIMESTONE_BAND:173, LIMESTONE_PILLAR:174, DOLOMITE_BAND:175, DOLOMITE_PILLAR:176,
               STONE_PEBBLE:177,                                                       // 0.8095
               ASH:178, FIRE:179,                                                      // 0.8191
+              // 0.821: the yellow mushroom, and the grilled mushrooms (food from a furnace, never placed)
+              YELLOW_MUSHROOM:180, GRILLED_RED_MUSHROOM:181, GRILLED_BROWN_MUSHROOM:182, GRILLED_BLUE_MUSHROOM:183,
+              GRILLED_BLACK_MUSHROOM:184, GRILLED_WHITE_MUSHROOM:185, GRILLED_YELLOW_MUSHROOM:186,
+              // 0.822: pink sand and its sandstone; brick and polished sandstone looks (variants); the dolomite mortar
+              PINK_SAND:187, PINK_SANDSTONE:188, SANDSTONE_BRICKS:189, POLISHED_SANDSTONE:190, RED_SANDSTONE_BRICKS:191,
+              POLISHED_RED_SANDSTONE:192, PINK_SANDSTONE_BRICKS:193, POLISHED_PINK_SANDSTONE:194, DOLOMITE_MORTAR:195,
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -382,6 +411,9 @@ function VOXEL_CORE() {
                              faces:[T.SANDSTONE_SIDE,T.SANDSTONE_SIDE,T.SANDSTONE_TOP,T.SANDSTONE_BOTTOM,T.SANDSTONE_SIDE,T.SANDSTONE_SIDE], desc: '' };
   PROPS[B.RED_SANDSTONE] = { name:'Red sandstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
                              faces:[T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_TOP,T.RED_SANDSTONE_BOTTOM,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE], desc: '' };
+  // pink sand (0.822): on warm beaches, sand in every way but its colour; five make pink sandstone
+  PROPS[B.PINK_SAND]      = { ...PROPS[B.SAND], name: 'Pink sand', faces: [T.PINK_SAND_SIDE,T.PINK_SAND_SIDE,T.PINK_SAND,T.PINK_SAND,T.PINK_SAND_SIDE,T.PINK_SAND_SIDE] };
+  PROPS[B.PINK_SANDSTONE] = { ...PROPS[B.SANDSTONE], name: 'Pink sandstone', faces: Array(6).fill(T.PINK_SANDSTONE) };
   // fiber block (0.769): ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
   PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
@@ -435,26 +467,45 @@ function VOXEL_CORE() {
      mushroom as a small plant (breaking free by hand, falling off its ground, the hand pose) still does.
      `shroom` is the kind: its sheets in SHROOM_T and its boxes in SHROOM_MODEL. Black and white tall grow and
      cook like brown; lava grows by lava in caves and glows a little. */
+  // the model each kind is drawn with: white (5, 11) and yellow (6, 12) have their own shapes (0.821)
+  const SHROOM_SHAPE = [0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 1, 2];
   const _shroom = (name, kind, extra) => ({ name, solid:false, opaque:false, raycast:true, pass:0, model:'cross', stack:99,
     // boxes fit the largest a mushroom grows in the world since 0.819 (0.6 of the model; emitShroom)
-    hardness:0, type:'grass', shroom: kind, boxes: [kind === 5 ? [6/16, 0, 6/16, 10/16, 10/16, 10/16] : [5/16, 0, 5/16, 11/16, 7/16, 11/16]],
+    hardness:0, type:'grass', shroom: kind,
+    boxes: [[[5/16, 0, 5/16, 11/16, 7/16, 11/16], [6/16, 0, 6/16, 10/16, 10/16, 10/16], [5/16, 0, 5/16, 11/16, 6/16, 11/16]][SHROOM_SHAPE[kind]]],
     faces: Array(6).fill(SHROOM_T[kind][1]), desc: '', ...extra });
   PROPS[B.RED_MUSHROOM]        = _shroom('Red mushroom', 0);
   PROPS[B.BROWN_MUSHROOM]      = _shroom('Brown mushroom', 1);
   PROPS[B.BLUE_MUSHROOM]       = _shroom('Blue mushroom', 2);
   PROPS[B.BLACK_MUSHROOM]      = _shroom('Black mushroom', 3);
   PROPS[B.LAVA_MUSHROOM]       = _shroom('Lava mushroom', 4, { light: 6 });
-  PROPS[B.WHITE_TALL_MUSHROOM] = _shroom('White tall mushroom', 5);
+  PROPS[B.WHITE_TALL_MUSHROOM] = _shroom('White mushroom', 5);        // "white tall" until 0.821
+  PROPS[B.YELLOW_MUSHROOM]     = _shroom('Yellow mushroom', 6);       // 0.821
+  /* Grilled mushrooms (0.821): what a furnace makes of a mushroom (not the lava one). Food, drawn on their raw
+     kind's model, never placed (`noPlace`); what they give besides food is FOOD_NUTRITION in 54-stats-effects.js. */
+  // noCreative (0.822): not in the creative palette (13-actions.js), but carried and saved like any block
+  const _grilled = (name, kind) => _shroom(name, kind, { noPlace: true, noCreative: true, food: 15, foodSat: 10, foodSatFull: 5,
+    eatTime: 1.44, spoil: 3600, desc: '' });
+  PROPS[B.GRILLED_RED_MUSHROOM]    = _grilled('Grilled red mushroom', 7);
+  PROPS[B.GRILLED_BROWN_MUSHROOM]  = _grilled('Grilled brown mushroom', 8);
+  PROPS[B.GRILLED_BLUE_MUSHROOM]   = _grilled('Grilled blue mushroom', 9);
+  PROPS[B.GRILLED_BLACK_MUSHROOM]  = _grilled('Grilled black mushroom', 10);
+  PROPS[B.GRILLED_WHITE_MUSHROOM]  = _grilled('Grilled white mushroom', 11);
+  PROPS[B.GRILLED_YELLOW_MUSHROOM] = _grilled('Grilled yellow mushroom', 12);
   /* [x0,y0,z0, x1,y1,z1 in model pixels, side, top, bottom]: each face names its sheet (0-4 of the kind's set,
      -1 none) and the pixel of that sheet its bottom-left corner sits on, so the crown shows the middle of the
      cap's art at the same 8 texels a pixel rather than the whole sheet squeezed. */
   const _SHROOM_STD = [[6, 0, 6, 10, 6, 10,   [3, 0, 0], null,       [4, 0, 0]],      // stem
                        [3, 6, 3, 13, 10, 13,  [1, 0, 0], [0, 0, 0],  [2, 0, 0]],      // cap
                        [5, 10, 5, 11, 12, 11, [1, 2, 2], [0, 2, 2],  null]];          // crown
-  const SHROOM_MODEL = [_SHROOM_STD, _SHROOM_STD, _SHROOM_STD, _SHROOM_STD, _SHROOM_STD,
-                        [[7, 0, 7, 9, 11, 9,    [3, 0, 0], null,       [4, 0, 0]],
+  const _SHROOM_WHITE = [[7, 0, 7, 9, 11, 9,    [3, 0, 0], null,       [4, 0, 0]],
                          [5, 11, 5, 11, 15, 11, [1, 0, 0], [0, 0, 0],  [2, 0, 0]],
-                         [6, 15, 6, 10, 16, 10, [1, 1, 3], [0, 1, 1],  null]]];
+                         [6, 15, 6, 10, 16, 10, [1, 1, 3], [0, 1, 1],  null]];
+  // yellow (0.821, textures/Blocks/mushrooms/yellow_mushroom.json): a short stem, a flare (part 5), a wide flat cap
+  const _SHROOM_YELLOW = [[6, 0, 6, 10, 4, 10,  [3, 0, 0], null,       [4, 0, 0]],
+                          [5, 4, 5, 11, 6, 11,  [5, 0, 0], null,       null],
+                          [3, 6, 3, 13, 9, 13,  [1, 0, 0], [0, 0, 0],  [2, 0, 0]]];
+  const SHROOM_MODEL = SHROOM_SHAPE.map(s => [_SHROOM_STD, _SHROOM_WHITE, _SHROOM_YELLOW][s]);
   PROPS[B.TALLGRASS]     = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
   PROPS[B.POPPY]         = { name:'Poppy',   solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.POPPY], desc: '' };
   PROPS[B.ORCHID]        = { name:'Blue orchid',solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.ORCHID], desc: '' };
@@ -768,6 +819,14 @@ function VOXEL_CORE() {
     [B.GRANITE_MORTAR,   B.MORTAR, 'Mortar and pestle (granite)',   T.GRANITE,   { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.GRANITE) } }],
     [B.MARBLE_MORTAR,    B.MORTAR, 'Mortar and pestle (marble)',    T.MARBLE,    { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.MARBLE) } }],
     [B.LIMESTONE_MORTAR, B.MORTAR, 'Mortar and pestle (limestone)', T.LIMESTONE, { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.LIMESTONE) } }],
+    [B.DOLOMITE_MORTAR,  B.MORTAR, 'Mortar and pestle (dolomite)',  T.DOLOMITE,  { matFaces: { ...MORTAR_FACES, 1: Array(6).fill(T.DOLOMITE) } }],   // 0.822
+    // brick and polished looks of every sandstone (0.822)
+    [B.SANDSTONE_BRICKS,        B.SANDSTONE,      'Sandstone (brick)',          T.SANDSTONE_BRICKS],
+    [B.POLISHED_SANDSTONE,      B.SANDSTONE,      'Sandstone (polished)',       T.POLISHED_SANDSTONE],
+    [B.RED_SANDSTONE_BRICKS,    B.RED_SANDSTONE,  'Red sandstone (brick)',      T.RED_SANDSTONE_BRICKS],
+    [B.POLISHED_RED_SANDSTONE,  B.RED_SANDSTONE,  'Red sandstone (polished)',   T.POLISHED_RED_SANDSTONE],
+    [B.PINK_SANDSTONE_BRICKS,   B.PINK_SANDSTONE, 'Pink sandstone (brick)',     T.PINK_SANDSTONE_BRICKS],
+    [B.POLISHED_PINK_SANDSTONE, B.PINK_SANDSTONE, 'Pink sandstone (polished)',  T.POLISHED_PINK_SANDSTONE],
     /* a gem cluster on a bed of plain stone instead of its ore (0.7947); mined, it still gives its gems.
        Retired from the variant bar in 0.7948, when the bed moved into the cluster's own variant bits
        (CLUSTER_BEDS): kept only so a cluster placed in 0.7947 still draws and drops right */
@@ -789,7 +848,9 @@ function VOXEL_CORE() {
                            B.POLISHED_GRANITE, B.POLISHED_MARBLE, B.POLISHED_LIMESTONE,
                            B.POLISHED_STONE, B.ADOBE, B.ADOBE_BRICK,                                   // 0.8091
                            B.TERRACOTTA_BRICKS, B.STONE_BAND, B.STONE_PILLAR, B.GRANITE_BAND, B.GRANITE_PILLAR,   // 0.8093
-                           B.MARBLE_BAND, B.MARBLE_PILLAR, B.LIMESTONE_BAND, B.LIMESTONE_PILLAR, B.DOLOMITE_BAND, B.DOLOMITE_PILLAR];
+                           B.MARBLE_BAND, B.MARBLE_PILLAR, B.LIMESTONE_BAND, B.LIMESTONE_PILLAR, B.DOLOMITE_BAND, B.DOLOMITE_PILLAR,
+                           B.PINK_SANDSTONE, B.SANDSTONE_BRICKS, B.POLISHED_SANDSTONE, B.RED_SANDSTONE_BRICKS,   // 0.822
+                           B.POLISHED_RED_SANDSTONE, B.PINK_SANDSTONE_BRICKS, B.POLISHED_PINK_SANDSTONE];
   // the glass looks take what glass takes (0.8091)
   const _GLASS_VARIANTS = [B.DARK_GLASS, B.GREENHOUSE_GLASS, B.GLASS_BRICKS, B.DARK_GLASS_BRICKS];
   const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS];
@@ -800,14 +861,15 @@ function VOXEL_CORE() {
              ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],
     pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],   // 0.784
     fence:  [..._ALL_PLANKS, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK],                         // 0.784
-    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
+    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822
+             B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.GLASS, B.IRON_BLOCK, B.GOLD_BLOCK, B.MOSSY_COBBLE],
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
+  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   for (const b of LAYER_STACKING) PROPS[b].layerStack = true;
@@ -1063,8 +1125,9 @@ function VOXEL_CORE() {
      2 gives bigger snow and desert biomes (see `temp` below). Fixed per world at creation (w.biomeRev). */
   function makeGen(seedStr, terrainType, biomeRev = 1) {
     const FLAT = terrainType === 'flat';
-    const BIG_CLIMATE = biomeRev >= 2;
-    const FEWER_HILLS = biomeRev >= 3;                // 0.8193: about 30% fewer desert hills
+    const PINK_BEACHES = biomeRev >= 4;               // 0.822: warm beaches run pink in places
+    const TALL_SPRUCE = biomeRev >= 6;                // 0.8231: spruce forest trees on a bare stem
+    const LADDER = biomeRev >= 7;                     // 0.8232: the climate ladder (55-biomes.js)
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
     const seedInt = seedFn();
@@ -1083,218 +1146,11 @@ function VOXEL_CORE() {
       return t * t * (3 - 2 * t);
     };
 
-    // world-space column terrain sample: continents + biome-weighted hills + ridged mountains.
-    // The biome selector `t` sweeps forest -> plains -> desert; fPlains rises through BOTH
-    // plains and desert (it flattens hills/mountains and fades out trees), while fDesert
-    // separates desert from plains. Both factors are smooth 0..1 so borders blend seamlessly.
-    function terrainInfo(x, z) {
-      /* Flat world: no continents, hills or mountains — just the slab top, with the SAME
-         river/lake carving the normal generator uses so ponds still appear. Reporting
-         fPlains = 1 makes every column read as Plains to the biome label, the decorators and
-         the mob spawner, so nothing downstream needs a flat-world special case. */
-      if (FLAT) {
-        let h = FLAT_TOP;
-        const rn = 1 - Math.abs(fbm(x * 0.0014 + 1223.7, z * 0.0014 - 817.3, 2));
-        const ln = fbm(x * 0.0042 - 313.7, z * 0.0042 + 991.1, 2);
-        const valley = Math.max(smooth01(ln, 0.18, 0.74), smooth01(rn, 0.34, 0.95));
-        const core   = Math.max(smooth01(ln, 0.64, 0.84), smooth01(rn, 0.88, 0.965));
-        if (valley > 0.001) {
-          const rim = WATER_LEVEL + 1, floor = WATER_LEVEL - 3;
-          let target = h + (rim - h) * valley;
-          target += (floor - rim) * core;
-          if (target < h) h = target;
-        }
-        return { h: Math.max(4, Math.floor(h)), fPlains: 1, fDesert: 0, fSnow: 0,
-                 dh: 0, fRed: 0, rdh: 0,
-                 rT: smooth01(rn, 0.88, 0.965), lk: smooth01(ln, 0.64, 0.84), deep: 0 };
-      }
-      const cont   = fbm(x * 0.0016, z * 0.0016, 3);
-      const hills  = fbm(x * 0.009 + 37.3, z * 0.009 - 11.7, 4);
-      const ridge  = 1 - Math.abs(fbm(x * 0.004 + 91.1, z * 0.004 + 57.9, 3));
-      const mMask  = smooth01((fbm(x * 0.0011 - 71.7, z * 0.0011 + 13.9, 2) + 1) * 0.5, 0.44, 0.74);
-
-      // biome selector, domain-warped + high-frequency dither so borders meander instead of
-      // following the razor-straight contours of a single low-frequency noise
-      // wider warp + no fine dither: border wobble happens at ~250-block wavelength,
-      // so a biome pocket can't be narrower than ~25-30 blocks in either axis.
-      // warp amplitude 80 (was 120): strong enough to meander borders, weak enough that the
-      // warp can no longer pinch a biome band into a ~10-block sliver. Lower selector freq
-      // (0.0009) makes every biome patch larger overall.
-      const bwx = x + noise2(x * 0.004 + 313.1, z * 0.004 - 97.7) * 80;
-      const bwz = z + noise2(x * 0.004 - 411.9, z * 0.004 + 229.3) * 80;
-      const t = fbm(bwx * 0.0009 + 523.7, bwz * 0.0009 - 331.9, 2);
-      // climate temperature (separate low-freq field): deserts need HOT, snow needs COLD. Because
-      // it's one smooth field, hot and cold regions are always separated by a temperate band —
-      // so a snow biome can never sit next to a desert.
-      // temperate spawn: 99% of seeds pull the temperature field toward 0 near origin so
-       // the player lands in Forest/Plains, not Snow/Desert. 1% skip the bias so extreme
-       // spawns still happen occasionally (future temperature-system stress test).
-       /* Bigger climates (biomeRev 2, 0.819): the temperature field at two thirds the frequency, snow and desert
-          from a lower threshold, and a desert is the hot climate itself rather than hot AND the biome selector's
-          plains band. The product of two fields is what cut deserts into 10-block slivers where both edges ran
-          side by side; one smooth field cannot, so every desert and snowfield is hundreds of blocks across. */
-       let temp = fbm(x * (BIG_CLIMATE ? 0.0005 : 0.00075) + 811.3, z * (BIG_CLIMATE ? 0.0005 : 0.00075) - 442.1, 2);
-       if ((seedInt >>> 0) % 100 !== 0) {
-         const bias = 1 - smooth01(Math.hypot(x, z), 120, 480);   // 1 at origin, 0 past 480
-         temp *= (1 - bias * 0.95);
-       }
-      const warm = BIG_CLIMATE ? smooth01(temp, 0.0, 0.22) : smooth01(temp, 0.02, 0.30);
-      const cold = BIG_CLIMATE ? smooth01(-temp, 0.0, 0.22) : smooth01(-temp, 0.02, 0.30);
-
-      const fPlains = smooth01(t, 0.0, 0.1);            // narrower band -> smaller plains
-      const fDesert = BIG_CLIMATE ? warm : smooth01(t, 0.16, 0.28) * warm;  // wider band = bigger deserts; hot climate only
-      const fSnow   = cold;                             // snowy surface in cold climate
-
-      // `flat` saturates at fPlains=0.5 — the exact point where the biome label flips to
-      // Plains/Desert — so everywhere labelled Plains is genuinely flat (no half-suppressed
-      // mountains leaking across the border band). A big desert is flat too, bar its dunes (0.819).
-      const flat    = Math.min(1, Math.max(fPlains * 2, BIG_CLIMATE ? fDesert * 2 : 0));
-      const hillAmp = 6 * (1 - flat) + (0.8 + 1.2 * fDesert) * flat;       // plains ~dead flat; deserts mostly flat too
-      const mTerm   = mMask * ridge * ridge * 90 * (1 - flat);             // mountains only in forest zones
-      // desert hills sub-biome: tall dunes / small sandy mountains with rocky tops
-      // rarer dune hills = flatter deserts; biomeRev 3 (0.8193) about 30% fewer again
-      const dh     = (FEWER_HILLS ? smooth01(fbm(x * 0.0035 + 641.3, z * 0.0035 - 141.7, 2), 0.33, 0.68)
-                                  : smooth01(fbm(x * 0.0035 + 641.3, z * 0.0035 - 141.7, 2), 0.25, 0.62)) * fDesert;
-      // red sand sub-desert: separate low-freq mask splits hot deserts into normal / red zones
-      const fRed = smooth01(fbm(x * 0.00065 - 911.7, z * 0.00065 + 617.3, 2), 0.22, 0.36) * fDesert;   // half freq = 2x patch size
-      // red spike hills: narrow ridged spikes (all red sand — no sandstone yet), clustered
-      // by their own hill mask so flat red desert and spike fields both exist
-      const rdh = smooth01(fbm(x * 0.0035 + 941.3, z * 0.0035 - 241.7, 2), 0.1, 0.55) * fRed;
-      let h = 102 + cont * 16 + hills * hillAmp + mTerm + dh * 30;
-      if (rdh > 0.01) {
-        const sp = 1 - Math.abs(fbm(x * 0.045 + 77.7, z * 0.045 - 55.5, 2));
-        h += Math.pow(smooth01(sp, 0.78, 0.97), 2) * 30 * rdh;
-      }
-      /* Continental shelf -> oceans. The descent used to switch on the instant cont crossed -0.2,
-         which left a crease all along that contour; the smoothstep eases it in over the same band
-         the deep-ocean mask uses, and is fully 1 by -0.30 so open-ocean depth is unchanged. */
-      if (cont < -0.2) h += (cont + 0.2) * 45 * smooth01(-cont, 0.20, 0.30);
-      /* Deep ocean: separate low-freq mask carves broad abyssal basins well below the shelf.
-
-         This is a 34-block drop, so ALL of its steepness lives in how fast the mask crosses 0..1.
-         The old band (0.02..0.42 of an fbm at 0.0009) crossed in well under a hundred blocks and
-         produced a scarp — a wall you could stand on the lip of. Three changes stretch it into a
-         real continental slope: a lower frequency, a mask band more than twice as wide, and a
-         second smoothstep over the finished mask so both the top and the toe of the slope ease
-         off instead of meeting the flat in a crease. The gate on `cont` also starts AFTER the
-         shelf descent has fully engaged, so a basin never begins while the shelf is still
-         dropping — that overlap stacked two descents into one step. */
-      const deepN = fbm(x * 0.0007 + 1571.3, z * 0.0007 - 733.1, 2);
-      let deep = smooth01(deepN, -0.20, 0.70) * smooth01(-cont, 0.26, 0.52);
-      deep = deep * deep * (3 - 2 * deep);              // ease the descent at BOTH ends
-      h -= deep * 34;
-
-      // rivers & lakes (fade out in deserts, oceans, real mountains). Carving is TWO-tier so
-      // water never sits in a canyon: a broad `valley` mask first eases the surrounding land
-      // gently down to a low rim, then a tighter `core` mask scoops a shallow basin. Because
-      // the rim descent spans a wide noise band, high plains/forest slope down to the shore
-      // over many blocks instead of leaving vertical walls beside the water.
-      let rT = 0, lk = 0, carveBed = 0;   // carveBed 0..1: how far inside a river/lake channel
-      // river/lake carving stays active across the continental shelf so a river mouth cuts
-      // straight through to the ocean instead of fading out and leaving a beach ridge
-      const landF = smooth01(cont, -0.30, -0.20) * (1 - fDesert) * (1 - Math.min(1, mTerm / 18));
-      if (landF > 0.01) {
-        const rn = 1 - Math.abs(fbm(x * 0.0014 + 1223.7, z * 0.0014 - 817.3, 2));   // river ridge (lower freq -> longer rivers)
-        const ln = fbm(x * 0.0042 - 313.7, z * 0.0042 + 991.1, 2);                  // lake blobs
-        // River WIDTH varies by region, and wide stretches also run deep — one noise field
-        // drives both so the two always agree: a broad river is never a shallow puddle and a
-        // narrow one never a canyon. wN 0 = narrow+shallow, 1 = wide+deep.
-        const wN = (fbm(x * 0.0009 + 2411.7, z * 0.0009 - 1877.3, 2) + 1) * 0.5;
-        const valley = Math.max(smooth01(ln, 0.18, 0.74), smooth01(rn, 0.34 - wN * 0.06, 0.95)) * landF;
-        // core band 0.88-0.965 at wN=0: rivers are several blocks across at minimum, never a
-        // 1-block water thread. Widening the band's lower edge is what broadens the channel.
-        const coreLo = 0.88 - wN * 0.10;
-        const core   = Math.max(smooth01(ln, 0.64, 0.84), smooth01(rn, coreLo, 0.965)) * landF;
-        if (valley > 0.001) {
-          /* Depth is a function of WIDTH and nothing else: a narrow brook is ~3 below water, the
-             widest channels ~11. One field (wN) drives both, so the two can never disagree. */
-          const rim = WATER_LEVEL + 1, depth = 3 + wN * 8, floor = WATER_LEVEL - depth;
-          /* FLAT BED, steep banks. `core` is a smooth 0..1 ramp, and using it directly made the
-             channel a V — deepest exactly on the centre line and shelving up the whole way out.
-             Raising it to a low power saturates it almost as soon as you are inside the channel,
-             so the cross-section reads as a shallow box: banks drop, then the bottom runs level. */
-          const bed = Math.pow(core, 0.35);
-          let target = h + (rim - h) * valley;                     // ease land down to the rim
-          target += (floor - rim) * bed;                           // then scoop the basin
-          /* ...and the bottom is not a mirror. Two octaves of relief ride on the flat bed: a
-             broad slow term that reads as a submerged slope, and a finer one for humps and
-             hollows. Scaled to a fraction of the depth and multiplied by `bed`, so the relief
-             fades out at the banks and a hump can never break the surface. */
-          const bedRelief = fbm(x * 0.026 + 5501.3, z * 0.026 - 4417.9, 3) * 0.55
-                          + fbm(x * 0.0060 - 2207.7, z * 0.0060 + 3313.1, 2) * 0.45;
-          target += bedRelief * Math.min(2.4, depth * 0.34) * bed;
-          if (target < h) { h = target; carveBed = bed; }          // only ever lower terrain
-        }
-        rT = smooth01(rn, coreLo, 0.965) * landF;   // tracks the carve, so 'River' labels the real channel
-        lk = smooth01(ln, 0.64, 0.84) * landF;
-      }
-      /* Seabed relief. Everything above shapes LAND; underwater the shelf and basin terms are
-         both very low frequency, so the floor came out as a near-featureless plane. Two extra
-         octaves ride on top of it: broad lumps plus a ridged term for the occasional spike.
-         Amplitude fades to zero at the shoreline (so beaches and the sand/beach-width logic are
-         untouched) and the result is clamped below water level so a spike can never surface as
-         an unintended island. */
-      if (h < WATER_LEVEL) {
-        /* Ocean relief. Damped to near nothing inside a carved river/lake bed — that bed carries
-           its own, gentler relief, and stacking the seabed octaves on top of it was what made
-           rivers read as lumpy trenches instead of channels with a floor. */
-        const amp = Math.min(1, (WATER_LEVEL - h) / 8) * (1 - carveBed * 0.9);
-        // lower frequency + bigger amplitude = broad rolling hills rather than choppy bumps
-        const lump  = fbm(x * 0.018 + 1777.3, z * 0.018 - 2213.9, 3);
-        const spike = 1 - Math.abs(fbm(x * 0.05 - 611.7, z * 0.05 + 733.1, 2));
-        h += lump * 5.0 * amp;
-        // spikes kept as rare accents: narrower threshold band and a much smaller height
-        h += Math.pow(smooth01(spike, 0.93, 0.995), 2) * 2.0 * amp;
-        h = Math.min(h, WATER_LEVEL - 1);
-      }
-      h = Math.min(196, Math.max(4, Math.floor(h)));
-      return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep };
-    }
-    const heightAt = (x, z) => terrainInfo(x, z).h;
-
-    // biome classification — used by the generator and by the HUD label on the main thread
-    function biomeAt(x, z) {
-      const { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep } = terrainInfo(x, z);
-      if (h < WATER_LEVEL) {
-        if (rT > 0.3 && rT >= lk) return 'River';
-        if (lk > 0.3) return 'Lake';
-        if (deep > 0.45 && h < 84) return 'Deep Ocean';
-        return h < 94 ? 'Ocean' : 'Beach';
-      }
-      if (h <= WATER_LEVEL + 3) {
-        // find nearest wet column and its type; ocean uses width 4..8, river/lake 2..4
-        let hitType = 0, minD2 = 9999;
-        for (let dz = -8; dz <= 8; dz++)
-          for (let dx = -8; dx <= 8; dx++) {
-            const ti = terrainInfo(x + dx, z + dz);
-            if (ti.h >= WATER_LEVEL) continue;
-            const t = (ti.rT > 0.3 || ti.lk > 0.3) ? 2 : 1;
-            const d2 = dx * dx + dz * dz;
-            if (d2 < minD2) { minD2 = d2; hitType = t; }
-          }
-        const bn = (fbm(x * 0.007 + 217.3, z * 0.007 - 803.7, 2) + 1) * 0.5;
-        const width = hitType === 1 ? 4 + bn * 4 : 2 + bn * 2;
-        const dist  = Math.sqrt(minD2);
-        const dither = fbm(x * 0.02 + 401.3, z * 0.02 - 193.7, 2) * 0.8;
-        const nearWater = hitType > 0 && dist < width + dither;
-        if (nearWater) {
-          if (rT > 0.3 && rT >= lk) return 'River';
-          if (lk > 0.3) return 'Lake';
-          return 'Beach';
-        }
-      }
-      if (fRed > 0.5) return rdh > 0.35 ? 'Red Sand Hills' : 'Red Sand';
-      if (fDesert > 0.5) return dh > 0.35 ? 'Desert Hills' : 'Desert';
-      if (fSnow > 0.5) {
-        if (h > 132) return 'Snowy Mountains';
-        // snow forest sub-biome: same mask the tree pass uses; outside it snow is treeless
-        return fbm(x * 0.004 + 2222, z * 0.004 + 888, 2) > 0.25 ? 'Snow Forest' : 'Snow';
-      }
-      if (h > 132) return 'Mountains';
-      if (fPlains > 0.5) return 'Plains';
-      if (fbm(x * 0.004 + 1234, z * 0.004 - 987, 2) > 0.35) return 'Birch Forest';   // matches birchRegion
-      return 'Forest';
-    }
+    /* The land's shape and its biomes — continents, climate, hills, deserts, rivers, oceans (terrainInfo), the
+    biome's name (biomeAt) and the sub-biome masks — live in 55-biomes.js since 0.823 (BIOME_CORE, shipped into the
+    worker beside this core). */
+    const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, climAt } = bio;
 
     // deterministic per-column hash in [0,1) — used for tree placement
     function hash2(x, z) {
@@ -1344,7 +1200,11 @@ function VOXEL_CORE() {
       const RED = new Uint8Array(400);                         // red-sand desert flag
       const ROCK = new Uint8Array(400);                        // rocky desert-hill top flag
       const SNO = new Uint8Array(400);                         // snowy (cold biome) surface flag
+      const DSNO = new Uint8Array(400);                        // deep snow, the coldest level: more of it solid (0.8232)
+      const WARM = new Float32Array(400);                      // how far into hot climate, 0..1 (pink beaches, 0.822)
+      const TAIGA = new Uint8Array(400);                       // spruce forest / cold plains (0.823)
       const TREE = new Float32Array(400);                      // tree density factor (0 in plains/desert)
+      const LVL = new Float32Array(400);                       // climate level, -3 deep snow .. 3 red sand (0.8233, CLIMATE_LADDER)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
       // ocean 4..8 blocks, river/lake 2..4. WW cells: 0 dry, 1 ocean, 2 river/lake.
       const WW = new Uint8Array(1024);
@@ -1361,7 +1221,11 @@ function VOXEL_CORE() {
             RED[i] = ti.fRed > 0.5 ? 1 : 0;
             ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
             SNO[i] = ti.fSnow > 0.5 ? 1 : 0;
+            DSNO[i] = ti.fDeepSnow > 0.5 ? 1 : 0;
+            WARM[i] = LADDER ? ti.warm : ti.fDesert;              // on the ladder the warm plains' beaches (0.8232)
+            TAIGA[i] = ti.fTaiga > 0.5 ? 1 : 0;
             TREE[i] = 1 - ti.fPlains;
+            LVL[i] = ti.lvl;
           }
         }
 
@@ -1405,7 +1269,10 @@ function VOXEL_CORE() {
             const oceanDirt  = submerged && !clay && fbm(wx * 0.02 + 911.3, wz * 0.02 + 417.9, 2) > 0.12;  // more/larger dirt
             const oceanGravel = submerged && !clay && !oceanDirt && fbm(wx * 0.025 + 531.7, wz * 0.025 - 644.3, 2) > 0.35;
             topB = underB = clay ? B.CLAY : oceanDirt ? B.DIRT : oceanGravel ? B.GRAVEL
-                          : RED[gi] ? B.RED_SAND : B.SAND;
+                          : RED[gi] ? B.RED_SAND
+                          /* a warm beach (0.822): near a desert but not in one, at and just under the waterline, in patches */
+                          : (PINK_BEACHES && !DES[gi] && WARM[gi] > 0.2 && h >= WATER_LEVEL - 2
+                             && fbm(wx * 0.03 + 71.3, wz * 0.03 - 455.1, 2) > 0.1) ? B.PINK_SAND : B.SAND;   // -0.1 before 0.8233: about half as much
           } else if (SNO[gi]) {
             topB = B.GRASS | (V.GRASS_SNOWY << 8);  // snowy sides; a snow block caps it below
             underB = B.DIRT; snowCap = true;
@@ -1454,12 +1321,13 @@ function VOXEL_CORE() {
                  patch threshold, which cuts low-altitude snow blocks by ~90%. */
               const patch = (fbm(wx * 0.045 + 1201.7, wz * 0.045 - 903.3, 3) + 1) * 0.5;
               const snowline = smooth01(h, SNOW_SOLID_Y, SNOW_SOLID_Y + 34);
-              const solidCut = 0.04 + 0.5 * snowline;            // 4% low down, ~54% up high
+              const solidCut = DSNO[gi] ? 0.4 + 0.3 * snowline      // deep snow: 40% solid even low down (0.8232)
+                             : 0.04 + 0.5 * snowline;            // 4% low down, ~54% up high
               if (patch < solidCut) {
                 data[idx(x, h + 1, z)] = B.SNOW;                  // solid snowfield
               } else {
                 // taper: just above the cut -> 7 layers (blends into neighbouring full blocks)
-                const layers = Math.min(7, Math.max(1, 7 - Math.floor((patch - solidCut) * 10)));
+                const layers = Math.min(7, Math.max(DSNO[gi] ? 4 : 1, 7 - Math.floor((patch - solidCut) * 10)));
                 data[idx(x, h + 1, z)] = layerVal(B.SNOW, layers);
               }
             }
@@ -2063,23 +1931,30 @@ function VOXEL_CORE() {
           const isPlains = ti.fPlains > 0.5;
           // snow: trees only inside the Snow Forest sub-biome mask; plain Snow stays treeless
           const isSnow = ti.fSnow > 0.5;
-          if (isSnow && fbm(wx * 0.004 + 2222, wz * 0.004 + 888, 2) <= 0.25) continue;
+          if (isSnow && (ti.fDeepSnow > 0.5 || !snowForestAt(wx, wz))) continue;   // deep snow is treeless (0.8232)
+          /* 0.823 (biomeRev 5, 55-biomes.js): the spruce forest's chilly band grows spruce, and so do the cold plains,
+             sparsely; a deep forest stands about twice as thick, with more of the big oaks and taller trees */
+          const isTaiga = ti.fTaiga > 0.5, coldPlains = isPlains && isTaiga;
+          const isDeep = !isPlains && ti.deepF > 0.5;
           const forestNoise = fbm(wx * 0.01 + 700, wz * 0.01 - 300, 2) > 0.12;
           const treeF = 1 - ti.fPlains;
           // birch: dedicated "Birch Forest" regions (dense) + 1% scattered birches in ordinary
           // forests. Never in snow biomes, never the big/mega form.
-          const birchRegion = !isPlains && !isSnow && fbm(wx * 0.004 + 1234, wz * 0.004 - 987, 2) > 0.35;
-          const isBirch = birchRegion || (!isPlains && !isSnow && hash2(gcx * 211 + 5, gcz * 197 + 3) < 0.01);
-          // spruce is strictly a cold-biome tree — no scattering into temperate forest
-          const isSpruce = !isBirch && isSnow;
+          const birchRegion = !isPlains && !isSnow && !isTaiga && birchAt(wx, wz);
+          const isBirch = birchRegion || (!isPlains && !isSnow && !isTaiga && hash2(gcx * 211 + 5, gcz * 197 + 3) < 0.005);   // 1% before 0.8233
+          /* spruce is the cold biomes' tree, bar the odd oak (0.8233): 1 in 100 in the spruce forest and cold plains, 1 in 200
+             in a deep one, 1 in 2000 in a snow forest. No spruce scattering into temperate forest. */
+          const oakOdd = (isSnow || isTaiga) && hash2(gcx * 313 + 17, gcz * 271 + 29) < (isSnow ? 0.0005 : isDeep ? 0.005 : 0.01);
+          const isSpruce = !isBirch && !oakOdd && (isSnow || isTaiga);
           // plains/meadow: flat 0.1% chance. forest/other: original density-scaled odds. birch forest: dense.
           // flat worlds are entirely Plains, and plains odds (0.1%) would leave a testbed with
           // almost no trees at all — lift it enough that a few are always in sight
           /* Roughly halved across the board. Canopies are far bigger than they used to be —
              wider oaks, tall spruce cones — so the old per-cell odds packed the forest into a
              solid roof with no gaps or light between trunks. */
-          let baseProb = isPlains ? (FLAT ? 0.02 : 0.0007) : (forestNoise ? 0.26 : 0.04) * treeF;
+          let baseProb = isPlains ? (FLAT ? 0.02 : coldPlains ? 0.004 : 0.0007) : (forestNoise ? 0.26 : 0.04) * treeF;
           if (birchRegion) baseProb = Math.max(baseProb, 0.24);
+          if (isDeep) baseProb = Math.min(0.6, baseProb * 2 + 0.12);
           if (r > baseProb) continue;
           // flatness check
           let clear = true;
@@ -2089,8 +1964,8 @@ function VOXEL_CORE() {
           if (!clear) continue;
           // big-tree roll (independent hash). plains: 50% of the 1%. others: ~3%.
           const rBig = hash2(gcx * 131 + 7, gcz * 173 + 19);
-          const bigProb = isPlains ? 0.3 : 0.03;
-          const isBig = rBig < bigProb && !isBirch;      // birch never grows the big form
+          const bigProb = isPlains || isDeep ? 0.3 : 0.03;
+          const isBig = rBig < bigProb && !isBirch && !isTaiga;   // birch never grows the big form, nor a taiga spruce
 
           if (isBig) {
             // procedural big tree: tall trunk, 3-5 branches with leaf clusters, wide top canopy
@@ -2182,14 +2057,17 @@ function VOXEL_CORE() {
              skirts of needles that shrink toward a point. Branch stubs are skipped — a conifer's
              limbs are short and buried in the skirt, so a bare stub sticking out looks wrong. */
           if (isSpruce) {
-            const sh = 14 + ((hash2(gcx * 53 + 3, gcz * 97 + 7) * 7) | 0);         // 14..20 tall
+            /* In the spruce forest (0.8231) a tree stands on a bare stem 4..8 high before its needles start, that much
+               taller, and the stem keeps the stump's width up to them. Snow forest and cold plains spruces as before. */
+            const bare = TALL_SPRUCE && isTaiga && !isPlains ? 4 + ((hash2(gcx * 29 + 11, gcz * 61 + 5) * 5) | 0) : 0;
+            const sh = 14 + ((hash2(gcx * 53 + 3, gcz * 97 + 7) * 7) | 0) + (isDeep ? 5 : 0) + bare;   // 14..20 tall, 19..25 deep (0.823)
             put(tx, h, tz, B.DIRT, true);
             /* The trunk narrows the whole way up rather than stepping from stump to a constant
                width — a real conifer is a spike, and by the crown it is barely thicker than a
-               branch. 30 units at the base down to 14 at the tip. */
-            const SPR_STUMP = 30, SPR_TIP = 14;
+               branch. 30 units at the base down to 14 at the tip; the narrowing starts where the needles do. */
+            const SPR_STUMP = 30, SPR_TIP = 14, taperY = h + 1 + bare;
             for (let y = h + 1; y <= h + sh; y++) {
-              const t = (y - (h + 1)) / Math.max(1, sh - 1);
+              const t = Math.max(0, y - taperY) / Math.max(1, h + sh - taperY);
               const w = Math.round(SPR_STUMP - (SPR_STUMP - SPR_TIP) * t);
               put(tx, y, tz, LOG | ((w << 2) << 8), true);
             }
@@ -2198,10 +2076,10 @@ function VOXEL_CORE() {
                always carries foliage instead of ending in bare trunk. Alternate tiers pull in one
                step for the layered look, and the rim thins out as it climbs so the silhouette
                reads dense at the bottom and wispy at the top. */
-            const base = h + 2, topY = h + sh, span = Math.max(1, topY - base);
+            const base = h + 2 + bare, topY = h + sh, span = Math.max(1, topY - base);
             for (let ly = base; ly <= topY; ly++) {
               const t = (ly - base) / span;                                        // 0 low .. 1 high
-              let rad = Math.max(1, Math.round(4 - 3.2 * t));
+              let rad = Math.max(1, Math.round((isDeep ? 5 : 4) - 3.2 * t));   // a wider skirt in a deep forest (0.823)
               if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
               const rimKeep = 0.85 - 0.5 * t;                                      // thinner rim up top
               for (let oz = -rad; oz <= rad; oz++)
@@ -2226,8 +2104,9 @@ function VOXEL_CORE() {
             continue;
           }
           // birch grows tall and straight (7..12); oak keeps a shorter, thicker stump (5..8)
-          const th = isBirch ? 7 + ((hash2(gcx * 43 + 5, gcz * 71 + 9) * 6) | 0)
-                             : 5 + ((hash2(gcx * 43 + 5, gcz * 71 + 9) * 4) | 0);
+          const th = (isBirch ? 7 + ((hash2(gcx * 43 + 5, gcz * 71 + 9) * 6) | 0)
+                              : 5 + ((hash2(gcx * 43 + 5, gcz * 71 + 9) * 4) | 0))
+                   + (isDeep ? (isBirch ? 3 : 2) : 0);            // taller in a deep forest (0.823)
           /* Per-tree dice. NOT derived from `r`: a tree only exists when r <= baseProb, and
              baseProb is as low as 0.001, so every `(r * K) | 0` truncated to 0 and each tree came
              out with identical form, branch count and branch length. These are independent
@@ -2375,8 +2254,8 @@ function VOXEL_CORE() {
         }
 
       /* ---- red mushrooms: cave floors + shadowed ground under leaves ---- */
-      // where a brown mushroom grows, a black or a white tall one may instead, a third each (0.8091)
-      const brownish = (r) => r < 1 / 3 ? B.BROWN_MUSHROOM : r < 2 / 3 ? B.BLACK_MUSHROOM : B.WHITE_TALL_MUSHROOM;
+      // where a brown mushroom grows, a black, a white or (0.821) a yellow one may instead, a quarter each (0.8091)
+      const brownish = (r) => r < 0.25 ? B.BROWN_MUSHROOM : r < 0.5 ? B.BLACK_MUSHROOM : r < 0.75 ? B.WHITE_TALL_MUSHROOM : B.YELLOW_MUSHROOM;
       // is there lava within 3 blocks across and 1 up or down? (the lava mushroom's ground, 0.8091)
       const lavaNear = (x, y, z) => {
         for (let dy = -1; dy <= 1; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
@@ -2431,10 +2310,10 @@ function VOXEL_CORE() {
         const gi = (sx + 2) + (sz + 2) * 20, h = H[gi];
         const wx = cx * 16 + sx, wz = cz * 16 + sz;
         if (TREE[gi] >= 0.5 && !DES[gi] && h > WATER_LEVEL + 1 && h <= 146 &&
-            !(SNO[gi] && fbm(wx * 0.004 + 2222, wz * 0.004 + 888, 2) <= 0.25) &&       // plain snow has no trees to fall
+            !(SNO[gi] && !snowForestAt(wx, wz)) &&                                   // plain snow has no trees to fall
             hash3(cx * 79 + 7300, 41, cz * 83 + 7300) < 0.075) {                            // 0.35 before 0.7845, 0.15 before 0.799
-          const wood = SNO[gi] ? B.HOLLOW_SPRUCE_LOG
-                     : fbm(wx * 0.004 + 1234, wz * 0.004 - 987, 2) > 0.35 ? B.HOLLOW_BIRCH_LOG : B.HOLLOW_LOG;   // birchRegion
+          const wood = SNO[gi] || TAIGA[gi] ? B.HOLLOW_SPRUCE_LOG                  // spruce forest too (0.823)
+                     : birchAt(wx, wz) ? B.HOLLOW_BIRCH_LOG : B.HOLLOW_LOG;
           const alongX = hash3(cx * 89 + 7300, 43, cz * 97 + 7300) < 0.5;
           const want = 3 + ((hash3(cx * 101 + 7300, 47, cz * 103 + 7300) * 3) | 0);
           const ground = (t) => t === B.GRASS || t === B.DIRT;
@@ -2492,86 +2371,33 @@ function VOXEL_CORE() {
           if (hash3(cx * 1709 + x, 9100, cz * 1523 + z) < 0.00002) data[idx(x, h, z)] = B.FIBER_BLOCK;   // 0.0006 before 0.791, 0.0002 before 0.8096
         }
 
-      /* ---- melons: grass surfaces in forest/plains. Plains: 1.5% per attempt, up to 5 in a
-         group (r=4). Forest: 0.5% per attempt, up to 3 in a group (r=2). ---- */
-      for (let ai = 0; ai < 2; ai++) {
-        const mx = (hash3(cx * 47 + 1100 + ai,       19, cz * 43 + 1100 + ai    ) * 16) | 0;
-        const mz = (hash3(cx * 53 + 1100 + ai * 3,   23, cz * 59 + 1100 + ai    ) * 16) | 0;
-        const gi = (mx + 2) + (mz + 2) * 20;
-        const h = H[gi];
-        if (h <= WATER_LEVEL + 1 || h > 146 || DES[gi] || SNO[gi]) continue;
-        const isPlains = TREE[gi] < 0.5;              // TREE = 1 - fPlains; low = open plains
-        const chance = isPlains ? 0.015 : 0.005;
-        if (hash3(cx * 71 + 1100 + ai, 77, cz * 67 + 1100 + ai) >= chance) continue;
-        const clusterN = isPlains ? 1 + ((hash3(cx + 1100 + ai, 81, cz + 1100 + ai) * 4) | 0)
-                                  : 1 + ((hash3(cx + 1100 + ai, 83, cz + 1100 + ai) * 2) | 0);
-        const radius = isPlains ? 4 : 2;
-        for (let k = 0; k < clusterN; k++) {
-          const offx = (((hash3(cx * 31 + ai + k * 7,  89, cz * 29 + ai + k * 5) * (radius * 2 + 1)) | 0) - radius);
-          const offz = (((hash3(cx * 37 + ai + k * 11, 97, cz * 41 + ai + k * 3) * (radius * 2 + 1)) | 0) - radius);
-          const lx = mx + offx, lz = mz + offz;
-          if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
-          const lgi = (lx + 2) + (lz + 2) * 20;
-          const lh = H[lgi];
-          if (lh <= WATER_LEVEL + 1 || lh > 146) continue;
-          if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS) continue;
-          if ((data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
-          data[idx(lx, lh + 1, lz)] = B.MELON;
+      /* ---- gourds (0.8233): each on its own climate level (LVL, CLIMATE_LADDER in 55-biomes.js), in a small patch on grass.
+         Pumpkins in the cold (-1: cold plains, spruce forest) 2-6, watermelons in the warm plains (1) 2-4, cantaloupes in
+         the mild land (0) 1-2 and very rare. Two tries a chunk; `ch` is a try's chance [open plains, forest]. ---- */
+      const gourdPatch = (salt, block, lvl, ch, nMin, nMax, radius) => {
+        for (let ai = 0; ai < 2; ai++) {
+          const mx = (hash3(cx * 47 + salt + ai,     19, cz * 43 + salt + ai) * 16) | 0;
+          const mz = (hash3(cx * 53 + salt + ai * 3, 23, cz * 59 + salt + ai) * 16) | 0;
+          const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
+          if (h <= WATER_LEVEL + 1 || h > 146 || DES[gi] || SNO[gi] || Math.round(LVL[gi]) !== lvl) continue;
+          if (hash3(cx * 71 + salt + ai, 77, cz * 67 + salt + ai) >= ch[TREE[gi] < 0.5 ? 0 : 1]) continue;
+          const want = nMin + ((hash3(cx + salt + ai, 81, cz + salt + ai) * (nMax - nMin + 1)) | 0);
+          // up to four tries a gourd, so a patch nearly always reaches its count
+          for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
+            const lx = mx + (((hash3(cx * 31 + ai + k * 7 + salt,  89, cz * 29 + ai + k * 5) * (radius * 2 + 1)) | 0) - radius);
+            const lz = mz + (((hash3(cx * 37 + ai + k * 11 + salt, 97, cz * 41 + ai + k * 3) * (radius * 2 + 1)) | 0) - radius);
+            if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
+            const lh = H[(lx + 2) + (lz + 2) * 20];
+            if (lh <= WATER_LEVEL + 1 || lh > 146) continue;
+            if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS || (data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
+            data[idx(lx, lh + 1, lz)] = block;
+            got++;
+          }
         }
-      }
-
-      /* ---- pumpkins: same patch behaviour as melons, own hashes so they scatter separately ---- */
-      for (let ai = 0; ai < 2; ai++) {
-        const mx = (hash3(cx * 47 + 2200 + ai,       19, cz * 43 + 2200 + ai    ) * 16) | 0;
-        const mz = (hash3(cx * 53 + 2200 + ai * 3,   23, cz * 59 + 2200 + ai    ) * 16) | 0;
-        const gi = (mx + 2) + (mz + 2) * 20;
-        const h = H[gi];
-        if (h <= WATER_LEVEL + 1 || h > 146 || DES[gi] || SNO[gi]) continue;
-        const isPlains = TREE[gi] < 0.5;
-        const chance = isPlains ? 0.012 : 0.004;
-        if (hash3(cx * 71 + 2200 + ai, 77, cz * 67 + 2200 + ai) >= chance) continue;
-        const clusterN = isPlains ? 1 + ((hash3(cx + 2200 + ai, 81, cz + 2200 + ai) * 4) | 0)
-                                  : 1 + ((hash3(cx + 2200 + ai, 83, cz + 2200 + ai) * 2) | 0);
-        const radius = isPlains ? 4 : 2;
-        for (let k = 0; k < clusterN; k++) {
-          const offx = (((hash3(cx * 31 + ai + k * 7,  89, cz * 29 + ai + k * 5) * (radius * 2 + 1)) | 0) - radius);
-          const offz = (((hash3(cx * 37 + ai + k * 11, 97, cz * 41 + ai + k * 3) * (radius * 2 + 1)) | 0) - radius);
-          const lx = mx + offx, lz = mz + offz;
-          if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
-          const lgi = (lx + 2) + (lz + 2) * 20;
-          const lh = H[lgi];
-          if (lh <= WATER_LEVEL + 1 || lh > 146) continue;
-          if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS) continue;
-          if ((data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
-          data[idx(lx, lh + 1, lz)] = B.PUMPKIN;
-        }
-      }
-
-      /* ---- cantaloupes (0.8091): the melon's patches again, on their own hashes ---- */
-      for (let ai = 0; ai < 2; ai++) {
-        const mx = (hash3(cx * 47 + 3300 + ai,       19, cz * 43 + 3300 + ai    ) * 16) | 0;
-        const mz = (hash3(cx * 53 + 3300 + ai * 3,   23, cz * 59 + 3300 + ai    ) * 16) | 0;
-        const gi = (mx + 2) + (mz + 2) * 20;
-        const h = H[gi];
-        if (h <= WATER_LEVEL + 1 || h > 146 || DES[gi] || SNO[gi]) continue;
-        const isPlains = TREE[gi] < 0.5;
-        const chance = isPlains ? 0.012 : 0.004;
-        if (hash3(cx * 71 + 3300 + ai, 77, cz * 67 + 3300 + ai) >= chance) continue;
-        const clusterN = isPlains ? 1 + ((hash3(cx + 3300 + ai, 81, cz + 3300 + ai) * 4) | 0)
-                                  : 1 + ((hash3(cx + 3300 + ai, 83, cz + 3300 + ai) * 2) | 0);
-        const radius = isPlains ? 4 : 2;
-        for (let k = 0; k < clusterN; k++) {
-          const offx = (((hash3(cx * 31 + ai + k * 7 + 3300,  89, cz * 29 + ai + k * 5) * (radius * 2 + 1)) | 0) - radius);
-          const offz = (((hash3(cx * 37 + ai + k * 11 + 3300, 97, cz * 41 + ai + k * 3) * (radius * 2 + 1)) | 0) - radius);
-          const lx = mx + offx, lz = mz + offz;
-          if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
-          const lh = H[(lx + 2) + (lz + 2) * 20];
-          if (lh <= WATER_LEVEL + 1 || lh > 146) continue;
-          if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS) continue;
-          if ((data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
-          data[idx(lx, lh + 1, lz)] = B.CANTALOUPE;
-        }
-      }
+      };
+      gourdPatch(2200, B.PUMPKIN,    -1, [0.012, 0.006], 2, 6, 3);
+      gourdPatch(1100, B.MELON,       1, [0.012, 0.006], 2, 4, 2);
+      gourdPatch(3300, B.CANTALOUPE,  0, [0.003, 0.001], 1, 2, 2);
 
       /* ---- salt crust (0.8091): a thin white skin on beach sand at the water's edge, in patches ---- */
       for (let z = 0; z < CZ; z++)
@@ -2582,21 +2408,32 @@ function VOXEL_CORE() {
           if (!(H[gi - 1] < WATER_LEVEL || H[gi + 1] < WATER_LEVEL || H[gi - 20] < WATER_LEVEL || H[gi + 20] < WATER_LEVEL)) continue;
           const wx = cx * 16 + x, wz = cz * 16 + z;
           if (fbm(wx * 0.06 + 4100, wz * 0.06 - 4100, 2) < 0.1) continue;          // patches, not a ribbon round every shore
-          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.0275) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097); a quarter of 0.11 since 0.8193
+          // a quarter more beside the sea than a lake or a river (0.8233): WW 1 is ocean
+          const sea = WW[(x + 9) + (z + 8) * 32] === 1 || WW[(x + 7) + (z + 8) * 32] === 1 || WW[(x + 8) + (z + 9) * 32] === 1 || WW[(x + 8) + (z + 7) * 32] === 1;
+          if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.0275 * (sea ? 1.25 : 1)) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097); a quarter of 0.11 since 0.8193
         }
 
-      /* ---- wheat: dense billboards scattered across grassy plains/forest tops (big amount) ---- */
-      for (let lz = 0; lz < CZ; lz++)
-        for (let lx = 0; lx < CX; lx++) {
-          const gi = (lx + 2) + (lz + 2) * 20;
-          const h = H[gi];
-          if (h < 100 || h > 198 || DES[gi] || SNO[gi]) continue;                       // y100..200
-          if (TREE[gi] >= 0.5) continue;                                                // plains only
-          if ((data[idx(lx, h, lz)] & 255) !== B.GRASS) continue;
-          if ((data[idx(lx, h + 1, lz)] & 255) !== B.AIR) continue;
-          if (hash3(cx * 91 + lx + 3300, 61, cz * 89 + lz + 3300) >= 0.0008) continue;  // ~0.08% (80% fewer)
-          data[idx(lx, h + 1, lz)] = B.WHEAT;
+      /* ---- wild wheat (0.8233): patches of 4-7 on mild, flat land (level 0 open plains), mostly in the flowery meadows
+         (the same mask the surface plants use below) and a little rarer on the rest of the plains. ---- */
+      for (let ai = 0; ai < 2; ai++) {
+        const mx = (hash3(cx * 61 + 4400 + ai,     29, cz * 67 + 4400 + ai) * 16) | 0;
+        const mz = (hash3(cx * 71 + 4400 + ai * 3, 31, cz * 73 + 4400 + ai) * 16) | 0;
+        const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
+        if (h < 100 || h > 198 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || Math.round(LVL[gi]) !== 0) continue;
+        const meadow = fbm((cx * 16 + mx) * 0.006 + 6006, (cz * 16 + mz) * 0.006 - 3003, 2) > 0.32;
+        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.06 : 0.012)) continue;
+        const want = 4 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 4) | 0);
+        for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
+          const lx = mx + (((hash3(cx * 43 + ai + k * 7 + 4400,  71, cz * 47 + ai + k * 5) * 5) | 0) - 2);
+          const lz = mz + (((hash3(cx * 53 + ai + k * 11 + 4400, 73, cz * 59 + ai + k * 3) * 5) | 0) - 2);
+          if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
+          const lh = H[(lx + 2) + (lz + 2) * 20];
+          if (lh < 100 || lh > 198) continue;
+          if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS || (data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
+          data[idx(lx, lh + 1, lz)] = B.WHEAT;
+          got++;
         }
+      }
 
       /* ---- flint stones (0.732): dark nodules lying loose on the turf, 0.05% of grass columns.
          Runs BEFORE the plant scatter on purpose — the plants all require air above them, so
@@ -2649,7 +2486,7 @@ function VOXEL_CORE() {
           const tallCh   = (isPlains ? 0.05 : 0.015) * (1 - alt * 0.75);
           /* Berry bushes are scattered thinly and land in a RANDOM growth stage, so a fresh world
              already has some ripe and some bare — the regrow timer takes over from there. */
-          const berryCh = (isPlains ? 0.0018 : 0.003) * (1 - alt * 0.75);
+          const berryCh = (isPlains ? 0 : 0.003) * (1 - alt * 0.75);              // forests only since 0.8233
           if (r < flowerCh) {
             data[idx(lx, h + 1, lz)] = hash3(cx * 31 + lx + 12, 19, cz * 29 + lz + 7) < 0.5 ? B.POPPY : B.ORCHID;
           } else if (r < flowerCh + berryCh) {
@@ -2781,13 +2618,18 @@ function VOXEL_CORE() {
 
       /* ---- sugar cane: ground column must be exactly one block above water level so the sand
          base sits at the shoreline and a side neighbour is water. Cane base ends up at y=h+1
-         with water at y=WATER_LEVEL directly beside the sand base — the classic beach look. ---- */
+         with water at y=WATER_LEVEL directly beside the sand base — the classic beach look.
+         0.8233: only on warm and hot shores (climate level 1 and up, or a desert), about a third more of it, and in
+         stands: a shore cell grows cane when it is a stand's seed, or mostly when a cell beside it is. The seeds are
+         pure hashes of place, so a stand across a chunk border still agrees. ---- */
+      const caneSeed = (wx, wz, s) => hash3(wx * 11 + 3301, 4242, wz * 13 + 5501) < s;
       for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) {
         const gi = (x + 2) + (z + 2) * 20;
         const h = H[gi];
         if (h !== WATER_LEVEL + 1) continue;                            // must be exactly at shore
+        if (!DES[gi] && LVL[gi] < 0.5) continue;                        // warm or hot land only (0.8233)
         const top = data[idx(x, h, z)] & 255;
-        if (top !== B.SAND && top !== B.GRASS && top !== B.DIRT && top !== B.RED_SAND) continue;
+        if (top !== B.SAND && top !== B.GRASS && top !== B.DIRT && top !== B.RED_SAND && top !== B.PINK_SAND) continue;   // pink 0.822
         if ((data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
         // water adjacent at exactly y = WATER_LEVEL (shoreline)
         let waterAdj = false;
@@ -2797,10 +2639,16 @@ function VOXEL_CORE() {
           if ((data[idx(nx, WATER_LEVEL, nz)] & 255) === B.WATER) { waterAdj = true; break; }
         }
         if (!waterAdj) continue;
-        const isBeach = (top === B.SAND || top === B.RED_SAND);
-        const chance = (isBeach ? 0.85 : 0.25) * 0.01;                     // 99% fewer (0.8191)
+        const isBeach = (top === B.SAND || top === B.RED_SAND || top === B.PINK_SAND);
+        /* The old chance per cell (beach 0.85%, bank 0.25%) x 1.3, spread over a seed and about 5.6 more cells round it
+           (8 neighbours x 70%), so the seed chance is that over 6.6. */
+        const s = (isBeach ? 0.85 : 0.25) * 0.01 * 1.3 / 6.6;
         const wx = cx * 16 + x, wz = cz * 16 + z;
-        if (hash3(wx * 11 + 3301, 4242, wz * 13 + 5501) >= chance) continue;
+        let grow = caneSeed(wx, wz, s);
+        if (!grow && hash3(wx * 7 + 919, 4343, wz * 5 - 717) < 0.7)
+          for (let dz = -1; dz <= 1 && !grow; dz++)
+            for (let dx = -1; dx <= 1; dx++) if ((dx || dz) && caneSeed(wx + dx, wz + dz, s)) { grow = true; break; }
+        if (!grow) continue;
         const tall = 1 + Math.floor(hash3(wx, 9191, wz) * 3);           // 1..3
         // Start cane at h (replacing the top sand) so the base cell sits at water-surface elevation
         // and the plant reads as growing from the shoreline instead of on a raised ledge.
@@ -2850,8 +2698,8 @@ function VOXEL_CORE() {
             else if ((top === B.GRASS || top === B.DIRT) && TREE[gi] >= 0.4) {
               const lr = hash3(wx * 47 + 9500, 4507, wz * 53 - 9500);
               if (lr < 0.006) {
-                const leaf = SNO[gi] ? B.SPRUCE_LEAVES
-                           : fbm(wx * 0.004 + 1234, wz * 0.004 - 987, 2) > 0.35 ? B.BIRCH_LEAVES : B.LEAVES;
+                const leaf = SNO[gi] || TAIGA[gi] ? B.SPRUCE_LEAVES
+                           : birchAt(wx, wz) ? B.BIRCH_LEAVES : B.LEAVES;
                 data[idx(x, h + 1, z)] = layerVal(leaf, lr < 0.002 ? 2 : 1);
               }
             }
@@ -2878,7 +2726,14 @@ function VOXEL_CORE() {
       return data.buffer;
     }
 
-    return { genChunk, heightAt, biomeAt };
+    // how far inside snow and hot (desert, red sand) climate a column is, 0..1, and its height: the main thread's
+    // temperature reads it (0.82, 54-stats-effects.js)
+    const climateAt = (x, z) => {
+      const t = terrainInfo(x, z);
+      // air: on the climate ladder (0.8232) the level's own warmth or cold in degrees (CLIMATE_LADDER), else null
+      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), h: t.h, air: t.air };
+    };
+    return { genChunk, heightAt, biomeAt, climateAt, climAt };
   }
 
   /* ---------- greedy mesher ----------
@@ -2997,6 +2852,19 @@ function VOXEL_CORE() {
       layers = null;
     }
     const P = PROPS;
+    // the climate at the chunk's 17x17 column corners (0.8231): -1 cold .. 1 warm — world chunks only, not icons or drops
+    let clim = null;
+    if (ox != null && _climAt) {
+      clim = new Float32Array(289);
+      for (let z = 0; z <= 16; z++) for (let x = 0; x <= 16; x++) clim[x + z * 17] = _climAt(ox + x, oz + z);
+    }
+    // a vertex's climate, bilinear between the corners, as a signed byte: neighbouring quads agree on shared corners
+    function climOf(x, z) {
+      x = x < 0 ? 0 : x > 16 ? 16 : x; z = z < 0 ? 0 : z > 16 ? 16 : z;
+      const ix = Math.min(15, x | 0), iz = Math.min(15, z | 0), fx = x - ix, fz = z - iz, i = ix + iz * 17;
+      const a = clim[i] + (clim[i + 1] - clim[i]) * fx, b = clim[i + 17] + (clim[i + 18] - clim[i + 17]) * fx;
+      return Math.round((a + (b - a) * fz) * 127);
+    }
 
     // neighbour-aware voxel read (y out of world: below = stone so bottom faces cull, above = air)
     function gb(x, y, z) {
@@ -3029,8 +2897,12 @@ function VOXEL_CORE() {
     }
 
     // one growable buffer set per render pass
-    const passes = [null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], index: [], v: 0 }));
+    const passes = [null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], index: [], v: 0 }));
     let minY = 200, maxY = 0;
+    function pushClim(g, tile, c0, c1, c2, c3) {
+      if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
+      else g.clim.push(0, 0, 0, 0);
+    }
 
     function quad(pass, c0, c1, c2, c3, u0, u1, u2, u3, tile, shade, lite) {
       const g = passes[pass], base = g.v;
@@ -3039,6 +2911,7 @@ function VOXEL_CORE() {
       g.tile.push(tile, tile, tile, tile);
       g.shade.push(shade, shade, shade, shade);
       g.lite.push(lite, lite, lite, lite);
+      pushClim(g, tile, c0, c1, c2, c3);
       g.index.push(base, base + 1, base + 2, base, base + 2, base + 3);
       g.v += 4;
       const lo = Math.min(c0[1], c2[1]), hi = Math.max(c0[1], c2[1]);
@@ -3052,6 +2925,7 @@ function VOXEL_CORE() {
       g.tile.push(tile, tile, tile, tile);
       g.shade.push(s0, s1, s2, s3);
       g.lite.push(lite, lite, lite, lite);
+      pushClim(g, tile, c0, c1, c2, c3);
       g.index.push(base, base + 1, base + 2, base, base + 2, base + 3);
       g.v += 4;
       const lo = Math.min(c0[1], c2[1]), hi = Math.max(c0[1], c2[1]);
@@ -3210,14 +3084,23 @@ function VOXEL_CORE() {
     /* In the world (0.819) a mushroom is 40% of its model, and each place grows its own: 0.5x to 1.5x of that,
        from a hash of where it stands, scaled about the middle of its foot. The art is squeezed with it (the UVs
        keep the model's own sizes). Icons and drops (no ox) keep the full model. */
-    const SHROOM_SCALE = 0.4;
-    function emitShroom(x, y, z, kind) {
+    /* Growth (0.821, 51-seasons.js): the variant's bits 0-2 are the size it grows to (1..7 = 0.5x..1.5x; 0 = one
+       from before, or from the world generator, sized by where it stands as above) and bits 3-7 how many of 31
+       steps it still has to grow (0 = grown). A sprout is drawn at the part it has grown, never under 12%. */
+    const SHROOM_SCALE = 0.4, SHROOM_STEPS = 31;
+    function emitShroom(x, y, z, kind, vr = 0) {
       const set = SHROOM_T[kind], L = gl(x, y, z), P = 1 / 16;
       let s = 1;
       if (ox != null) {
-        let hh = Math.imul((ox + x) | 0, 374761393) + Math.imul(y | 0, 217645177) + Math.imul((oz + z) | 0, 668265263);
-        hh = Math.imul(hh ^ (hh >>> 13), 1274126177); hh ^= hh >>> 16;
-        s = SHROOM_SCALE * (0.5 + (hh >>> 0) / 4294967296);
+        const m = vr & 7, left = (vr >> 3) & 31;
+        let size;
+        if (m) size = 0.5 + (m - 1) / 6;
+        else {
+          let hh = Math.imul((ox + x) | 0, 374761393) + Math.imul(y | 0, 217645177) + Math.imul((oz + z) | 0, 668265263);
+          hh = Math.imul(hh ^ (hh >>> 13), 1274126177); hh ^= hh >>> 16;
+          size = 0.5 + (hh >>> 0) / 4294967296;
+        }
+        s = SHROOM_SCALE * size * Math.max(0.12, 1 - left / SHROOM_STEPS);
       }
       const sx = (a) => x + (8 + (a - 8) * s) * P, sz = (c) => z + (8 + (c - 8) * s) * P, sy = (b) => y + b * s * P;
       for (const [a0, b0, c0, a1, b1, c1, side, top, bot] of SHROOM_MODEL[kind]) {
@@ -3390,7 +3273,7 @@ function VOXEL_CORE() {
           const bid = val & 255;
           if (!lod && PROPS[bid] && PROPS[bid].model === 'cross') {   // a far chunk draws no plants or torches (0.8092)
             if (bid === B.TORCH) emitTorch(x, y, z, (val >> 8) & 255);   // a stick, not a billboard
-            else if (PROPS[bid].shroom != null) emitShroom(x, y, z, PROPS[bid].shroom);   // a model (0.8091)
+            else if (PROPS[bid].shroom != null) emitShroom(x, y, z, PROPS[bid].shroom, (val >> 8) & 255);   // a model (0.8091), grown so far (0.821)
             else emitCross(x, y, z, bid, (val >> 8) & 255);
           }
         }
@@ -3674,12 +3557,13 @@ function VOXEL_CORE() {
       tile:  new Uint16Array(g.tile),        // a texture-array layer: past 255 since 0.809
       shade: new Uint8Array(g.shade),
       lite:  new Uint8Array(g.lite),
+      clim:  new Int8Array(g.clim),          // the climate colour, -127 cold .. 127 warm (0.8231)
       index: new Uint32Array(g.index),
     }));
     return { passes: out, minY: Math.min(minY, maxY), maxY: Math.max(maxY, 2) };
   }
 
-  return { B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
+  return { setTintSampler, B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
            SHAPE_MASK, ROT_MASK, shapeOfVal,
            HOLLOW_FILLS, opaqueVal, lightDim, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK,
@@ -3695,6 +3579,7 @@ function WORKER_MAIN() {
     try {
       if (m.type === 'init') {
         gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1);   // biome sizes by world (0.819)
+        CORE.setTintSampler(gen.climAt);                                   // the grass and water climate colour (0.8231)
       } else if (m.type === 'gen') {
         const buf = gen.genChunk(m.cx, m.cz);
         self.postMessage({ type: 'gen', cx: m.cx, cz: m.cz, data: buf }, [buf]);
@@ -3702,7 +3587,7 @@ function WORKER_MAIN() {
         const r = CORE.meshChunk(m.data, m.sxn, m.sxp, m.szn, m.szp, m.light, m.lxn, m.lxp, m.lzn, m.lzp, m.layers, m.lod | 0,
                                  m.cx * 16, m.cz * 16);   // lod 0.8092; world origin for per-place sizes (0.819)
         const transfers = [];
-        for (const p of r.passes) if (p) transfers.push(p.pos.buffer, p.uv.buffer, p.tile.buffer, p.shade.buffer, p.lite.buffer, p.index.buffer);
+        for (const p of r.passes) if (p) transfers.push(p.pos.buffer, p.uv.buffer, p.tile.buffer, p.shade.buffer, p.lite.buffer, p.clim.buffer, p.index.buffer);
         self.postMessage({ type: 'mesh', cx: m.cx, cz: m.cz, rev: m.rev, passes: r.passes, minY: r.minY, maxY: r.maxY }, transfers);
       }
     } catch (err) {
@@ -3805,7 +3690,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                PIKE: 393, COOKED_PIKE: 394, CATFISH: 395, COOKED_CATFISH: 396,
                CANTALOUPE_SLICE: 397,                                            // 0.8091
                STONE_PEBBLE: 398,                                                // 0.8095
-               SALT: 399 };                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+               SALT: 399,
+              COMPRESSED_ROTTEN_FLESH: 400 };                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -3859,7 +3745,7 @@ const ITEM_PROPS = {
      and it names the family so a crossbow or a firearm can join later without touching anything
      here. `ammo` marks what a ranged weapon consumes; the damage lives on the AMMO, since which
      arrow you loose is what decides how hard it lands. */
-  [ITEM.BOW]:           { name: 'Bow',           stack: 1,  icon: 'bow', ranged: 'bow', damage: 1, attackSpeed: 1.0, durability: 160,
+  [ITEM.BOW]:           { name: 'Bow',           stack: 1,  icon: 'bow', ranged: 'bow', damage: 5, attackSpeed: 1.0, durability: 160,
                           desc: 'Hold right click to draw, release to loose an arrow' },
   [ITEM.ARROW]:         { name: 'Arrow',         stack: 99, icon: 'arrow', ammo: 'arrow', desc: 'Ammunition for bows' },
   // 0.745: worn in the OFFHAND equipment slot; `shield` is what 40-shield.js keys off
@@ -3885,44 +3771,44 @@ const ITEM_PROPS = {
   [ITEM.DIAMOND]:       { name: 'Diamond',       stack: 99, icon: 'diamond', desc: 'Used as crafting ingredient' },
   // tools: stack 1, own durability (breaks at 0), toolSpeed = mining-time divisor on matching
   // blocks. tier: 0 = bare hand, 1 wooden, 2 stone, 3 iron, 4 steel, 5 diamond — gates drops (MINE_REQ).
-  [ITEM.FLINT_SWORD]:   { name: 'Flint sword',    stack: 1, icon: 'flint_sword',   tool: 'sword',   tier: 1, toolSpeed: 1,    damage: 4,   attackSpeed: 1.8,   durability: 20, desc: '' },
-  [ITEM.FLINT_SHOVEL]:  { name: 'Flint shovel',   stack: 1, icon: 'flint_shovel',  tool: 'shovel',  tier: 1, toolSpeed: 2,    damage: 2,   attackSpeed: 1.0,   durability: 40, desc: '' },
-  [ITEM.FLINT_PICKAXE]: { name: 'Flint pickaxe',  stack: 1, icon: 'flint_pickaxe', tool: 'pick',    tier: 1, toolSpeed: 2,    damage: 3,   attackSpeed: 1.0,   durability: 40, desc: '' },
-  [ITEM.FLINT_HATCHET]: { name: 'Flint hatchet',  stack: 1, icon: 'flint_hatchet', tool: 'hatchet', tier: 1, toolSpeed: 2,    damage: 5,   attackSpeed: 0.8,   durability: 40, desc: '' },
-  [ITEM.FLINT_HOE]:     { name: 'Flint hoe',      stack: 1, icon: 'flint_hoe',     tool: 'hoe',     tier: 1, toolSpeed: 2,    damage: 3,   attackSpeed: 1.2,   durability: 30, desc: '' },
-  [ITEM.STONE_SWORD]:    { name: 'Stone sword',     stack: 1, icon: 'stone_sword',    tool: 'sword',   tier: 2, toolSpeed: 2,    damage: 5,   attackSpeed: 1.7,   durability: 50, desc: '' },
-  [ITEM.STONE_SHOVEL]:   { name: 'Stone shovel',    stack: 1, icon: 'stone_shovel',   tool: 'shovel',  tier: 2, toolSpeed: 4,    damage: 3,   attackSpeed: 0.8,   durability: 100, desc: '' },
-  [ITEM.STONE_PICKAXE]:  { name: 'Stone pickaxe',   stack: 1, icon: 'stone_pickaxe',  tool: 'pick',    tier: 2, toolSpeed: 4,    damage: 4,   attackSpeed: 0.8,   durability: 100, desc: '' },
-  [ITEM.STONE_HATCHET]:  { name: 'Stone hatchet',   stack: 1, icon: 'stone_hatchet',  tool: 'hatchet', tier: 2, toolSpeed: 4,    damage: 6,   attackSpeed: 0.6,   durability: 100, desc: '' },
-  [ITEM.STONE_HOE]:      { name: 'Stone hoe',       stack: 1, icon: 'stone_hoe',      tool: 'hoe',     tier: 2, toolSpeed: 4,    damage: 4,   attackSpeed: 1.1,   durability: 80, desc: '' },
-  [ITEM.IRON_SHEARS]:    { name: 'Iron shears',     stack: 1, icon: 'iron_shears',    tool: 'shears',  tier: 3, toolSpeed: 6,    damage: 3,   attackSpeed: 1.2,   durability: 150, desc: '' },
-  [ITEM.IRON_SWORD]:     { name: 'Iron sword',      stack: 1, icon: 'iron_sword',     tool: 'sword',   tier: 3, toolSpeed: 3,    damage: 6,   attackSpeed: 1.9,   durability: 150, desc: '' },
-  [ITEM.IRON_SHOVEL]:    { name: 'Iron shovel',     stack: 1, icon: 'iron_shovel',    tool: 'shovel',  tier: 3, toolSpeed: 6,    damage: 4,   attackSpeed: 1.1,   durability: 300, desc: '' },
-  [ITEM.IRON_PICKAXE]:   { name: 'Iron pickaxe',    stack: 1, icon: 'iron_pickaxe',   tool: 'pick',    tier: 3, toolSpeed: 6,    damage: 5,   attackSpeed: 1.1,   durability: 300, desc: '' },
-  [ITEM.IRON_HATCHET]:   { name: 'Iron hatchet',    stack: 1, icon: 'iron_hatchet',   tool: 'hatchet', tier: 3, toolSpeed: 6,    damage: 7,   attackSpeed: 0.8,   durability: 300, desc: '' },
-  [ITEM.IRON_HOE]:       { name: 'Iron hoe',        stack: 1, icon: 'iron_hoe',       tool: 'hoe',     tier: 3, toolSpeed: 6,    damage: 5,   attackSpeed: 1.2,   durability: 200, desc: '' },
-  [ITEM.GOLDEN_SWORD]:   { name: 'Golden sword',    stack: 1, icon: 'golden_sword',   tool: 'sword',   tier: 3, toolSpeed: 8,    damage: 5,   attackSpeed: 2.8,   durability: 30, desc: '' },
-  [ITEM.GOLDEN_SHOVEL]:  { name: 'Golden shovel',   stack: 1, icon: 'golden_shovel',  tool: 'shovel',  tier: 3, toolSpeed: 14,   damage: 3,   attackSpeed: 1.6,   durability: 60, desc: '' },
-  [ITEM.GOLDEN_PICKAXE]: { name: 'Golden pickaxe',  stack: 1, icon: 'golden_pickaxe', tool: 'pick',    tier: 3, toolSpeed: 14,   damage: 4,   attackSpeed: 1.6,   durability: 60, desc: '' },
-  [ITEM.GOLDEN_HATCHET]: { name: 'Golden hatchet',  stack: 1, icon: 'golden_hatchet', tool: 'hatchet', tier: 3, toolSpeed: 14,   damage: 5,   attackSpeed: 1.4,   durability: 60, desc: '' },
-  [ITEM.GOLDEN_HOE]:     { name: 'Golden hoe',      stack: 1, icon: 'golden_hoe',     tool: 'hoe',     tier: 3, toolSpeed: 14,   damage: 3,   attackSpeed: 2.4,   durability: 45, desc: '' },
+  [ITEM.FLINT_SWORD]:   { name: 'Flint sword',    stack: 1, icon: 'flint_sword',   tool: 'sword',   tier: 1, toolSpeed: 1,    damage: 20,   attackSpeed: 1.8,   durability: 20, desc: '' },
+  [ITEM.FLINT_SHOVEL]:  { name: 'Flint shovel',   stack: 1, icon: 'flint_shovel',  tool: 'shovel',  tier: 1, toolSpeed: 2,    damage: 10,   attackSpeed: 1.0,   durability: 40, desc: '' },
+  [ITEM.FLINT_PICKAXE]: { name: 'Flint pickaxe',  stack: 1, icon: 'flint_pickaxe', tool: 'pick',    tier: 1, toolSpeed: 2,    damage: 15,   attackSpeed: 1.0,   durability: 40, desc: '' },
+  [ITEM.FLINT_HATCHET]: { name: 'Flint hatchet',  stack: 1, icon: 'flint_hatchet', tool: 'hatchet', tier: 1, toolSpeed: 2,    damage: 25,   attackSpeed: 0.8,   durability: 40, desc: '' },
+  [ITEM.FLINT_HOE]:     { name: 'Flint hoe',      stack: 1, icon: 'flint_hoe',     tool: 'hoe',     tier: 1, toolSpeed: 2,    damage: 15,   attackSpeed: 1.2,   durability: 30, desc: '' },
+  [ITEM.STONE_SWORD]:    { name: 'Stone sword',     stack: 1, icon: 'stone_sword',    tool: 'sword',   tier: 2, toolSpeed: 2,    damage: 25,   attackSpeed: 1.7,   durability: 50, desc: '' },
+  [ITEM.STONE_SHOVEL]:   { name: 'Stone shovel',    stack: 1, icon: 'stone_shovel',   tool: 'shovel',  tier: 2, toolSpeed: 4,    damage: 15,   attackSpeed: 0.8,   durability: 100, desc: '' },
+  [ITEM.STONE_PICKAXE]:  { name: 'Stone pickaxe',   stack: 1, icon: 'stone_pickaxe',  tool: 'pick',    tier: 2, toolSpeed: 4,    damage: 20,   attackSpeed: 0.8,   durability: 100, desc: '' },
+  [ITEM.STONE_HATCHET]:  { name: 'Stone hatchet',   stack: 1, icon: 'stone_hatchet',  tool: 'hatchet', tier: 2, toolSpeed: 4,    damage: 30,   attackSpeed: 0.6,   durability: 100, desc: '' },
+  [ITEM.STONE_HOE]:      { name: 'Stone hoe',       stack: 1, icon: 'stone_hoe',      tool: 'hoe',     tier: 2, toolSpeed: 4,    damage: 20,   attackSpeed: 1.1,   durability: 80, desc: '' },
+  [ITEM.IRON_SHEARS]:    { name: 'Iron shears',     stack: 1, icon: 'iron_shears',    tool: 'shears',  tier: 3, toolSpeed: 6,    damage: 15,   attackSpeed: 1.2,   durability: 150, desc: '' },
+  [ITEM.IRON_SWORD]:     { name: 'Iron sword',      stack: 1, icon: 'iron_sword',     tool: 'sword',   tier: 3, toolSpeed: 3,    damage: 30,   attackSpeed: 1.9,   durability: 150, desc: '' },
+  [ITEM.IRON_SHOVEL]:    { name: 'Iron shovel',     stack: 1, icon: 'iron_shovel',    tool: 'shovel',  tier: 3, toolSpeed: 6,    damage: 20,   attackSpeed: 1.1,   durability: 300, desc: '' },
+  [ITEM.IRON_PICKAXE]:   { name: 'Iron pickaxe',    stack: 1, icon: 'iron_pickaxe',   tool: 'pick',    tier: 3, toolSpeed: 6,    damage: 25,   attackSpeed: 1.1,   durability: 300, desc: '' },
+  [ITEM.IRON_HATCHET]:   { name: 'Iron hatchet',    stack: 1, icon: 'iron_hatchet',   tool: 'hatchet', tier: 3, toolSpeed: 6,    damage: 35,   attackSpeed: 0.8,   durability: 300, desc: '' },
+  [ITEM.IRON_HOE]:       { name: 'Iron hoe',        stack: 1, icon: 'iron_hoe',       tool: 'hoe',     tier: 3, toolSpeed: 6,    damage: 25,   attackSpeed: 1.2,   durability: 200, desc: '' },
+  [ITEM.GOLDEN_SWORD]:   { name: 'Golden sword',    stack: 1, icon: 'golden_sword',   tool: 'sword',   tier: 3, toolSpeed: 8,    damage: 25,   attackSpeed: 2.8,   durability: 30, desc: '' },
+  [ITEM.GOLDEN_SHOVEL]:  { name: 'Golden shovel',   stack: 1, icon: 'golden_shovel',  tool: 'shovel',  tier: 3, toolSpeed: 14,   damage: 15,   attackSpeed: 1.6,   durability: 60, desc: '' },
+  [ITEM.GOLDEN_PICKAXE]: { name: 'Golden pickaxe',  stack: 1, icon: 'golden_pickaxe', tool: 'pick',    tier: 3, toolSpeed: 14,   damage: 20,   attackSpeed: 1.6,   durability: 60, desc: '' },
+  [ITEM.GOLDEN_HATCHET]: { name: 'Golden hatchet',  stack: 1, icon: 'golden_hatchet', tool: 'hatchet', tier: 3, toolSpeed: 14,   damage: 25,   attackSpeed: 1.4,   durability: 60, desc: '' },
+  [ITEM.GOLDEN_HOE]:     { name: 'Golden hoe',      stack: 1, icon: 'golden_hoe',     tool: 'hoe',     tier: 3, toolSpeed: 14,   damage: 15,   attackSpeed: 2.4,   durability: 45, desc: '' },
   // bronze tools (0.774): tier 4, halfway between iron and diamond in every stat; the gem ores need one
-  [ITEM.BRONZE_SWORD]:   { name: 'Bronze sword',    stack: 1, icon: 'bronze_sword',   tool: 'sword',   tier: 4, toolSpeed: 4,    damage: 6.5, attackSpeed: 1.95,  durability: 300, desc: '' },
-  [ITEM.BRONZE_SHOVEL]:  { name: 'Bronze shovel',   stack: 1, icon: 'bronze_shovel',  tool: 'shovel',  tier: 4, toolSpeed: 8,    damage: 3,   attackSpeed: 1.15,  durability: 600, desc: '' },
-  [ITEM.BRONZE_PICKAXE]: { name: 'Bronze pickaxe',  stack: 1, icon: 'bronze_pickaxe', tool: 'pick',    tier: 4, toolSpeed: 8,    damage: 3.5, attackSpeed: 1.15,  durability: 600, desc: '' },
-  [ITEM.BRONZE_HATCHET]: { name: 'Bronze hatchet',  stack: 1, icon: 'bronze_hatchet', tool: 'hatchet', tier: 4, toolSpeed: 8,    damage: 7.5, attackSpeed: 0.85,  durability: 600, desc: '' },
-  [ITEM.BRONZE_HOE]:     { name: 'Bronze hoe',      stack: 1, icon: 'bronze_hoe',     tool: 'hoe',     tier: 4, toolSpeed: 8,    damage: 3.5, attackSpeed: 1.25,  durability: 450, desc: '' },
-  [ITEM.DIAMOND_SWORD]:  { name: 'Diamond sword',   stack: 1, icon: 'diamond_sword',  tool: 'sword',   tier: 5, toolSpeed: 5,    damage: 7,   attackSpeed: 2.0,   durability: 500, desc: '' },
-  [ITEM.DIAMOND_SHOVEL]: { name: 'Diamond shovel',  stack: 1, icon: 'diamond_shovel', tool: 'shovel',  tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.2,   durability: 1000, desc: '' },
-  [ITEM.DIAMOND_PICKAXE]:{ name: 'Diamond pickaxe', stack: 1, icon: 'diamond_pickaxe',tool: 'pick',    tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.2,   durability: 1000, desc: '' },
-  [ITEM.DIAMOND_HATCHET]:{ name: 'Diamond hatchet', stack: 1, icon: 'diamond_hatchet',tool: 'hatchet', tier: 5, toolSpeed: 10,   damage: 8,   attackSpeed: 0.9,   durability: 1000, desc: '' },
-  [ITEM.DIAMOND_HOE]:    { name: 'Diamond hoe',     stack: 1, icon: 'diamond_hoe',    tool: 'hoe',     tier: 5, toolSpeed: 10,   damage: 2,   attackSpeed: 1.3,   durability: 750, desc: '' },
+  [ITEM.BRONZE_SWORD]:   { name: 'Bronze sword',    stack: 1, icon: 'bronze_sword',   tool: 'sword',   tier: 4, toolSpeed: 4,    damage: 32.5, attackSpeed: 1.95,  durability: 300, desc: '' },
+  [ITEM.BRONZE_SHOVEL]:  { name: 'Bronze shovel',   stack: 1, icon: 'bronze_shovel',  tool: 'shovel',  tier: 4, toolSpeed: 8,    damage: 15,   attackSpeed: 1.15,  durability: 600, desc: '' },
+  [ITEM.BRONZE_PICKAXE]: { name: 'Bronze pickaxe',  stack: 1, icon: 'bronze_pickaxe', tool: 'pick',    tier: 4, toolSpeed: 8,    damage: 17.5, attackSpeed: 1.15,  durability: 600, desc: '' },
+  [ITEM.BRONZE_HATCHET]: { name: 'Bronze hatchet',  stack: 1, icon: 'bronze_hatchet', tool: 'hatchet', tier: 4, toolSpeed: 8,    damage: 37.5, attackSpeed: 0.85,  durability: 600, desc: '' },
+  [ITEM.BRONZE_HOE]:     { name: 'Bronze hoe',      stack: 1, icon: 'bronze_hoe',     tool: 'hoe',     tier: 4, toolSpeed: 8,    damage: 17.5, attackSpeed: 1.25,  durability: 450, desc: '' },
+  [ITEM.DIAMOND_SWORD]:  { name: 'Diamond sword',   stack: 1, icon: 'diamond_sword',  tool: 'sword',   tier: 5, toolSpeed: 5,    damage: 35,   attackSpeed: 2.0,   durability: 500, desc: '' },
+  [ITEM.DIAMOND_SHOVEL]: { name: 'Diamond shovel',  stack: 1, icon: 'diamond_shovel', tool: 'shovel',  tier: 5, toolSpeed: 10,   damage: 10,   attackSpeed: 1.2,   durability: 1000, desc: '' },
+  [ITEM.DIAMOND_PICKAXE]:{ name: 'Diamond pickaxe', stack: 1, icon: 'diamond_pickaxe',tool: 'pick',    tier: 5, toolSpeed: 10,   damage: 10,   attackSpeed: 1.2,   durability: 1000, desc: '' },
+  [ITEM.DIAMOND_HATCHET]:{ name: 'Diamond hatchet', stack: 1, icon: 'diamond_hatchet',tool: 'hatchet', tier: 5, toolSpeed: 10,   damage: 40,   attackSpeed: 0.9,   durability: 1000, desc: '' },
+  [ITEM.DIAMOND_HOE]:    { name: 'Diamond hoe',     stack: 1, icon: 'diamond_hoe',    tool: 'hoe',     tier: 5, toolSpeed: 10,   damage: 10,   attackSpeed: 1.3,   durability: 750, desc: '' },
 // Useable
   [ITEM.BUCKET]:        { name: 'Bucket',        stack: 20, icon: 'bucket', desc: 'Used to fill with fluid, even with cow\'s milk (female cow)' },
   // 0.767: from a cow (bucket in hand, right-click). Drinking it clears every running effect and hands the bucket back
-  [ITEM.MILK_BUCKET]:   { name: 'Milk bucket',   stack: 1, icon: 'milk_bucket', food: 4, foodSat: 6, foodSatFull: 3,
+  [ITEM.MILK_BUCKET]:   { name: 'Milk bucket',   stack: 1, icon: 'milk_bucket', food: 10, foodSat: 10, foodSatFull: 5,   // a little food (0.822)
                           // 10 minutes, and what is left when it turns is the bucket back (0.7992)
-                          eatTime: 1.6, drink: true, foodClearEffects: true, foodReturn: 283, spoil: 600, spoilInto: 283,
+                          eatTime: 1.92, drink: true, foodClearEffects: true, foodReturn: 283, spoil: 600, spoilInto: 283,
                           desc: 'Drink it to remove all active effects. Goes off in 10 minutes, leaving the bucket' },
   [ITEM.WATER_BUCKET]:  { name: 'Water Bucket',  stack: 1,  icon: 'water_bucket', desc: '' },
   [ITEM.LAVA_BUCKET]:   { name: 'Lava Bucket',   stack: 1,  icon: 'lava_bucket', desc: '' },
@@ -3932,73 +3818,77 @@ const ITEM_PROPS = {
  //plants
   [ITEM.SUGAR_CANE]:    { name: 'Sugar cane',    stack: 99, icon: 'sugarcane', desc: 'Can be turned into sugar in a mortar' },
   [ITEM.WHEAT]:         { name: 'Wheat',         stack: 99, icon: 'wheat', desc: 'Can be turned into flour in a mortar' },
-// Consumables
-  [ITEM.APPLE]:         { name: 'Apple',          stack: 99, icon: 'apple',         foodSatFull: 3, food: 5,  foodSat: 8,  eatTime: 1.5, spoil: 3600, desc: '' },   // an hour since 0.7992
-  [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 40, icon: 'melon_slice',   foodSatFull: 1, food: 1,  foodSat: 2,  eatTime: 0.7, spoil: 1200, desc: '' },
+// Consumables. food, foodSat (over-food), foodSatFull and foodHeal are out of 100 since 0.82 (x5; they were out of 20);
+// what each also gives in thirst, fruit, vegetables and protein is FOOD_NUTRITION in 54-stats-effects.js.
+// Every eatTime is 20% longer since 0.821.
+  [ITEM.APPLE]:         { name: 'Apple',          stack: 99, icon: 'apple',         foodSatFull: 15, food: 25,  foodSat: 40,  eatTime: 1.8, spoil: 3600, desc: '' },   // an hour since 0.7992
+  [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 40, icon: 'melon_slice',   foodSatFull: 5, food: 5,  foodSat: 10,  eatTime: 0.84, spoil: 1200, desc: '' },
   // its own picture since 0.8098
   [ITEM.SALT]: { name: 'Salt', stack: 60, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
   [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 60, icon: 'stone_pebble', desc: 'Five make a stone block' },   // 0.8095
-  [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 40, icon: 'cantaloupe_slice', foodSatFull: 1, food: 1, foodSat: 2, eatTime: 0.7, spoil: 1200, desc: '' },
+  [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 40, icon: 'cantaloupe_slice', foodSatFull: 5, food: 5, foodSat: 10, eatTime: 0.84, spoil: 1200, desc: '' },
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
-  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600, desc: '' },
-  [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600, desc: '' },
-  // yellow berries (0.7947): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison, 31-armor.js)
-  [ITEM.YELLOW_BERRIES]: { name: 'Blackberries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 1,  foodSat: 1,  eatTime: 0.5, spoil: 600,
+  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
+  [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
+  // yellow berries (0.7947): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison, 54-stats-effects.js)
+  [ITEM.YELLOW_BERRIES]: { name: 'Blackberries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600,
                            foodEffect: 'poison', desc: 'Poisonous' },
   // 0.761: the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
-  [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 3, food: 6,  foodSat: 6,  eatTime: 4, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
-  [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 7, food: 12, foodSat: 14, eatTime: 4, foodHeal: 3, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
-  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 20, icon: 'mushroom_stew', foodSatFull: 5, food: 9,  foodSat: 12, eatTime: 2.5, foodReturn: 265, foodHeal: 1, spoil: 3600, desc: '' },
-  [ITEM.BREAD]:         { name: 'Bread',          stack: 99, icon: 'bread',         foodSatFull: 4, food: 6,  foodSat: 8,  eatTime: 1.7, spoil: 14400, desc: '' },
-  [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 30, icon: 'golden_apple',  foodSatFull: 8, food: 5,  foodSat: 15,  eatTime: 2.0, foodHeal: 2, foodEffect: 'rapidRegen', desc: '' },
-  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 99, icon: 'mutton',        foodSatFull: 1, food: 2,  foodSat: 3,  eatTime: 1.8, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },
-  [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 99, icon: 'cooked_mutton', foodSatFull: 4, food: 6,  foodSat: 7,  eatTime: 2.0, spoil: 14400, desc: '' },
+  [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 15, food: 30,  foodSat: 30,  eatTime: 4.8, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
+  [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 35, food: 60, foodSat: 70, eatTime: 4.8, foodHeal: 15, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
+  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 20, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: 265, foodHeal: 5, spoil: 3600, desc: '' },
+  [ITEM.BREAD]:         { name: 'Bread',          stack: 99, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
+  [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 30, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 10, foodEffect: 'rapidRegen', desc: '' },
+  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 99, icon: 'mutton',        foodSatFull: 5, food: 10,  foodSat: 15,  eatTime: 2.16, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },
+  [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 99, icon: 'cooked_mutton', foodSatFull: 20, food: 30,  foodSat: 35,  eatTime: 2.4, spoil: 14400, desc: '' },
   // beef is the best meat in the game once cooked, which is what makes hunting cows worth it
-  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 99, icon: 'beef',          foodSatFull: 1, food: 3,  foodSat: 4,  eatTime: 1.9, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 2000, desc: '' },
-  [ITEM.COOKED_BEEF]:   { name: 'Steak',          stack: 99, icon: 'cooked_beef',   foodSatFull: 5, food: 8,  foodSat: 10, eatTime: 2.2, spoil: 28800, desc: '' },
-  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 99, icon: 'rotten_flesh',  foodSatFull: 0, food: 2,  foodSat: 0,  eatTime: 1.3, foodEffect: 'nausea', foodEffectChance: 0.9, spoil: 7200, desc: 'Edible, but barely' },
+  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 99, icon: 'beef',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 2000, desc: '' },
+  [ITEM.COOKED_BEEF]:   { name: 'Steak',          stack: 99, icon: 'cooked_beef',   foodSatFull: 25, food: 40,  foodSat: 50, eatTime: 2.64, spoil: 28800, desc: '' },
+  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 99, icon: 'rotten_flesh',  foodSatFull: 0, food: 10,  foodSat: 0,  eatTime: 1.56, foodEffect: 'nausea', foodEffectChance: 0.9, spoil: 7200, desc: 'Edible, but barely' },
+  // 0.821: five rotten flesh pressed into one, which a bench works into leather (25-crafting.js)
+  [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 60, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },
   // pork (0.789): a shade under beef cooked, and it spoils faster than any other meat raw
-  [ITEM.PORK]:          { name: 'Raw pork',       stack: 99, icon: 'pork',          foodSatFull: 1, food: 3,  foodSat: 4,  eatTime: 1.9, foodEffect: 'nausea', foodEffectChance: 0.6, spoil: 2600, desc: '' },
-  [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 99, icon: 'cooked_pork',   foodSatFull: 4, food: 7,  foodSat: 9,  eatTime: 2.1, spoil: 22400, desc: '' },
+  [ITEM.PORK]:          { name: 'Raw pork',       stack: 99, icon: 'pork',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.6, spoil: 2600, desc: '' },
+  [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 99, icon: 'cooked_pork',   foodSatFull: 20, food: 35,  foodSat: 45,  eatTime: 2.52, spoil: 22400, desc: '' },
   // fish (0.805): lighter than meat and quicker to eat; the bigger the fish, the more it fills. Raw may turn the stomach
-  [ITEM.COD]:            { name: 'Raw cod',        stack: 99, icon: 'cod',            foodSatFull: 1, food: 2, foodSat: 2, eatTime: 1.4, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 99, icon: 'cooked_cod',     foodSatFull: 3, food: 5, foodSat: 6, eatTime: 1.6, spoil: 14400, desc: '' },
-  [ITEM.SALMON]:         { name: 'Raw salmon',     stack: 99, icon: 'salmon',         foodSatFull: 1, food: 2, foodSat: 3, eatTime: 1.5, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_SALMON]:  { name: 'Cooked salmon',  stack: 99, icon: 'cooked_salmon',  foodSatFull: 3, food: 6, foodSat: 7, eatTime: 1.7, spoil: 14400, desc: '' },
-  [ITEM.PIKE]:           { name: 'Raw pike',       stack: 99, icon: 'pike',           foodSatFull: 1, food: 3, foodSat: 3, eatTime: 1.6, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_PIKE]:    { name: 'Cooked pike',    stack: 99, icon: 'cooked_pike',    foodSatFull: 4, food: 6, foodSat: 8, eatTime: 1.8, spoil: 14400, desc: '' },
-  [ITEM.CATFISH]:        { name: 'Raw catfish',    stack: 99, icon: 'catfish',        foodSatFull: 1, food: 3, foodSat: 4, eatTime: 1.7, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_CATFISH]: { name: 'Cooked catfish', stack: 99, icon: 'cooked_catfish', foodSatFull: 4, food: 7, foodSat: 9, eatTime: 1.9, spoil: 14400, desc: '' },
+  [ITEM.COD]:            { name: 'Raw cod',        stack: 99, icon: 'cod',            foodSatFull: 5, food: 10, foodSat: 10, eatTime: 1.68, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 99, icon: 'cooked_cod',     foodSatFull: 15, food: 25, foodSat: 30, eatTime: 1.92, spoil: 14400, desc: '' },
+  [ITEM.SALMON]:         { name: 'Raw salmon',     stack: 99, icon: 'salmon',         foodSatFull: 5, food: 10, foodSat: 15, eatTime: 1.8, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_SALMON]:  { name: 'Cooked salmon',  stack: 99, icon: 'cooked_salmon',  foodSatFull: 15, food: 30, foodSat: 35, eatTime: 2.04, spoil: 14400, desc: '' },
+  [ITEM.PIKE]:           { name: 'Raw pike',       stack: 99, icon: 'pike',           foodSatFull: 5, food: 15, foodSat: 15, eatTime: 1.92, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_PIKE]:    { name: 'Cooked pike',    stack: 99, icon: 'cooked_pike',    foodSatFull: 20, food: 30, foodSat: 40, eatTime: 2.16, spoil: 14400, desc: '' },
+  [ITEM.CATFISH]:        { name: 'Raw catfish',    stack: 99, icon: 'catfish',        foodSatFull: 5, food: 15, foodSat: 20, eatTime: 2.04, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_CATFISH]: { name: 'Cooked catfish', stack: 99, icon: 'cooked_catfish', foodSatFull: 20, food: 35, foodSat: 45, eatTime: 2.28, spoil: 14400, desc: '' },
   // rendered off a pig. Not food — it is fuel and a crafting ingredient, so it never spoils
   [ITEM.FAT]:           { name: 'Fat',            stack: 99, icon: 'fat',           desc: 'Burns well for 1.5 smelt. Used as crafting ingredient' },
 // Armor. `equip` names the equipment slot the piece goes into; `armor` is its point value.
-// 20 armor points = a full 10-icon bar. `armorMat` picks both the armor-bar sprite theme and the
-// overlay sheet on the preview (<mat>_tophalf.png / <mat>_downhalf.png).
+// 100 armor points = the full 5-icon bar, 5 points a quarter icon (x5 in 0.82, it was out of 20). `armorMat`
+// picks both the armor-bar sprite theme and the body overlay on the preview (<mat>/<mat>_<part>.png, 0.82).
 // Optional stat modifiers, all additive across worn pieces:
 //   moveSpeed   fraction of walk speed, e.g. -0.025 = the 2.5% slow each iron plate costs
 //   strength    flat bonus damage added to whatever the held weapon deals
 //   atkSpeed    fraction added to the attack-speed multiplier
   /* Leather is the insulating tier: every piece traps heat, which is 8% cold resistance and a 5%
      heat PENALTY each. The boots are the one piece that helps you move (+0.5%). */
-  [ITEM.LEATHER_HELMET]:     { name: 'Leather cap',        stack: 1, icon: 'leather_helmet',     equip: 'helmet',     armor: 1, tier: 1, durability: 55,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
-  [ITEM.LEATHER_CHESTPLATE]: { name: 'Leather tunic',      stack: 1, icon: 'leather_chestplate', equip: 'chestplate', armor: 3, tier: 1, durability: 80,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
-  [ITEM.LEATHER_LEGGINGS]:   { name: 'Leather trousers',   stack: 1, icon: 'leather_leggings',   equip: 'leggings',   armor: 2, tier: 1, durability: 75,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
-  [ITEM.LEATHER_BOOTS]:      { name: 'Leather boots',      stack: 1, icon: 'leather_boots',      equip: 'boots',      armor: 1, tier: 1, durability: 65,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, moveSpeed: 0.005, desc: '' },
-  [ITEM.LEATHER_GLOVES]:     { name: 'Leather gloves',     stack: 1, icon: 'leather_gloves',     equip: 'gloves',     armor: 1, tier: 1, durability: 50,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, strength: 0.25, desc: '' },
-  [ITEM.IRON_HELMET]:        { name: 'Iron helmet',        stack: 1, icon: 'iron_helmet',        equip: 'helmet',     armor: 2, tier: 3, durability: 165, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
-  [ITEM.IRON_CHESTPLATE]:    { name: 'Iron chestplate',    stack: 1, icon: 'iron_chestplate',    equip: 'chestplate', armor: 6, tier: 3, durability: 240, armorMat: 'iron',    moveSpeed: -0.03, desc: '' },
-  [ITEM.IRON_LEGGINGS]:      { name: 'Iron leggings',      stack: 1, icon: 'iron_leggings',      equip: 'leggings',   armor: 5, tier: 3, durability: 225, armorMat: 'iron',    moveSpeed: -0.025, desc: '' },
-  [ITEM.IRON_BOOTS]:         { name: 'Iron boots',         stack: 1, icon: 'iron_boots',         equip: 'boots',      armor: 2, tier: 3, durability: 195, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
+  [ITEM.LEATHER_HELMET]:     { name: 'Leather cap',        stack: 1, icon: 'leather_helmet',     equip: 'helmet',     armor: 5, tier: 1, durability: 55,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
+  [ITEM.LEATHER_CHESTPLATE]: { name: 'Leather tunic',      stack: 1, icon: 'leather_chestplate', equip: 'chestplate', armor: 15, tier: 1, durability: 80,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
+  [ITEM.LEATHER_LEGGINGS]:   { name: 'Leather trousers',   stack: 1, icon: 'leather_leggings',   equip: 'leggings',   armor: 10, tier: 1, durability: 75,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
+  [ITEM.LEATHER_BOOTS]:      { name: 'Leather boots',      stack: 1, icon: 'leather_boots',      equip: 'boots',      armor: 5, tier: 1, durability: 65,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, moveSpeed: 0.005, desc: '' },
+  [ITEM.LEATHER_GLOVES]:     { name: 'Leather gloves',     stack: 1, icon: 'leather_gloves',     equip: 'gloves',     armor: 5, tier: 1, durability: 50,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, strength: 1.25, desc: '' },
+  [ITEM.IRON_HELMET]:        { name: 'Iron helmet',        stack: 1, icon: 'iron_helmet',        equip: 'helmet',     armor: 10, tier: 3, durability: 165, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
+  [ITEM.IRON_CHESTPLATE]:    { name: 'Iron chestplate',    stack: 1, icon: 'iron_chestplate',    equip: 'chestplate', armor: 30, tier: 3, durability: 240, armorMat: 'iron',    moveSpeed: -0.03, desc: '' },
+  [ITEM.IRON_LEGGINGS]:      { name: 'Iron leggings',      stack: 1, icon: 'iron_leggings',      equip: 'leggings',   armor: 25, tier: 3, durability: 225, armorMat: 'iron',    moveSpeed: -0.025, desc: '' },
+  [ITEM.IRON_BOOTS]:         { name: 'Iron boots',         stack: 1, icon: 'iron_boots',         equip: 'boots',      armor: 10, tier: 3, durability: 195, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
   // gloves have no preview overlay sheet yet — the preview only draws the four body pieces
-  [ITEM.IRON_GLOVES]:        { name: 'Iron gloves',        stack: 1, icon: 'iron_gloves',        equip: 'gloves',     armor: 1, tier: 3, durability: 150, armorMat: 'iron',    moveSpeed: -0.005, strength: 0.75, desc: '' },
-  [ITEM.GOLDEN_HELMET]:      { name: 'Golden helmet',      stack: 1, icon: 'golden_helmet',      equip: 'helmet',     armor: 2, tier: 3, durability: 77,  armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_CHESTPLATE]:  { name: 'Golden chestplate',  stack: 1, icon: 'golden_chestplate',  equip: 'chestplate', armor: 5, tier: 3, durability: 112, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_LEGGINGS]:    { name: 'Golden leggings',    stack: 1, icon: 'golden_leggings',    equip: 'leggings',   armor: 3, tier: 3, durability: 105, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_BOOTS]:       { name: 'Golden boots',       stack: 1, icon: 'golden_boots',       equip: 'boots',      armor: 2, tier: 3, durability: 91,  armorMat: 'golden',  desc: '' },
-  [ITEM.DIAMOND_HELMET]:     { name: 'Diamond helmet',     stack: 1, icon: 'diamond_helmet',     equip: 'helmet',     armor: 3, tier: 5, durability: 363, armorMat: 'diamond', desc: '' },
-  [ITEM.DIAMOND_CHESTPLATE]: { name: 'Diamond chestplate', stack: 1, icon: 'diamond_chestplate', equip: 'chestplate', armor: 8, tier: 5, durability: 528, armorMat: 'diamond', desc: '' },
-  [ITEM.DIAMOND_LEGGINGS]:   { name: 'Diamond leggings',   stack: 1, icon: 'diamond_leggings',   equip: 'leggings',   armor: 6, tier: 5, durability: 495, armorMat: 'diamond', desc: '' },
-  [ITEM.DIAMOND_BOOTS]:      { name: 'Diamond boots',      stack: 1, icon: 'diamond_boots',      equip: 'boots',      armor: 3, tier: 5, durability: 429, armorMat: 'diamond', desc: '' },
+  [ITEM.IRON_GLOVES]:        { name: 'Iron gloves',        stack: 1, icon: 'iron_gloves',        equip: 'gloves',     armor: 5, tier: 3, durability: 150, armorMat: 'iron',    moveSpeed: -0.005, strength: 3.75, desc: '' },
+  [ITEM.GOLDEN_HELMET]:      { name: 'Golden helmet',      stack: 1, icon: 'golden_helmet',      equip: 'helmet',     armor: 10, tier: 3, durability: 77,  armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_CHESTPLATE]:  { name: 'Golden chestplate',  stack: 1, icon: 'golden_chestplate',  equip: 'chestplate', armor: 25, tier: 3, durability: 112, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_LEGGINGS]:    { name: 'Golden leggings',    stack: 1, icon: 'golden_leggings',    equip: 'leggings',   armor: 15, tier: 3, durability: 105, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_BOOTS]:       { name: 'Golden boots',       stack: 1, icon: 'golden_boots',       equip: 'boots',      armor: 10, tier: 3, durability: 91,  armorMat: 'golden',  desc: '' },
+  [ITEM.DIAMOND_HELMET]:     { name: 'Diamond helmet',     stack: 1, icon: 'diamond_helmet',     equip: 'helmet',     armor: 15, tier: 5, durability: 363, armorMat: 'diamond', desc: '' },
+  [ITEM.DIAMOND_CHESTPLATE]: { name: 'Diamond chestplate', stack: 1, icon: 'diamond_chestplate', equip: 'chestplate', armor: 40, tier: 5, durability: 528, armorMat: 'diamond', desc: '' },
+  [ITEM.DIAMOND_LEGGINGS]:   { name: 'Diamond leggings',   stack: 1, icon: 'diamond_leggings',   equip: 'leggings',   armor: 30, tier: 5, durability: 495, armorMat: 'diamond', desc: '' },
+  [ITEM.DIAMOND_BOOTS]:      { name: 'Diamond boots',      stack: 1, icon: 'diamond_boots',      equip: 'boots',      armor: 15, tier: 5, durability: 429, armorMat: 'diamond', desc: '' },
   // `beltSlots` opens that many quick-access slots above the equipment panel while worn
   [ITEM.BELT]:               { name: 'Belt',               stack: 1, icon: 'belt',               equip: 'belt',       beltSlots: 5, hotbarSlots: 1, desc: 'Worn on the belt. Adds special slots and 1 hotbar slot' },
   // ...and `packSlots` opens that many carrying slots under the main grid (41-backpack.js)
@@ -4066,7 +3956,7 @@ const STORAGE_BLOCK_IDS = [B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_
 for (const id of STORAGE_BLOCK_IDS) MINE_REQ[id] = { tool: 'pick', tier: 1 };
 // 0.769: topaz ore needs iron like the other gems; sandstone any pickaxe
 MINE_REQ[B.TOPAZ_ORE] = { tool: 'pick', tier: 4 };   // bronze, like the other gems (0.774)
-MINE_REQ[B.SANDSTONE] = MINE_REQ[B.RED_SANDSTONE] = { tool: 'pick', tier: 1 };
+MINE_REQ[B.SANDSTONE] = MINE_REQ[B.RED_SANDSTONE] = MINE_REQ[B.PINK_SANDSTONE] = { tool: 'pick', tier: 1 };   // pink 0.822
 MINE_REQ[B.ADOBE] = { tool: 'pick', tier: 1 };   // a flint pickaxe keeps it (0.8097)   // 0.8096: flint keeps crafted blocks, not natural rock
 /* 0.8095: stone, cobblestone, the rocks, sandstone, terracotta and the furnace keep nothing for a flint pickaxe —
    it still breaks them, but only stone (tier 2) and up brings them home. Stone pebbles are the way round it. */
@@ -4080,13 +3970,13 @@ function mineDropAllowed(heldId, blockId) {
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
-  shovel: new Set([B.SAND, B.RED_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH]),   // ash 0.8191   // salt crust 0.8091
+  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH]),   // ash 0.8191   // salt crust 0.8091
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK,
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
-                   B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE]),
+                   B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE]),   // pink 0.822
   hatchet: new Set([B.LOG, B.PLANKS, B.BIRCH_LOG, B.BIRCH_PLANKS, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.SPRUCE_PLANKS,
                     B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.DOOR, B.CACTUS, B.CHEST, B.BED]),   // chest and bed 0.7992, cantaloupe 0.8091
   hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY]),
@@ -4095,7 +3985,7 @@ const TOOL_BLOCKS = {
                    B.POPPY, B.ORCHID, B.SUGAR_CANE]),
   // a blade cuts soft, fibrous things fast — plants, leaves, melons, cane and webbing-like props
   sword:  new Set([B.COBWEB, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
-                   B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM,     // 0.8091
+                   B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM,     // 0.8091, yellow 0.821
                    B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
                    B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };
@@ -4157,7 +4047,7 @@ function isWrongTool(heldId, blockId) {
 const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 /* Loose blocks (0.786): they fall, land as a pile of 8 walk-through layers (pouring into a pile below), and
    a layer of one breaks away to nothing. */
-const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.GRAVEL, B.FIBER_BLOCK]);   // not ash: a whole ash block stands, its layers fall (0.8193)
+const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK]);   // not ash: a whole ash block stands, its layers fall (0.8193)
 /* FURNITURE comes apart by hand too (0.7442). A bench, a chest, a bed and a hay bale are things
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in

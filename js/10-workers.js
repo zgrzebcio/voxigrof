@@ -4,7 +4,8 @@
 /* ================================================================================================
    WORKER POOL — gen + mesh jobs, distance-prioritised, transferable buffers both ways.
    ================================================================================================ */
-const workerSrc = `'use strict';\nconst CORE = (${VOXEL_CORE.toString()})();\n(${WORKER_MAIN.toString()})();`;
+// the biomes core goes first: VOXEL_CORE's makeGen calls into it (0.823, 55-biomes.js)
+const workerSrc = `'use strict';\nconst BIOMES = (${BIOME_CORE.toString()})();\nconst CORE = (${VOXEL_CORE.toString()})();\n(${WORKER_MAIN.toString()})();`;
 const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
 const WORKER_COUNT = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4) - 2));
 

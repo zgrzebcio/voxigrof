@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voxiGrof</title>
-<link rel="stylesheet" href="css/style.css?v=0.8194">
+<link rel="stylesheet" href="css/style.css?v=0.82">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -16,7 +16,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.8199</div>
+<div id="version">alpha 0.8234</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="interact"></div>
@@ -37,7 +37,7 @@
     <div class="wl-dots"><span></span><span></span><span></span></div>
   </div>
 </div>
-<canvas id="vitals" width="980" height="70"></canvas>
+<canvas id="vitals" width="1560" height="152"></canvas>
 <div id="xpBar"><div id="xpFill"></div><div id="xpLevel"></div></div>
 <div id="xpPops"></div>
 <div id="deathScreen">
@@ -318,6 +318,8 @@ window.THREE = THREE;
 <script defer src="js/00-config.js"></script>
 <script defer src="js/32-sound.js"></script>
 <script defer src="js/01-textures-data.js"></script>
+<!-- 0.823: the biomes core loads before the voxel core, whose makeGen calls into it -->
+<script defer src="js/55-biomes.js"></script>
 <script defer src="js/02-voxel-core.js"></script>
 <script defer src="js/03-atlas.js"></script>
 <script defer src="js/04-materials.js"></script>
@@ -342,7 +344,7 @@ window.THREE = THREE;
 <script defer src="js/27-doors.js"></script>
 <script defer src="js/29-bed.js"></script>
 <script defer src="js/30-chest.js"></script>
-<script defer src="js/31-armor.js"></script>
+<script defer src="js/31-equipment.js"></script>
 <script defer src="js/33-felling.js"></script>
 <script defer src="js/34-structures.js"></script>
 <script defer src="js/35-leveling.js"></script>
@@ -366,6 +368,7 @@ window.THREE = THREE;
 <script defer src="js/51-seasons.js"></script>
 <script defer src="js/52-clouds.js"></script>
 <script defer src="js/53-storms.js"></script>
+<script defer src="js/54-stats-effects.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

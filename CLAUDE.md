@@ -39,6 +39,9 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   sheet. A face's tile index is a Uint16 layer. A new tile needs its name in `ATLAS_TILES` (03) AND its id in
   `T` (02) at the same index; boot logs an error if they disagree. Furnace rock / bench wood tiles are
   generated from `FURNACE_ROCKS` / `BENCH_WOODS` (01) and `FURNACE_T` / `BENCH_T` (02).
+- **Mushrooms (0.821):** one 256x128 sheet per kind (`MUSHROOM_KINDS`, `MUSHROOM_LAYOUT` in 01), cut into part tiles at atlas
+  build (`CROP_TILES`, 03). Variant bits 0-2 = grown size, 3-7 = steps left to grow (`emitShroom` 02; growth, life and
+  autumn spawning `_shroomChunk`/`updateShroomGrow` in 51). Grilled mushrooms are BLOCKS that are food: use `foodPropsOf` (54).
 - **Mushrooms (0.8091)** are box models (`SHROOM_MODEL`, `emitShroom` in 02) but keep model `'cross'` so plant
   rules still apply. Their sheets (`MUSHROOM_NATIVE`, 03) sit unstretched in a layer's corner at 8 texels a
   model pixel, and the mesher maps them 1:1 (1 model px = 1/16 UV).
@@ -56,10 +59,23 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 - **Light through shapes (0.819):** `CORE.lightDim(v)` is how many extra levels light loses LEAVING a shaped cell of an
   opaque block (slab 4, stairs 6...). Sky/block light queues carry the outgoing level; setBlock relights when it changes.
 - **Biome revision (0.819):** `makeGen(seed, type, biomeRev)`; worlds keep `w.biomeRev` (missing = 1; 2 bigger snow/desert;
-  3 (0.8193) fewer desert hills — new worlds), so old worlds' new chunks still match their old ones.
+  3 (0.8193) fewer desert hills; 4 (0.822) pink warm beaches; 5 (0.823) bigger biomes, deep/spruce forests, fewer oceans; 6 (0.8231) tall spruce forest trees; 7 (0.8232) the climate ladder — new worlds), so old worlds' new chunks still match their old ones.
 - **Far ring (0.8193):** `drawDist()` = `viewDist` + `FAR_RING` (4) chunks loaded and drawn at LOD 2, no creatures shown; fog and camera
   reach use drawDist. `viewDist` is still the full-detail setting.
 - **Batched lighting (0.8193):** `relight`/`reskyAround` take a box (x2, y2, z2); `_litEdits` (22) runs edits with light held and relights once per area.
+- **Vitals (0.82).** Everything a player's numbers are lives in 54-stats-effects.js. Bars are 0..100; any damage or heal
+  to a player is written x `VITAL_K` (mob `dmg`, arrows, lightning, falls...). A save's `vit` record marks the 0..100 scale;
+  without it `restoreVitals` multiplies hp/food/saturation up.
+- **Entities (0.823)** are on the 100 scale too: mob health, hunger, thirst and every damage number (weapons, arrows, mobs)
+  are x5 in the data; a saved entity row ends with 5 (older rows are scaled up in `restoreEntities`).
+- **Climate colour (0.8231):** grass and water blend smoothly by climate. The mesher gives tinted tiles (`TINTED`, 02) a
+  per-vertex `clim` attribute (-1 cold .. 1 warm, `climAt` in 55, set in the worker by `setTintSampler`); the fragment
+  shader (04) reads row 1 of `TILE_LAYER` (03): 1 = mix toward the warm/cold tile (T 310-319), 2 = water (`WATER_TINT`).
+- **Climate ladder (0.8232, biomeRev 7):** `CLIMATE_LADDER` (55) gives every land biome a temperature level -3..3 (edges in the
+  temperature field, the air's degrees for `ambientTemp`); terrainInfo turns the field into a smooth `lvl`, so biomes step one level at a time.
+  `lvl` is reported in every world; genChunk keeps it per column (`LVL`) for what grows where (gourds, wheat, cane; 0.8233).
+- **Spawn biomes (0.8233):** `*_BIOMES` in 28 are weight maps by FULL biome name (`_biomeWeight`: a Deep forest counts as its
+  forest); `_findChunkSpot(cx, cz, biomes, wet)` rolls the weight, `wet` wants water near (pigs, `_waterNear`).
 - **Value-based helpers.** Ask a whole cell value what it is with `CORE.shapeOfVal`, `solidVal`,
   `opaqueVal` and `shapeBoxesAt`. Do not check the bare id.
 
@@ -79,7 +95,7 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 14-mining / 15-drops | break progress and tools, dropped item entities |
 | 16-worlds | save/load, migrations of old saves |
 | 17-input / 18-hud | keyboard, mouse, gamepad, HUD |
-| 19-vitals | health, hunger, oxygen, temperature |
+| 19-vitals | the vitals HUD strip (`VIT_LAYOUT`, 5 icons a bar, temperature dial, hover tips `vitalsTipAt`), outside hazards (fall, cactus, lava, fire), armor soak, death |
 | 20-inventory-ui | inventory window, virtual cursor, tooltips |
 | 21-spawn / 23-boot | spawn point, startup |
 | 22-main-loop | frame loop, grass spread, falling blocks, leaf decay, mining tick |
@@ -88,7 +104,7 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 26-furnace | `SMELT_RECIPES`, fuel, ashes, smelting book |
 | 27-doors / 29-bed / 30-chest | doors, bed, chests (double chest) |
 | 28-entities | mobs and animals: AI, spawning, levels |
-| 31-armor / 40-shield | armor, shield |
+| 31-equipment / 40-shield | equipment slots, armor points (`ARMOR_QUARTER`) and wear, set bonuses, worn armor on the preview and on players in the world (`syncArmorOnModel`, per-part `EQUIP_TEXTURES`), the equipment panel; shield (31-armor.js until 0.82) |
 | 32-sound | sounds, loops |
 | 33-felling | tree felling, log width cuts, leaf litter |
 | 34-structures | generated structures, loot chests |
@@ -107,4 +123,5 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 51-seasons | calendar (`gameDate`, `seasonGrowth`; `seasonsOn()` false = world fixed on 1 July, 0.818; title backdrop's random day `randomTitleDay` + `seasonDressChunk`, 0.8194), weather and wind (`weatherAt`), season sweep (`SEASON_MEM`, `_seasonChunk`), wheat growth |
 | 52-clouds | cloud layer: raymarched in a shader (`cloudMat`), cover/dark per weather (`CLOUD_COVER`), wind drift (`updateClouds`); shared GLSL + ground shade `CLOUD_GLSL` in 04. Fog per eye (`applyMist`, schedule `mistAt` in 51), rainbow (`rainbowMesh`) |
 | 53-storms | lightning (`strikeLightning`, bolts, thunder), fire on players/creatures (`fireT`, `_entBurnDeath` in 28), hail (`hailAt` in 51), aurora strength (`uAurora` on the sky dome). Fire blocks (0.8191): `B.FIRE` (model 'none', light 13) tracked in `FIRE_CELLS`, `igniteAt`, burn table `_BURN`, ash `B.ASH` |
-| css/style.css | all UI styling |
+| 55-biomes | the land's shape and biome names, moved out of makeGen (0.823): BIOME_CORE / BIOMES.makeBiomes (`terrainInfo`, `biomeAt`, `birchAt`, `snowForestAt`, climate colour `climAt`), `biomeBase` (Deep/Warm/Cold stripped, for biome-keyed lists). Stringified into the worker before VOXEL_CORE (10-workers) and loaded BEFORE 02 in index.html; self-contained like VOXEL_CORE |
+| 54-stats-effects | ALL player stats and effects (0.82): vital caps (`MAX_HP`... out of 100, `VITAL_K` = 5 from the old 20), over-stats (`OVER_KEY`, `gainStat`/`drainStat`), `tickStats` (stamina, thirst, energy, nutrients, oxygen), `ambientTemp`, drinking (`updateDrinking`), `FOOD_NUTRITION`, save (`serializeVitals`/`restoreVitals`), stat getters + `STAT_TIPS`, `EFFECT_DEFS` and the effect bar |

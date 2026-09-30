@@ -512,10 +512,10 @@ function buildPig(bodyHex = PIG_COATS.pink.body, spotHex = PIG_COATS.pink.spot) 
    A species' shape is the same boxes STRETCHED (`body`/`head` scales below): a pike long and thin,
    a catfish wide-headed and flat. `len` is its overall size; each fish then rolls its own size. */
 const FISH = {
-  cod:     { name: 'Cod',     hp: 4, item: ITEM.COD,     len: 0.55, body: [1, 1, 1],        head: [1, 1, 1],        speed: 1.6, flee: 4.2, weight: 40 },
-  salmon:  { name: 'Salmon',  hp: 5, item: ITEM.SALMON,  len: 0.68, body: [0.9, 0.95, 1.2], head: [0.9, 0.9, 1.1],  speed: 1.9, flee: 4.8, weight: 30 },
-  pike:    { name: 'Pike',    hp: 7, item: ITEM.PIKE,    len: 0.85, body: [0.8, 0.8, 1.5],  head: [0.85, 0.75, 1.5], speed: 1.8, flee: 5.2, weight: 20 },
-  catfish: { name: 'Catfish', hp: 8, item: ITEM.CATFISH, len: 1.0,  body: [1.25, 0.85, 1.1], head: [1.5, 0.8, 1.1], speed: 1.2, flee: 3.8, weight: 10, whiskers: true, bottom: true },
+  cod:     { name: 'Cod',     hp: 20, item: ITEM.COD,     len: 0.55, body: [1, 1, 1],        head: [1, 1, 1],        speed: 1.6, flee: 4.2, weight: 40 },
+  salmon:  { name: 'Salmon',  hp: 25, item: ITEM.SALMON,  len: 0.68, body: [0.9, 0.95, 1.2], head: [0.9, 0.9, 1.1],  speed: 1.9, flee: 4.8, weight: 30 },
+  pike:    { name: 'Pike',    hp: 35, item: ITEM.PIKE,    len: 0.85, body: [0.8, 0.8, 1.5],  head: [0.85, 0.75, 1.5], speed: 1.8, flee: 5.2, weight: 20 },
+  catfish: { name: 'Catfish', hp: 40, item: ITEM.CATFISH, len: 1.0,  body: [1.25, 0.85, 1.1], head: [1.5, 0.8, 1.1], speed: 1.2, flee: 3.8, weight: 10, whiskers: true, bottom: true },
 };
 const FISH_SPECIES = Object.keys(FISH);
 const FISH_FLEE_TIME = 4;
@@ -700,6 +700,8 @@ function applyCameraView(dt) {
     _selfModel.root.rotation.y = player.yaw + Math.PI;   // model faces +Z, yaw 0 looks -Z
     _selfModel.root.rotation.x = -Math.PI / 2 * lie;     // onto its back, feet toward the foot end
     _syncSelfHeld();
+    // worn armor on the body, for third person and everyone else's view (0.821, 31-equipment.js)
+    if (typeof syncArmorOnModel === 'function') syncArmorOnModel(_selfModel, equipSlots);
     animateHumanoid(_selfModel, _selfPhase, swing * (1 - lie), -player.pitch * 0.6 * (1 - lie),
                     selfSwingPhase() * (1 - lie), {
       lean: 0.5 * _selfCrouch * (1 - lie),
@@ -758,10 +760,10 @@ function applyCameraView(dt) {
 const ENTITIES = [];
 // no population cap since 0.71 — density comes from the per-chunk spawn roll instead
 const ENT_R = 0.3, ENT_H = 1.8;
-const ENT_HP = 20;
+const ENT_HP = 100;                      // every health, hunger and damage here is x5 since 0.823 (out of 100, like the player)
 const ENT_SPEED = 2.2, ENT_CHASE_SPEED = 4.0;
 const ENT_GRAVITY = 26, ENT_JUMP = 7.6;
-const ENT_ATTACK_DMG = 3, ENT_ATTACK_CD = 1.0, ENT_ATTACK_RANGE = 2.2;
+const ENT_ATTACK_DMG = 15, ENT_ATTACK_CD = 1.0, ENT_ATTACK_RANGE = 2.2;
 /* Melee reach (0.756), measured the way the PLAYER's is: edge to edge, not centre to centre. A player hits
    an entity up to 4 blocks out (pickEntity), so an NPC, being a player-shaped fighter, gets almost that,
    and a monster half of it. The old flat 2.2 centre-to-centre gave a zombie about 1.6 blocks of real
@@ -798,12 +800,14 @@ const ENT_FLAIL_TIME = 0.6;              // arms/legs thrash for this long after
 const ENT_PUSH = 3.2;                    // separation force between overlapping bodies
 const PLY_KNOCK = 6.5, PLY_KNOCK_HOP = 4.2, PLY_KNOCK_DECAY = 6.0;
 const ENT_HAZARD_CD = 0.5;               // seconds between lava / cactus ticks
-const ENT_LAVA_DMG = 4, ENT_CACTUS_DMG = 1, ENT_DROWN_DMG = 2;
+const ENT_LAVA_DMG = 20, ENT_CACTUS_DMG = 5, ENT_DROWN_DMG = 10;
 const ENT_AIR_MAX = 12;                  // seconds underwater before drowning starts
 const ENT_HOME_RANGE = 200;              // never wanders further than this from its spawn point
 const ENT_STUCK_TIME = 12;               // seconds of "walking" without moving before a mob is written off
-// Only these biomes support a spawn; the leash keeps them roughly in that region afterwards.
-const ENT_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest']);
+/* Where each kind lives (0.8233): a biome's weight, 0..1, is how likely a spawn roll that lands there is to stand, by the
+   FULL biome name (Warm / Cold kept, 55-biomes.js; a Deep forest counts as its forest). Not listed: never. The leash
+   keeps them roughly in that region afterwards. Villagers: the plains of every climate, and most of all the beaches. */
+const ENT_BIOMES = { 'Beach': 1, 'Plains': 0.45, 'Warm Plains': 0.45, 'Cold Plains': 0.45 };
 
 // Guaranteed loot — every NPC always leaves this behind, independent of its inventory.
 const ENT_LOOT = [{ id: () => ITEM.FEATHER, min: 1, max: 3 },{ id: () => ITEM.BREAD, min: 1, max: 3 }];
@@ -825,7 +829,7 @@ const ENT_CARRY_POOL = [
 const _ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
 /* ---- sheep: passive grazers. They never attack; being hit makes them bolt. ---- */
-const SHEEP_HP = 8;
+const SHEEP_HP = 40;
 const SHEEP_SPEED = 2.0, SHEEP_FLEE_SPEED = 5.2;
 const FLEE_SPEED_MUL = 1.56;             // every grazer bolts faster than its FLEE_SPEED says: +30% in 0.799, +20% again in 0.7992
 const SHEEP_FLEE_TIME = 6;
@@ -833,22 +837,26 @@ const SHEEP_H = 1.3;                     // shorter than a humanoid
 const SHEEP_REGROW = 10;                 // seconds for the fleece to grow back once it starts
 const SHEEP_GRAZE_CD = 5;                // how often a shorn sheep looks for grass to eat
 const SHEEP_GRAZE_CHANCE = 0.25;
-const SHEEP_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest']);
+// sheep like the cold: spruce forest and the mountains most (0.8233)
+const SHEEP_BIOMES = { 'Spruce Forest': 1, 'Mountains': 1, 'Cold Plains': 0.4, 'Snow Forest': 0.3, 'Forest': 0.1 };
 
 /* ---- cows (0.73): the other passive grazer ----
    Same behaviour as a sheep minus the fleece — they wander, and bolt when hit. Tougher and a bit
    slower, and they carry the only source of leather in the game. */
-const COW_HP = 12;
+const COW_HP = 60;
 const COW_SPEED = 1.7, COW_FLEE_SPEED = 4.4;
 const COW_FLEE_TIME = 6;
-const COW_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest']);
+const COW_BIOMES = { 'Plains': 1, 'Cold Plains': 1 };      // flat land, mild to cool (0.8233)
 /* ---- pigs (0.789): the third passive grazer ----
    Smaller and softer than a cow, quicker to panic, and the only source of fat. They favour the
    wetter, wooded biomes rather than the open plains the cattle hold. */
-const PIG_HP = 9;
+const PIG_HP = 45;
 const PIG_SPEED = 1.9, PIG_FLEE_SPEED = 5.0;
 const PIG_FLEE_TIME = 7;
-const PIG_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest', 'Swamp']);
+/* 0.8233: mild and wet — no swamp yet, so the plains round ponds and lakes: a pig's spot needs water close by (PIG_WET).
+   'Beach' is there for the grassy banks of a pond, which read as beach. */
+const PIG_BIOMES = { 'Plains': 1, 'Beach': 1, 'Forest': 0.4, 'Birch Forest': 0.4 };
+const PIG_WET = 6;                       // water within this many blocks of the spot
 /* ---- horses (0.74) ----
    The first entity with STATS: health, speed and jump strength are rolled per horse at spawn and
    carried for its whole life, so two horses in the same herd are genuinely different animals and
@@ -874,7 +882,7 @@ const HORSE_COATS = {
 };
 const HORSE_COAT_POOL = ['chestnut', 'chestnut', 'bay', 'bay', 'dun', 'grey', 'grey',
                          'black', 'white', 'palomino'];
-const HORSE_HP_MIN = 15, HORSE_HP_MAX = 30;
+const HORSE_HP_MIN = 75, HORSE_HP_MAX = 150;
 const HORSE_SPEED_MIN = 0.80, HORSE_SPEED_MAX = 1.30;   // multipliers on the two speeds below
 const HORSE_JUMP_MIN = 0.75, HORSE_JUMP_MAX = 1.35;
 // ~1.9x the 0.74 values (0.7441): a horse is the fastest thing in the world, not a brisk cow
@@ -886,12 +894,11 @@ const HORSE_RIDE_JUMP = 9.6;             // driven jump impulse, at jump stat 1.
 const HORSE_FLEE_TIME = 7;
 const HORSE_SEAT_Y = 1.61;               // where the rider sits above the feet (0.7442: bigger horse)
 // open country: this world has no savanna, and horses have no business in snow or desert
-const HORSE_BIOMES = new Set(['Plains', 'Forest', 'Birch Forest']);
-/* 0.0001% per chunk (0.7441) — one herd in a MILLION chunk rolls, so in practice a wild horse
-   is something you may never come across. Deliberate: the number asked for, kept in one place
-   so it is one edit to change. Herds are small too. */
-const HORSE_CHUNK_CHANCE = 0.000001;
-const HORSE_HERD_MIN = 1, HORSE_HERD_MAX = 2;
+const HORSE_BIOMES = { 'Plains': 1, 'Forest': 0.5, 'Birch Forest': 0.5 };   // mild (0.8233)
+/* 0.08% per chunk (0.8234): a herd in about 1 chunk roll in 1250, before the biome weight. Was 0.0001% (one in a
+   MILLION, 0.7441), which meant a wild horse was something you would almost never come across. */
+const HORSE_CHUNK_CHANCE = 0.0008;
+const HORSE_HERD_MIN = 1, HORSE_HERD_MAX = 4;   // 1-4 (0.8233)
 const HORSE_SCALE = 1.5;                 // a horse is bigger than the box units it is built from (1.25 until 0.7442)
 const HORSE_STEP_UP = 1.05;              // tallest ledge it walks up without jumping (one block)
 /* ---- hunger (0.742) ----
@@ -900,12 +907,16 @@ const HORSE_STEP_UP = 1.05;              // tallest ledge it walks up without ju
    horse reacts to it so far: it grazes to refill it, heals while it is well fed, tires under a
    rider, and runs and jumps worse when it is running on empty. Everyone else just has the number
    ticking down, so the next animal to care about food only has to read it. */
-const ENT_HUNGER_MAX = 20;
-const ENT_HUNGER_DECAY = 1 / 90;         // points per second: full to empty in about half an hour
+const ENT_HUNGER_MAX = 100;
+const ENT_HUNGER_DECAY = 1 / 18;         // points per second: full to empty in about half an hour
+/* Thirst (0.823): every entity has it too, full to empty in about half an hour while it simulates. Nothing drinks and
+   nothing reads it yet. */
+const ENT_THIRST_MAX = 100, ENT_THIRST_DECAY = 1 / 18;
+const entThirst = (e) => (e.thirst != null ? e.thirst : ENT_THIRST_MAX);
 /* Health regen for every entity (0.757): after ENT_REGEN_DELAY seconds without taking damage, and only while
    it has some hunger left, an entity heals 1 point every ENT_REGEN_EVERY seconds, spending a little hunger
    on each. The horse keeps its own slower fed-above-half rule, now behind the same no-damage delay. */
-const ENT_REGEN_DELAY = 5, ENT_REGEN_EVERY = 2, ENT_REGEN_COST = 0.25;
+const ENT_REGEN_DELAY = 5, ENT_REGEN_EVERY = 2, ENT_REGEN_COST = 1.25, ENT_REGEN_HP = 5;
 function entMaxHp(e) {
   switch (e.kind) {
     case 'horse':    return (e.stats && e.stats.maxHp) || HORSE_HP_MAX;
@@ -919,10 +930,10 @@ function entMaxHp(e) {
   }
 }
 const HORSE_RIDE_HUNGER = 3;             // carrying a rider at speed burns this many times faster
-const HORSE_GRAZE_RATE = 0.6;            // points per second while cropping grass
+const HORSE_GRAZE_RATE = 3;            // points per second while cropping grass
 const HORSE_REGEN_EVERY = 4;             // seconds per point of health while well fed...
 const HORSE_REGEN_ABOVE = 0.5;           // ...which means above half full
-const HORSE_REGEN_COST = 0.5;            // hunger spent on each point healed
+const HORSE_REGEN_COST = 2.5;            // hunger spent on each point healed
 const HORSE_HUNGRY_BELOW = 0.25;         // under a quarter, it is running on empty:
 const HORSE_HUNGRY_MUL = 0.75;           // ridden speed and jump both drop to three quarters
 const entHunger = (e) => (e.hunger != null ? e.hunger : ENT_HUNGER_MAX);
@@ -1064,6 +1075,7 @@ function spawnHorse(x, y, z, opts = {}) {
          ? opts.level | 0 : _ri(TAME_LEVEL_MIN, TAME_LEVEL_MAX),
     stepOff: 0,                              // visual lag after a step-assist climb, eased to 0
     hunger: opts.hunger >= 0 && opts.hunger <= ENT_HUNGER_MAX ? +opts.hunger : ENT_HUNGER_MAX,
+    thirst: opts.thirst >= 0 && opts.thirst <= ENT_THIRST_MAX ? +opts.thirst : ENT_THIRST_MAX,   // 0.823
     regenT: 0,
     tame: !!opts.tame,                       // fully tamed
     loved: !!opts.loved,                     // fed a golden apple: will let you climb on
@@ -1087,9 +1099,9 @@ const isGrazer = (e) => e.kind === 'sheep' || e.kind === 'cow' || e.kind === 'pi
    it is night, so they accumulate after dusk and are gone by mid-morning. Each one claws its way
    up out of the ground on arrival, hunts anything within four chunks, and catches fire the moment
    real daylight reaches it. Nothing about them is saved: dawn is the despawn. */
-const ZOMBIE_HP = 18;
+const ZOMBIE_HP = 90;
 const ZOMBIE_SPEED = 1.5, ZOMBIE_CHASE_SPEED = 3.1;
-const ZOMBIE_DMG = 4;
+const ZOMBIE_DMG = 20;
 /* A rare nugget (0.7444): a buckle or a button off a dead traveller. One nugget, 6% of kills,
    weighted so the common metals are common and gold is the prize — a trickle of metal before you
    have mined any, never a substitute for ore. */
@@ -1117,7 +1129,7 @@ const ZOMBIE_CAP = 10;                   // hard ceiling — chunk reloads must 
 // load rather than once per player per frame, so it must not live in a per-seat slot.
 var _zombieSpawnT = -1e9;
 const ZOMBIE_BURN_GRACE = 0.7;           // seconds in the open before it catches
-const ZOMBIE_BURN_DPS = 1.8;
+const ZOMBIE_BURN_DPS = 9;
 const ZOMBIE_SPAWN_MIN_DIST = 14;        // never sprouts in the player's face
 /* Night mobs come out this long before sunset (in days of worldTime), and daylight burns them from sunrise until
    this long before it. By the day's own sunrise and sunset since 0.818 (sunTimes, 07-sky.js): late in summer,
@@ -1136,13 +1148,13 @@ const isBurningDaylight = () => !isDarkTime(worldTime, ZOMBIE_BURN_STOPS);
      20%  nothing at all: bare bones, weakest of the three
    The arm roll is what makes a night interesting — you can hear one is a shooter before you
    see it, because the ones that close on you are the ones that cannot shoot. */
-const SKEL_HP = 14;
+const SKEL_HP = 70;
 const SKEL_SPEED = 1.7, SKEL_CHASE_SPEED = 3.3;
 const SKEL_CHASE_RANGE = 64;             // same hunting radius as a zombie
 const SKEL_ARM_BOW = 0.50, SKEL_ARM_SWORD = 0.30;   // the remaining 0.20 is bare-handed
 const SKEL_ARROWS_MIN = 2, SKEL_ARROWS_MAX = 7;     // a bow skeleton's quiver
-const SKEL_DMG_SWORD = 4, SKEL_DMG_HANDS = 2;
-const SKEL_ARROW_DMG = 4;
+const SKEL_DMG_SWORD = 20, SKEL_DMG_HANDS = 10;
+const SKEL_ARROW_DMG = 20;
 const SKEL_SHOOT_RANGE = 22;             // starts shooting inside this
 const SKEL_KEEP_DIST = 5;                // ...and backs away if you get closer than this
 const SKEL_DRAW_TIME = 1.1;              // seconds at full draw before it looses
@@ -1653,7 +1665,7 @@ function _entFallDamage(e, i, wasGround, inWater) {
   const drop = peak - e.y;
   if (drop <= ENT_FALL_SAFE) return false;
   e.hurtT = 0.25;
-  e.hp -= Math.round(drop - ENT_FALL_SAFE);
+  e.hp -= Math.round(drop - ENT_FALL_SAFE) * 5;   // 5 a block (0.823)
   if (e.hp > 0) return false;
   if (!player.canFly) _entDropLoot(e);
   _removeEntity(i);
@@ -1809,7 +1821,7 @@ function _entFoe(e, tp, distXZ, dt) {
    its next turn, since taking an entry out of ENTITIES here would shift the one being updated. */
 // red hearts over a hurt creature, one per two points of damage (0.8, 49-particles.js)
 const _fxEntHurt = (ent, dmg) => {
-  if (typeof fxHearts === 'function') fxHearts(ent.x, ent.y + entH(ent) * 0.85, ent.z, false, dmg);   // one heart per point dealt (0.8031)
+  if (typeof fxHearts === 'function') fxHearts(ent.x, ent.y + entH(ent) * 0.85, ent.z, false, dmg / 5);   // one heart per 5 dealt (0.823; per point 0.8031)
   // the killing blow: crit stars and a white puff (0.801)
   if (ent.hp <= 0 && typeof fxDeath === 'function') fxDeath(ent.x, ent.y, ent.z, entH(ent));
 };
@@ -1948,7 +1960,7 @@ function entityBeatsBlock(entHit, hit) {
    re-arms the full hand delay, so you can't scroll onto a fast sword and hit instantly. */
 const HAND_ATTACK_TIME = 0.5;
 const FIST_ATTACK_TIME = 1.2;                   // bare hand, or anything that is not a tool (0.756)
-const HAND_DAMAGE = 1;
+const HAND_DAMAGE = 5;                          // 0.823: x5 with every health
 var _atkCooldown = 0;
 var _lastHeldForAtk;
 function attackCooldownFor(id) {
@@ -2051,7 +2063,7 @@ function serializeEntities() {
         c: e.coat, st: e.stats, t: e.tame ? 1 : 0, l: e.loved ? 1 : 0,
         p: +(e.tameProg || 0).toFixed(3), b: e.bucked | 0,
         s: e.saddled ? 1 : 0, bo: e.boosted ? 1 : 0,
-        g: e.gender, lv: e.level, h: +entHunger(e).toFixed(2),
+        g: e.gender, lv: e.level, h: +entHunger(e).toFixed(2), th: +entThirst(e).toFixed(2),   // thirst 0.823
         sz: e.size, tn: e.tintHex,
       } : e.kind === 'sheep' ? { wc: e.woolColor, sz: e.size, g: e.gender, lv: e.level }             // 0.743 fleece, 0.744 size
         : e.kind === 'cow'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level,  // 0.744 size + tints
@@ -2060,6 +2072,7 @@ function serializeEntities() {
         : e.kind === 'npc' ? { g: e.gender, lv: e.level }                    // 0.756 identity
         : e.kind === 'fish' ? { sp: e.species, sz: e.size, lv: e.level }    // 0.805
         : 0,
+      5,                                        // 0.823: health and hunger out of 100 (restoreEntities)
     ]);
   }
   return out;
@@ -2068,7 +2081,15 @@ function restoreEntities(list) {
   if (!Array.isArray(list)) return;
   for (const r of list) {
     if (!Array.isArray(r) || r.length < 5) continue;
-    const [x, y, z, yaw, hp, name, inv, hx, hz, kind, woolly, variant, extra] = r;
+    let [x, y, z, yaw, hp, name, inv, hx, hz, kind, woolly, variant, extra] = r;
+    // a row from before 0.823 has no 5 on its end: its health, a horse's rolled ceiling and hunger were out of 20
+    if (r[13] !== 5) {
+      if (typeof hp === 'number') hp *= 5;
+      if (extra && typeof extra === 'object') {
+        if (extra.st && extra.st.maxHp > 0) extra = { ...extra, st: { ...extra.st, maxHp: extra.st.maxHp * 5 } };
+        if (typeof extra.h === 'number') extra = { ...extra, h: extra.h * 5 };
+      }
+    }
     if (![x, y, z].every(v => typeof v === 'number' && isFinite(v))) continue;
     if (kind === 'horse') {
       const d = (extra && typeof extra === 'object') ? extra : {};
@@ -2080,6 +2101,7 @@ function restoreEntities(list) {
         saddled: !!d.s, boosted: !!d.bo,
         gender: d.g, level: d.lv,              // older saves lack both: spawnHorse rolls fresh
         hunger: d.h,                           // ...and start a horse without one well fed
+        thirst: d.th,                          // 0.823
         size: d.sz, tint: d.tn,                // no size saved -> rolled fresh, like the rest
         name: typeof name === 'string' ? name : 'Horse',
         hx: typeof hx === 'number' ? hx : x,
@@ -2171,28 +2193,45 @@ const _entChunks = new Set();            // "cx,cz" of every chunk that has alre
 const NPC_TORCH_CHANCE = 0.5;            // villagers who light a torch as night falls (0.8191)
 const _npcTorchPos = new THREE.Vector3();
 const ENT_CHUNK_CHANCE = 0.0075;         // a wanderer in ~1 chunk in 133 (a quarter of the 0.03 before 0.8191)
-const SHEEP_CHUNK_CHANCE = 0.028;        // a flock in ~1 chunk in 36 — sheep were far too common
-const SHEEP_FLOCK_MIN = 1, SHEEP_FLOCK_MAX = 3;
+const ENT_GROUP_MIN = 1, ENT_GROUP_MAX = 2;   // villagers in ones and twos (0.8233)
+const SHEEP_CHUNK_CHANCE = 0.012;        // rarer since 0.8233 (0.028), but always a flock of 3-5
+const SHEEP_FLOCK_MIN = 3, SHEEP_FLOCK_MAX = 5;
 const COW_CHUNK_CHANCE = 0.010;          // a herd in ~1 chunk in 100 (0.7341: was 1 in 45)
-const COW_HERD_MIN = 1, COW_HERD_MAX = 2;
-const PIG_CHUNK_CHANCE = 0.012;          // 0.789: a shade commoner than cattle, and in bigger groups
+const COW_HERD_MIN = 2, COW_HERD_MAX = 4;     // 0.8233
+const PIG_CHUNK_CHANCE = 0.02;           // 0.8233: more tries, since most spots are too far from water
 const PIG_HERD_MIN = 1, PIG_HERD_MAX = 3;
 
 // a legal surface spot inside this chunk, or null. Chunk-local — nothing to do with the player.
-function _findChunkSpot(cx, cz, biomes) {
+// iomes: a kind's weights (above); wet: water within that many blocks (pigs)
+function _findChunkSpot(cx, cz, biomes, wet = 0) {
   for (let attempt = 0; attempt < 10; attempt++) {
     const x = cx * 16 + Math.floor(Math.random() * 16) + 0.5;
     const z = cz * 16 + Math.floor(Math.random() * 16) + 0.5;
-    if (biomes && !biomes.has(mainGen.biomeAt(Math.floor(x), Math.floor(z)))) continue;
+    if (biomes && Math.random() >= _biomeWeight(biomes, mainGen.biomeAt(Math.floor(x), Math.floor(z)))) continue;
     const gy = surfaceY(Math.floor(x), Math.floor(z));
     const top = getBlock(Math.floor(x), gy, Math.floor(z)) & 255;
     if (top === B.AIR || top === B.WATER || top === B.LAVA || top === B.CACTUS) continue;
     const y = gy + 1;
     if (_entBlocked(x, y, z) || _entHazard(x, y, z)) continue;
     if (!_entSpawnRoom(x, y, z)) continue;             // needs a 2x2x2 pocket, not just a body gap
+    if (wet && !_waterNear(Math.floor(x), gy, Math.floor(z), wet)) continue;
     return { x, y, z, top };
   }
   return null;
+}
+// a biome's weight in a kind's list; a deep forest counts as its forest, but deep snow and deep oceans are their own (0.8233)
+function _biomeWeight(biomes, name) {
+  if (biomes[name] != null) return biomes[name];
+  const base = /^Deep (Snow|.*Ocean)/.test(name) ? name : name.replace(/^Deep /, '');
+  return biomes[base] || 0;
+}
+// open water at about the spot's height within r blocks (a pond, a lake, a river), sampled on a grid
+function _waterNear(x, y, z, r) {
+  for (let dz = -r; dz <= r; dz += 2)
+    for (let dx = -r; dx <= r; dx += 2)
+      for (let dy = -2; dy <= 1; dy++)
+        if ((getBlock(x + dx, y + dy, z + dz) & 255) === B.WATER) return true;
+  return false;
 }
 /* Called once per chunk from 11-chunks.js, right after its terrain and structures land. */
 function trySpawnEntitiesInChunk(cx, cz) {
@@ -2202,11 +2241,16 @@ function trySpawnEntitiesInChunk(cx, cz) {
   _entChunks.add(k);
   if (Math.random() < ENT_CHUNK_CHANCE) {
     const s = _findChunkSpot(cx, cz, ENT_BIOMES);
-    if (s) spawnEntity(s.x, s.y, s.z);
+    // 1-2 together (0.8233); a second one that would land somewhere cramped takes the vetted spot too
+    if (s) for (let i = _ri(ENT_GROUP_MIN, ENT_GROUP_MAX); i > 0; i--) {
+      const sx = i > 1 ? s.x + Math.random() * 3 - 1.5 : s.x, sz = i > 1 ? s.z + Math.random() * 3 - 1.5 : s.z;
+      const ok = !_entBlocked(sx, s.y, sz) && !_entHazard(sx, s.y, sz) && _entSpawnRoom(sx, s.y, sz);
+      spawnEntity(ok ? sx : s.x, s.y, ok ? sz : s.z);
+    }
   }
   _rollHerd(cx, cz, SHEEP_CHUNK_CHANCE, SHEEP_BIOMES, SHEEP_FLOCK_MIN, SHEEP_FLOCK_MAX, spawnSheep);
   _rollHerd(cx, cz, COW_CHUNK_CHANCE,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
-  _rollHerd(cx, cz, PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig);
+  _rollHerd(cx, cz, PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
   _rollHerd(cx, cz, HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
   _rollFish(cx, cz);                                                   // 0.805
 }
@@ -2233,9 +2277,9 @@ function _rollFish(cx, cz) {
 }
 /* One grazer group. They only appear on grass, and they arrive clustered on a single vetted spot
    rather than scattered across the chunk — which is what makes a field read as a field. */
-function _rollHerd(cx, cz, chance, biomes, min, max, spawn) {
+function _rollHerd(cx, cz, chance, biomes, min, max, spawn, wet = 0) {
   if (Math.random() >= chance) return;
-  const s = _findChunkSpot(cx, cz, biomes);
+  const s = _findChunkSpot(cx, cz, biomes, wet);
   if (!s || s.top !== B.GRASS) return;
   const n = min + Math.floor(Math.random() * (max - min + 1));
   for (let i = 0; i < n; i++) {
@@ -2579,7 +2623,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
       e.regenT = (e.regenT || 0) + dt;
       if (e.regenT >= HORSE_REGEN_EVERY) {
         e.regenT = 0;
-        e.hp = Math.min(maxHp, e.hp + 1);
+        e.hp = Math.min(maxHp, e.hp + ENT_REGEN_HP);
         e.hunger = Math.max(0, entHunger(e) - HORSE_REGEN_COST);
       }
     } else e.regenT = 0;
@@ -2697,7 +2741,7 @@ function _updateFish(e, dt, tp, i) {
       e.hazCd -= dt;
       if (e.hazCd <= 0) {
         e.hazCd = FISH_DRY_EVERY;
-        e.hp -= 1; e.hurtT = 0.25;
+        e.hp -= 5; e.hurtT = 0.25;                     // 0.823: out of 100
         if (e.hp <= 0) { if (!player.canFly) _entDropLoot(e); _removeEntity(i); return true; }
       }
     }
@@ -2794,6 +2838,7 @@ function updateEntities(dt) {
     e.active = true;
     // hunger drains for every simulating entity; only the horse acts on it (see _updateGrazer)
     e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * dt);
+    e.thirst = Math.max(0, entThirst(e) - ENT_THIRST_DECAY * dt);   // 0.823
     if (e.milkCd > 0) e.milkCd -= dt;                  // a milked cow refills (0.767, 39-taming.js)
     // a hit is noticed as hp lower than last tick; healing never restarts the no-damage clock (0.757)
     if (e._hpSeen != null && e.hp < e._hpSeen) e._calmT = 0; else e._calmT = (e._calmT || 0) + dt;
@@ -2803,7 +2848,7 @@ function updateEntities(dt) {
         e._regenT = (e._regenT || 0) + dt;
         if (e._regenT >= ENT_REGEN_EVERY) {
           e._regenT = 0;
-          e.hp = Math.min(maxHp, e.hp + 1);
+          e.hp = Math.min(maxHp, e.hp + ENT_REGEN_HP);
           e.hunger = Math.max(0, entHunger(e) - ENT_REGEN_COST);
         }
       } else e._regenT = 0;
@@ -2955,7 +3000,7 @@ function updateEntities(dt) {
           else {
             const blocked = typeof shieldBlock === 'function' && shieldBlock(tp, e.x, e.z, SKEL_DMG_HANDS);
             if (!blocked) {
-              tp.hp -= SKEL_DMG_HANDS;
+              tp.hp -= SKEL_DMG_HANDS;             // out of 100 on both sides since 0.823
               tp._dmgCause = `was slain by a ${e.name}`;
             }
             const mlen = distXZ || 1;
@@ -2994,7 +3039,7 @@ function updateEntities(dt) {
         // a raised shield facing the blow stops it outright (40-shield.js)
         const blocked = typeof shieldBlock === 'function' && shieldBlock(tp, e.x, e.z, e.dmg || ENT_ATTACK_DMG);
         if (!blocked) {
-          tp.hp -= (e.dmg || ENT_ATTACK_DMG);
+          tp.hp -= (e.dmg || ENT_ATTACK_DMG);   // out of 100 on both sides since 0.823
           tp._dmgCause = `was slain by a ${e.name}`;
         }
         /* Knock the player back with the same decaying-velocity model the mobs use, minus

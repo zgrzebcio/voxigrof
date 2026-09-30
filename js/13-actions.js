@@ -93,7 +93,7 @@ const CREATIVE_ORDER = [
   B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,   // 0.8143
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
-  B.SAND, B.RED_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
+  B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,   // pink sand 0.822
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
   B.GLASS, B.GLOWSTONE, B.WOOL,
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
@@ -104,10 +104,10 @@ const CREATIVE_ORDER = [
   B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.RUBY_BLOCK, B.SAPPHIRE_BLOCK, B.TOPAZ_BLOCK,
   B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK,
   B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.OBSIDIAN,
-  B.SANDSTONE, B.RED_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
+  B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
   B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
   B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091
-  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091
+  B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
@@ -118,7 +118,8 @@ function _defaultCreativeInventory() {
   CREATIVE_ORDER.forEach((id, i) => rank.set(id, i));
   const rankOf = (id) => rank.has(id) ? rank.get(id) : CREATIVE_ORDER.length + id;
   // blocks in palette order, then a few useful items (infinite water bucket) appended
-  const sorted = PLACEABLE.filter(isObtainable).sort((a, b) => rankOf(a) - rankOf(b))
+  const sorted = PLACEABLE.filter(id => isObtainable(id) && !PROPS[id].noCreative)   // not the grilled mushrooms (0.822)
+                          .sort((a, b) => rankOf(a) - rankOf(b))
                           .concat([ITEM.WATER_BUCKET, ITEM.LAVA_BUCKET]);
   /* The hotbar starts EMPTY (0.7346). Creative used to deal the first eight blocks into it, which
      meant every session opened holding grass, dirt and stone whether or not that was what you
@@ -203,7 +204,7 @@ function loadInventoryForMode(mode) {
     HOTBAR = survStash.hot; invSlots = survStash.inv; invSlots2 = survStash.inv2;   // live refs — world save persists them
   }
   // equipment follows the same survival/creative split. Guarded: this runs once at script-load
-  // time, before 31-armor.js has been parsed.
+  // time, before 31-equipment.js has been parsed.
   if (typeof loadEquipForMode === 'function') loadEquipForMode(mode);
 }
 loadInventoryForMode(currentInvMode);
@@ -320,7 +321,7 @@ BUSH_NAME[B.PUMPKIN] = 'pumpkin';
 BUSH_NAME[B.CANTALOUPE] = 'cantaloupe';   // 0.8091
 // flowers and mushrooms are foraged too (0.819): picked whole, straight into the bag
 const FORAGE_WHOLE = new Set([B.POPPY, B.ORCHID, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
-                              B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM]);
+                              B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM]);   // yellow 0.821
 for (const id of FORAGE_WHOLE) BUSH_NAME[id] = PROPS[id].name.toLowerCase();
 // which fruit each bush hands over when it is ripe
 const BERRY_FRUIT = [];
@@ -439,7 +440,7 @@ function harvestAtPlayer() {
   if (FORAGE_WHOLE.has(id)) {                        // a flower or a mushroom: the plant itself (0.819)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
-    for (const d of blockDrop(id)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+    // a mushroom picked under 40% grown gives nothing (0.821, 51-seasons.js)
     return BUSH_REPEAT;
   }
   if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE) {   // the stone pebble the same way (0.8095)
@@ -794,7 +795,11 @@ function _doPlace() {
   if (id === ITEM.SUGAR_CANE) id = B.SUGAR_CANE;
   if (id >= 256) return;                                   // items (sticks, etc.) are not placeable
   // food you carry rather than build with (0.7992: the pumpkin). Creative still plants them.
-  if (PROPS[id].noPlace && !player.canFly) { feedWarn(`${PROPS[id].name} cannot be planted`); return; }
+  // ...and mushrooms (0.821): they come up by themselves; a food among them (grilled) just gets eaten, no warning
+  if ((PROPS[id].noPlace || PROPS[id].shroom != null) && !player.canFly) {
+    if (!PROPS[id].food) feedWarn(`${PROPS[id].name} cannot be planted`);
+    return;
+  }
   // billboards (torch, mushrooms, any cross model): any face works, but the target cell
   // must sit on a solid block (matches the support-break rule in setBlock)
   // ...except a torch clicked onto the SIDE of a solid block, which hangs on that wall (0.7451)
@@ -827,7 +832,7 @@ function _doPlace() {
       while (baseY > 0 && (getBlock(px, baseY - 1, pz) & 255) === B.SUGAR_CANE) baseY--;
       if (py - baseY >= 5) return;                                       // already 5 tall
     } else {
-      if (below !== B.SAND && below !== B.RED_SAND && below !== B.GRASS && below !== B.DIRT) return;
+      if (below !== B.SAND && below !== B.RED_SAND && below !== B.PINK_SAND && below !== B.GRASS && below !== B.DIRT) return;
       // must have water at ground level in any of 4 side neighbors of the block BELOW
       let nearWater = false;
       for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
@@ -849,7 +854,7 @@ function _doPlace() {
       if (CORE.solidVal(nv)) return;
     }
     // ...or a hollow log packed with sand (0.7842)
-    if (below !== B.SAND && below !== B.RED_SAND && below !== B.CACTUS && armAxis < 0 && !potSand(getBlock(px, py - 1, pz))) return;
+    if (below !== B.SAND && below !== B.RED_SAND && below !== B.PINK_SAND && below !== B.CACTUS && armAxis < 0 && !potSand(getBlock(px, py - 1, pz))) return;
     if (below !== B.CACTUS && armAxis >= 0) {
       clearPlantAt(px, py, pz);
       setBlock(px, py, pz, B.CACTUS | ((armAxis | (18 << 2)) << 8));    // slimmer, lying flat

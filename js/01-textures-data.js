@@ -6,9 +6,9 @@ const TEXTURES = {
   grass_block_side: 'textures/Blocks/Natures/grass_block_side.png',
   dirt:             'textures/Blocks/Natures/dirt.png',
   stone:            'textures/Blocks/Natures/stone.png',
-  sand:             'textures/Blocks/Natures/sand_top.png',                // top and bottom; sides below (0.8091)
-  sand_side:        'textures/Blocks/Natures/sand_side.png',               // 0.8091
-  red_sand_side:    'textures/Blocks/Natures/red_sand_side.png',           // 0.8091
+  sand:             'textures/Blocks/Natures/Sands/sand_top.png',                // top and bottom; sides below (0.8091)
+  sand_side:        'textures/Blocks/Natures/Sands/sand_side.png',               // 0.8091
+  red_sand_side:    'textures/Blocks/Natures/Sands/red_sand_side.png',           // 0.8091
   bedrock:          'textures/Blocks/Natures/bedrock.png',
   oak_log:          'textures/Blocks/Woods/oak/oak_log_side.png',
   oak_log_top:      'textures/Blocks/Woods/oak/oak_log_top.png',
@@ -54,13 +54,21 @@ const TEXTURES = {
   red_sandstone_top:    'textures/Blocks/Decorations/Sandstone/red_sandstone.png',
   red_sandstone:        'textures/Blocks/Decorations/Sandstone/red_sandstone.png',
   red_sandstone_bottom: 'textures/Blocks/Decorations/Sandstone/red_sandstone.png',
+  // 0.822: pink sand and its sandstone, and the brick and polished looks of all three
+  pink_sand:               'textures/Blocks/Natures/Sands/pink_sand_top.png',
+  pink_sand_side:          'textures/Blocks/Natures/Sands/pink_sand_side.png',
+  pink_sandstone:          'textures/Blocks/Decorations/Sandstone/pink_sandstone.png',
+  sandstone_bricks:        'textures/Blocks/Decorations/Sandstone/sandstone_bricks.png',
+  polished_sandstone:      'textures/Blocks/Decorations/Sandstone/polished_sandstone.png',
+  red_sandstone_bricks:    'textures/Blocks/Decorations/Sandstone/red_sandstone_bricks.png',
+  polished_red_sandstone:  'textures/Blocks/Decorations/Sandstone/polished_red_sandstone.png',
+  pink_sandstone_bricks:   'textures/Blocks/Decorations/Sandstone/pink_sandstone_bricks.png',
+  polished_pink_sandstone: 'textures/Blocks/Decorations/Sandstone/polished_pink_sandstone.png',
   fiber_block:          'textures/Blocks/Natures/fibre_block.png',
   ladder:               'textures/Blocks/Interactables/ladder.png',
   cobweb:           'textures/Billboards/cobweb.png',
   gravel:           'textures/Blocks/Natures/gravel.png',
-  red_mushroom:     'textures/Blocks/mushrooms/red/cap_side.png',
-  blue_mushroom:    'textures/Blocks/mushrooms/blue/cap_side.png',   // 0.7691
-  brown_mushroom:   'textures/Blocks/mushrooms/brown/cap_side.png',
+  // red_mushroom, blue_mushroom, brown_mushroom: cut from their sheets since 0.821 (CROP_TILES, below)
   crafting_bench_top:   'textures/Blocks/Interactables/Crafting_station/crafting_station_top.png',
   crafting_bench_front: 'textures/Blocks/Interactables/Crafting_station/crafting_station_front.png',
   crafting_bench_side:  'textures/Blocks/Interactables/Crafting_station/crafting_station_side.png',
@@ -70,7 +78,7 @@ const TEXTURES = {
   furnace_side:         'textures/Blocks/Interactables/Furnace/furnace_side.png',
   furnace_top:          'textures/Blocks/Interactables/Furnace/furnace_bottom.png',
   furnace_top_open:     'textures/Blocks/Interactables/Furnace/furnace_top.png',   // the chimney on top (0.801); furnace_top is the underside (0.808)
-  red_sand:             'textures/Blocks/Natures/red_sand_top.png',
+  red_sand:             'textures/Blocks/Natures/Sands/red_sand_top.png',
   cactus_side:          'textures/Blocks/Plants/cactus_side.png',
   cactus_top:           'textures/Blocks/Plants/cactus_top.png',
   cactus_bottom:        'textures/Blocks/Plants/cactus_bottom.png',
@@ -200,7 +208,7 @@ Object.assign(TEXTURES, {
   cantaloupe_top:    'textures/Blocks/Plants/cantaloupe_top.png',
   cantaloupe_bottom: 'textures/Blocks/Plants/cantaloupe_bottom.png',
 });
-/* Mushrooms are box models since 0.8091 (textures/Blocks/mushrooms/<kind>/<kind>_mushroom.json). Their art is
+/* Mushrooms are box models since 0.8091 (one sheet per kind since 0.821, MUSHROOM_KINDS below). Their art is
    drawn at 8 texels per model pixel, so a cap side is 80x32: 03-atlas.js lays these at their own size in the
    corner of a layer (MUSHROOM_NATIVE) rather than stretching them, and the mesher maps them 1:1. */
 /* ---- built tiles (0.8093) ----
@@ -265,11 +273,37 @@ for (const r of DECOR_ROCKS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
 // wheat's growth stages (0.81): stage 0 sprout .. 6, then wheat_full
 for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
-const MUSHROOM_KINDS = ['red', 'brown', 'blue', 'black', 'lava', 'white_tall'];
-const MUSHROOM_PARTS = ['cap_top', 'cap_side', 'cap_bottom', 'stem_side', 'stem_top'];
+/* Mushrooms (0.821): ONE sheet per kind, textures/Blocks/mushrooms/<kind>_mushroom.png (256x128 at 8 texels a
+   model pixel; yellow_mushroom.json shows how a sheet maps onto the model). At atlas build each sheet is cut
+   into the part tiles the mesher has always used (CROP_TILES, 03-atlas.js), each at its own size in a layer's
+   corner. A kind's index is its `shroom` in 02-voxel-core.js and its set in SHROOM_T there; the first six keep
+   their tiles where they were, the rest go on the end. The grilled ones are furnace food on their raw kind's
+   model. 'white_tall' is the white mushroom (renamed 0.821; its tiles keep the name). */
+const MUSHROOM_KINDS = ['red', 'brown', 'blue', 'black', 'lava', 'white_tall', 'yellow',
+                        'grilled_red', 'grilled_brown', 'grilled_blue', 'grilled_black', 'grilled_white', 'grilled_yellow'];
+const MUSHROOM_FILE = { white_tall: 'white_mushroom' };   // anything else is <kind>_mushroom.png
+// where each part lies on a sheet, [x, y, w, h] in its pixels, for the three shapes of sheet
+const MUSHROOM_LAYOUT = {
+  std:    { cap_top: [0, 0, 80, 80], cap_side: [0, 80, 80, 32], cap_bottom: [80, 0, 80, 80],
+            stem_side: [160, 0, 32, 48], stem_top: [192, 0, 32, 32] },
+  white:  { cap_top: [0, 0, 48, 48], cap_side: [0, 80, 48, 32], cap_bottom: [80, 0, 48, 48],
+            stem_side: [160, 0, 16, 88], stem_top: [192, 0, 16, 16] },
+  // the yellow one has a flare between stem and cap, and its stem's `stem_top` is the underside
+  yellow: { cap_top: [0, 0, 80, 80], cap_side: [0, 80, 80, 24], cap_bottom: [80, 0, 80, 80],
+            stem_side: [160, 0, 32, 32], stem_top: [192, 0, 32, 32], flare_side: [192, 40, 48, 16] },
+};
+const mushroomLayoutOf = (kind) => /white/.test(kind) ? 'white' : /yellow/.test(kind) ? 'yellow' : 'std';
+const mushroomPartsOf = (kind) => Object.keys(MUSHROOM_LAYOUT[mushroomLayoutOf(kind)]);
 const mushroomTileName = (kind, part) => `mushroom_${kind}_${part}`;
-for (const k of MUSHROOM_KINDS)
-  for (const p of MUSHROOM_PARTS) TEXTURES[mushroomTileName(k, p)] = `textures/Blocks/mushrooms/${k}/${p}.png`;
+// tile name -> [sheet texture, x, y, w, h]: cut out at atlas build, never fetched themselves (03-atlas.js)
+const CROP_TILES = {};
+for (const k of MUSHROOM_KINDS) {
+  const sheet = 'mushroom_sheet_' + k, lay = MUSHROOM_LAYOUT[mushroomLayoutOf(k)];
+  TEXTURES[sheet] = `textures/Blocks/mushrooms/${MUSHROOM_FILE[k] || k + '_mushroom'}.png`;
+  for (const p of mushroomPartsOf(k)) CROP_TILES[mushroomTileName(k, p)] = [sheet, ...lay[p]];
+}
+// the old flat mushroom tiles (T.RED_MUSHROOM...): the cap side, as they always showed
+for (const k of ['red', 'blue', 'brown']) CROP_TILES[k + '_mushroom'] = ['mushroom_sheet_' + k, ...MUSHROOM_LAYOUT.std.cap_side];
 const BENCH_WOODS = ['oak', 'birch', 'acacia', 'cherry', 'dark'];
 const BENCH_PARTS = ['top', 'front', 'side', 'bottom'];
 const benchTileName = (wood, part) => `crafting_station_${wood}_${part}`;
@@ -289,7 +323,7 @@ const ITEM_TEXTURES = {
   coal:        'textures/Items/Ores/coal.png',
   coal_chunk:  'textures/Items/Ores/coal_chunk.png',
   charcoal_chunk: 'textures/Items/Materials/charcoal_chunk.png',   // 0.767
-  milk_bucket: 'textures/Items/Consumables/milk_bucket.png',      // 0.767
+  milk_bucket: 'textures/Items/Container/bucket_milk.png',      // 0.767; Container since 0.821
   raw_iron:    'textures/Items/Ores/iron_ore.png',
   raw_gold:    'textures/Items/Ores/gold_ore.png',
   raw_tin:     'textures/Items/Ores/tin_ore.png',
@@ -311,15 +345,15 @@ const ITEM_TEXTURES = {
   hammer:        'textures/Items/Tools/hammer.png',                // 0.788
   bronze_nugget: 'textures/Items/Ores/bronze_nugget.png',          // 0.774
   bronze_ingot:  'textures/Items/Ores/bronze_ingot.png',           // 0.774, recoloured from the iron ingot
-  apple:       'textures/Items/Consumables/apple.png',
+  apple:       'textures/Items/Consumables/Fruits/apple.png',
   flint:       'textures/Items/Materials/flint.png',
   stone_pebble: 'textures/Items/Materials/stone_pebble.png',     // 0.8095
-  cantaloupe_slice: 'textures/Items/Consumables/cantaloupe_slice.png',   // 0.8098
+  cantaloupe_slice: 'textures/Items/Consumables/Others/cantaloupe_slice.png',   // 0.8098
   salt_dust:    'textures/Items/Materials/salt_dust.png',        // 0.8097
   clay_ball:   'textures/Items/Materials/clay_ball.png',
   snowball:      'textures/Items/Useables/snowball.png',
   bowl:          'textures/Items/Container/wooden_bowl.png',
-  mushroom_stew: 'textures/Items/Consumables/mushroom_stew.png',
+  mushroom_stew: 'textures/Items/Consumables/Vege/mushroom_stew.png',
   glass_shard:   'textures/Items/Materials/glass_shard.png',
   iron_ingot:    'textures/Items/Ores/iron_ingot.png',
   gold_ingot:    'textures/Items/Ores/gold_ingot.png',
@@ -329,18 +363,18 @@ const ITEM_TEXTURES = {
   gold_nugget:   'textures/Items/Ores/gold_nugget.png',
   copper_nugget: 'textures/Items/Ores/copper_nugget.png',
   tin_nugget:    'textures/Items/Ores/tin_nugget.png',
-  melon_slice:   'textures/Items/Consumables/melon_slice.png',
-  redberries:    'textures/Items/Consumables/redberries.png',
-  blueberries:   'textures/Items/Consumables/blueberries.png',
-  yellowberries: 'textures/Items/Consumables/blackberries.png',    // 0.7947; blackberries since 0.8099
+  melon_slice:   'textures/Items/Consumables/Fruits/melon_slice.png',
+  redberries:    'textures/Items/Consumables/Fruits/redberries.png',
+  blueberries:   'textures/Items/Consumables/Fruits/blueberries.png',
+  yellowberries: 'textures/Items/Consumables/Fruits/blackberries.png',    // 0.7947; blackberries since 0.8099
   brick:         'textures/Items/Materials/brick.png',
   potato:        'textures/Items/Plants/potato.png',
-  potato_bake:   'textures/Items/Consumables/baked_potato.png',
+  potato_bake:   'textures/Items/Consumables/Vege/baked_potato.png',
   arrow:         'textures/Items/Useables/arrow.png',
   bucket:        'textures/Items/Container/iron_bucket.png',
   water_bucket:  'textures/Items/Container/bucket_normal_water.png',
   lava_bucket:   'textures/Items/Container/bucket_lava.png',
-  carrot:        'textures/Items/Consumables/carrot.png',
+  carrot:        'textures/Items/Consumables/Vege/carrot.png',
   wheat:         'textures/Items/Plants/wheat.png',
   iron_shovel:   'textures/Items/Tools/iron_shovel.png',
   iron_pickaxe:  'textures/Items/Tools/iron_pickaxe.png',
@@ -367,18 +401,18 @@ const ITEM_TEXTURES = {
   diamond_pickaxe: 'textures/Items/Tools/diamond_pickaxe.png',
   diamond_hatchet: 'textures/Items/Tools/diamond_hatchet.png',
   diamond_hoe:     'textures/Items/Tools/diamond_hoe.png',
-  pumpkin_pie:     'textures/Items/Consumables/raw_pumpkin_pie.png',      // the raw pie since 0.761
-  cooked_pumpkin_pie: 'textures/Items/Consumables/cooked_pumpkin_pie.png',
+  pumpkin_pie:     'textures/Items/Consumables/Vege/raw_pumpkin_pie.png',      // the raw pie since 0.761
+  cooked_pumpkin_pie: 'textures/Items/Consumables/Vege/cooked_pumpkin_pie.png',
   gunpowder:       'textures/Items/Materials/gunpowder.png',
   charcoal:        'textures/Items/Materials/charcoal.png',
   sulfur:          'textures/Items/Materials/sulfur.png',
-  sugarcane:       'textures/Items/Plants/sugarcane.png',
+  sugarcane:       'textures/Billboards/Plants/sugar_cane.png',   // the item art is gone (0.821): the plant's own
   sugar:           'textures/Items/Materials/sugar.png',
   paper:           'textures/Items/Materials/paper.png',
   book:            'textures/Items/Materials/book.png',
   flour:           'textures/Items/Materials/flour.png',
-  bread:           'textures/Items/Consumables/bread.png',
-  golden_apple:    'textures/Items/Consumables/golden_apple.png',
+  bread:           'textures/Items/Consumables/Others/bread.png',
+  golden_apple:    'textures/Items/Consumables/Fruits/golden_apple.png',
   glow_dust:       'textures/Items/Materials/glow_dust.png',
   glow_crystals:   'textures/Items/Materials/glow_crystals.png',      // 0.765
   flint_sword:     'textures/Items/Weapons/flint_sword.png',
@@ -397,22 +431,23 @@ const ITEM_TEXTURES = {
   cloth:           'textures/Items/Materials/cloth.png',
   iron_shears:     'textures/Items/Tools/iron_shears.png',
   feather:         'textures/Items/Materials/feather.png',
-  mutton:          'textures/Items/Consumables/mutton.png',
-  rotten_flesh:    'textures/Items/Materials/rotten_flesh.png',
-  cooked_mutton:   'textures/Items/Consumables/cooked_mutton.png',
+  mutton:          'textures/Items/Consumables/Protein/mutton.png',
+  rotten_flesh:    'textures/Items/Consumables/Others/rotten_flesh.png',
+  compressed_rotten_flesh: 'textures/Items/Materials/compressed_rotten_flesh.png',   // 0.821
+  cooked_mutton:   'textures/Items/Consumables/Protein/cooked_mutton.png',
   leather:         'textures/Items/Materials/leather.png',
-  beef:            'textures/Items/Consumables/beef.png',
-  cooked_beef:     'textures/Items/Consumables/cooked_beef.png',
-  pork:            'textures/Items/Consumables/pork.png',            // 0.789
-  cooked_pork:     'textures/Items/Consumables/cooked_pork.png',     // 0.789
-  cod:             'textures/Items/Consumables/cod.png',             // fish, 0.805
-  cooked_cod:      'textures/Items/Consumables/cooked_cod.png',
-  salmon:          'textures/Items/Consumables/salmon.png',
-  cooked_salmon:   'textures/Items/Consumables/cooked_salmon.png',
-  pike:            'textures/Items/Consumables/pike.png',
-  cooked_pike:     'textures/Items/Consumables/cooked_pike.png',
-  catfish:         'textures/Items/Consumables/catfish.png',
-  cooked_catfish:  'textures/Items/Consumables/cooked_catfish.png',
+  beef:            'textures/Items/Consumables/Protein/beef.png',
+  cooked_beef:     'textures/Items/Consumables/Protein/cooked_beef.png',
+  pork:            'textures/Items/Consumables/Protein/pork.png',            // 0.789
+  cooked_pork:     'textures/Items/Consumables/Protein/cooked_pork.png',     // 0.789
+  cod:             'textures/Items/Consumables/Protein/cod.png',             // fish, 0.805
+  cooked_cod:      'textures/Items/Consumables/Protein/cooked_cod.png',
+  salmon:          'textures/Items/Consumables/Protein/salmon.png',
+  cooked_salmon:   'textures/Items/Consumables/Protein/cooked_salmon.png',   // Protein since 0.822
+  pike:            'textures/Items/Consumables/Protein/pike.png',
+  cooked_pike:     'textures/Items/Consumables/Protein/cooked_pike.png',
+  catfish:         'textures/Items/Consumables/Protein/catfish.png',
+  cooked_catfish:  'textures/Items/Consumables/Protein/cooked_catfish.png',
   fat:             'textures/Items/Materials/fat.png',               // 0.789
   saddle:          'textures/Items/Useables/saddle.png',
   leather_helmet:     'textures/Items/Equipments/leather_helmet.png',
@@ -437,11 +472,11 @@ const ITEM_TEXTURES = {
   diamond_boots:      'textures/Items/Equipments/diamond_boots.png',
 };
 
-/* Armor overlay sheets drawn on the equipment preview. 64x32 skin-layer layout (at 4x here):
-   <mat>_tophalf = helmet + chestplate, <mat>_downhalf = leggings + boots. */
-const EQUIP_TEXTURES = {
-  iron_tophalf:     'textures/Entity/equipment/iron_tophalf.png',
-  iron_downhalf:    'textures/Entity/equipment/iron_downhalf.png',
-  leather_tophalf:  'textures/Entity/equipment/leather_tophalf.png',
-  leather_downhalf: 'textures/Entity/equipment/leather_downhalf.png',
-};
+/* Armor on the equipment preview's body (0.82): one picture per material and body part, laid over every face
+   of that part's box — <mat>_head (helmet), _torso and _arm (chestplate), _hand (gloves), _leg (leggings),
+   _foot (boots). They replace the two 64x32 skin-layer sheets per material. Cloth has no items yet. */
+const EQUIP_MATS = ['iron', 'leather', 'cloth'];
+const EQUIP_PARTS = ['head', 'torso', 'arm', 'hand', 'leg', 'foot'];
+const EQUIP_TEXTURES = {};
+for (const m of EQUIP_MATS) for (const p of EQUIP_PARTS)
+  EQUIP_TEXTURES[m + '_' + p] = `textures/Entity/equipment/${m}/${m}_${p}.png`;

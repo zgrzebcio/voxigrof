@@ -42,11 +42,10 @@
   #hotbar { position:fixed; left:50%; bottom:6px; transform:translateX(-50%); display:flex; gap:3px;
             padding:2px; background:rgba(10,10,16,.55); border:1px solid rgba(255,255,255,.18);
             border-radius:6px; z-index:5; pointer-events:none; }
-  /* survival vitals: 10 hearts (=20HP) + 10 drumsticks (=20 hunger) row above the hotbar.
-     the canvas bitmap stays 452×20; CSS width is 10% larger so icons render slightly bigger. */
-  /* canvas bitmap stays native 36px sprites (780×74); CSS shows it at half size so the
-     browser downscales the whole supersampled bitmap smoothly — crisp icons, no pixel loss */
-  /* bottom:78px clears the XP bar + its level number, which sit at 58..~82, without floating */
+  /* survival vitals (0.82): one 780x76 strip, drawn at 2x by 19-vitals.js (VIT_W / VIT_H must match) —
+     health + armor left, food + thirst right, the temperature dial with stamina and oxygen over it in the
+     middle, and the inventory-only bars past the hotbar's ends. bottom:84px puts the dial just over the
+     XP level number (58..~87). */
   /* Title reveal: the panorama fades up once it is fully built, and the menu rides in just behind
      it — see _menuVeil in 16-worlds.js. The panel is offset slightly further and eased with a
      soft overshoot curve so the two do not move as one flat sheet. */
@@ -58,9 +57,9 @@
   #overlay.veiled { opacity:0; pointer-events:none; }
   #overlay > .panel { transition:transform .55s cubic-bezier(.16,.84,.28,1), opacity .5s ease; }
   #overlay.veiled > .panel { transform:translateY(18px) scale(.97); opacity:0; }
-  #vitals { position:fixed; left:50%; bottom:78px; transform:translateX(-50%); z-index:5;
+  #vitals { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:5;
             pointer-events:none; image-rendering:auto; display:none;
-            width:535px; height:40px; }
+            width:780px; height:76px; }
   /* ---- experience bar (0.7) ----
      Minecraft's slot — a strip above the hotbar with the level number centred on it — but a
      plain smooth bar instead of the segmented sprite. Light-green fill on a dark track. */
@@ -299,7 +298,7 @@
   #hotbar .chiselSlot { position:absolute; left:calc(100% + 9px); bottom:2px; background:rgba(10,10,16,.55); }
   /* ---- variants (0.794): the held block's looks, five slots just above the vitals; empty ones are dimmed ---- */
   /* back at 64px in 0.7943 (86px in 0.7942 slid under the open inventory); the item name moved down instead */
-  #hotbar .variantBar { position:absolute; left:50%; bottom:calc(100% + 68px);   /* +4px (0.804) */ transform:translateX(-50%);
+  #hotbar .variantBar { position:absolute; left:50%; bottom:calc(100% + 124px);   /* over the vitals and the item name since 0.82 (68px) */ transform:translateX(-50%);
                         display:flex; gap:3px; padding:2px; background:rgba(10,10,16,.55);
                         border:1px solid rgba(255,255,255,.18); border-radius:6px; }
   #hotbar .variantBar .slot { width:34px; height:34px; }
@@ -470,7 +469,7 @@
   #interact b { color:#fff; font-weight:600; }
   /* held-item name sits ABOVE the vitals row (78 + 40 tall), where the hearts used to be */
   /* 100px since 0.7943 (was 124): under the variant slots, which sit just above the vitals */
-  #blockname { position:fixed; left:50%; bottom:106px;   /* +6px (0.804) */ transform:translateX(-50%); color:#fff; font-size:14px;
+  #blockname { position:fixed; left:50%; bottom:162px;   /* over the vitals' middle column since 0.82 (106px) */ transform:translateX(-50%); color:#fff; font-size:14px;
                text-shadow:0 1px 3px #000; z-index:5; pointer-events:none;
                opacity:0; transition:opacity .25s; }
 

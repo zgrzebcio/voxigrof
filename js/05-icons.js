@@ -174,6 +174,7 @@ function renderBlockIcon(id, variant = 0) {
     geo.setAttribute('tile',     new THREE.BufferAttribute(g.tile, 1, false));
     geo.setAttribute('shade',    new THREE.BufferAttribute(g.shade, 1, true));
     geo.setAttribute('blockLight', new THREE.BufferAttribute(g.lite, 1, false));
+    geo.setAttribute('clim', new THREE.BufferAttribute(g.clim, 1, true));   // all 0: the usual colour (0.8231)
     geo.setIndex(new THREE.BufferAttribute(g.index, 1));
     geo.translate(-8.5, -64.5, -8.5);           // centre the block on the origin
     const mesh = new THREE.Mesh(geo, MATERIALS[p]);

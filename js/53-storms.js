@@ -19,8 +19,8 @@ const LIGHTNING_MIN_S = 4, LIGHTNING_MAX_S = 16;   // seconds between strikes in
 const LIGHTNING_REACH = 96;                          // blocks from the player a strike may land
 const LIGHTNING_AIM_PLAYER = 0.06, LIGHTNING_AIM_ENTITY = 0.12;   // shares of strikes that go for someone in the open
 const LIGHTNING_HIT_R = 1.6, LIGHTNING_NEAR_R = 3.5;
-const LIGHTNING_DMG = 10, LIGHTNING_NEAR_DMG = 4, LIGHTNING_FIRE_S = 6;   // 6 s alight since 0.8195 (5 before)
-const ENT_FIRE_DPS = 1.5;                            // a creature on fire; a woolly sheep takes twice this
+const LIGHTNING_DMG = 50, LIGHTNING_NEAR_DMG = 20, LIGHTNING_FIRE_S = 6;   // out of 100 health (0.823)   // 6 s alight since 0.8195 (5 before)
+const ENT_FIRE_DPS = 7.5;                            // a creature on fire; a woolly sheep takes twice this
 const SHEEP_WOOL_BURN_S = 1.5;                       // until its fleece is gone
 const THUNDER_SPEED = 250;                           // blocks a second the thunder travels (a bit quicker than sound)
 const HAIL_HIT_S = [2, 4.5];                         // seconds between hail hits on a bare head, at full hail
@@ -246,7 +246,7 @@ function _updateHail(dt) {
     player._hailT = HAIL_HIT_S[0] + Math.random() * (HAIL_HIT_S[1] - HAIL_HIT_S[0]);
     const helm = typeof equipSlots !== 'undefined' && typeof EQUIP_INDEX !== 'undefined' ? equipSlots[EQUIP_INDEX.helmet] : null;
     if (helm) { if (typeof playSound === 'function') playSound('stone', { gain: 0.15, rate: 1.8 }); return; }
-    player.hp = Math.max(0, player.hp - 1);
+    player.hp = Math.max(0, player.hp - VITAL_K);   // 0.82: out of 100
     player._dmgCause = 'was battered by hail';
     if (!player._hailWarned && typeof feedWarn === 'function') { player._hailWarned = true; feedWarn('Hail: get under cover or wear a helmet'); }
   });

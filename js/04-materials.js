@@ -56,6 +56,9 @@ const sharedUniforms = {
   // how much of a chunk is showing, 0..1: a chunk fades in when it arrives and out when it leaves (0.8195, 11-chunks.js).
   // Always 1 here; a fading chunk's meshes carry a material of their own with their own value.
   uFade:       { value: 1 },
+  // the water's warm and cold colour as a multiple of its usual one (0.8231, WATER_TINT in 03-atlas.js)
+  uWaterWarm:  { value: new THREE.Vector3(...WATER_TINT.warm.map((v, i) => v / WATER_TINT.base[i])) },
+  uWaterCold:  { value: new THREE.Vector3(...WATER_TINT.cold.map((v, i) => v / WATER_TINT.base[i])) },
 };
 /* The haze of the sky in a direction (0.817): added to the fog colour, so it is the same on the sky dome, the
    clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
@@ -122,6 +125,8 @@ const VSH = /* glsl */`
   uniform float uWindSpeed;
   uniform float uTime;
   uniform float uFade;                       // a chunk fading in: plants grow up with it (0.8196)
+  in float clim;                             // the climate colour, -1 cold .. 1 warm (0.8231)
+  out float vClim;
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -130,7 +135,7 @@ const VSH = /* glsl */`
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade;
+    vUv = uv; vTile = tile; vShade = shade; vClim = clim;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;                      // flood-filled block-light level (0..15) for this face
     vec4 wp = modelMatrix * vec4(position, 1.0);
     /* The wind (0.81): plants bend from the foot the way it blows, leaves drift a touch. Every term is a
@@ -183,6 +188,8 @@ const FSH = /* glsl */`
   uniform vec3 uTintColor;
   uniform vec3 uGlowColor;
   uniform float uTime;
+  uniform vec3 uWaterWarm, uWaterCold;              // water's warm and cold colour over its usual blue (0.8231)
+  in float vClim;
   in vec2 vUv;
   flat in float vTile;
   in float vShade;
@@ -213,6 +220,14 @@ const FSH = /* glsl */`
     vec4 tex = texture(map, vec3(vUv, tl.x));
     // an animated tile eases into its next frame (0.8193): .a is that frame's layer plus how far along it is
     if (tlv.a >= 0.0) tex = mix(tex, texture(map, vec3(vUv, floor(tlv.a))), fract(tlv.a));
+    /* The climate colour (0.8231): row 1 of uTileLayer says what the tile does with it. Grass (1) mixes toward its
+       warm (.g) or cold (.b) tile, water (2) toward a cyan or a deep blue. vClim is 0 on every other face. */
+    if (abs(vClim) > 0.004) {
+      vec4 tt = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 1), 0);
+      float k = min(1.0, abs(vClim));
+      if (tt.r > 1.5) tex.rgb *= mix(vec3(1.0), vClim > 0.0 ? uWaterWarm : uWaterCold, k);
+      else if (tt.r > 0.5) tex = mix(tex, texture(map, vec3(vUv, vClim > 0.0 ? tt.g : tt.b)), k);
+    }
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
     // sun/moon shadows: soft PCF compare against the two depth maps; outside the shadow
@@ -254,6 +269,8 @@ const VSH_WATER = /* glsl */`
   uniform float uLightOverride;
   uniform mat4 uShadowMat;
   uniform float uTime, uTide, uWaveMul;
+  in float clim;
+  out float vClim;
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -262,7 +279,7 @@ const VSH_WATER = /* glsl */`
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade;
+    vUv = uv; vTile = tile; vShade = shade; vClim = clim;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Waving surface vertices are marked with shade 253/255 by emitWater; every vertex of one
@@ -316,6 +333,7 @@ const VSH_LAVA = /* glsl */`
   uniform float uLightOverride;
   uniform mat4 uShadowMat;
   uniform float uTime;
+  out float vClim;
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -324,7 +342,7 @@ const VSH_LAVA = /* glsl */`
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade;
+    vUv = uv; vTile = tile; vShade = shade; vClim = 0.0;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     if (shade > 0.985) {

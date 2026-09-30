@@ -147,17 +147,26 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'sand_side', 'red_sand_side', 'polished_stone', 'adobe', 'adobe_brick'
                      ,'dark_glass', 'greenhouse_glass', 'glass_bricks', 'dark_glass_bricks', 'salt_crust'
                      ,'cantaloupe_side', 'cantaloupe_top', 'cantaloupe_bottom'
-                     // the mushroom models, five sheets per kind (0.8091)
-                     ,...MUSHROOM_KINDS.flatMap(k => MUSHROOM_PARTS.map(p => mushroomTileName(k, p)))
+                     // the mushroom models, five part tiles per kind (0.8091): the first six kinds
+                     ,...MUSHROOM_KINDS.slice(0, 6).flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p)))
                      // 0.8093: flowing water and lava, terracotta brick, band and pillar for every rock
                      ,'water_flow', 'lava_flow', 'terracotta_bricks'
                      ,...DECOR_ROCKS.flatMap(r => DECOR_PARTS.map(p => `${r}_${p}`))
                      // wheat's growth stages (0.81)
                      ,...[0, 1, 2, 3, 4, 5, 6].map(s => 'wheat_stage' + s)
                      // ash, what fire leaves (0.8191)
-                     ,'ash_block'];
+                     ,'ash_block'
+                     // 0.821: the yellow mushroom and the six grilled ones (six parts for the yellow shapes)
+                     ,...MUSHROOM_KINDS.slice(6).flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p)))
+                     // 0.822: pink sand, pink sandstone, brick and polished sandstones (T 301-309)
+                     ,'pink_sand', 'pink_sand_side', 'pink_sandstone', 'sandstone_bricks', 'polished_sandstone'
+                     ,'red_sandstone_bricks', 'polished_red_sandstone', 'pink_sandstone_bricks', 'polished_pink_sandstone'
+                     // 0.823: warm and cold grass (T 310-319), built below, never fetched
+                     ,'grass_block_top_warm', 'grass_block_top_cold', 'grass_block_side_warm', 'grass_block_side_cold'
+                     ,'tallgrass_bottom_warm', 'tallgrass_bottom_cold', 'tallgrass_top_warm', 'tallgrass_top_cold'
+                     ,'grass_warm', 'grass_cold'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
-const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => MUSHROOM_PARTS.map(p => mushroomTileName(k, p))));
+const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
 
 // glowstone uses the embedded texture if present; otherwise a procedural warm-speckle fallback
@@ -381,12 +390,26 @@ for (let id = 0; id < PROPS.length; id++) {
   const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER ? 3 : 1;
   for (const t of [...(p.faces || []), ...(p.tilesByVar || [])]) if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
+// the warm and cold grass plants sway as their usual selves do (0.823)
+for (const n of ['grass', 'tallgrass_bottom', 'tallgrass_top'])
+  if (SWAY_TILES[n]) SWAY_TILES[n + '_warm'] = SWAY_TILES[n + '_cold'] = SWAY_TILES[n];
+/* The water's colours (0.8231): the art is grey, drawn in the usual blue below; the shader moves it toward the cold
+   or the warm one by the mesh's climate value (04-materials.js). */
+const WATER_TINT = { base: [58, 128, 214], cold: [34, 76, 170], warm: [66, 184, 212] };
 const TILE_LAYER = (() => {
-  const d = new Float32Array(ATLAS_TILES.length * 4);
+  const N = ATLAS_TILES.length, d = new Float32Array(N * 4 * 2);
   // fourth channel (0.8193): an animated tile's NEXT frame's layer plus how far towards it it is (0..1), else -1
-  for (let i = 0; i < ATLAS_TILES.length; i++) { d[i * 4] = i; d[i * 4 + 1] = -1; d[i * 4 + 2] = SWAY_TILES[ATLAS_TILES[i]] || 0; d[i * 4 + 3] = -1; }
+  for (let i = 0; i < N; i++) { d[i * 4] = i; d[i * 4 + 1] = -1; d[i * 4 + 2] = SWAY_TILES[ATLAS_TILES[i]] || 0; d[i * 4 + 3] = -1; }
   for (const e of ATLAS_EMISSIVE) d[e.tile * 4 + 1] = e.layer;
-  const t = new THREE.DataTexture(d, ATLAS_TILES.length, 1, THREE.RGBAFormat, THREE.FloatType);
+  /* Row 1, the climate colour (0.8231): 1 = mix toward the warm tile (.g) or the cold one (.b), 2 = water, tinted.
+     Only tiles the mesher gives a climate value (TINTED in 02) ever read it. */
+  const R1 = N * 4;
+  for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass']) {
+    const i = ATLAS_TILES.indexOf(n), w = ATLAS_TILES.indexOf(n + '_warm'), c = ATLAS_TILES.indexOf(n + '_cold');
+    if (i >= 0 && w >= 0 && c >= 0) { d[R1 + i * 4] = 1; d[R1 + i * 4 + 1] = w; d[R1 + i * 4 + 2] = c; }
+  }
+  for (const n of ['water', 'water_flow']) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4] = 2; }
+  const t = new THREE.DataTexture(d, N, 2, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.needsUpdate = true;
   return t;
@@ -452,6 +475,17 @@ async function buildAtlas() {
     IMAGES[n] = _missingTile();
   })));                                                              // block tiles only
   if (missing.length) console.warn('voxiGrof: missing textures, drawn as a checker:\n  ' + missing.join('\n  '));
+  // tiles cut out of a sheet: every mushroom part since 0.821 (CROP_TILES, 01-textures-data.js)
+  for (const [name, [sheet, sx, sy, sw, sh]] of Object.entries(CROP_TILES)) {
+    const src = IMAGES[sheet];
+    if (!src) continue;
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
+    IMAGES[name] = c;
+  }
 
   // tall_grass.png is one 2-tall sprite (e.g. 60x120): split it into a top and bottom half so
   // each of the two stacked blocks samples the correct portion instead of the whole squished image
@@ -504,10 +538,38 @@ async function buildAtlas() {
   for (const [name, [baseN, overN, tn]] of Object.entries(COMPOSITE_TILES))
     if (IMAGES[baseN] && IMAGES[overN]) IMAGES[name] = _composite(IMAGES[baseN], IMAGES[overN], tn, grassRGB);
 
+  /* The grass in a warm and a cold climate (0.823; blended in by the shader since 0.8231, climAt in 55-biomes.js): the same art in a pale dry green and a
+     dark cool one. The top is tinted as its layer is drawn (below), the side composited like the usual one, the tall
+     grass tinted with the usual below, and the short grass (already coloured) shifted with a canvas filter. */
+  const mixRGB = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+  const warmRGB = mixRGB(grassRGB, [196, 188, 104], 0.6), coldRGB = mixRGB(grassRGB, [52, 112, 98], 0.5);
+  const rgbStr = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const warmTint = rgbStr(warmRGB), coldTint = rgbStr(coldRGB);
+  if (IMAGES.grass_side_base && IMAGES.grass_side_overlay) {
+    IMAGES.grass_block_side_warm = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', warmRGB);
+    IMAGES.grass_block_side_cold = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', coldRGB);
+  }
+  IMAGES.grass_block_top_warm = IMAGES.grass_block_top_cold = IMAGES.grass_block_top;
+  IMAGES.tallgrass_bottom_warm = IMAGES.tallgrass_bottom_cold = IMAGES.tallgrass_bottom;
+  IMAGES.tallgrass_top_warm = IMAGES.tallgrass_top_cold = IMAGES.tallgrass_top;
+  const shifted = (src, filter) => {
+    if (!src) return src;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g2 = c.getContext('2d');
+    g2.imageSmoothingEnabled = false;
+    g2.filter = filter;                                 // unsupported (old Safari): the plain picture
+    g2.drawImage(src, 0, 0);
+    return c;
+  };
+  IMAGES.grass_warm = shifted(IMAGES.grass, 'saturate(0.7) hue-rotate(-16deg) brightness(1.12)');
+  IMAGES.grass_cold = shifted(IMAGES.grass, 'saturate(0.9) hue-rotate(18deg) brightness(0.8)');
+
   /* tall_grass.png ships grayscale, so it reads as white in the world. Tint it on the source image, where
      one multiply and one alpha restore do it. The oak leaves are grey art too since 0.809, and the birch
      leaves since 0.8093, and take their own leaf greens the same way. */
   for (const [name, col] of [['tallgrass_bottom', tint], ['tallgrass_top', tint], ['oak_leaves', OAK_LEAF_TINT],
+                             ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],   // 0.823
+                             ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', coldTint],
                              ['birch_leaves', BIRCH_LEAF_TINT]]) {
     const src = IMAGES[name];
     if (!src) continue;
@@ -536,8 +598,8 @@ async function buildAtlas() {
   const isWater = (n) => n === 'water' || n === 'water_flow';
   const drawLayer = (layer, name, img) => {
     ctx.clearRect(0, 0, S, S);
-    // per-block alpha baked into the atlas: water and leaves translucent but mostly opaque
-    ctx.globalAlpha = isWater(name) ? 0.65 : name === 'oak_leaves' ? 0.9 : 1.0;
+    // per-block alpha baked into the atlas: leaves translucent but mostly opaque (the water art has its own since 0.8231)
+    ctx.globalAlpha = name === 'oak_leaves' ? 0.9 : 1.0;
     ctx.drawImage(S >= ART_PX ? img : _halfTile(img), 0, 0, S, S);   // 64px art is stretched with NEAREST
     /* A model sheet (a mushroom's, 0.8091) goes at its own size in the bottom-left corner, where the mesher's
        UVs start; the stretched copy under it stays round it, so the mips at its edge keep its colours. */
@@ -547,19 +609,21 @@ async function buildAtlas() {
       ctx.drawImage(img, 0, S - h, w, h);
     }
     ctx.globalAlpha = 1;
-    if (isWater(name)) {                                  // deep-blue dark overlay: more saturated, less transparent
-      ctx.globalAlpha = 0.45;
-      ctx.fillStyle = '#0c1e2f';
-      ctx.fillRect(0, 0, S, S);
-      ctx.globalAlpha = 1;
-    }
-    if (name === 'grass_block_top') {                     // opaque tile: multiply tint (rich)
+    // opaque tile: multiply tint (rich); the warm and cold tops their own (0.823)
+    const topTint = name === 'grass_block_top' ? tint : name === 'grass_block_top_warm' ? warmTint
+                  : name === 'grass_block_top_cold' ? coldTint : null;
+    if (topTint) {
       ctx.globalCompositeOperation = 'multiply';
-      ctx.fillStyle = tint;
+      ctx.fillStyle = topTint;
       ctx.fillRect(0, 0, S, S);
       ctx.globalCompositeOperation = 'source-over';
     }
     const px2 = ctx.getImageData(0, 0, S, S).data, base = layer * LAYER;
+    // the grey water art (0.8231) multiplied into its usual blue, pixel by pixel so its own alpha stays as drawn
+    if (isWater(name)) {
+      const [wr, wg, wb] = WATER_TINT.base.map(v => v / 255);
+      for (let i = 0; i < px2.length; i += 4) { px2[i] *= wr; px2[i + 1] *= wg; px2[i + 2] *= wb; }
+    }
     for (let y = 0; y < S; y++) data.set(px2.subarray(y * ROW, y * ROW + ROW), base + (S - 1 - y) * ROW);
   };
   ATLAS_TILES.forEach((name, i) => {

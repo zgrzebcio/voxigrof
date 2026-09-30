@@ -36,7 +36,8 @@ const RECIPES_BASIC = [
   { in: [[ITEM.COAL, 1]],                                                    out: [ITEM.COAL_CHUNK, 5], timeToCraft: 1.5, xpToGive: 1 },       // 5 since 0.7691
   { in: [[ITEM.CHARCOAL, 1]],                                                out: [ITEM.CHARCOAL_CHUNK, 4], timeToCraft: 1, xpToGive: 1 },   // 0.767
   { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1], timeToCraft: 3, xpToGive: 5 },
-  { in: [[ITEM.BOWL, 1], [B.RED_MUSHROOM, 1], [[B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM], 1], [B.BLUE_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 5, xpToGive: 20 },   // + blue (0.7691); black or white tall for brown (0.8091)
+  // 0.821: brown, black, yellow and white, one of each and no stand-ins (red and blue left it); same place, so saved queues keep it
+  { in: [[ITEM.BOWL, 1], [B.BROWN_MUSHROOM, 1], [B.BLACK_MUSHROOM, 1], [B.YELLOW_MUSHROOM, 1], [B.WHITE_TALL_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 5, xpToGive: 20 },
   { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
   { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 2, xpToGive: 2 },
   { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], station: 'mortar', timeToCraft: 3, xpToGive: 2 },
@@ -170,6 +171,10 @@ RECIPES_ADVANCED.push(
   { in: [[B.CLAY, 1], [ITEM.WHEAT, 5]], out: [B.ADOBE, 4], timeToCraft: 4, xpToGive: 5 },
   // five stone pebbles press into a stone block (0.8095): the first stone a flint pickaxe cannot give you
   { in: [[ITEM.STONE_PEBBLE, 5]], out: [B.STONE, 1], timeToCraft: 2, xpToGive: 2 },
+  // 0.821: rotten flesh pressed five into one, and that worked slowly into leather for a little XP
+  { in: [[ITEM.ROTTEN_FLESH, 5]],             out: [ITEM.COMPRESSED_ROTTEN_FLESH, 1], timeToCraft: 3,  xpToGive: 1 },
+  { in: [[ITEM.COMPRESSED_ROTTEN_FLESH, 1]],  out: [ITEM.LEATHER, 1],                  timeToCraft: 20, xpToGive: 5 },
+  { in: [[B.PINK_SAND, 5]],   out: [B.PINK_SANDSTONE, 1], timeToCraft: 3,   xpToGive: 1 },   // 0.822
 );
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
@@ -258,7 +263,7 @@ const canCraft = (r) => recipeIn(r).every(([id, n]) => invCount(id) >= n);
    finished. Holding the right button on the bench cancels the order and drops all of it, made and
    unmade, on the floor. A plain tap of the right button still opens the bench.
 
-   Crafting speed (31-armor.js) scales both: 200% is twice as fast, 0% cannot craft at all.
+   Crafting speed (54-stats-effects.js) scales both: 200% is twice as fast, 0% cannot craft at all.
    ================================================================================================ */
 const CRAFT_QUEUE_MAX = 6;                   // 5 until 0.778; the slimmer rows left room for a sixth slot
 const CRAFT_MOVE_MUL = 0.6;          // walking speed while your personal queue runs

@@ -24,12 +24,13 @@ const TAMEABLE = {
     tameTime: 16,                    // seconds in the saddle to fill the bar
     buckPenalty: 0.25,               // share of the final boost lost per early dismount
     needsSaddle: true,               // ...before a tamed one can actually be steered
-    boost: { hp: 4, speed: 0.08, jump: 0.08 },
+    boost: { hp: 20, speed: 0.08, jump: 0.08 },   // health x5 since 0.823
     statLine: (e) => `health ${Math.ceil(e.hp)}/${e.stats.maxHp} · speed ${e.stats.speed.toFixed(2)}` +
-                     ` · jump ${e.stats.jump.toFixed(2)} · hunger ${Math.round(entHunger(e))}/${ENT_HUNGER_MAX}`,
+                     ` · jump ${e.stats.jump.toFixed(2)} · hunger ${Math.round(entHunger(e))}/${ENT_HUNGER_MAX}` +
+                     ` · thirst ${Math.round(entThirst(e))}/${ENT_THIRST_MAX}`,   // 0.823
     /* What a TAMED one eats from your hand, and how much each refills (0.742). The golden apple
        is on the list too — it tames a wild horse, and it is also the best meal you can give. */
-    feed: { [ITEM.APPLE]: 4, [ITEM.WHEAT]: 3, [ITEM.SUGAR]: 2, [ITEM.GOLDEN_APPLE]: 12, [B.HAY]: 16 },
+    feed: { [ITEM.APPLE]: 20, [ITEM.WHEAT]: 15, [ITEM.SUGAR]: 10, [ITEM.GOLDEN_APPLE]: 60, [B.HAY]: 80 },   // x5 (0.823)
   },
 };
 const tameProps = (e) => (e && TAMEABLE[e.kind]) || null;
@@ -352,6 +353,8 @@ function updateRidePanel(e) {
   rows.push(`health ${_rpBar(e.hp, maxHp, '#d0463c')}${Math.ceil(e.hp)}/${maxHp}`);
   if (hunger != null)
     rows.push(`hunger ${_rpBar(hunger, ENT_HUNGER_MAX, '#c9953b')}${Math.round(hunger)}/${ENT_HUNGER_MAX}`);
+  if (typeof entThirst === 'function' && e.thirst != null)   // 0.823
+    rows.push(`thirst ${_rpBar(entThirst(e), ENT_THIRST_MAX, '#3b8fd0')}${Math.round(entThirst(e))}/${ENT_THIRST_MAX}`);
   if (st.speed != null) rows.push(`speed  ${st.speed.toFixed(2)}`);
   if (st.jump != null)  rows.push(`jump   ${st.jump.toFixed(2)}`);
   const html = rows.join('<br>');

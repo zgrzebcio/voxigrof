@@ -23,7 +23,7 @@ const QUESTS = [
   { name: 'Find sticks',            hint: 'Break leaves',                            reqs: [_req(ITEM.STICK, 3)],  xp: 10 },
   { name: 'Pick up flint',          hint: 'Hold E on a flint pebble, or dig gravel', reqs: [_req(ITEM.FLINT, 4)],  xp: 10 },   // 4, the hatchet's worth (0.8095)
   { name: 'Gather food',            hint: 'Berries, apples, meat — anything edible counts',
-    reqs: [_reqAny((id) => (id >= 256 ? ITEM_PROPS[id]?.food : 0) > 0 || id === ITEM.CANTALOUPE_SLICE, 15, 'food')], xp: 15 },
+    reqs: [_reqAny((id) => !!foodPropsOf(id) || id === ITEM.CANTALOUPE_SLICE, 15, 'food')], xp: 15 },
   // the flint pickaxe left the chain in 0.8095: it breaks stone but keeps none
   { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
   { name: 'Chop wood',              hint: 'Use the hatchet on a tree',

@@ -71,6 +71,13 @@ function updateInteractPrompt() {
       return;
     }
   }
+  // water under the crosshair with an empty hand (0.82, 54-stats-effects.js): it takes E before the bushes do
+  const drink = typeof drinkPrompt === 'function' ? drinkPrompt() : '';
+  if (drink) {
+    if (drink !== _interactShown) { interactEl.innerHTML = drink; _interactShown = drink; }
+    interactEl.style.opacity = '1';
+    return;
+  }
   const t = typeof findBushPickup === 'function' ? findBushPickup() : null;
   if (!t) {
     if (_interactShown) { interactEl.style.opacity = '0'; _interactShown = ''; }
