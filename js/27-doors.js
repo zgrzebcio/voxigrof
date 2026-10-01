@@ -182,7 +182,7 @@ function updateDoors(dt) {
     // tint by world light at the door cell (same curves as the chunk shader, approximated)
     const bl = getLightWorld(d.x, d.y, d.z) / 15;
     const sky = getSkyWorld(d.x, d.y, d.z) / 15;
-    const skyF = 0.24 + 0.76 * sky * sky;   // must track the chunk shader in 04-materials.js
+    const skyF = 0.276 + 0.724 * sky * sky;   // must track the chunk shader in 04-materials.js (0.8242)
     const sun = sharedUniforms.uAmbient.value + sharedUniforms.uDirect.value;
     const b = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
     if (Math.abs(b - d.lastB) > 0.02) {

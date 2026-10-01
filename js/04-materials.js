@@ -230,24 +230,26 @@ const FSH = /* glsl */`
     }
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
-    // sun/moon shadows: soft PCF compare against the two depth maps; outside the shadow
-    // window (far from the player) everything counts as lit
-    float sS = 1.0, sL = 1.0;
-    if (uShadowOn > 0.5 && vSC.x > 0.01 && vSC.x < 0.99 && vSC.y > 0.01 && vSC.y < 0.99 && vSC.z < 0.999) {
-      float d = vSC.z - 0.0003;   // constant bias; slope acne handled by polygonOffset on the maps
-      sS = pcf(tShadS, vSC.xy, d);
-      sL = pcf(tShadL, vSC.xy, d);
-    }
-    float direct = uDirect * sS * (1.0 - uLeafShadow * (1.0 - sL));
     // packed light byte: low nibble = flood-filled block light (glow), high nibble = sky light.
     // Sky scales the sun's contribution so caves go genuinely dark; glow is sun-independent
     // and still lights caves & night. Curves kept gentle so level-14 faces aren't blown out.
     float skyN = floor(vBlock / 16.0 + 0.001);
     float bl = (vBlock - skyN * 16.0) / 15.0;
     float sky = skyN / 15.0;
+    // sun/moon shadows: soft PCF compare against the two depth maps. Without a map (shadows off, or past the
+    // shadow window far from the player) the sky light stands in for it (0.8245; everything counted as lit
+    // before, so turning shadows off lit every cave with the sun): open sky in the sun, a cave in the dark.
+    float sS = smoothstep(0.6, 1.0, sky), sL = 1.0;
+    if (uShadowOn > 0.5 && vSC.x > 0.01 && vSC.x < 0.99 && vSC.y > 0.01 && vSC.y < 0.99 && vSC.z < 0.999) {
+      float d = vSC.z - 0.0003;   // constant bias; slope acne handled by polygonOffset on the maps
+      sS = pcf(tShadS, vSC.xy, d);
+      sL = pcf(tShadL, vSC.xy, d);
+    }
+    float direct = uDirect * sS * (1.0 - uLeafShadow * (1.0 - sL));
     // quadratic falloff, but off a higher floor: unlit faces now bottom out at 24% of daylight
     // instead of 12%, so shadowed sides and cave mouths stay readable rather than near-black
-    float skyF = 0.24 + 0.76 * sky * sky;
+    // ...and 15% lighter still since 0.8242 (0.24): caves and deep shade less near-black
+    float skyF = 0.276 + 0.724 * sky * sky;
     // part-linear curve: light-source edges (low levels) stay visibly bright instead of
     // quadratic-fading to black; peak slightly above the old 1.15
     vec3 block = uGlowColor * (bl * 0.45 + bl * bl * 0.85);

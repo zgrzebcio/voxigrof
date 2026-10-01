@@ -56,6 +56,7 @@ const LOOT = {
   glowCrystal: [[1, 1], [1, 0.4]],
   cobwebString:[[1, 1], [1, 0.5], [1, 0.2]],
   glassShard:  [[2, 1], [1, 0.6], [1, 0.3]],
+  glassySand:  [[1, 0.8], [1, 0.1]],           // lightning-fused sand (0.824): 0-2 shards
   snowball:    [[2, 1], [1, 0.5], [1, 0.25]],
   sulfur:      [[1, 0.6], [1, 0.25]],
   bark:        [[1, 1], [1, 0.4]],
@@ -126,6 +127,8 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];
   if (blockId === B.GLASS) return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassShard));
+  if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
+    return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
   if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs (0.769)
   if (blockId === B.SNOW)  return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
   if (blockId === B.SUGAR_CANE) return [{ id: ITEM.SUGAR_CANE, count: 1 }];

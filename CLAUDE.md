@@ -76,6 +76,15 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   `lvl` is reported in every world; genChunk keeps it per column (`LVL`) for what grows where (gourds, wheat, cane; 0.8233).
 - **Spawn biomes (0.8233):** `*_BIOMES` in 28 are weight maps by FULL biome name (`_biomeWeight`: a Deep forest counts as its
   forest); `_findChunkSpot(cx, cz, biomes, wet)` rolls the weight, `wet` wants water near (pigs, `_waterNear`).
+- **Carpet models (0.824)** may set `facesByVar` (faces per rot:'side' facing, bits 0-1) and `fullUV` (whole tile on each
+  face, `FULL_UV_BOX`; `emitBoxFaces`' last arg is the UV box): the carved pumpkin / jack o'lantern.
+- **Villages (0.8242, 34-structures):** `_planVillage` — houses = group members with a door (`_prefabDoor`: the door in the ring of
+  blocks at its own height, doorstep = first cell outside the prefab box), wells = members without; ground from `_planGround`
+  (world if loaded, else `mainGen.heightAt`); paths = Dijkstra on a village grid (footprints walls), widened by `pathWidth`, plank bridges on water.
+  Prefab fields (0.82422): `entry` [x,z] path start, `sink` layers below ground, `weight` pick odds; no `group` = the group its id starts with
+  (`_groupOf`); a 2-high gap in the ground-floor wall counts as a doorway. Groups: village, desert_village (grass paths, sand carpets swept).
+- **Fluid flow is OFF (0.8245):** `FLUID_FLOW` (00-config) gates `queueWaterAt`/`queueLavaAt`/`updateFluids` (22). Shadows off:
+  the chunk shader uses sky light as the shadow (`sS`, 04), so caves stay dark.
 - **Value-based helpers.** Ask a whole cell value what it is with `CORE.shapeOfVal`, `solidVal`,
   `opaqueVal` and `shapeBoxesAt`. Do not check the bare id.
 

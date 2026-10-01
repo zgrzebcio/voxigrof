@@ -1,10 +1,15 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.8195**.
+Current build: **alpha 0.8242**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
+
+A village (0.8242) has at least three houses of three kinds and a well for every four houses, the first in its
+square. Every door opens onto a gravel path 2-3 wide that winds round the buildings to the square, crossing water
+on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
+ones, grass paths, and no loose sand drifted over the yards.
 
 - [Controls](#controls)
 - [Your first steps](#your-first-steps)
@@ -47,14 +52,18 @@ the create screen for a world without villages and dungeons.
 | Hide the whole HUD | `Backspace` | Hold Back / Share (1 s) |
 | Climb a wall (up to 3 blocks, costs stamina) | Hold `Space` + `W` facing it | Hold A + stick forward |
 
-In the inventory: `Shift+click` quick-moves a stack, `Shift+right click` wears gear, middle click
-sorts, and clicking outside the panels throws what you are carrying. On a pad the sticks move a
+In the inventory: `Shift+click` quick-moves a stack, `Shift+right click` wears gear, middle click (R3 on a pad)
+sorts (in creative it puts the palette back as new and empties the hotbar), and clicking outside the panels throws what you are carrying. On a pad the sticks move a
 cursor: A picks up and puts down, Y quick-moves, D-pad Down drops, and LB/RB flip the recipe tabs.
 
 ## Your first steps
 
 Bare hands only break plants, leaves and furniture. Everything solid needs a tool, so the start
-of the game is about making your first flint tools.
+of the game is about making your first flint tools. The exceptions (0.8244): sand, gravel and snow come away by
+hand a layer at a time, and glass and glassy sand whole, all at half the speed of a flint tool. A shovel takes a
+whole block, or a whole drift of layers, at once. Feet sink 30% into a full block of sand, gravel or snow, and a
+snow block falls like sand. Snow outside snow biomes melts slowly, a layer at a time, when the air there is over
+5°C; above the snowline the air is 0°C or colder.
 
 1. **Fiber.** Hold `E` on short grass, tall grass, wheat and berry bushes. Foraging needs both hands, so your offhand must be empty. Each pick has a chance to
    give fiber (grass 15%, wheat and ripe bushes 20%, bare bushes 30%). Fiber goes into every early
@@ -129,7 +138,17 @@ Eating takes 20% longer than it used to.
 - **Fruit, vegetables, protein** drop over time and come from food. They do nothing yet.
 - **Temperature** follows the season, the hour, the biome, height, weather, water and fire nearby. Under
   10°C you are **Chilly** and under -5°C **Cold** (food and protein drain faster); over 30°C **Warm** and over
-  45°C **Hot** (thirst and fruit do). Cold and Hot also cost 5 health every 6 s. All show in the effects.
+  45°C **Hot** (thirst and fruit do). Cold and Hot also drain health slowly, faster the further past the line
+  (0.3 a second at it, up to 1.5). Cold and heat resistance from gear take their share off all of it (leather
+  +8% cold each piece, cloth +8% heat and -3% cold). All show in the effects, as do **Sneaking** and **Climbing**.
+  Sneak needs a fresh press after opening or closing the inventory.
+  Your temperature follows a big change faster than a small one, and resistance slows the turn toward cold or
+  heat. Torches and glowstone warm you a little, placed or held; the glowcrystal block cools you a little.
+  Desert nights are cold: near 0°C in spring, -10°C in winter. A held torch goes out under water and is put
+  away until you surface. The bars fill sideways.
+
+**Water and lava (0.8245)** do not flow for now: a bucket places one still block, and digging beside water
+opens nothing.
 
 **Creatures (0.823)** are on the same 100 scale: their health, hunger and every damage number (weapons and
 mobs alike) are 5 times what they were. They also get thirsty now, though nothing drinks yet.
@@ -323,13 +342,16 @@ The golden apple never spoils.
   raw pork and up to 2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
   berkshire and tamworth.
 - **Horses** (mild plains and forests, 1–4 together) can be tamed, then ridden with a saddle.
+- Herds of different animals start at least 40 blocks apart (0.8241), and animals and players are as dark as the
+  ground around them at night.
 - **Zombies** drop rotten flesh, which a furnace turns into leather, and pick up what they find. At the bench,
   5 rotten flesh press into compressed rotten flesh, which a bench works into leather in 20 s (5 XP).
 - **Skeletons** drop bones and arrows.
 - **Villagers** walk the plains and above all the beaches, alone or in pairs. They go about their business, and **monsters hunt them as well as you**. A villager
   stands and fights any monster that comes near it, and they are evenly matched one-on-one.
   Anything killed by another creature leaves **nothing at all** — no loot, no XP — so leading a
-  zombie into a village is not a way to farm either side.
+  zombie into a village is not a way to farm either side. A villager carrying a torch at night lights the ground
+  round it (0.8242). In water every creature is darker, as the water is.
 - **Butcher** gives a 20% chance of one more meat (a horse: leather) from any animal you kill yourself.
 
 ## Block shapes
@@ -408,11 +430,14 @@ plant that withered has a 50% chance to return (and a small chance to seed one b
 touched. Wheat now grows through stages and gives wheat only when ripe. Days follow the seasons: about 04:35 to
 19:25 with a high sun in June, 07:25 to 16:35 with a low one in December; night mobs and beds go by the real
 sunset and sunrise. Above the snowline (about y 176 in summer, down to about y 134 in winter) open ground keeps
-a cover of snow. A world can be created with seasons off: it stays on 1 July for good (summer weather and
+a cover of snow, except on about one mountain in ten, which stays bare. A world can be created with seasons off: it stays on 1 July for good (summer weather and
 growth, long days).
 
 The world is split into weather regions (16x16 chunks), each with its own weather lasting 6-24 hours, blending smoothly into its neighbours near the edges (the debug screen shows a neighbouring weather that is blending in, e.g. "sunny (storm 30%)"): clear,
-sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes), darky, storm or foggy. Clouds
+sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes, and everywhere but deserts in winter), darky, storm or foggy.
+Clear, sunny and cloudy skies are the usual weather; the rest are rare and follow the season: spring brings rain, fog
+and dark skies, summer is sunniest with the most storms, autumn has rain, dark skies, storms and the most hail,
+and winter is cloudy with snow (0.8241). Clouds
 float at y 175-182 as blocks you can fly through: few on clear and sunny days, most of the sky when cloudy, a
 dark sheet in darky and storm weather. They drift with the wind (at a tenth of its speed) and shade the ground
 a little; under dark clouds the sunlight is 75% weaker. Foggy weather closes the view to about 8 blocks. A lighter
@@ -424,14 +449,15 @@ odd shooting star. The moon goes through its phases once a month (new on the 1st
 later each day; moonlit nights are brighter than moonless ones. Looking towards the sun gives a small lens flare
 unless a block or a cloud is in the way. Storms bring lightning: it strikes the highest thing around, and a hit does heavy damage and sets you (or a
 creature) on fire until it burns out or you reach water; an animal that burns to death leaves cooked meat, and a
-woolly sheep burns faster until its fleece is gone. A third of storms also bring hail, which hurts anyone out
+woolly sheep burns faster until its fleece is gone. Some storms also bring hail (most in autumn, none in winter), which hurts anyone out
 in the open without a helmet. On clear nights over the big snow biomes the aurora shows in the northern sky.
 Clouds are near black at night. Lightning can set trees, leaves and grass alight: fire lights up its surroundings,
-spreads through a tree's crown more than along the grass (and much less in the rain), burns logs to ash and grass
+spreads through a tree's crown and through logs, planks and leaves, eating its way on as each block burns away,
+more than along the grass (and much less in the rain), burns logs to ash and grass
 to dirt with a carpet of ash, and water puts it out. An ash carpet gives ashes half the time; an ash block stands like any block, while its carpets are walk-through, fall, and mix with other layers. Around a full or new
 moon the sea's tides run wider (it drops at low water twice a day) and its waves are bigger, and a full moon brings
 half as many monsters again; moonlit nights are a little lighter. Half the villagers carry a torch at night, and a torch swung at a creature sets it on fire for 1.5 seconds (lightning: 6, lava: 10, and lava sets you alight too). About every 15-21 days (never in the first 7) a blood moon rises on the first night that is clear, sunny, cloudy or darky: a red moon and a red night, and twice the monsters. The debug screen (F3) shows the date, moon phase and today's sunrise and sunset, the weather (with any mist or rainbow), what comes next and the wind. Wind
-bends grass and leaves, and from 25 km/h the wind speeds you up walking with it and slows you against it (a gentle push: under 3% at 30 km/h, at most 7%); standing still, it pushes you along gently, but never off an edge while you sneak. Under 10 km/h is a light breeze, about 30 a windy day, over 60 very strong (storms). It blows 30% harder over the ocean and harder up high (+5 km/h at y 100, +9 at y 150) and does not reach you indoors or right behind a wall. The debug wind line shows where it is heading in the next hour: > rising, < falling, = steady.
+bends grass and leaves, and from 25 km/h the wind speeds you up walking with it and slows you against it (a gentle push: under 3% at 30 km/h, at most 7%); standing still, it pushes you along gently, but never off an edge while you sneak, and never in creative. Under 10 km/h is a light breeze, about 30 a windy day, over 60 very strong (storms). It blows 30% harder over the ocean and harder up high (+5 km/h at y 100, +9 at y 150) and does not reach you indoors or right behind a wall. The debug wind line shows where it is heading in the next hour: > rising, < falling, = steady.
 
 ## Rare and special materials
 
@@ -445,6 +471,15 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
   but the lava one into food. Mushroom stew takes a bowl and one brown, black, yellow and white mushroom.
 - **Cantaloupe.** A gourd like the watermelon, found in patches on grassland. Gather it and it comes apart
   into cantaloupe slices you can eat.
+- **Carved pumpkin and jack o'lantern (0.824).** Right-click a pumpkin with shears to carve a face in it, turned
+  toward you; right-click it with a torch to light it. Both can be placed, and they never spoil. A plain pumpkin
+  still cannot be placed in survival.
+- **Glassy sand (0.824).** Lightning fuses any sand it strikes, plus a short root under it, into glassy sand of
+  its own colour (red and pink since 0.8241). It gives 0–2 glass
+  shards when broken.
+- **Cloth armor (0.824).** Bandana, tunic, trousers, boots and gloves from cloth and fiber at the bench (boots and
+  gloves also take 2 sticks and a leather). Light armor, but each piece is 8% heat resistance. The full set is 40%
+  resistance to sandstorms and heatstroke, which arrive in 0.825.
 - **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, a salt is used the moment it has food to keep (salt put in beside food, or food beside salt) and keeps that inventory's food for 20 minutes, then the next goes in (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
 - **Adobe.** 1 clay block and 5 wheat make 4 adobe at the crafting bench.
 

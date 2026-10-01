@@ -616,6 +616,7 @@ const waterDry  = () => WATER_STEP / (tickFactor() * DRY_SPEEDUP);
 
 // schedule a water cell; `delay` defaults to one full step. An earlier pending time wins.
 function queueWaterAt(x, y, z, delay = waterStep()) {
+  if (!FLUID_FLOW) return;                              // flow off (0.8245, 00-config.js)
   if ((getBlock(x, y, z) & 255) !== B.WATER) return;
   const k = `${x},${y},${z}`, t = _fluidClock + delay;
   const prev = _waterQueue.get(k);
@@ -659,6 +660,7 @@ const FLUID_SCAN_LIMIT = 1024;            // entries stepped over per tick befor
 // water-contact rule (obsidian/stone) has to see water's moves from this same frame, not the
 // previous one. updateFluids() enforces that order and owns the shared clock.
 function updateFluids(dt) {
+  if (!FLUID_FLOW) { _waterQueue.clear(); _lavaQueue.clear(); return; }   // anything restored from a save, too (0.8245)
   _fluidClock += dt;
   updateWaterFlow();
   updateLavaFlow();
@@ -779,6 +781,42 @@ function _isFluidPassable(id) {
   const p = PROPS[id];
   return !!p && p.model === 'cross';
 }
+/* What one layer gives when it is dug off (0.8244: moved out of the mining tick, which now also takes whole stacks). */
+function _dropLayer(L, x, y, z) {
+  if (L === B.SNOW) {
+    // a snow layer never hands back a block — only a shovel packs it into a snowball
+    if (ITEM_PROPS[heldUseId()]?.tool === 'shovel') spawnDrop(ITEM.SNOWBALL, x, y, z);
+  } else if (LEAF_BLOCKS.has(L)) {
+    // leaf litter yields exactly what its leaves yield, never a block of leaves
+    for (const drop of blockDrop(L, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
+  } else if (L === B.GRAVEL) {
+    // a gravel layer gives no gravel, but its flint as often as a gravel block does (0.799)
+    if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, x, y, z);
+  } else if (L === B.SALT_CRUST) {
+    // each salt layer rolls its salt like a whole crust does (0.8097)
+    for (const drop of blockDrop(L, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
+  } else if (L === B.ASH) {
+    if (rollLoot(LOOT.ashLayer)) spawnDrop(ITEM.ASHES, x, y, z);   // an ash carpet: ashes half the time (0.8191)
+  } else if (L === B.FIBER_BLOCK) {
+    // a fiber carpet comes apart into fiber (0.819): LOOT.fiberCarpet
+    for (let i = rollLoot(LOOT.fiberCarpet); i > 0; i--) spawnDrop(ITEM.FIBER, x, y, z);
+  } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, x, y, z);   // a loose sand layer gives nothing (0.786)
+}
+/* A whole stack off at once with a shovel (0.8244). Sand and gravel give their block for every 8 layers (the odd
+   ones as a chance), snow a snowball for every 2; the rest as one layer each. */
+function _dropStackLayers(ids, x, y, z) {
+  const count = new Map();
+  for (const L of ids) count.set(L, (count.get(L) || 0) + 1);
+  for (const [L, k] of count) {
+    if (L === B.SNOW) { for (let i = Math.ceil(k / 2); i > 0; i--) spawnDrop(ITEM.SNOWBALL, x, y, z); continue; }
+    if (LOOSE_LAYER_BLOCKS.has(L) && L !== B.FIBER_BLOCK) {
+      const n = Math.floor(k / LAYER_MAX) + (Math.random() < (k % LAYER_MAX) / LAYER_MAX ? 1 : 0);
+      for (let i = 0; i < n; i++) for (const d of blockDrop(L, false)) for (let j = 0; j < d.count; j++) spawnDrop(d.id, x, y, z);
+      continue;
+    }
+    for (let i = 0; i < k; i++) _dropLayer(L, x, y, z);
+  }
+}
 function _breakBillboard(x, y, z, id) {
   if (!player.canFly)
     for (const d of blockDrop(id, true)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
@@ -791,6 +829,7 @@ const lavaStep = () => LAVA_STEP / tickFactor();
 const lavaDry  = () => LAVA_STEP / (tickFactor() * DRY_SPEEDUP);
 
 function queueLavaAt(x, y, z, delay = lavaStep()) {
+  if (!FLUID_FLOW) return;                              // flow off (0.8245, 00-config.js)
   if ((getBlock(x, y, z) & 255) !== B.LAVA) return;
   const k = `${x},${y},${z}`, t = _fluidClock + delay;
   const prev = _lavaQueue.get(k);
@@ -1139,6 +1178,12 @@ function frame(now) {
   runWorldTick(dt, now);
 }
 
+/* A held torch goes out with your head under water (0.8245): no light, no warmth, and the hand that holds it
+   (24-hands.js, 40-shield.js) is put away until you surface. */
+function torchDoused(p = player) {
+  return !!p && !!p.pos && (getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)) & 255) === B.WATER;
+}
+
 /* ================================================================================================
    PER-PLAYER TICK — input, movement, camera, targeting, mining/placing, vitals, hand.
    Runs once per player per frame with that player's globals installed.
@@ -1159,6 +1204,10 @@ function tickPlayer(dt, now, slot) {
   let str = (kb && keys.KeyD ? 1 : 0) - (kb && keys.KeyA ? 1 : 0) + gp.mx;
   const upHeld = (kb && keys.Space) || gp.up;
   const dnHeld = (kb && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
+  /* Sneak waits for a fresh press after the inventory opens or closes (0.8243): Shift held for a shift-click, or the
+     pad's button held as it shut, does not drop you into a sneak until it has been let go. */
+  const dnRaw = (kbOwner && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
+  if (player._sneakLatch && !dnRaw) player._sneakLatch = false;
   /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
      which is all a one-frame-late cancel needs. */
   if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
@@ -1175,7 +1224,7 @@ function tickPlayer(dt, now, slot) {
   const grounded = onGround();
   const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
   player._inWater = inWater;               // exposed for fall damage + hand animation
-  player.sneaking = !player.flying && !inWater && grounded && dnHeld && !player.dead;
+  player.sneaking = !player.flying && !inWater && grounded && dnHeld && !player.dead && !invOpen && !player._sneakLatch;   // never in the inventory (0.8243)
   /* Sneak and sprint never together, and a sprint only runs forward: backing up or a pure sidestep drops
      it (0.804). Flying keeps its fast move in every direction. */
   if (player.sneaking) player.fast = false;
@@ -1272,7 +1321,7 @@ function tickPlayer(dt, now, slot) {
     let mdx = (str * cos - fwd * sin) * hSpeed * dt, mdz = (-fwd * cos - str * sin) * hSpeed * dt;
     // a strong wind carries a walker along or holds them back (0.81; not while flying or swimming)
     // ...stronger up high, and not indoors or behind a wall (0.812)
-    if (!player.flying && !inWater && (mdx || mdz)) {
+    if (!player.flying && !player.canFly && !inWater && (mdx || mdz)) {   // never in creative (0.8241)
       const wm = windMoveMul(weatherAt(player.pos.x, player.pos.z, player.pos.y), mdx, mdz, windShelter(player));
       mdx *= wm; mdz *= wm;
     }
@@ -1300,7 +1349,8 @@ function tickPlayer(dt, now, slot) {
   }
   /* ...and a strong wind pushes a player who is standing still, too (0.812): not flying, swimming, riding
      or asleep, and not where it is sheltered (windShelter). */
-  if (!player.flying && player.spawned && !menuScene && !joining && !benching && !inWater && !player.riding && !lying && !(fwd || str)) {
+  // ...never a creative player (0.8241)
+  if (!player.flying && !player.canFly && player.spawned && !menuScene && !joining && !benching && !inWater && !player.riding && !lying && !(fwd || str)) {
     const dr = windDrift(player, dt);
     if (dr) {
       // sneaking holds the edge against it, the same catch a sneaking walk gets (0.818)
@@ -1499,8 +1549,13 @@ function tickPlayer(dt, now, slot) {
         // wood and ground dig 1.5x slower than they used to, stone unchanged (14-mining.js, 0.756)
         // one layer comes off quickly: a quarter of the block for a drift, half for a solid layer (0.785)
         const hv = getBlock(hit.x, hit.y, hit.z);
-        const layerMul = CORE.layerCount(hv) ? (PROPS[hit.id].layerStack ? 0.25 : 0.5) : 1;
-        mining.needed = PROPS[hit.id].hardness * layerMul * 0.9 * softBlockMineMul(hit.id) / toolFactor(heldUseId(), hit.id);
+        /* By hand (0.8244): sand, gravel, snow and glass come away at half a flint tool's speed, and a whole sand,
+           gravel or snow block only a layer at a time — each dig is timed as one layer of it. */
+        const hand = !isToolItem(heldUseId()) && HAND_SLOW_BLOCKS.has(hit.id & 255);
+        const byLayer = hand && DIG_BY_LAYER.has(hit.id & 255) && !CORE.layerCount(hv) && !CORE.shapeOfVal(hv);
+        const layerMul = (CORE.layerCount(hv) || byLayer) ? (PROPS[hit.id].layerStack ? 0.25 : 0.5) : 1;
+        mining.needed = PROPS[hit.id].hardness * layerMul * 0.9 * softBlockMineMul(hit.id)
+                      / (hand ? handMineFactor(hit.id) : toolFactor(heldUseId(), hit.id));
         mining.stage = -1;
       }
       mining.elapsed += dt;
@@ -1538,39 +1593,24 @@ function tickPlayer(dt, now, slot) {
         if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
         // the wrong tool for the job (a pickaxe on dirt): double wear below, and no experience
         const wrongTool = isWrongTool(heldUseId(), mval);
-        // natural blocks only; your own placements pay 0 — and a single layer pays nothing (0.785)
-        if (!wrongTool && !CORE.layerCount(mval)) awardBlockXP(mx, my, mz, minedId);
         // tier gate: wrong/too-weak tool still breaks the block but yields no drops
         const dropsOk = mineDropAllowed(heldUseId(), minedId);
-        const inf = chopped ? null : layerBreakInfo(mx, my, mz, mval);   // a layer stack: only its top layer
+        let inf = chopped ? null : layerBreakInfo(mx, my, mz, mval);     // a layer stack: only its top layer
+        // a whole sand, gravel or snow block dug by hand loses one layer, and stands on as a drift (0.8244)
+        if (!chopped && !inf && !isToolItem(heldUseId()) && DIG_BY_LAYER.has(minedId) && !CORE.shapeOfVal(mval))
+          inf = { layerId: minedId, apply: () => setLayerStack(mx, my, mz, new Array(LAYER_MAX - 1).fill(minedId)) };
+        // natural blocks only; your own placements pay 0 — and a single layer pays nothing (0.785)
+        if (!wrongTool && !CORE.layerCount(mval) && !inf) awardBlockXP(mx, my, mz, minedId);
+        // ...and a shovel takes a whole stack at once (0.8244), every layer with its own drop
+        const stack = inf && !chopped && ITEM_PROPS[heldUseId()]?.tool === 'shovel' ? layerIdsAt(mx, my, mz, mval) : null;
         if (chopped) {
           /* felling already did everything */
+        } else if (stack) {
+          setBlock(mx, my, mz, B.AIR);
+          if (dropsOk) _dropStackLayers(stack, mx, my, mz);
         } else if (inf) {
           inf.apply();
-          if (dropsOk) {
-            const L = inf.layerId;
-            if (L === B.SNOW) {
-              // a snow layer never hands back a block — only a shovel packs it into a snowball
-              if (ITEM_PROPS[heldUseId()]?.tool === 'shovel')
-                spawnDrop(ITEM.SNOWBALL, mx, my, mz);
-            } else if (LEAF_BLOCKS.has(L)) {
-              // leaf litter yields exactly what its leaves yield, never a block of leaves
-              for (const drop of blockDrop(L, false))
-                for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-            } else if (L === B.GRAVEL) {
-              // a gravel layer gives no gravel, but its flint as often as a gravel block does (0.799)
-              if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, mx, my, mz);
-            } else if (L === B.SALT_CRUST) {
-              // each salt layer rolls its salt like a whole crust does (0.8097)
-              for (const drop of blockDrop(L, false))
-                for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-            } else if (L === B.ASH) {
-              if (rollLoot(LOOT.ashLayer)) spawnDrop(ITEM.ASHES, mx, my, mz);   // an ash carpet: ashes half the time (0.8191)
-            } else if (L === B.FIBER_BLOCK) {
-              // a fiber carpet comes apart into fiber (0.819): LOOT.fiberCarpet
-              for (let i = rollLoot(LOOT.fiberCarpet); i > 0; i--) spawnDrop(ITEM.FIBER, mx, my, mz);
-            } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, mx, my, mz);   // a loose sand layer gives nothing (0.786)
-          }
+          if (dropsOk) _dropLayer(inf.layerId, mx, my, mz);
         } else {
           setBlock(mx, my, mz, B.AIR);
           queueWaterAround(mx, my, mz);
@@ -1608,8 +1648,9 @@ function tickPlayer(dt, now, slot) {
 
   /* ---- held-block light: a virtual glow source that follows this player ---- */
   {
-    // the brighter of your two hands lights you — a torch in the OFFHAND glows too (0.7451)
-    const lightOf = (i) => i === null ? 0 : i < 256 ? (PROPS[i]?.light ?? 0) : (ITEM_PROPS[i]?.light ?? 0);
+    // the brighter of your two hands lights you — a torch in the OFFHAND glows too (0.7451); not one under water (0.8245)
+    const doused = torchDoused(player);
+    const lightOf = (i) => i === null || (doused && i === B.TORCH) ? 0 : i < 256 ? (PROPS[i]?.light ?? 0) : (ITEM_PROPS[i]?.light ?? 0);
     const mainId = HOTBAR[hotbarSel] ? HOTBAR[hotbarSel].id : null;
     const offId  = typeof offhandItemId === 'function' ? offhandItemId() : null;
     const id   = lightOf(offId) > lightOf(mainId) ? offId : mainId;

@@ -590,11 +590,12 @@ function updateDayNight(dt) {
   _c2.copy(NIGHT_LIGHT).lerp(DAY_LIGHT, dayF).lerp(DUSK_LIGHT, duskF * 0.45);
   if (skyBlood > 0.001) _c2.lerp(BLOOD_LIGHT, skyBlood * (1 - dayF) * 0.7);   // red light under a blood moon (0.8192)
   sharedUniforms.uLightColor.value.copy(_c2);
-  const sunI  = 0.74 * smoothstepJS(0.0, 0.22, sunElev);   // day peak ~0.98 total: no overexposure
+  // 0.8242: 0.048 of the sun moved into the day's ambient below (shadows 15% lighter), so sunlit faces stay as they were
+  const sunI  = 0.692 * smoothstepJS(0.0, 0.22, sunElev);   // day peak ~0.98 total: no overexposure
   // moonlight follows the phase (0.817): a full moon as bright as before, a new moon a fifth of it
   const moonI = 0.12 * (0.2 + 0.8 * lit) * smoothstepJS(0.0, 0.22, moonElev);
   // a moonlit night is lighter all round, by the phase (0.8191): up to +0.08 under a full moon high up
-  sharedUniforms.uAmbient.value = 0.17 + 0.15 * dayF + 0.08 * moonGlow + 0.75 * skyFlash;   // ambient floor: how dark cast shadows get; + a flash
+  sharedUniforms.uAmbient.value = 0.17 + 0.198 * dayF + 0.08 * moonGlow + 0.75 * skyFlash;   // day 0.32 -> 0.368 (0.8242); night unchanged   // ambient floor: how dark cast shadows get; + a flash
   sharedUniforms.uDirect.value  = Math.max(sunI, moonI);
   _skySunO  = Math.min(1, Math.max(0, (sunElev + 0.10) * 8));
   _skyMoonO = Math.min(1, Math.max(0, (moonElev + 0.10) * 8)) * (0.35 + 0.65 * (1 - dayF));   // pale by day

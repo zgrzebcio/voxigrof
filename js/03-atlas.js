@@ -164,7 +164,10 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      // 0.823: warm and cold grass (T 310-319), built below, never fetched
                      ,'grass_block_top_warm', 'grass_block_top_cold', 'grass_block_side_warm', 'grass_block_side_cold'
                      ,'tallgrass_bottom_warm', 'tallgrass_bottom_cold', 'tallgrass_top_warm', 'tallgrass_top_cold'
-                     ,'grass_warm', 'grass_cold'];
+                     ,'grass_warm', 'grass_cold'
+                     // 0.824: lightning-struck sand, the carved pumpkin's face and top, the jack o'lantern's face
+                     ,'glassy_sand', 'carved_pumpkin_front', 'carved_pumpkin_top', 'jack_o_lantern_front'
+                     ,'glassy_red_sand', 'glassy_pink_sand'];   // 0.8241
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)

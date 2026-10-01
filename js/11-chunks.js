@@ -579,8 +579,12 @@ function blockBoxes(x, y, z) {
   { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, true); if (sb) return sb; }
   if (prop.boxesOf) return prop.boxesOf(val);      // variant too wide to index (layered carpet)
   if (prop.boxesByVar) { const b = prop.boxesByVar[(val >> 8) & 255]; if (b) return b; }
+  // loose ground gives underfoot (0.8244): a whole sand, gravel or snow block stops your feet 30% down into it
+  if (SINK_BLOCKS.has(val)) return SINK_BOX;
   return prop.boxes || FULL_BOX;
 }
+const SINK_BOX = [[0, 0, 0, 1, 0.7, 1]];
+const SINK_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.SNOW]);   // by value: whole blocks only
 // raycast / selection / crack box list for the block at (x,y,z) — same corner logic, honouring
 // rayBoxesByVar (doors) where present. Returns falsy for full cubes so callers fall back to 1×1×1.
 function rayBoxesAt(x, y, z) {

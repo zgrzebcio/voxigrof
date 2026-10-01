@@ -261,8 +261,9 @@ function tickStats(dt) {
   /* the bars drain; nausea doubles food's (0.761); cold speeds food and protein, heat thirst and fruit (0.822; chilly,
      cold, warm, hot 0.823) */
   const st = tempStress(p), cold = stressIsCold(st) ? st.mul : 1, hot = st && !stressIsCold(st) ? st.mul : 1;
-  if ((st && st.kind) !== p._stressKind) {                        // it came or went: the Effects list shows it
-    p._stressKind = st && st.kind;
+  const stSig = stateEffects(p).map(s => s.id).join(',');            // ...and sneaking, climbing (0.8243)
+  if (stSig !== p._stressKind) {                                  // it came or went: the Effects list shows it
+    p._stressKind = stSig;
     if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
   }
   drainStat(p, 'food', foodCost * playerHungerMul() * cold);
@@ -277,18 +278,23 @@ function tickStats(dt) {
   }
   _emptyHits(p, dt, 'food', '_starveT', 'starved to death', 'Starving: losing health, eat something');
   _emptyHits(p, dt, 'thirst', '_thirstT', 'died of thirst', 'Dehydrated: losing health, drink something');
-  // cold and hot also hurt (0.823): TEMP_HURT every TEMP_HURT_EVERY_S while they last
+  /* cold and hot also hurt (0.823): a slow drain by how far past the line, less what you resist (0.8243). It shows as
+     a hit each time half an old point (2.5) has gone, like poison, and the feed warns once every 20 s at most. */
   const hurts = st && EFFECT_DEFS[st.kind].hurts;
-  if (hurts) {
-    p._tempHurtT = (p._tempHurtT || 0) + dt;
-    if (p._tempHurtT >= TEMP_HURT_EVERY_S) {
-      p._tempHurtT = 0;
-      p.hp = Math.max(0, p.hp - TEMP_HURT);
-      p._dmgCause = hurts;
-      if (typeof feedCrit === 'function')
-        feedCrit(st.kind === 'cold' ? 'Freezing: losing health, find warmth' : 'Overheating: losing health, find shade or water');
+  if (hurts && st.dps > 0) {
+    const before = p.hp;
+    p.hp = Math.max(0, p.hp - st.dps * dt);
+    p._dmgCause = hurts;
+    p._tempDmgAcc = (p._tempDmgAcc || 0) + (before - p.hp);
+    if (p._tempDmgAcc >= 0.5 * VITAL_K) {
+      if (typeof hurtFlash === 'function') hurtFlash(p._tempDmgAcc / VITAL_K);
+      p._tempDmgAcc = 0;
     }
-  } else p._tempHurtT = 0;
+    if ((p._tempWarnT = (p._tempWarnT || 0) - dt) <= 0 && typeof feedCrit === 'function') {
+      p._tempWarnT = 20;
+      feedCrit(st.kind === 'cold' ? 'Freezing: losing health, find warmth' : 'Overheating: losing health, find shade or water');
+    }
+  } else { p._tempDmgAcc = 0; p._tempWarnT = 0; }
 
   _tickOxygen(dt);
   _tickTemperature(dt);
@@ -336,7 +342,8 @@ const TEMP_SAMPLE_S = 0.5, TEMP_EASE_S = 10, TEMP_EASE_WATER_S = 4;
 const TEMP_MEAN = 11, TEMP_SWING = 13;             // about -2 in mid January, 24 in mid July
 const TEMP_PEAK_DAY = 6.5 * MONTH_DAYS;            // mid July, in days from 1 January
 const TEMP_SNOW = -16, TEMP_HOT = 14;              // deep inside a snow biome, a desert
-const TEMP_DAY_AMP = 5;                            // the day's swing either way; a desert doubles it
+const TEMP_DAY_AMP = 5;                            // the day's swing either way; a desert doubles it by day
+const TEMP_DESERT_NIGHT = 3.5;                     // ...and its night falls 4.5x as far: dry air loses its heat (0.8245)
 const TEMP_LAPSE_FROM = 110, TEMP_LAPSE = 0.12;    // colder by this a block above that height
 const TEMP_CAVE = 12;
 const TEMP_WEATHER = { clear: 0, sunny: 2, cloudy: -1, windy: -1, rainy: -3, darky: -2, storm: -5, foggy: -1.5 };
@@ -344,6 +351,7 @@ const TEMP_WATER = -6, TEMP_ON_FIRE = 25;
 // heat right beside a source, fading with distance, summed over HEAT_R blocks around you
 const HEAT_OF = new Float32Array(256);
 HEAT_OF[B.LAVA] = 30; HEAT_OF[B.FIRE] = 20; HEAT_OF[B.TORCH] = 3;
+HEAT_OF[B.GLOWSTONE] = 2; HEAT_OF[B.GLOWCRYSTAL_BLOCK] = -2;   // a little warm, the blue crystal a little cold (0.8245)
 const FURNACE_HEAT = 12, HEAT_R = 3, HEAT_MAX = 60;
 function _heatNear(x, y, z) {
   let heat = 0;
@@ -356,33 +364,75 @@ function _heatNear(x, y, z) {
       }
   return Math.min(HEAT_MAX, heat);
 }
-function ambientTemp(p) {
-  const x = Math.floor(p.pos.x), z = Math.floor(p.pos.z), y = Math.floor(p.pos.y + 1);
+/* What you hold warms (or cools) you as if it were right beside you (0.8245): a torch, glowstone, the glowcrystal
+   block. The stronger of the two hands counts, and a torch under water is out (torchDoused, 22-main-loop.js). */
+function _heldHeat(p) {
+  const ids = [HOTBAR[hotbarSel]?.id, typeof offhandItemId === 'function' ? offhandItemId() : null];
+  let h = 0;
+  for (const id of ids) {
+    if (id == null || id >= 256 || !HEAT_OF[id]) continue;
+    if (id === B.TORCH && typeof torchDoused === 'function' && torchDoused(p)) continue;
+    if (Math.abs(HEAT_OF[id]) > Math.abs(h)) h = HEAT_OF[id];
+  }
+  return h;
+}
+/* The air at a place, °C (0.8244, out of ambientTemp so snow melt reads it too): season, biome, hour, weather and
+   wind (`open` = how much sky is over it), and height. Height, since 0.8244: above the snowline the air is 0°C or
+   colder, so its snow keeps; anywhere under it (a bare mountain too) height alone never takes it below
+   TEMP_BARE_MIN, so snow up there can melt. `c` is the climate sample (for the caller's cave test). */
+const TEMP_BARE_MIN = 5.5;
+function airTempAt(x, y, z, open = 1) {
   const d = gameDate(), dayFrac = worldTime - Math.floor(worldTime);
   const doy = d.month * MONTH_DAYS + d.day - 1 + dayFrac;
   let t = TEMP_MEAN + TEMP_SWING * Math.cos(2 * Math.PI * (doy - TEMP_PEAK_DAY) / (12 * MONTH_DAYS));
   const c = mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : { snow: 0, hot: 0, h: y };
   t += c.air != null ? c.air : TEMP_SNOW * c.snow + TEMP_HOT * c.hot;   // a ladder world: its level's air (0.8232, 55-biomes.js)
-  const open = getSkyWorld(x, Math.floor(p.pos.y + p.EYE), z) / 15;   // how much sky is over you
-  const w = weatherAt(p.pos.x, p.pos.z, p.pos.y);
+  const w = weatherAt(x + 0.5, z + 0.5, y);
   const overcast = !(w.type === 'clear' || w.type === 'sunny' || w.type === 'windy');
   const hour = (6 + dayFrac * 24) % 24;
-  t += TEMP_DAY_AMP * (1 + c.hot) * (overcast ? 0.5 : 1) * (0.4 + 0.6 * open) * Math.cos(2 * Math.PI * (hour - 15) / 24);
+  /* A desert's night is cold (0.8245): about 0°C in spring, 15°C in July, -10°C in January at the coldest hour
+     (03:00) under a clear sky. Its day stays as it was. */
+  const cyc = Math.cos(2 * Math.PI * (hour - 15) / 24);
+  t += TEMP_DAY_AMP * (1 + c.hot * (cyc < 0 ? TEMP_DESERT_NIGHT : 1)) * (overcast ? 0.5 : 1) * (0.4 + 0.6 * open) * cyc;
   t += ((TEMP_WEATHER[w.type] || 0) - Math.max(0, w.speed - 10) * 0.1) * open;   // wind chill past 10 km/h
-  t -= Math.max(0, y - TEMP_LAPSE_FROM) * TEMP_LAPSE;
+  const high = t - Math.max(0, y - TEMP_LAPSE_FROM) * TEMP_LAPSE;
+  if (typeof snowlineY === 'function' && y >= snowlineY(x, z)) t = Math.min(high, 0);
+  else t = Math.max(high, Math.min(t, TEMP_BARE_MIN));
+  return { t, c };
+}
+function ambientTemp(p) {
+  const x = Math.floor(p.pos.x), z = Math.floor(p.pos.z), y = Math.floor(p.pos.y + 1);
+  const open = getSkyWorld(x, Math.floor(p.pos.y + p.EYE), z) / 15;   // how much sky is over you
+  const a = airTempAt(x, y, z, open), c = a.c;
+  let t = a.t;
   const deep = Math.max(0, Math.min(1, (c.h - y - 2) / 12)) * (1 - open);
   t += (TEMP_CAVE - t) * deep;
   if (p._inWater) t += TEMP_WATER;
-  t += _heatNear(x, Math.floor(p.pos.y), z);
+  t += Math.min(HEAT_MAX, _heatNear(x, Math.floor(p.pos.y), z) + _heldHeat(p));
   if (p.fireT > 0) t += TEMP_ON_FIRE;
   return Math.max(-50, Math.min(90, t));
+}
+/* How fast the body follows the air (0.8245). A big gap closes faster: the ease time is cut by 1 + gap /
+   TEMP_EASE_BIG (a 15° jump twice as fast, 30° three times). Resistance slows the turn toward its side: cold
+   resistance while you cool toward cold air (under TEMP_COMFORT), heat resistance while you warm toward hot air,
+   by 1 + res x TEMP_RESIST_EASE (30% resistance: 1.6x slower; cloth's negative cold resistance speeds it). */
+const TEMP_EASE_BIG = 15, TEMP_COMFORT = 20, TEMP_RESIST_EASE = 2;
+function _tempEaseMul(p) {
+  const gap = p._tempAim - p.temp;
+  const res = gap < 0 && p._tempAim < TEMP_COMFORT ? tempResist(true)
+            : gap > 0 && p._tempAim > TEMP_COMFORT ? tempResist(false) : 0;
+  return Math.max(0.5, 1 + res * TEMP_RESIST_EASE) / (1 + Math.abs(gap) / TEMP_EASE_BIG);
 }
 function _tickTemperature(dt) {
   const p = player;
   p._tempT = (p._tempT || 0) - dt;
-  if (p._tempT <= 0 || p._tempAim == null) { p._tempT = TEMP_SAMPLE_S; p._tempAim = ambientTemp(p); }
-  if (typeof p.temp !== 'number') p.temp = p._tempAim;
-  p.temp += (p._tempAim - p.temp) * (1 - Math.exp(-dt / (p._inWater ? TEMP_EASE_WATER_S : TEMP_EASE_S)));
+  if (p._tempT <= 0 || p._tempAim == null || typeof p.temp !== 'number') {
+    p._tempT = TEMP_SAMPLE_S; p._tempAim = ambientTemp(p);
+    if (typeof p.temp !== 'number') p.temp = p._tempAim;
+    p._tempEase = _tempEaseMul(p);
+  }
+  const ease = (p._inWater ? TEMP_EASE_WATER_S : TEMP_EASE_S) * (p._tempEase || 1);
+  p.temp += (p._tempAim - p.temp) * (1 - Math.exp(-dt / ease));
 }
 
 /* ---- drinking ----
@@ -505,8 +555,8 @@ const STAT_TIPS = {
   'move speed':      'How fast you walk. Heavy armor slows you down; some food effects speed you up.',
   'strength':        'Bonus damage added to every hit you land.',
   'attack speed':    'How quickly you can swing again. Above 100% the wait between swings is shorter.',
-  'cold resistance': 'How much cold you shrug off. Nothing in the world is cold enough to hurt yet.',
-  'heat resistance': 'How much heat you shrug off. Nothing in the world is hot enough to hurt yet.',
+  'cold resistance': 'How much of the cold you shrug off: you cool down more slowly in cold air, and it takes its share off the faster food and protein drain of being chilly or cold, and off the health the cold costs. Below 0% the cold bites harder.',
+  'heat resistance': 'How much of the heat you shrug off: you heat up more slowly in hot air, and it takes its share off the faster thirst and fruit drain of being warm or hot, and off the health the heat costs. Below 0% the heat bites harder.',
   'jump strength':   'How high you jump. Standing in snow lowers it.',
   'crafting speed':  'How fast your crafting runs. 200% crafts twice as fast; at 0% you cannot craft at all.',
   'toughness':       'How well you stand your ground. It takes that much off every knockback; at 100% nothing moves you.',
@@ -530,11 +580,10 @@ const PLAYER_EFFECTS = [];
    the home for genuine TIMED effects; nothing produces one yet. */
 function activeEffects() {
   const out = [];
-  // cold or hot (0.822) first: it lasts as long as the temperature does
-  const st = tempStress();
-  if (st) {
-    const d = EFFECT_DEFS[st.kind];
-    out.push({ name: d.name, time: Infinity, good: false, desc: _stressDesc(st), lasts: d.lasts });
+  // cold or hot (0.822) first, then sneaking and climbing (0.8243): they last as long as the state does
+  for (const s of stateEffects()) {
+    const d = EFFECT_DEFS[s.id];
+    out.push({ name: d.name, time: Infinity, good: d.good, desc: s.desc || d.desc, lasts: d.lasts });
   }
   const b = armorSetBonus();
   if (b) out.push({ name: b.name, time: Infinity, good: b.good, desc: b.desc });
@@ -569,30 +618,56 @@ const EFFECT_DEFS = {
   cold:         { name: 'Cold',   good: false, icon: '🥶', lasts: 'Lasts while you are colder than -5°C', hurts: 'froze to death' },
   warm:         { name: 'Warm',   good: false, icon: '☀️', lasts: 'Lasts while you are warmer than 30°C' },
   hot:          { name: 'Hot',    good: false, icon: '🥵', lasts: 'Lasts while you are warmer than 45°C', hurts: 'died of the heat' },
+  /* what you are doing (0.8243): shown while it lasts, like the temperature (stateEffects) */
+  sneaking:     { name: 'Sneaking', good: true, icon: '🐾', lasts: 'Lasts while you sneak',
+                  desc: "You do not step off an edge, and your stamina comes back 20% faster." },
+  climbing:     { name: 'Climbing', good: false, icon: '🧗', lasts: 'Lasts while you climb a wall',
+                  desc: `Climbing a bare wall costs ${STAMINA_CLIMB_PER_S} stamina a second, and energy with it. Run dry and you let go until it is back to ${STAMINA_BACK}.` },
 };
+// the effects of what you are doing right now (0.8243), as [{ id, desc? }]: the temperature, sneaking, climbing
+function stateEffects(p = player) {
+  const out = [];
+  if (p.canFly || p.dead) return out;
+  const st = tempStress(p);
+  if (st) out.push({ id: st.kind, desc: _stressDesc(st), label: Math.round(p.temp) + '°' });
+  if (p.sneaking) out.push({ id: 'sneaking' });
+  if (p._wallClimbing) out.push({ id: 'climbing' });
+  return out;
+}
 /* The body's temperature (player.temp, °C) against four lines (0.823):
      under 10 chilly, under -5 cold: food and protein drain faster
      over 30 warm,    over 45 hot:   thirst and fruit drain faster
    Chilly and warm run from 1x at their line to TEMP_MILD_MAX at the next; cold and hot from there on up to
-   TEMP_HARSH_MAX TEMP_HARSH_SPAN degrees further, and also take TEMP_HURT health every TEMP_HURT_EVERY_S. */
+   TEMP_HARSH_MAX TEMP_HARSH_SPAN degrees further, and also drain health (TEMP_HURT_DPS..., 0.8243). Resistance cuts both. */
 const TEMP_CHILLY_AT = 10, TEMP_COLD_AT = -5, TEMP_WARM_AT = 30, TEMP_HOT_AT = 45;
 const TEMP_MILD_MAX = 1.5, TEMP_HARSH_MAX = 2.5, TEMP_HARSH_SPAN = 20;
-const TEMP_HURT = 5, TEMP_HURT_EVERY_S = 6;
+/* Cold and hot take health as a slow drain by how far past their line you are (0.8243; 5 every 6 s flat before):
+   TEMP_HURT_DPS at the line, TEMP_HURT_DPS_PER_DEG more each degree on, up to TEMP_HURT_DPS_MAX — a second. */
+const TEMP_HURT_DPS = 0.3, TEMP_HURT_DPS_PER_DEG = 0.04, TEMP_HURT_DPS_MAX = 1.5;
+/* Resistance (0.8243): cold resistance takes its share off everything the cold does — the faster drain and the
+   health it costs — and heat resistance off the heat's. Negative resistance (leather in the heat, cloth in the
+   cold) adds to it. `res` is -1..1. */
+const tempResist = (cold) => Math.min(1, Math.max(-1, _resSum(cold ? 'coldResist' : 'heatResist')));
 function tempStress(p = player) {
   const t = p.temp;
   if (typeof t !== 'number' || p.canFly || p.dead) return null;
   const mild = (past, span) => 1 + Math.min(1, past / span) * (TEMP_MILD_MAX - 1);
   const harsh = (past) => TEMP_MILD_MAX + Math.min(1, past / TEMP_HARSH_SPAN) * (TEMP_HARSH_MAX - TEMP_MILD_MAX);
-  if (t < TEMP_COLD_AT) return { kind: 'cold', mul: harsh(TEMP_COLD_AT - t) };
-  if (t < TEMP_CHILLY_AT) return { kind: 'chilly', mul: mild(TEMP_CHILLY_AT - t, TEMP_CHILLY_AT - TEMP_COLD_AT) };
-  if (t > TEMP_HOT_AT) return { kind: 'hot', mul: harsh(t - TEMP_HOT_AT) };
-  if (t > TEMP_WARM_AT) return { kind: 'warm', mul: mild(t - TEMP_WARM_AT, TEMP_HOT_AT - TEMP_WARM_AT) };
-  return null;
+  let st = null;
+  if (t < TEMP_COLD_AT) st = { kind: 'cold', mul: harsh(TEMP_COLD_AT - t), past: TEMP_COLD_AT - t };
+  else if (t < TEMP_CHILLY_AT) st = { kind: 'chilly', mul: mild(TEMP_CHILLY_AT - t, TEMP_CHILLY_AT - TEMP_COLD_AT) };
+  else if (t > TEMP_HOT_AT) st = { kind: 'hot', mul: harsh(t - TEMP_HOT_AT), past: t - TEMP_HOT_AT };
+  else if (t > TEMP_WARM_AT) st = { kind: 'warm', mul: mild(t - TEMP_WARM_AT, TEMP_HOT_AT - TEMP_WARM_AT) };
+  if (!st) return null;
+  st.res = tempResist(stressIsCold(st));
+  st.mul = 1 + (st.mul - 1) * (1 - st.res);
+  st.dps = st.past != null ? Math.min(TEMP_HURT_DPS_MAX, TEMP_HURT_DPS + st.past * TEMP_HURT_DPS_PER_DEG) * (1 - st.res) : 0;
+  return st;
 }
 const stressIsCold = (st) => !!st && (st.kind === 'chilly' || st.kind === 'cold');
 const _stressDesc = (st) => (stressIsCold(st) ? 'Food and protein' : 'Thirst and fruit') +
-  ` drain ${Math.round((st.mul - 1) * 100)}% faster` + (EFFECT_DEFS[st.kind].hurts ? `, and you lose ${TEMP_HURT} health every ${TEMP_HURT_EVERY_S} s` : '') +
-  ` (${Math.round(player.temp)}°C).`;
+  ` drain ${Math.round((st.mul - 1) * 100)}% faster` + (st.dps > 0 ? `, and you lose ${st.dps.toFixed(1)} health a second` : '') +
+  ` (${Math.round(player.temp)}°C` + (st.res ? `, ${Math.round(st.res * 100)}% resisted` : '') + ').';
 // sum of one numeric field over this player's running effects (0.761)
 const _effectSum = (field) => (player.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.[field] || 0), 0);
 const playerHasEffect = (field) => (player.effects || []).some(e => EFFECT_DEFS[e.id]?.[field]);
@@ -649,9 +724,8 @@ function syncEffectBar() {
   if (typeof hotbarEl === 'undefined' || !hotbarEl) return;
   const t = (s) => s >= 60 ? Math.ceil(s / 60) + 'm' : Math.ceil(s) + 's';
   const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id, label: t(e.left) }));
-  // cold or hot (0.822) first, showing the temperature instead of a clock
-  const st = tempStress();
-  if (st) list.unshift({ id: st.kind, label: Math.round(player.temp) + '°' });
+  // cold or hot (0.822) first, showing the temperature instead of a clock; sneaking and climbing too (0.8243)
+  list.unshift(...stateEffects().map(s => ({ id: s.id, label: s.label || '' })));
   let bar = hotbarEl.querySelector(':scope > .effBar');
   if (!list.length) { if (bar) bar.remove(); return; }
   const chisel = !!hotbarEl.querySelector(':scope > .chiselSlot');   // it sits after the chisel's slot, if that is out

@@ -3,7 +3,12 @@
  "files": [
   "supply_crate.json",
   "village_house.json",
+  "village_house2.json",
+  "village_big_house.json",
   "village_well.json",
+  "desert_village_house1.json",
+  "desert_village_big_house.json",
+  "desert_village_well.json",
   "dungeon_room.json",
   "dungeon_cell.json"
  ],
@@ -18,13 +23,18 @@
    "minY": 100,
    "maxY": 140,
    "count": [
-    3,
-    6
+    4,
+    7
    ],
-   "radius": 24,
+   "radius": 28,
    "spacing": 3,
    "path": 19,
-   "_doc": "count = buildings per village, radius = how far they scatter from the centre, spacing = minimum gap between footprints, path = the block paths are paved with."
+   "pathWidth": [
+    2,
+    3
+   ],
+   "_doc": "count = houses per village (at least 4; members with a door or a doorway are houses), plus a well for every 4 houses (members without one; the first in the middle), radius = how far they scatter from the centre, spacing = minimum gap between footprints, path = the block paths are paved with, pathWidth = [min, max] path width 1-3, apart = no other village (of any group) closer than this many blocks.",
+   "apart": 640
   },
   "catacomb": {
    "type": "dungeon",
@@ -37,7 +47,33 @@
    ],
    "corridor": 2,
    "spread": 22,
-   "_doc": "rooms = how many chambers, corridor = gap between rooms that the tunnel spans, spread = radius of chunks the dungeon claims."
+   "_doc": "rooms = how many chambers, corridor = gap between rooms that the tunnel spans, spread = radius of chunks the dungeon claims.",
+   "apart": 512
+  },
+  "desert_village": {
+   "type": "village",
+   "chance": 0.0015,
+   "biomes": [
+    "Desert"
+   ],
+   "minY": 95,
+   "maxY": 140,
+   "count": [
+    4,
+    7
+   ],
+   "radius": 28,
+   "spacing": 3,
+   "path": 1,
+   "pathWidth": [
+    2,
+    3
+   ],
+   "_doc": "The desert village (0.82422): same rules as the village, its paths grass (path 1). replace = block swaps for what it builds and its foundations (dirt -> sand). Members: prefabs with group desert_village.",
+   "apart": 640,
+   "replace": {
+    "2": 7
+   }
   }
  }
 }

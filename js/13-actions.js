@@ -93,7 +93,8 @@ const CREATIVE_ORDER = [
   B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,   // 0.8143
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
-  B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,   // pink sand 0.822
+  B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
+  B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
   B.GLASS, B.GLOWSTONE, B.WOOL,
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
@@ -106,7 +107,7 @@ const CREATIVE_ORDER = [
   B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.OBSIDIAN,
   B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
   B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
-  B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091
+  B.MELON, B.PUMPKIN, B.CARVED_PUMPKIN, B.JACK_O_LANTERN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091, carved 0.824
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
@@ -227,6 +228,38 @@ function spendHeld(reason = 'used') {
   saveHotbar(); updateHotbar(); buildHotbar();
 }
 
+/* Carving (0.824): shears right-clicked on a pumpkin carve a face in it, turned toward you, for one point of wear;
+   a torch right-clicked on a carved pumpkin goes inside and lights it. The crosshair passes over gourds (noTarget),
+   so holding shears or a torch makes it stop on the one it can work (carveTargets, raycastVoxel in 12-player.js). */
+function carveTargets(id) {
+  const held = heldUseId();
+  if (held == null) return false;
+  if (id === B.PUMPKIN) return held >= 256 && ITEM_PROPS[held]?.tool === 'shears';
+  if (id === B.CARVED_PUMPKIN) return held === B.TORCH;
+  return false;
+}
+function tryCarvePumpkin(hit) {
+  if (!hit || !carveTargets(hit.id)) return false;
+  const { x, y, z } = hit;
+  if (hit.id === B.PUMPKIN) {
+    // the face toward you, the way a rot:'side' block is placed
+    const ddx = player.pos.x - (x + 0.5), ddz = player.pos.z - (z + 0.5);
+    const facing = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
+    setBlock(x, y, z, B.CARVED_PUMPKIN | (facing << 8));
+    playBlockSound(B.PUMPKIN, 'break', x, y, z);
+    const slot = HOTBAR[hotbarSel];
+    if (!player.canFly && slot && slot.dur != null) {
+      if (wearSlot(slot) === 'gone') HOTBAR[hotbarSel] = null;
+      saveHotbar(); buildHotbar(); updateHotbar();
+    }
+  } else {
+    setBlock(x, y, z, B.JACK_O_LANTERN | (getBlock(x, y, z) & 0xFF00));   // keeps its facing
+    playBlockSound(B.TORCH, 'place', x, y, z);
+    spendHeld('used');
+  }
+  return true;
+}
+
 /* Blocks a placement simply overwrites, the way air does. Only the grass billboards qualify —
    flowers, saplings and torches are deliberate placements and must not be silently destroyed. */
 const PLANT_REPLACE = [B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER];
@@ -319,6 +352,8 @@ BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
 BUSH_NAME[B.CANTALOUPE] = 'cantaloupe';   // 0.8091
+BUSH_NAME[B.CARVED_PUMPKIN] = 'carved pumpkin';   // 0.824
+BUSH_NAME[B.JACK_O_LANTERN] = "jack o'lantern";
 // flowers and mushrooms are foraged too (0.819): picked whole, straight into the bag
 const FORAGE_WHOLE = new Set([B.POPPY, B.ORCHID, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM,
                               B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM]);   // yellow 0.821
@@ -451,7 +486,7 @@ function harvestAtPlayer() {
   }
   /* Gourds: picked up whole, and they hand over exactly what breaking them used to (0.7343) —
      a melon comes apart into slices, a pumpkin comes away as itself. */
-  if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE) {   // cantaloupe 0.8091
+  if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE || id === B.CARVED_PUMPKIN || id === B.JACK_O_LANTERN) {   // cantaloupe 0.8091, carved 0.824
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(id, 'break', x, t.y, z);
     for (const d of blockDrop(id, true))
@@ -663,6 +698,8 @@ function _doPlace() {
   if (slotId(HOTBAR[hotbarSel]) === ITEM.BUCKET) { useBucket(ITEM.BUCKET, null); return; }
   const hit = currentRay();
   if (!hit) return;
+  // shears carve a pumpkin, a torch lights a carved one (0.824)
+  if (tryCarvePumpkin(hit)) { handPlaceSwing = true; return; }
   // survival: right-clicking a crafting bench opens the advanced recipe list instead of placing
   // a bench with an order on it opens on a TAP instead, so holding the button can cancel the order (0.76)
   // ...and a mortar and pestle works the same way with its own list (0.771)

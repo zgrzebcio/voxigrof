@@ -156,6 +156,10 @@ const ARMOR_SET_BONUS = {
      actually for. It is a multiplier on the penalty, not on your speed. */
   leather: { name: 'Slowness resistance',  terrainDrag: 0.30, good: true,
              desc: 'Full set: leaf and snow slowdown 30% weaker' },
+  /* Cloth (0.824): 40% less from sandstorms and heatstroke. Held here for the 0.825 weather that deals them; nothing
+     reads it yet. */
+  cloth:   { name: 'Weather resistance', sandstormResist: 0.40, heatstrokeResist: 0.40, good: true,
+             desc: 'Full set: 40% resistance to sandstorms and heatstroke' },
 };
 // the material every body piece shares, or null if the set is incomplete or mismatched
 function playerArmorSet() {

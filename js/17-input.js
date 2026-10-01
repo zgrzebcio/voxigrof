@@ -224,6 +224,18 @@ document.addEventListener('mousemove', (e) => {
   player.pitch -= e.movementY * 0.0022 * sens;
   player.pitch = Math.max(-1.5697, Math.min(1.5697, player.pitch));
 });
+/* Typing in a text field (the structure block's name, 0.82421) is for the field only: the game's keys (E closes the
+   inventory, Q, K, R, digits...) never see it. Escape and Enter still get through (to close, and to the fields' own
+   Enter handlers). Runs first (capture). */
+window.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (e.code !== 'Escape' && e.code !== 'Enter' && e.code !== 'NumpadEnter' && t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && /^(text|search|number|)$/i.test(t.type || ''))))
+    e.stopImmediatePropagation();
+}, true);
+window.addEventListener('keyup', (e) => {
+  const t = e.target;
+  if (e.code !== 'Escape' && t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) e.stopImmediatePropagation();
+}, true);
 document.addEventListener('keydown', (e) => {
   /* Rebinding a seat: the keypress IS the answer, so it never reaches the game. Escape cancels
      rather than binding — nobody means "my input device is the escape key". */
@@ -459,6 +471,8 @@ function invGamepad(g, dt, btn, edge) {
     else if (!(typeof tryRepairDrop === 'function' && tryRepairDrop(invCursor.x, invCursor.y))) cancelDrag();   // repair (0.79)
   }
   if (edge(3) && hov) instantTransfer(hov.region, hov.i);       // Y = quick-move
+  // R3: the middle-click twin (0.8241) — sorts the grid under the cursor; in creative, lays the palette out afresh
+  if (edge(11) && hov && !dragHeld) sortRegion(hov.region);
   // D-pad Left / Right: the inventory's tabs (Equipment, Skill tree, the station) (0.8031)
   if (edge(14) && typeof cycleInvTab === 'function') cycleInvTab(-1);
   if (edge(15) && typeof cycleInvTab === 'function') cycleInvTab(1);

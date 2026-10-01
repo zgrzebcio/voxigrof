@@ -68,12 +68,18 @@ function sHash(a, b, c, d) {
 
 /* ================================== weather ================================== */
 const WEATHER_TYPES = ['clear', 'sunny', 'cloudy', 'windy', 'rainy', 'darky', 'storm', 'foggy'];
-const WEATHER_WEIGHT = { clear: 30, sunny: 15, cloudy: 15, windy: 10, rainy: 12, darky: 7, storm: 5, foggy: 6 };
-// how the season tilts the odds (spring, summer, autumn, winter)
-const WEATHER_SEASON = {
-  sunny: [1, 2, 0.7, 0.5], rainy: [1.3, 0.7, 1, 1.3], cloudy: [1, 0.8, 1.2, 1.5],
-  foggy: [1, 0.5, 2, 1.2], windy: [1, 0.8, 1.5, 1.2], storm: [1, 1.3, 1, 0.8],
-};
+/* The weather by season (0.8241): fair skies — clear, sunny, cloudy — are the usual thing all year, and every other
+   weather is rare, each season leaning its own way. Spring: rain, fog and dark skies. Summer: sun above all, then
+   storms (thunder), rain and strong wind (a sandstorm in a desert). Autumn: rain, dark skies, storms (the most hail,
+   HAIL_BY_SEASON), wind and fog. Winter: cloud, and rain that falls as snow (weatherName). Heatstroke comes in 0.825.
+   Each row is out of 100, in WEATHER_TYPES order. */
+const WEATHER_BY_SEASON = [
+  //  clear sunny cloudy windy rainy darky storm foggy
+  [    24,   18,   26,    3,   10,    7,    2,   10 ],   // spring
+  [    24,   40,   14,    5,    6,    2,    8,    1 ],   // summer
+  [    20,   12,   28,    6,   12,    9,    6,    7 ],   // autumn
+  [    22,   10,   36,    4,   16,    5,    1,    6 ],   // winter
+];
 /* Wind speed range per weather, km/h (scaled down in 0.8121): under 10 is a light breeze, about 30 an ordinary
    windy day, past 60 very strong — only a storm (or a storm high over the sea) gets there. */
 const WIND_RANGE = { clear: [5, 15], sunny: [0, 8], cloudy: [8, 20], windy: [25, 42], rainy: [12, 30],
@@ -106,8 +112,8 @@ const _titleCalm = () => typeof menuScene !== 'undefined' && menuScene;
 function _pickWeather(rx, rz, start) {
   if (_titleCalm()) return 'clear';
   const season = gameDate(start / 24).season, kind = regionKind(rx, rz);
-  const w = WEATHER_TYPES.map(t => {
-    let v = WEATHER_WEIGHT[t] * ((WEATHER_SEASON[t] || [1, 1, 1, 1])[season]);
+  const w = WEATHER_TYPES.map((t, i) => {
+    let v = WEATHER_BY_SEASON[season][i];
     if (kind === 'warm') v *= { sunny: 3, rainy: 0.2, windy: 1.5, foggy: 0.2, cloudy: 0.6 }[t] || 1;
     if (kind === 'snow') v *= { sunny: 0.5, rainy: 1.3 }[t] || 1;
     return v;
@@ -117,8 +123,9 @@ function _pickWeather(rx, rz, start) {
   return 'clear';
 }
 // what a weather is called where it falls: rain is snow in a snow biome, strong wind is a sandstorm in a desert
-function weatherName(type, kind) {
-  if (type === 'rainy' && kind === 'snow') return 'snowy';
+// ...and in winter rain is snow anywhere but a desert (0.8241; `season` 0-3, the weather's own)
+function weatherName(type, kind, season = -1) {
+  if (type === 'rainy' && (kind === 'snow' || (season === 3 && kind !== 'warm'))) return 'snowy';
   if (type === 'windy' && kind === 'warm') return 'sandstorm';
   return type;
 }
@@ -137,7 +144,8 @@ function _regionWeather(rx, rz, H) {
   const speed = Math.max(0, base * (0.85 + 0.15 * Math.sin(H * 2.1 + rx) + 0.1 * Math.sin(H * 5.3 + rz)))
               * (kind === 'ocean' ? OCEAN_WIND : 1);
   const dir = ((sHash(rx, rz, Math.floor(H / 24), 11) * 360 + 40 * Math.sin(H * 0.3 + rz)) % 360 + 360) % 360;
-  return { type, kind, next, nextIn: next ? Math.max(0, Math.ceil(s.end - H)) : null, speed, dir };
+  const season = gameDate(s.start / 24).season;            // for its name (0.8241)
+  return { type, kind, season, next, nextIn: next ? Math.max(0, Math.ceil(s.end - H)) : null, speed, dir };
 }
 const _smooth = (t) => t * t * (3 - 2 * t);
 /* BLENDED between regions (0.813). A position takes the four region centres around it, weighted by how near
@@ -164,7 +172,7 @@ function weatherAt(x, z, y = null, aheadH = 0) {
   for (const t in mix) if (mix[t] > best) { best = mix[t]; type = t; }
   // direction from the blended vector; where the winds cancel out, the leading region's
   const dir = Math.hypot(vx, vz) > 0.5 ? ((Math.atan2(vx, -vz) * 180 / Math.PI) + 360) % 360 : lead.dir;
-  return { type, name: weatherName(type, lead.kind), mix, next: lead.next, nextName: lead.next && weatherName(lead.next, lead.kind),
+  return { type, name: weatherName(type, lead.kind, lead.season), mix, next: lead.next, nextName: lead.next && weatherName(lead.next, lead.kind, lead.season),
            nextIn: lead.nextIn, speed: spd + (y == null ? 0 : windHeightBonus(y)), dir };
 }
 // the wind as a unit vector in the world (x east, z south): heading 0 is north (-z)
@@ -256,9 +264,10 @@ function mistAt(x, z) {
   return { dense, light, bow };
 }
 
-/* HAIL (0.819): about a third of storms bring hail, rolled once per storm like the rest of the weather. The share
-   at a position, blended between region centres like weatherAt; 53-storms.js does the rest. */
-const HAIL_CHANCE = 0.35;
+/* HAIL (0.819): some storms bring hail, rolled once per storm like the rest of the weather. The share at a position,
+   blended between region centres like weatherAt; 53-storms.js does the rest. How many by season (0.8241, a flat 35%
+   before): autumn's storms most, winter's none — its storms are snow. */
+const HAIL_BY_SEASON = [0.3, 0.2, 0.6, 0];
 function hailAt(x, z) {
   if (_titleCalm()) return 0;
   const H = worldClockDays() * 24;
@@ -268,7 +277,8 @@ function hailAt(x, z) {
   for (const [di, dj, wgt] of [[0, 0, (1 - fu) * (1 - fv)], [1, 0, fu * (1 - fv)], [0, 1, (1 - fu) * fv], [1, 1, fu * fv]]) {
     if (wgt <= 0) continue;
     const rx = i0 + di, rz = j0 + dj, s = _weatherStretch(rx, rz, H);
-    if (_pickWeather(rx, rz, s.start) === 'storm' && sHash(rx, rz, Math.floor(s.start), 51) < HAIL_CHANCE) hail += wgt;
+    if (_pickWeather(rx, rz, s.start) === 'storm'
+        && sHash(rx, rz, Math.floor(s.start), 51) < HAIL_BY_SEASON[gameDate(s.start / 24).season]) hail += wgt;
   }
   return hail;
 }
@@ -281,7 +291,18 @@ const SNOWLINE_SUMMER = 176, SNOWLINE_WINTER = 134;
 function snowlineY(x, z) {
   const s = typeof sunDeclination === 'function' ? sunDeclination() / SUN_DECL_MAX : 1;   // -1 midwinter .. 1 midsummer
   return SNOWLINE_WINTER + (SNOWLINE_SUMMER - SNOWLINE_WINTER) * (s + 1) / 2
-       + 2 * Math.sin(x * 0.11 + z * 0.07) + 1.5 * Math.sin(z * 0.13 - x * 0.05);
+       + 2 * Math.sin(x * 0.11 + z * 0.07) + 1.5 * Math.sin(z * 0.13 - x * 0.05) + _snowBareLift(x, z);
+}
+/* Bare mountains (0.8241): about one in ten keeps no snow. A slow patchwork of the world's own (corners of a 384-block
+   grid, 8.5% of them bare, eased between: about a tenth of the land) lifts the snowline out of reach there, so the snow draws back up the
+   slopes over a few hundred blocks instead of stopping at a line. */
+const SNOW_BARE_CELL = 384, SNOW_BARE_SHARE = 0.085, SNOW_BARE_LIFT = 90;
+function _snowBareLift(x, z) {
+  const u = x / SNOW_BARE_CELL, v = z / SNOW_BARE_CELL, i = Math.floor(u), j = Math.floor(v);
+  const fu = _smooth(u - i), fv = _smooth(v - j);
+  const bare = (a, b) => (sHash(a, b, 0, 377) < SNOW_BARE_SHARE ? 1 : 0);
+  const n = (bare(i, j) * (1 - fu) + bare(i + 1, j) * fu) * (1 - fv) + (bare(i, j + 1) * (1 - fu) + bare(i + 1, j + 1) * fu) * fv;
+  return n > 0 ? SNOW_BARE_LIFT * _smooth(Math.min(1, n * 2)) : 0;
 }
 // one chunk's columns: a snow cover on open ground above the snowline, deeper the higher it is
 function _snowlineChunk(c) {

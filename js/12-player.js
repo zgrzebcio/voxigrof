@@ -317,7 +317,8 @@ function raycastVoxel(origin, dir, maxDist) {
        aiming at. In creative the ray does stop on them (see _plantsTargetable). */
     // ...and a held hoe stops on GRASS too, so it can be aimed at a field to cut it (0.757)
     if (b !== 0 && prop.raycast && (!prop.noTarget || _plantsTargetable() ||
-        (typeof hoeTargetsPlant === 'function' && hoeTargetsPlant(id)))) {
+        (typeof hoeTargetsPlant === 'function' && hoeTargetsPlant(id)) ||
+        (typeof carveTargets === 'function' && carveTargets(id)))) {   // shears at a pumpkin, a torch at a carved one (0.824)
       const boxes = rayBoxesAt(x, y, z);                     // neighbour-aware (stair corners) box list
       if (!boxes) return { x, y, z, nx, ny, nz, id, t: tEnter };   // full cube: cell hit is the face hit
       let best = null, bestI = 0;                            // slab etc: refine against sub-boxes

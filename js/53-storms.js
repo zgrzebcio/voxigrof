@@ -144,6 +144,17 @@ function _strikeTop(x, z) {
   }
   return -1;
 }
+/* Sand that lightning strikes fuses into glassy sand (0.824): the whole sand block it hit and a root of 1-3 more
+   straight under it. Each sand into its own glassy kind (red and pink 0.8241). */
+const FUSE_SANDS = new Map([[B.SAND, B.GLASSY_SAND], [B.RED_SAND, B.GLASSY_RED_SAND], [B.PINK_SAND, B.GLASSY_PINK_SAND]]);
+function _fuseSand(x, y, z) {
+  const deep = 1 + Math.floor(Math.random() * 4);          // the struck cell and up to 3 under it
+  for (let k = 0; k < deep; k++) {
+    const v = getBlock(x, y - k, z), glassy = FUSE_SANDS.get(v & 255);
+    if (!glassy || ((v >> 8) & 255)) break;                // whole sand only, not a layer or a shape
+    setBlock(x, y - k, z, glassy);
+  }
+}
 const _thunders = [];                        // sounds on their way: { t: seconds left, d: distance }
 function strikeLightning(x, y, z) {
   _spawnBolt(x, y, z);
@@ -151,7 +162,8 @@ function strikeLightning(x, y, z) {
   GROUND_FIRES.push({ x, y, z, t: 3 });
   // what it struck catches, if it burns: a tree, leaves, grass (0.8191)
   { const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
-    if (_BURN.has(getBlock(bx, by - 1, bz) & 255)) igniteAt(bx, by, bz); }
+    if (_BURN.has(getBlock(bx, by - 1, bz) & 255)) igniteAt(bx, by, bz);
+    _fuseSand(bx, by - 1, bz); }
   // players: a direct hit or a near one, and on fire either way
   for (const p of PLAYERS) {
     if (!p.spawned || p.dead || p.canFly) continue;
@@ -302,8 +314,8 @@ function clearStorms() {
    out. The blaze is capped (FIRE_MAX cells, FIRE_NEW_PER_TICK new ones a tick): each fire is a light source, and
    lighting is the costly part. Fires are not saved; any found in a loaded world burn out quickly. */
 const FIRE_TICK = 0.25;
-const FIRE_MAX = 48;
-const FIRE_NEW_PER_TICK = 2;
+const FIRE_MAX = 64;                         // 48 before 0.8241
+const FIRE_NEW_PER_TICK = 3;                 // 2 before 0.8241
 const FIRE_LIFE_MAX = 24;                    // seconds any cell may burn, fuel or not
 const FIRE_IDLE_S = 1.5;                     // how long a cell burns on with nothing left to burn
 const FIRE_ASH_CHANCE = 0.6;                 // a log burnt away leaves ash below
@@ -312,9 +324,12 @@ const FIRE_PLANT_SPREAD = 0.06;              // a tick's chance to catch a plant
 const _BURN = new Map();
 const _WOOD = new Set([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
                        B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG]);
-for (const id of _WOOD) _BURN.set(id, [9, 0.25]);
-for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]) _BURN.set(id, [3.5, 0.4]);
-for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS]) _BURN.set(id, [8, 0.15]);
+/* 0.8241: fire runs through wood and leaves. Logs and planks pass it on as readily as each other (planks 0.15 before),
+   everything a little more, and a burnt log, plank or leaf block leaves the fire standing where it was (_BURN_INTO). */
+for (const id of _WOOD) _BURN.set(id, [9, 0.3]);
+for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]) _BURN.set(id, [3.5, 0.5]);
+for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS]) _BURN.set(id, [8, 0.3]);
+const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS]);
 for (const id of [B.HAY, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
 _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blades go, the block turns to dirt
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }
@@ -395,16 +410,22 @@ function _updateFires(dt) {
       const b = _BURN.get(id);
       if (!b || (id === B.GRASS && dy !== -1)) continue;                          // grass burns from above only
       fuel++;
-      // pass it on: into an open cell beside this fuel
+      /* pass it on: into an open cell beside this fuel. Every side is tried from a random one (0.8241) — one random
+         side alone was mostly more wood or leaves, so a fire inside a tree or a wall hardly ever spread. */
       if (born < FIRE_NEW_PER_TICK && Math.random() < b[1] * (wet ? 0.4 : 1)) {
-        const [ex, ey, ez] = _FIRE_DIRS[(Math.random() * 6) | 0];
-        if (igniteAt(nx + ex, ny + ey, nz + ez)) born++;
+        const s0 = (Math.random() * 6) | 0;
+        for (let k = 0; k < 6; k++) {
+          const [ex, ey, ez] = _FIRE_DIRS[(s0 + k) % 6];
+          if (igniteAt(nx + ex, ny + ey, nz + ez)) { born++; break; }
+        }
       }
       // ...and burn it away once its time is up (a little different for every block)
       if (f.age < b[0] * (0.8 + 0.4 * sHash(nx, ny, nz, 71))) continue;
       if (id === B.GRASS) { setBlock(nx, ny, nz, B.DIRT); f.ash = true; continue; }
       setBlock(nx, ny, nz, B.AIR);
       if (_WOOD.has(id) && Math.random() < FIRE_ASH_CHANCE) _dropAsh(nx, ny, nz);
+      // the fire takes the burnt block's place (0.8241), eating its way on through the wood (not if ash settled there)
+      if (_BURN_INTO.has(id) && born < FIRE_NEW_PER_TICK && igniteAt(nx, ny, nz)) born++;
     }
     // a plant beside it catches now and then: grass fires creep, they do not race
     if (born < FIRE_NEW_PER_TICK) {

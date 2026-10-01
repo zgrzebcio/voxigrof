@@ -50,17 +50,24 @@ _skeletonTex.generateMipmaps = true;   // (0.8092)
 function _newSkeletonMat() {
   return new THREE.MeshBasicMaterial({ map: _skeletonTex, transparent: true, alphaTest: 0.5 });
 }
+const ENT_WATER_DARK = 0.55;                 // a creature's light under water (0.8242)
 // light at a cell -> 0..1 brightness, matching the world shader's day/night response
 function _lightAt(x, y, z) {
   const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
   const sky = getSkyWorld(bx, by, bz) / 15;
   const blk = getLightWorld(bx, by, bz) / 15;
   const amb = sharedUniforms.uAmbient.value, dir = sharedUniforms.uDirect.value;
-  const daylight = (amb + dir * sky) * sky;
+  /* 0.8241: dimmed by the light's own colour as the ground is (the night's blue light is darker than day's white),
+     so a creature at night is as dark as the ground it stands on, not twice as bright. */
+  const lc = sharedUniforms.uLightColor.value, luma = 0.3 * lc.r + 0.59 * lc.g + 0.11 * lc.b;
+  // the world shader's own sky curve since 0.8242 (skyF, 04-materials.js), so in a cave a creature is as lit as the rock
+  const daylight = (amb + dir * sky) * (0.276 + 0.724 * sky * sky) * luma;
   /* A creature never goes fully to the dark (0.8191): a little glow of its own, a little more under a bright moon,
-     so it stays readable at night rather than melting into the ground. */
-  const floor = 0.3 + 0.12 * (typeof _skyMoonGlow === 'number' ? _skyMoonGlow : 0);
-  return Math.min(1, Math.max(floor, Math.max(daylight, blk * 0.95)));   // floor tracked skyF (0.24) before 0.8191
+     so it can still be made out. A third of what it was since 0.8241 (0.3 + 0.12 under a full moon). */
+  const floor = 0.1 + 0.05 * (typeof _skyMoonGlow === 'number' ? _skyMoonGlow : 0);
+  const b = Math.min(1, Math.max(floor, Math.max(daylight, blk * 0.95)));   // floor tracked skyF (0.24) before 0.8191
+  // under water it is darker, as the water around it looks (0.8242): fish, and anyone swimming
+  return (getBlock(bx, by, bz) & 255) === B.WATER ? b * ENT_WATER_DARK : b;
 }
 
 /* Write the six MC skin regions into a BoxGeometry's uv attribute.
@@ -895,9 +902,9 @@ const HORSE_FLEE_TIME = 7;
 const HORSE_SEAT_Y = 1.61;               // where the rider sits above the feet (0.7442: bigger horse)
 // open country: this world has no savanna, and horses have no business in snow or desert
 const HORSE_BIOMES = { 'Plains': 1, 'Forest': 0.5, 'Birch Forest': 0.5 };   // mild (0.8233)
-/* 0.08% per chunk (0.8234): a herd in about 1 chunk roll in 1250, before the biome weight. Was 0.0001% (one in a
-   MILLION, 0.7441), which meant a wild horse was something you would almost never come across. */
-const HORSE_CHUNK_CHANCE = 0.0008;
+/* 0.01% per chunk (0.824): a herd in about 1 chunk roll in 10,000, before the biome weight (0.08% in 0.8234,
+   0.0001% — one in a MILLION — from 0.7441). */
+const HORSE_CHUNK_CHANCE = 0.0001;
 const HORSE_HERD_MIN = 1, HORSE_HERD_MAX = 4;   // 1-4 (0.8233)
 const HORSE_SCALE = 1.5;                 // a horse is bigger than the box units it is built from (1.25 until 0.7442)
 const HORSE_STEP_UP = 1.05;              // tallest ledge it walks up without jumping (one block)
@@ -1031,8 +1038,9 @@ const HORSE_NECK_REST = 0.45;            // carried forward, muzzle a little bel
 const HORSE_NECK_GRAZE = 1.85;           // ...and swung right down to the grass
 /* A tinted animal cannot use shadeHumanoid: that bakes plain brightness into the material, which
    would wash every coat back to white. Same lighting, multiplied by the coat instead. */
-function shadeTinted(m, x, y, z, hurt) {
-  const b = _lightAt(x, y + 0.8, z);
+// `sy`: how far above its feet it is lit from — a fish at its own body (0.8242), not the air over the water
+function shadeTinted(m, x, y, z, hurt, sy = 0.8) {
+  const b = _lightAt(x, y + sy, z);
   for (const mat of (m.mats || [m.mat])) {
     if (!mat) continue;
     if (hurt) mat.color.setRGB(_HURT_COL.r * b, _HURT_COL.g * b, _HURT_COL.b * b);
@@ -2192,6 +2200,48 @@ function restoreEntities(list) {
 const _entChunks = new Set();            // "cx,cz" of every chunk that has already rolled
 const NPC_TORCH_CHANCE = 0.5;            // villagers who light a torch as night falls (0.8191)
 const _npcTorchPos = new THREE.Vector3();
+/* ...and the torch lights the world round its villager (0.8242), as one in a player's hand does: a glow source that
+   walks with it (updatePlayerLight, 08-light-glow.js), in the slots after the players' four. Every move relights a box
+   round it, so only the NPC_LIGHT_MAX nearest torch-bearers within NPC_LIGHT_DIST of a player carry one, a light
+   follows only once its villager is NPC_LIGHT_STEP blocks on, and at most one light changes a frame. */
+const NPC_LIGHT_SLOT0 = 4, NPC_LIGHT_MAX = 4, NPC_LIGHT_DIST = 40, NPC_LIGHT_STEP = 2;
+const NPC_TORCH_LIGHT = PROPS[B.TORCH].handLight || 8;   // as bright as a torch in a hand
+const _npcLights = new Array(NPC_LIGHT_MAX).fill(null);  // slot k -> the villager whose torch it is
+function updateNpcTorchLights() {
+  const want = [];
+  for (const e of ENTITIES) {
+    if (e.kind !== 'npc' || !e.torchL || !(e.hp > 0) || e.active === false) continue;
+    let d = Infinity;
+    for (const p of PLAYERS) if (p.spawned) d = Math.min(d, Math.hypot(p.pos.x - e.x, p.pos.z - e.z));
+    if (d <= NPC_LIGHT_DIST) want.push([d, e]);
+  }
+  want.sort((a, b) => a[0] - b[0]);
+  const keep = new Set(want.slice(0, NPC_LIGHT_MAX).map(w => w[1]));
+  // a torch put out, a villager gone, walked off or outdone by a nearer one: its light goes (one a frame)
+  for (let k = 0; k < NPC_LIGHT_MAX; k++)
+    if (_npcLights[k] && !keep.has(_npcLights[k])) {
+      _npcLights[k] = null;
+      updatePlayerLight(NPC_LIGHT_SLOT0 + k, 0, 0, 0, 0);
+      return;
+    }
+  for (const e of keep)
+    if (!_npcLights.includes(e)) { const k = _npcLights.indexOf(null); if (k < 0) break; _npcLights[k] = e; e._litAt = null; }
+  // the one light furthest behind its villager moves up, if it is a step or more behind (a new one first)
+  let best = -1, far = -1;
+  for (let k = 0; k < NPC_LIGHT_MAX; k++) {
+    const e = _npcLights[k];
+    if (!e) continue;
+    const L = e._litAt, d = L ? Math.max(Math.abs(L[0] - e.x), Math.abs(L[1] - e.y), Math.abs(L[2] - e.z)) : 1e9;
+    if ((!L || d >= NPC_LIGHT_STEP) && d > far) { far = d; best = k; }
+  }
+  if (best < 0) return;
+  const e = _npcLights[best], x = Math.floor(e.x), z = Math.floor(e.z);
+  // the hand's cell, or the body's if the hand is in a block (a low roof): a light inside a block gives none
+  let y = Math.floor(e.y + 1.2);
+  if (CORE.opaqueVal(getBlock(x, y, z))) y = Math.floor(e.y + 0.5);
+  e._litAt = [e.x, e.y, e.z];
+  updatePlayerLight(NPC_LIGHT_SLOT0 + best, x, y, z, NPC_TORCH_LIGHT);
+}
 const ENT_CHUNK_CHANCE = 0.0075;         // a wanderer in ~1 chunk in 133 (a quarter of the 0.03 before 0.8191)
 const ENT_GROUP_MIN = 1, ENT_GROUP_MAX = 2;   // villagers in ones and twos (0.8233)
 const SHEEP_CHUNK_CHANCE = 0.012;        // rarer since 0.8233 (0.028), but always a flock of 3-5
@@ -2202,7 +2252,7 @@ const PIG_CHUNK_CHANCE = 0.02;           // 0.8233: more tries, since most spots
 const PIG_HERD_MIN = 1, PIG_HERD_MAX = 3;
 
 // a legal surface spot inside this chunk, or null. Chunk-local — nothing to do with the player.
-// iomes: a kind's weights (above); wet: water within that many blocks (pigs)
+// `biomes`: a kind's weights (above); `wet`: water within that many blocks (pigs)
 function _findChunkSpot(cx, cz, biomes, wet = 0) {
   for (let attempt = 0; attempt < 10; attempt++) {
     const x = cx * 16 + Math.floor(Math.random() * 16) + 0.5;
@@ -2248,10 +2298,10 @@ function trySpawnEntitiesInChunk(cx, cz) {
       spawnEntity(ok ? sx : s.x, s.y, ok ? sz : s.z);
     }
   }
-  _rollHerd(cx, cz, SHEEP_CHUNK_CHANCE, SHEEP_BIOMES, SHEEP_FLOCK_MIN, SHEEP_FLOCK_MAX, spawnSheep);
-  _rollHerd(cx, cz, COW_CHUNK_CHANCE,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
-  _rollHerd(cx, cz, PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
-  _rollHerd(cx, cz, HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
+  _rollHerd(cx, cz, 'sheep', SHEEP_CHUNK_CHANCE, SHEEP_BIOMES, SHEEP_FLOCK_MIN, SHEEP_FLOCK_MAX, spawnSheep);
+  _rollHerd(cx, cz, 'cow',   COW_CHUNK_CHANCE,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
+  _rollHerd(cx, cz, 'pig',   PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
+  _rollHerd(cx, cz, 'horse', HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
   _rollFish(cx, cz);                                                   // 0.805
 }
 /* Fish (0.805): a small school of one species in water at least FISH_MIN_DEPTH deep, somewhere between
@@ -2275,12 +2325,21 @@ function _rollFish(cx, cz) {
     return;
   }
 }
+/* Herds of different animals keep apart (0.8241): a new herd never starts within HERD_APART blocks of an animal of
+   another kind, so a field holds sheep or cows or pigs rather than all of them in one heap. */
+const HERD_APART = 40;
+function _otherHerdNear(x, z, kind) {
+  for (const e of ENTITIES)
+    if (e.kind !== kind && isGrazer(e) && Math.abs(e.x - x) < HERD_APART && Math.abs(e.z - z) < HERD_APART
+        && Math.hypot(e.x - x, e.z - z) < HERD_APART) return true;
+  return false;
+}
 /* One grazer group. They only appear on grass, and they arrive clustered on a single vetted spot
    rather than scattered across the chunk — which is what makes a field read as a field. */
-function _rollHerd(cx, cz, chance, biomes, min, max, spawn, wet = 0) {
+function _rollHerd(cx, cz, kind, chance, biomes, min, max, spawn, wet = 0) {
   if (Math.random() >= chance) return;
   const s = _findChunkSpot(cx, cz, biomes, wet);
-  if (!s || s.top !== B.GRASS) return;
+  if (!s || s.top !== B.GRASS || _otherHerdNear(s.x, s.z, kind)) return;
   const n = min + Math.floor(Math.random() * (max - min + 1));
   for (let i = 0; i < n; i++) {
     const sx = s.x + (Math.random() * 4 - 2), sz = s.z + (Math.random() * 4 - 2);
@@ -2766,7 +2825,7 @@ function _updateFish(e, dt, tp, i) {
   m.swim.position.y = (inWater ? 3 * sp.body[1] : 2 * sp.body[0] * sp.head[0]) * PX;
   m.fins[0].rotation.y = 0.3 + Math.sin(e.walk * 2) * 0.25;
   m.fins[1].rotation.y = -0.3 - Math.sin(e.walk * 2) * 0.25;
-  shadeTinted(m, e.x, e.y, e.z, e.hurtT > 0);
+  shadeTinted(m, e.x, e.y, e.z, e.hurtT > 0, entH(e) * 0.5);   // lit at its middle, in the water (0.8242)
   return false;
 }
 
@@ -2803,6 +2862,7 @@ function updateAttackCooldown(dt) {
 function updateEntities(dt) {
   if (!playing || menuScene || !anyPlayerSpawned()) return;
   _updatePlayerKick(dt);
+  updateNpcTorchLights();                              // villagers' torches light the ground (0.8242)
 
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];

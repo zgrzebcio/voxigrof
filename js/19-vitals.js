@@ -13,8 +13,9 @@
                           that — stamina and oxygen only while they are not full
      far left and right   vegetables and energy, protein and fruit: only while the inventory is open
    With the inventory open every bar shows, and hovering one gives its numbers (vitalsTipAt).
-   An icon is its dark silhouette (<bar>_bg), then its picture filled up from the bottom as far as that icon's
-   fifth of the bar goes, then the white outline (<bar>_overlay) for the over-stat, 10 an icon.
+   An icon is its dark silhouette (<bar>_bg), then its picture filled sideways from its row's outer end as far as
+   that icon's fifth of the bar goes (0.8245; up from the bottom before), then the white outline (<bar>_overlay)
+   for the over-stat, 10 an icon, filled the same way.
    The canvas is drawn at VIT_RES bitmap pixels per CSS pixel and shown at its CSS size (style.css). */
 var vitalsEl = document.getElementById('vitals');
 var vctx = vitalsEl.getContext('2d');
@@ -38,7 +39,7 @@ const VIT_LAYOUT = [
   { key: 'air',     x:  -52, top: 3,  size: 20, from: 'left' },
 ];
 const VIT_TEMP = { x: -15, top: 46, size: 30 };        // the temperature dial
-// the armor bar's pictures per armorMat; gold has its own, diamond borrows steel's, cloth (no items yet) its own
+// the armor bar's pictures per armorMat; gold has its own, diamond borrows steel's, cloth its own (items 0.824)
 const ARMOR_HUD_ART = { leather: 'leather', iron: 'iron', golden: 'gold', diamond: 'steel', cloth: 'fibre_cloth' };
 // a quarter of an armor icon at a time: the bottom-left block, the whole left half, the bottom-right, the right half
 const ARMOR_PART_ART = ['left_25', 'left_50', 'right_25', 'right_50'];
@@ -51,13 +52,20 @@ function _vitRowShown(r, inv) {
   if (r.key === 'air') return !!player._eyeUnder || player.air < MAX_AIR - 0.05;
   return true;
 }
-// `img` at (x, y) size s, showing only its bottom `frac`, measured over the rows it actually paints
-function _drawFill(g, img, rows, x, y, s, frac) {
+/* `img` at (x, y) size s, showing only `frac` of it measured over the columns it actually paints: a horizontal
+   progress bar (0.8245; it filled from the bottom before), from its left side, or its right with `fromRight`
+   so each icon fills the same way as its row. */
+function _drawFill(g, img, cols, x, y, s, frac, fromRight) {
   if (!img || !(frac > 0)) return;
   if (frac >= 1) { g.drawImage(img, x, y, s, s); return; }
-  const [t, b] = rows || [0, img.height];
-  const cut = b - (b - t) * frac, k = s / img.height;
-  g.drawImage(img, 0, cut, img.width, img.height - cut, x, y + cut * k, s, (img.height - cut) * k);
+  const [l, r] = cols || [0, img.width], k = s / img.width;
+  if (fromRight) {
+    const cut = r - (r - l) * frac;
+    g.drawImage(img, cut, 0, img.width - cut, img.height, x + cut * k, y, (img.width - cut) * k, s);
+  } else {
+    const cut = l + (r - l) * frac;
+    g.drawImage(img, 0, 0, cut, img.height, x, y, cut * k, s);
+  }
 }
 function _paintBarRow(g, r) {
   const p = player, max = VITAL_MAX[r.key], per = max / VIT_ICONS, s = r.size;
@@ -70,8 +78,8 @@ function _paintBarRow(g, r) {
     if (bg) g.drawImage(bg, x, y, s, s);
     // a bubble on its way out bursts, as the old row did
     if (r.key === 'air' && frac > 0 && frac < 1 && GUI_IMG.airBurst) g.drawImage(GUI_IMG.airBurst, x, y, s, s);
-    else _drawFill(g, fill, GUI_FILL[r.key], x, y, s, frac);
-    if (ok) _drawFill(g, ovr, GUI_FILL[r.key + 'Over'], x, y, s, Math.max(0, Math.min(1, (over - i * overPer) / overPer)));
+    else _drawFill(g, fill, GUI_FILL[r.key], x, y, s, frac, r.from === 'right');
+    if (ok) _drawFill(g, ovr, GUI_FILL[r.key + 'Over'], x, y, s, Math.max(0, Math.min(1, (over - i * overPer) / overPer)), r.from === 'right');
   }
 }
 /* Armor is MIXED (0.731): the pieces inside one icon can be different materials. Each icon holds four
@@ -153,7 +161,7 @@ var vitalsDirty = true, vitalsShown = false;
 
 // GUI sprite textures — loaded async on world entry; vitalsDirty set per load to force a repaint
 const GUI_IMG = {};
-const GUI_FILL = {};                         // each picture's painted rows [top, bottom), for filling by height
+const GUI_FILL = {};                         // each picture's painted columns [left, right), for filling by width (0.8245)
 let ensureVitalsSprites = () => {};
 {
   const ART = 'textures/Gui/Vitals/', _p = {};
@@ -173,19 +181,19 @@ let ensureVitalsSprites = () => {};
     for (const q of ARMOR_PART_ART) _p[`armor_${m}_${q}`] = `${ART}Armor/armor_${m}_${q}.png`;
   }
   for (const n of ['bg', 'frame', 'strip']) _p['temp_' + n] = `${ART}temperature/temperature_${n}.png`;
-  // the rows a picture actually paints, so a fill of 10% is 10% of the heart and not of the empty margin
-  const paintedRows = (img) => {
+  // the columns a picture actually paints, so a fill of 10% is 10% of the heart and not of the empty margin
+  const paintedCols = (img) => {
     try {
       const c = document.createElement('canvas');
       c.width = img.width; c.height = img.height;
       const g = c.getContext('2d', { willReadFrequently: true });
       g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data;
-      let top = -1, bot = -1;
-      for (let y = 0; y < c.height; y++)
-        for (let x = 0; x < c.width; x++)
-          if (d[(y * c.width + x) * 4 + 3] > 8) { if (top < 0) top = y; bot = y; break; }
-      return top < 0 ? null : [top, bot + 1];
+      let left = -1, right = -1;
+      for (let x = 0; x < c.width; x++)
+        for (let y = 0; y < c.height; y++)
+          if (d[(y * c.width + x) * 4 + 3] > 8) { if (left < 0) left = x; right = x; break; }
+      return left < 0 ? null : [left, right + 1];
     } catch { return null; }
   };
   /* Requested on world load, not at boot (0.7147): only survival ever draws the strip, and on a slow static
@@ -196,7 +204,7 @@ let ensureVitalsSprites = () => {};
     for (const [k, src] of Object.entries(_p)) {
       const img = new Image();
       const done = () => { if (--pending <= 0) { vitalsSpritesReady = true; vitalsDirty = true; } };
-      img.onload = () => { GUI_IMG[k] = img; GUI_FILL[k] = paintedRows(img); vitalsDirty = true; done(); };
+      img.onload = () => { GUI_IMG[k] = img; GUI_FILL[k] = paintedCols(img); vitalsDirty = true; done(); };
       img.onerror = done;                    // a missing file must not block the bar forever
       img.src = src;
     }

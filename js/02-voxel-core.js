@@ -120,6 +120,9 @@ function VOXEL_CORE() {
   Object.assign(T, { GRASS_TOP_WARM:310, GRASS_TOP_COLD:311, GRASS_SIDE_WARM:312, GRASS_SIDE_COLD:313,
                      TALL_BOT_WARM:314, TALL_BOT_COLD:315, TALL_TOP_WARM:316, TALL_TOP_COLD:317,
                      GRASS_PLANT_WARM:318, GRASS_PLANT_COLD:319 });
+  // 0.824: lightning-struck sand; the carved pumpkin's face and top, and the lit one's face
+  Object.assign(T, { GLASSY_SAND:320, CARVED_PUMPKIN_FRONT:321, CARVED_PUMPKIN_TOP:322, JACK_O_LANTERN_FRONT:323,
+                     GLASSY_RED_SAND:324, GLASSY_PINK_SAND:325 });   // 0.8241
   /* The climate colour (0.8231): grass and water blend smoothly toward their warm or cold look by a value per
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
@@ -193,6 +196,9 @@ function VOXEL_CORE() {
               // 0.822: pink sand and its sandstone; brick and polished sandstone looks (variants); the dolomite mortar
               PINK_SAND:187, PINK_SANDSTONE:188, SANDSTONE_BRICKS:189, POLISHED_SANDSTONE:190, RED_SANDSTONE_BRICKS:191,
               POLISHED_RED_SANDSTONE:192, PINK_SANDSTONE_BRICKS:193, POLISHED_PINK_SANDSTONE:194, DOLOMITE_MORTAR:195,
+              // 0.824: sand fused by lightning; the carved pumpkin and the jack o'lantern
+              GLASSY_SAND:196, CARVED_PUMPKIN:197, JACK_O_LANTERN:198,
+              GLASSY_RED_SAND:199, GLASSY_PINK_SAND:200,                               // 0.8241
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -414,6 +420,13 @@ function VOXEL_CORE() {
   // pink sand (0.822): on warm beaches, sand in every way but its colour; five make pink sandstone
   PROPS[B.PINK_SAND]      = { ...PROPS[B.SAND], name: 'Pink sand', faces: [T.PINK_SAND_SIDE,T.PINK_SAND_SIDE,T.PINK_SAND,T.PINK_SAND,T.PINK_SAND_SIDE,T.PINK_SAND_SIDE] };
   PROPS[B.PINK_SANDSTONE] = { ...PROPS[B.SANDSTONE], name: 'Pink sandstone', faces: Array(6).fill(T.PINK_SANDSTONE) };
+  /* Glassy sand (0.824): sand that lightning struck, fused. It no longer falls or piles, and breaks into glass shards
+     (50-loottable.js). Made by strikeLightning (53-storms.js) from any sand. */
+  PROPS[B.GLASSY_SAND]    = { name:'Glassy sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.4, type:'ground',
+                              faces:Array(6).fill(T.GLASSY_SAND), desc: 'Sand fused by lightning. Breaks into glass shards' };
+  // ...red sand and pink sand fuse into their own (0.8241)
+  PROPS[B.GLASSY_RED_SAND]  = { ...PROPS[B.GLASSY_SAND], name: 'Glassy red sand',  faces: Array(6).fill(T.GLASSY_RED_SAND) };
+  PROPS[B.GLASSY_PINK_SAND] = { ...PROPS[B.GLASSY_SAND], name: 'Glassy pink sand', faces: Array(6).fill(T.GLASSY_PINK_SAND) };
   // fiber block (0.769): ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
   PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
@@ -710,6 +723,7 @@ function VOXEL_CORE() {
      bushes and flint stones use. Built on the `carpet` model, which is just "one box picked by
      variant", so the shape needs no new mesher path. */
   const GOURD_BOX = [[[16 / 64, 0, 16 / 64, 48 / 64, 32 / 64, 48 / 64]]];
+  const FULL_UV_BOX = [0, 0, 0, 1, 1, 1];            // a `fullUV` model's UVs: the whole tile on every face (0.824)
   const _gourd = (name, side, top, bottom = top) => ({
     name, solid:false, opaque:false, raycast:true, noTarget:true,
     pass:0, model:'carpet', topOnly:true, stack:60, hardness:2.5, type:'wood',
@@ -733,6 +747,19 @@ function VOXEL_CORE() {
                     stack:1, hardness:0, type:'grass', light:13, faces:Array(6).fill(T.ASH), boxes:[[0,0,0,1,1,1]], desc: '' };
   PROPS[B.MELON]    = _gourd('Watermelon', T.MELON_SIDE, T.MELON_TOP);
   PROPS[B.PUMPKIN]  = _gourd('Pumpkin', T.PUMPKIN_SIDE, T.PUMPKIN_TOP);
+  /* Carved pumpkin and jack o'lantern (0.824): shears carve a pumpkin where it lies, a torch lights a carved one
+     (tryCarvePumpkin, 13-actions.js). The pumpkin's own small model, its face turned to whoever placed or carved it
+     (rot:'side' bits 0-1, facesByVar), and the whole picture on each face rather than its middle (fullUV). They keep:
+     no spoiling, and unlike the pumpkin they are placed. */
+  const _carvedFaces = (front) => [0, 1, 2, 3].map(f => {
+    const fs = [T.PUMPKIN_SIDE, T.PUMPKIN_SIDE, T.CARVED_PUMPKIN_TOP, T.PUMPKIN_TOP, T.PUMPKIN_SIDE, T.PUMPKIN_SIDE];
+    fs[SIDE_FACE[f]] = front;
+    return fs;
+  });
+  const _carved = (name, front, extra) => ({ ..._gourd(name, T.PUMPKIN_SIDE, T.CARVED_PUMPKIN_TOP, T.PUMPKIN_TOP), rot:'side', fullUV:true,
+    boxesByVar:[GOURD_BOX[0], GOURD_BOX[0], GOURD_BOX[0], GOURD_BOX[0]], facesByVar:_carvedFaces(front), faces:_carvedFaces(front)[0], ...extra });
+  PROPS[B.CARVED_PUMPKIN] = _carved('Carved pumpkin', T.CARVED_PUMPKIN_FRONT, { desc: 'Right-click it with a torch to light it' });
+  PROPS[B.JACK_O_LANTERN] = _carved("Jack o'lantern", T.JACK_O_LANTERN_FRONT, { light: 14 });
   /* Wheat grows (0.81): variant 0 is RIPE, as every wheat the world ever generated is, and 1-7 are the growing
      stages 0-6 (51-seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
   PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
@@ -839,7 +866,8 @@ function VOXEL_CORE() {
   for (const [id, like, name, tile, extra] of VARIANT_BLOCKS)
     PROPS[id] = { ...PROPS[like], name, noInv: true, faces: [tile, tile, tile, tile, tile, tile], desc: '', ...extra };
   // the door and the ladder are switched off (0.809): no recipe, not in creative. Placed ones still work
-  PROPS[B.DOOR].noInv = PROPS[B.LADDER].noInv = true;
+  PROPS[B.LADDER].noInv = true;
+  // the door is back in the creative palette (0.82421), for building prefabs; its recipe stays removed (25-crafting.js)
   // every brick variant takes what stone brick takes; mossy cobblestone what cobblestone takes
   const _BRICK_VARIANTS = [B.MOSSY_STONE_BRICK, B.CRACKED_STONE_BRICK, B.SULFUR_BRICKS,
                            B.GRANITE_BRICKS, B.MARBLE_BRICKS, B.LIMESTONE_BRICKS,
@@ -3124,7 +3152,8 @@ function VOXEL_CORE() {
         }
       }
     }
-    function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0) {
+    // `u`: the box the UVs are taken from, the box itself unless a model maps its whole picture on each face (0.824)
+    function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0, u = b) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       const op = (xx, yy, zz) => opaqueVal(gb(xx, yy, zz));
       let L = own ? gl(x, y, z) : -1;
@@ -3134,22 +3163,22 @@ function VOXEL_CORE() {
       const T4 = (k, a, c, d, e) => ((sw >> k) & 1) ? [[a[1],a[0]], [c[1],c[0]], [d[1],d[0]], [e[1],e[0]]] : [a, c, d, e];
       if (b[4] < 1 || !op(x, y+1, z))            // top
         quad(0, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
-             ...T4(2, [b[0],b[2]],[b[0],b[5]],[b[3],b[5]],[b[3],b[2]]), f[2], 255, lit(b[4] < 1, x, y+1, z));
+             ...T4(2, [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]]), f[2], 255, lit(b[4] < 1, x, y+1, z));
       if (b[1] > 0 || !op(x, y-1, z))            // bottom
         quad(0, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],
-             ...T4(3, [b[0],b[2]],[b[3],b[2]],[b[3],b[5]],[b[0],b[5]]), f[3], 140, lit(b[1] > 0, x, y-1, z));
+             ...T4(3, [u[0],u[2]],[u[3],u[2]],[u[3],u[5]],[u[0],u[5]]), f[3], 140, lit(b[1] > 0, x, y-1, z));
       if (b[3] < 1 || !op(x+1, y, z))            // +X
         quad(0, [x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],
-             ...T4(0, [1-b[2],b[1]],[1-b[2],b[4]],[1-b[5],b[4]],[1-b[5],b[1]]), f[0], 178, lit(b[3] < 1, x+1, y, z));
+             ...T4(0, [1-u[2],u[1]],[1-u[2],u[4]],[1-u[5],u[4]],[1-u[5],u[1]]), f[0], 178, lit(b[3] < 1, x+1, y, z));
       if (b[0] > 0 || !op(x-1, y, z))            // -X
         quad(0, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],
-             ...T4(1, [b[2],b[1]],[b[5],b[1]],[b[5],b[4]],[b[2],b[4]]), f[1], 178, lit(b[0] > 0, x-1, y, z));
+             ...T4(1, [u[2],u[1]],[u[5],u[1]],[u[5],u[4]],[u[2],u[4]]), f[1], 178, lit(b[0] > 0, x-1, y, z));
       if (b[5] < 1 || !op(x, y, z+1))            // +Z
         quad(0, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
-             ...T4(4, [b[0],b[1]],[b[3],b[1]],[b[3],b[4]],[b[0],b[4]]), f[4], 216, lit(b[5] < 1, x, y, z+1));
+             ...T4(4, [u[0],u[1]],[u[3],u[1]],[u[3],u[4]],[u[0],u[4]]), f[4], 216, lit(b[5] < 1, x, y, z+1));
       if (b[2] > 0 || !op(x, y, z-1))            // -Z
         quad(0, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],
-             ...T4(5, [1-b[0],b[1]],[1-b[0],b[4]],[1-b[3],b[4]],[1-b[3],b[1]]), f[5], 216, lit(b[2] > 0, x, y, z-1));
+             ...T4(5, [1-u[0],u[1]],[1-u[0],u[4]],[1-u[3],u[4]],[1-u[3],u[1]]), f[5], 216, lit(b[2] > 0, x, y, z-1));
     }
     for (let y = 0; y < yCap; y++)
       for (let z = 0; z < 16; z++)
@@ -3188,8 +3217,10 @@ function VOXEL_CORE() {
             const va = (val >> 8) & 255;
             const boxes = PROPS[vid].boxesByVar[va] || PROPS[vid].boxesByVar[0];
             const own = PROPS[vid].model === 'wall';     // lit by its own cell (0.7651)
+            // a carved pumpkin (0.824): its face on the side it was turned to, and the whole picture on each face
+            const fv = PROPS[vid].facesByVar, fl = PROPS[vid].fullUV ? FULL_UV_BOX : undefined;
             for (let bi = 0; bi < boxes.length; bi++)
-              emitBoxFaces(x, y, z, boxes[bi], PROPS[vid].faces, own);
+              emitBoxFaces(x, y, z, boxes[bi], fv ? fv[va & 3] : PROPS[vid].faces, own, 0, 0, fl);
           }
           else if (PROPS[vid].model === 'voxel') {
             // a voxel model (0.77): every box in its own material, lit from its own cell like a wall plate
@@ -3691,7 +3722,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                CANTALOUPE_SLICE: 397,                                            // 0.8091
                STONE_PEBBLE: 398,                                                // 0.8095
                SALT: 399,
-              COMPRESSED_ROTTEN_FLESH: 400 };                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              COMPRESSED_ROTTEN_FLESH: 400,
+              CLOTH_HELMET: 401, CLOTH_CHESTPLATE: 402, CLOTH_LEGGINGS: 403, CLOTH_BOOTS: 404, CLOTH_GLOVES: 405 };   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -3889,6 +3921,13 @@ const ITEM_PROPS = {
   [ITEM.DIAMOND_CHESTPLATE]: { name: 'Diamond chestplate', stack: 1, icon: 'diamond_chestplate', equip: 'chestplate', armor: 40, tier: 5, durability: 528, armorMat: 'diamond', desc: '' },
   [ITEM.DIAMOND_LEGGINGS]:   { name: 'Diamond leggings',   stack: 1, icon: 'diamond_leggings',   equip: 'leggings',   armor: 30, tier: 5, durability: 495, armorMat: 'diamond', desc: '' },
   [ITEM.DIAMOND_BOOTS]:      { name: 'Diamond boots',      stack: 1, icon: 'diamond_boots',      equip: 'boots',      armor: 15, tier: 5, durability: 429, armorMat: 'diamond', desc: '' },
+  /* Cloth (0.824) is the light, cool tier: little armor, but each piece is 8% heat resistance, and the full set
+     guards against sandstorms and heatstroke (ARMOR_SET_BONUS, 31-equipment.js). */
+  [ITEM.CLOTH_HELMET]:       { name: 'Cloth bandana',      stack: 1, icon: 'cloth_helmet',       equip: 'helmet',     armor: 5, tier: 1, durability: 40,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
+  [ITEM.CLOTH_CHESTPLATE]:   { name: 'Cloth tunic',        stack: 1, icon: 'cloth_chestplate',   equip: 'chestplate', armor: 10, tier: 1, durability: 60,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
+  [ITEM.CLOTH_LEGGINGS]:     { name: 'Cloth trousers',     stack: 1, icon: 'cloth_leggings',     equip: 'leggings',   armor: 5, tier: 1, durability: 55,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
+  [ITEM.CLOTH_BOOTS]:        { name: 'Cloth boots',        stack: 1, icon: 'cloth_boots',        equip: 'boots',      armor: 5, tier: 1, durability: 45,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
+  [ITEM.CLOTH_GLOVES]:       { name: 'Cloth gloves',       stack: 1, icon: 'cloth_gloves',       equip: 'gloves',     armor: 5, tier: 1, durability: 35,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
   // `beltSlots` opens that many quick-access slots above the equipment panel while worn
   [ITEM.BELT]:               { name: 'Belt',               stack: 1, icon: 'belt',               equip: 'belt',       beltSlots: 5, hotbarSlots: 1, desc: 'Worn on the belt. Adds special slots and 1 hotbar slot' },
   // ...and `packSlots` opens that many carrying slots under the main grid (41-backpack.js)
@@ -3970,7 +4009,7 @@ function mineDropAllowed(heldId, blockId) {
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
-  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH]),   // ash 0.8191   // salt crust 0.8091
+  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK,
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
@@ -3978,7 +4017,8 @@ const TOOL_BLOCKS = {
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
                    B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE]),   // pink 0.822
   hatchet: new Set([B.LOG, B.PLANKS, B.BIRCH_LOG, B.BIRCH_PLANKS, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.SPRUCE_PLANKS,
-                    B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.DOOR, B.CACTUS, B.CHEST, B.BED]),   // chest and bed 0.7992, cantaloupe 0.8091
+                    B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.DOOR, B.CACTUS, B.CHEST, B.BED,
+                    B.CARVED_PUMPKIN, B.JACK_O_LANTERN]),   // chest and bed 0.7992, cantaloupe 0.8091, carved 0.824
   hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.HAY]),
   // shears are the wool tool; they also snip plant matter cleanly
   shears: new Set([B.WOOL, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
@@ -4047,7 +4087,18 @@ function isWrongTool(heldId, blockId) {
 const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 /* Loose blocks (0.786): they fall, land as a pile of 8 walk-through layers (pouring into a pile below), and
    a layer of one breaks away to nothing. */
-const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK]);   // not ash: a whole ash block stands, its layers fall (0.8193)
+const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK,   // not ash: a whole ash block stands, its layers fall (0.8193)
+                                    B.SNOW]);   // a whole snow block falls too, and lands as a drift (0.8244)
+/* By hand, slowly (0.8244): the loose ground and glass. Twice what a flint tool of the block's own kind takes
+   (handMineFactor); sand, gravel and snow come away a layer at a time (DIG_BY_LAYER, 22-main-loop.js), glass whole. */
+const DIG_BY_LAYER = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.SNOW]);
+const HAND_SLOW_BLOCKS = new Set([...DIG_BY_LAYER, B.GLASS, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]);
+// the bare hand's speed on such a block: half of the flint tool that claims it (a flint pickaxe for glass, no class)
+function handMineFactor(id) {
+  const FLINT = { shovel: ITEM.FLINT_SHOVEL, pick: ITEM.FLINT_PICKAXE, hatchet: ITEM.FLINT_HATCHET };
+  for (const cls in TOOL_BLOCKS) if (TOOL_BLOCKS[cls].has(id & 255) && FLINT[cls]) return (ITEM_PROPS[FLINT[cls]].toolSpeed || 1) / 2;
+  return (ITEM_PROPS[ITEM.FLINT_PICKAXE].toolSpeed || 1) / 2;
+}
 /* FURNITURE comes apart by hand too (0.7442). A bench, a chest, a bed and a hay bale are things
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
@@ -4059,7 +4110,7 @@ function handBreakable(id) {
   const p = PROPS[id & 255];
   if (!p) return false;
   return p.model === 'cross' || p.model === 'carpet' || (p.layerStack && CORE.layerCount(id) > 0) || p.model === 'wall'
-      || LEAF_BLOCKS.has(id & 255) || HAND_BREAK_BLOCKS.has(id & 255);
+      || LEAF_BLOCKS.has(id & 255) || HAND_BREAK_BLOCKS.has(id & 255) || HAND_SLOW_BLOCKS.has(id & 255);   // slow ones 0.8244
 }
 // does what is in hand count as a tool at all? (any tool class — pick, shovel, hatchet, hoe, ...)
 const isToolItem = (id) => !!(id != null && id >= 256 && ITEM_PROPS[id] && ITEM_PROPS[id].tool);

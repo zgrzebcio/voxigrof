@@ -57,6 +57,9 @@ const TEXTURES = {
   // 0.822: pink sand and its sandstone, and the brick and polished looks of all three
   pink_sand:               'textures/Blocks/Natures/Sands/pink_sand_top.png',
   pink_sand_side:          'textures/Blocks/Natures/Sands/pink_sand_side.png',
+  glassy_sand:             'textures/Blocks/Natures/Sands/glassy_sand.png',        // lightning-struck sand (0.824)
+  glassy_red_sand:         'textures/Blocks/Natures/Sands/glassy_red_sand.png',    // ...red and pink (0.8241)
+  glassy_pink_sand:        'textures/Blocks/Natures/Sands/glassy_pink_sand.png',
   pink_sandstone:          'textures/Blocks/Decorations/Sandstone/pink_sandstone.png',
   sandstone_bricks:        'textures/Blocks/Decorations/Sandstone/sandstone_bricks.png',
   polished_sandstone:      'textures/Blocks/Decorations/Sandstone/polished_sandstone.png',
@@ -79,8 +82,11 @@ const TEXTURES = {
   furnace_top:          'textures/Blocks/Interactables/Furnace/furnace_bottom.png',
   furnace_top_open:     'textures/Blocks/Interactables/Furnace/furnace_top.png',   // the chimney on top (0.801); furnace_top is the underside (0.808)
   red_sand:             'textures/Blocks/Natures/Sands/red_sand_top.png',
-  cactus_side:          'textures/Blocks/Plants/cactus_side.png',
-  cactus_top:           'textures/Blocks/Plants/cactus_top.png',
+  // the cactus side and top carry their spikes, laid on at atlas build (0.824, COMPOSITE_TILES below)
+  cactus_side_base:     'textures/Blocks/Plants/cactus_side.png',
+  cactus_top_base:      'textures/Blocks/Plants/cactus_top.png',
+  cactus_spikes_side:   'textures/Blocks/Plants/Overlays/cactus_spikes_side.png',
+  cactus_spikes_top:    'textures/Blocks/Plants/Overlays/cactus_spikes_top.png',
   cactus_bottom:        'textures/Blocks/Plants/cactus_bottom.png',
   oak_door:             'textures/Blocks/Interactables/Oak_door.png',   // not in the atlas — used by the door mesh + icon
   // bed: also outside the atlas, sampled directly by the bed mesh in 29-bed.js
@@ -115,6 +121,10 @@ const TEXTURES = {
   wool:                 'textures/Blocks/Natures/wool.png',
   pumpkin_top:          'textures/Blocks/Plants/pumpkin_top.png',
   pumpkin_side:         'textures/Blocks/Plants/pumpkin_side.png',
+  // carved with shears, lit with a torch (0.824)
+  carved_pumpkin_front: 'textures/Blocks/Plants/carved_pumpkin_front.png',
+  carved_pumpkin_top:   'textures/Blocks/Plants/carved_pumpkin_top.png',
+  jack_o_lantern_front: 'textures/Blocks/Plants/jack_o_lantern_front.png',
   hay_top:              'textures/Blocks/Plants/hay_bale_top.png',
   hay_side:             'textures/Blocks/Plants/hay_bale_side.png',
   marble:               'textures/Blocks/Natures/marble.png',
@@ -224,6 +234,8 @@ Object.assign(TEXTURES, {
 const COMPOSITE_TILES = {
   grass_block_side: ['grass_side_base', 'grass_side_overlay', 'grass'],
   grass_block_snow: ['grass_side_base', 'grass_side_overlay', 'snow'],
+  cactus_side: ['cactus_side_base', 'cactus_spikes_side', null],   // spikes (0.824)
+  cactus_top:  ['cactus_top_base',  'cactus_spikes_top',  null],
 };
 for (const gem of ['diamond', 'emerald', 'ruby', 'sapphire', 'topaz']) {
   TEXTURES[gem + '_ore_overlay'] = `textures/Blocks/Ores/Overlays/${gem}_ore_overlay.png`;
@@ -255,11 +267,13 @@ Object.assign(TEXTURES, {
   glowstone_emissive:          'textures/Blocks/Natures/Overlays/glowstone_emissive.png',
   glow_crystal_block_emissive: 'textures/Blocks/Natures/Overlays/glow_crystal_block_emissive.png',
   glow_vine_emissive:          'textures/Blocks/Plants/Overlays/glow_vine_emissive.png',
+  jack_o_lantern_emissive:     'textures/Blocks/Plants/Overlays/jack_o_lantern_emissive.png',   // 0.824
 });
 const EMISSIVE_TILES = {
   glowstone:   'glowstone_emissive',
   glowcrystal: 'glow_crystal_block_emissive',
   glow_vine:   'glow_vine_emissive',
+  jack_o_lantern_front: 'jack_o_lantern_emissive',   // 0.824
   torch:       'auto',
   furnace_front_on: 'auto',
   mushroom_lava_cap_top: 'auto', mushroom_lava_cap_side: 'auto',
@@ -450,18 +464,24 @@ const ITEM_TEXTURES = {
   cooked_catfish:  'textures/Items/Consumables/Protein/cooked_catfish.png',
   fat:             'textures/Items/Materials/fat.png',               // 0.789
   saddle:          'textures/Items/Useables/saddle.png',
-  leather_helmet:     'textures/Items/Equipments/leather_helmet.png',
-  leather_chestplate: 'textures/Items/Equipments/leather_chestplate.png',
-  leather_leggings:   'textures/Items/Equipments/leather_leggings.png',
-  leather_boots:      'textures/Items/Equipments/leather_boots.png',
-  leather_gloves:     'textures/Items/Equipments/leather_gloves.png',
-  iron_helmet:        'textures/Items/Equipments/iron_helmet.png',
-  iron_chestplate:    'textures/Items/Equipments/iron_chestplate.png',
-  iron_leggings:      'textures/Items/Equipments/iron_leggings.png',
-  iron_boots:         'textures/Items/Equipments/iron_boots.png',
-  iron_gloves:        'textures/Items/Equipments/iron_gloves.png',
-  belt:               'textures/Items/Equipments/belt.png',
-  backpack:           'textures/Items/Equipments/backpack.png',
+  // armor in a folder per material, with its own names for the pieces (0.824)
+  leather_helmet:     'textures/Items/Equipments/Leather/leather_cap.png',
+  leather_chestplate: 'textures/Items/Equipments/Leather/leather_tunic.png',
+  leather_leggings:   'textures/Items/Equipments/Leather/leather_trousers.png',
+  leather_boots:      'textures/Items/Equipments/Leather/leather_boots.png',
+  leather_gloves:     'textures/Items/Equipments/Leather/leather_gloves.png',
+  iron_helmet:        'textures/Items/Equipments/Iron/iron_helmet.png',
+  iron_chestplate:    'textures/Items/Equipments/Iron/iron_chestplate.png',
+  iron_leggings:      'textures/Items/Equipments/Iron/iron_leggings.png',
+  iron_boots:         'textures/Items/Equipments/Iron/iron_boots.png',
+  iron_gloves:        'textures/Items/Equipments/Iron/iron_gauntlets.png',
+  cloth_helmet:       'textures/Items/Equipments/Cloth/cloth_bandana.png',
+  cloth_chestplate:   'textures/Items/Equipments/Cloth/cloth_tunic.png',
+  cloth_leggings:     'textures/Items/Equipments/Cloth/cloth_trousers.png',
+  cloth_boots:        'textures/Items/Equipments/Cloth/cloth_boots.png',
+  cloth_gloves:       'textures/Items/Equipments/Cloth/cloth_gloves.png',
+  belt:               'textures/Items/Equipments/Belts/belt.png',
+  backpack:           'textures/Items/Equipments/Backpacks/backpack.png',
   golden_helmet:      'textures/Items/Equipments/golden_helmet.png',
   golden_chestplate:  'textures/Items/Equipments/golden_chestplate.png',
   golden_leggings:    'textures/Items/Equipments/golden_leggings.png',
@@ -474,7 +494,7 @@ const ITEM_TEXTURES = {
 
 /* Armor on the equipment preview's body (0.82): one picture per material and body part, laid over every face
    of that part's box — <mat>_head (helmet), _torso and _arm (chestplate), _hand (gloves), _leg (leggings),
-   _foot (boots). They replace the two 64x32 skin-layer sheets per material. Cloth has no items yet. */
+   _foot (boots). They replace the two 64x32 skin-layer sheets per material. Cloth has its items since 0.824. */
 const EQUIP_MATS = ['iron', 'leather', 'cloth'];
 const EQUIP_PARTS = ['head', 'torso', 'arm', 'hand', 'leg', 'foot'];
 const EQUIP_TEXTURES = {};

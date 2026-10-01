@@ -134,7 +134,8 @@ function _poseOffhandArm(dt) {
   if (!off) return;
   const id = offhandItemId();
   // an empty left arm still comes up for a forage grab (0.802)
-  const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead;
+  const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead
+    && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water (0.8245)
   off.root.visible = show;
   if (!show) { off.root.position.y = OFF_REST.pos[1] - 1.4; return; }       // come back up from below
   const shield = id != null && isShieldId(id);

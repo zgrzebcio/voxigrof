@@ -45,7 +45,8 @@ const glowLevelAt = (gx, gy, gz) => blockLightOf(getBlock(gx, gy, gz)) || GLOW_L
 /* Virtual held-light sources — one slot per split-screen player (0.72), each null or
    [x, y, z, level]. Every consumer treats them exactly like placed emitters; the only reason they
    are not in `glowLights` is that they move every block step and are diffed rather than added. */
-const _plyGlows = [null, null, null, null];
+// held-light sources: slots 0-3 the split-screen players, 4-7 villagers' torches (0.8242, NPC_LIGHT_SLOT0 in 28-entities.js)
+const _plyGlows = new Array(8).fill(null);
 const _plyGlowSources = (out) => { for (const g of _plyGlows) if (g) out.push(g); return out; };
 
 /* Perf gate: only light sources inside the SIMULATION radius propagate. Far sources are skipped —

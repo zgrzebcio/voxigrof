@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.8231';     // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.8241';     // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
@@ -59,6 +59,10 @@ let   viewDist = clampi(parseInt(localStorage.getItem('vg_dist')) || DEFAULT_VIE
    render distance says. */
 const SIM_DIST_MIN = 2, SIM_DIST_MAX = 16;
 const DEFAULT_SIM_DIST = 6;
+/* Water and lava flow (0.8245): OFF for now, it lagged too much. Fluids stay exactly where they are put: a bucket
+   places one still block, breaking beside water opens no flow, and nothing is queued (queueWaterAt / queueLavaAt,
+   22-main-loop.js). True brings the old flow back. */
+const FLUID_FLOW = false;
 let   simRadius = clampi(parseInt(localStorage.getItem('vg_sim')) || DEFAULT_SIM_DIST,
                          SIM_DIST_MIN, SIM_DIST_MAX);
 /* Never larger than the render distance — simulating chunks that do not exist is meaningless,

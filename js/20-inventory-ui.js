@@ -564,11 +564,11 @@ function placeInto(region, i, n = 'all') {
 /* Middle-click sort: tidies just the grid under the cursor (hotbar, inventory, or an open
    chest). Stacks of the same item merge up to their cap first, then everything orders by name
    and empty slots fall to the end. Worn tools keep their own entry so wear is never averaged.
-   The creative palette is deliberately excluded — it is a fixed layout, not storage. */
+   The creative palette is not storage: there it lays everything out afresh instead (0.8241, R3 too). */
 function sortRegion(region) {
   if (region === 'fur') return;                      // furnace slots are positional, not storage
   if (player.canFly && (region === 'hot' || region === 'inv' || region === 'inv2')) {
-    toast('sorting is off in creative');
+    resetCreativeInventory();
     return;
   }
   // middle-click matches the buttons (0.7571): the main grid and a worn backpack are one inventory,
@@ -821,6 +821,17 @@ function _sortGrids(grids) {
     for (let i = 0, n = gridLen(g); i < n; i++) g[i] = merged[k++] || null;
   refreshSlotsUI();
 }
+/* Creative (0.8241): middle-click or R3 over the palette or the hotbar puts everything back the way a new world
+   has it — the palette in its own order, the hotbar empty. Filled in place: a seat's arrays stay its own. */
+function resetCreativeInventory() {
+  const d = _defaultCreativeInventory();
+  for (const [dst, src] of [[HOTBAR, d.hot], [invSlots, d.inv], [invSlots2, d.inv2]]) {
+    dst.length = src.length;
+    for (let i = 0; i < src.length; i++) dst[i] = src[i];
+  }
+  refreshSlotsUI();
+  toast('creative inventory reset');
+}
 function sortPlayerInventory() {
   if (player.canFly) { toast('sorting is off in creative'); return; }
   _sortGrids(typeof backpackCapacity === 'function' && backpackCapacity() > 0 ? [invSlots, invSlots2] : [invSlots]);
@@ -988,6 +999,7 @@ function toggleInventory(open, mode) {
   if (open === invOpen) return;
   invOpen = open;
   _invSeq = open ? ++_invSeqNext : 0;
+  if (typeof player !== 'undefined' && player) { player._sneakLatch = true; player.sneaking = false; }   // a fresh press to sneak again (0.8243)
   invWrapEl.style.display = open ? 'flex' : 'none';
   if (open) {
     alignInvWrap();                             // needs the panel laid out, so after display:flex

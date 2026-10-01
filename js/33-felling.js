@@ -201,9 +201,27 @@ function snowHeat(x, y, z) {
 }
 // above the season's snowline (51-seasons.js, 0.819): snow there stays, whatever the biome
 const _aboveSnowline = (x, y, z) => typeof snowlineY === 'function' && y >= snowlineY(x, z);
-// index of the topmost SNOW layer in this cell's stack, or -1 if it holds none
+/* Does snow here melt? (0.8244) Outside a snow biome, when the air at it is over MELT_AT — the place's own air
+   (airTempAt, 54-stats-effects.js: the season, the hour, the weather, and 0°C or colder above the snowline). A
+   snow biome keeps its snow. The air is sampled once per column every MELT_AIR_S, for it is not cheap. */
+const MELT_AT = 5, MELT_AIR_S = 20;
+const _meltAir = new Map();          // "x,z" -> { t, y, at }
+function _snowMelts(x, y, z) {
+  if (!_isWarmColumn(x, z)) return false;
+  if (typeof airTempAt !== 'function') return !_aboveSnowline(x, y, z);
+  const k = x + ',' + z, now = performance.now() / 1000;
+  let a = _meltAir.get(k);
+  if (!a || a.y !== y || now - a.at > MELT_AIR_S) {
+    if (_meltAir.size > 4096) _meltAir.clear();
+    _meltAir.set(k, a = { t: airTempAt(x, y, z).t, y, at: now });
+  }
+  return a.t > MELT_AT;
+}
+// index of the topmost SNOW layer in this cell's stack, or -1 if it holds none; a whole snow block counts as 8 (0.8244)
 function snowLayerTopAt(x, y, z) {
-  const ids = layerIdsAt(x, y, z);
+  const v = getBlock(x, y, z);
+  if (v === B.SNOW) return LAYER_MAX - 1;
+  const ids = layerIdsAt(x, y, z, v);
   if (ids) for (let i = ids.length - 1; i >= 0; i--) if (ids[i] === B.SNOW) return i;
   return -1;
 }
@@ -218,7 +236,7 @@ function sweepSnowMelt() {
     if (snowLayerTopAt(x, y, z) < 0) continue;
     const k = x + ',' + y + ',' + z;
     if (snowMelt.has(k)) continue;
-    if ((!_isWarmColumn(x, z) || _aboveSnowline(x, y, z)) && snowHeat(x, y, z) === 1) continue;   // cold or up high, no heat: keep it
+    if (!_snowMelts(x, y, z) && snowHeat(x, y, z) === 1) continue;   // cold enough, no heat: keep it (0.8244)
     snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
 }
@@ -235,16 +253,18 @@ function updateSnowMelt(dt) {
     const si = snowLayerTopAt(x, y, z);
     if (si < 0) { snowMelt.delete(k); continue; }                 // mined, replaced, or already gone
     const heat = snowHeat(x, y, z);
-    if ((!_isWarmColumn(x, z) || _aboveSnowline(x, y, z)) && heat === 1) { snowMelt.delete(k); continue; }  // heat removed, cold biome or high up
+    if (!_snowMelts(x, y, z) && heat === 1) { snowMelt.delete(k); continue; }  // heat removed, or cold again (0.8244)
     const left = t - step * heat;
     if (left > 0) { snowMelt.set(k, left); continue; }
-    removeLayerAt(x, y, z, si);
+    // a whole block melts down into a drift of 7 (0.8244), a drift a layer at a time
+    if (getBlock(x, y, z) === B.SNOW) setLayerStack(x, y, z, new Array(LAYER_MAX - 1).fill(B.SNOW));
+    else removeLayerAt(x, y, z, si);
     if (typeof fxSnowMelt === 'function') fxSnowMelt(x, y, z);   // flakes and drips (0.8)
     if (snowLayerTopAt(x, y, z) < 0) snowMelt.delete(k);
     else snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
 }
-function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); }
+function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _meltAir.clear(); }
 
 /* ---- berry bush regrowth (0.698) ----
    A bush below `grown` climbs one stage at a time, empty -> fruitling -> grown, each stage on its

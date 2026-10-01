@@ -175,6 +175,12 @@ RECIPES_ADVANCED.push(
   { in: [[ITEM.ROTTEN_FLESH, 5]],             out: [ITEM.COMPRESSED_ROTTEN_FLESH, 1], timeToCraft: 3,  xpToGive: 1 },
   { in: [[ITEM.COMPRESSED_ROTTEN_FLESH, 1]],  out: [ITEM.LEATHER, 1],                  timeToCraft: 20, xpToGive: 5 },
   { in: [[B.PINK_SAND, 5]],   out: [B.PINK_SANDSTONE, 1], timeToCraft: 3,   xpToGive: 1 },   // 0.822
+  // cloth armor (0.824): a lot of cloth and fiber; the boots and gloves take 2 sticks and a leather as well
+  { in: [[ITEM.CLOTH, 3], [ITEM.FIBER, 10]],                                  out: [ITEM.CLOTH_HELMET, 1],     timeToCraft: 4, xpToGive: 20 },
+  { in: [[ITEM.CLOTH, 5], [ITEM.FIBER, 16]],                                  out: [ITEM.CLOTH_CHESTPLATE, 1], timeToCraft: 6, xpToGive: 35 },
+  { in: [[ITEM.CLOTH, 4], [ITEM.FIBER, 14]],                                  out: [ITEM.CLOTH_LEGGINGS, 1],   timeToCraft: 5, xpToGive: 30 },
+  { in: [[ITEM.CLOTH, 2], [ITEM.FIBER, 8], [ITEM.STICK, 2], [ITEM.LEATHER, 1]], out: [ITEM.CLOTH_BOOTS, 1],      timeToCraft: 4, xpToGive: 20 },
+  { in: [[ITEM.CLOTH, 2], [ITEM.FIBER, 8], [ITEM.STICK, 2], [ITEM.LEATHER, 1]], out: [ITEM.CLOTH_GLOVES, 1],     timeToCraft: 4, xpToGive: 20 },
 );
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
@@ -733,7 +739,7 @@ function recipeRank(r) {
     const mat = Object.keys(_RANK_TOOL_MAT).find(m => p.icon && p.icon.startsWith(m));
     return 11 + (_RANK_TOOL_MAT[mat] || 7) + (p.tool === 'hoe' ? 0.5 : 0);
   }
-  if (p.armor) return 30 + (p.armorMat === 'iron' ? 0 : p.armorMat === 'leather' ? 1 : 0.5);
+  if (p.armor) return 30 + (p.armorMat === 'iron' ? 0 : p.armorMat === 'leather' ? 1 : p.armorMat === 'cloth' ? 1.5 : 0.5);   // cloth 0.824
   if (p.food) return 50;
   return 40;                                                          // ingredients: ingots, string, paper...
 }

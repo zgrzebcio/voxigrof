@@ -229,9 +229,11 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   _prevYaw = player.yaw; _prevPitch = player.pitch;
   if (moving || looked || acting || eatProg > 0) _inactive = 0; else _inactive += dt;   // an empty hand drinking stays up (0.82)
   const inactive = !hasItem && _inactive > 0.8;
+  // a torch is put away while your head is under water (0.8245, torchDoused in 22-main-loop.js)
+  const torchAway = curBlk === B.TORCH && typeof torchDoused === 'function' && torchDoused(player);
   handRoot.visible = true;
   // a held torch's flame and a held gem's glint, in the hand scene (0.801, 49-particles.js)
-  if (typeof fxHeldTick === 'function') fxHeldTick(dt, heldGroup, curBlk, handRoot.userData.off);
+  if (typeof fxHeldTick === 'function') fxHeldTick(dt, heldGroup, torchAway ? null : curBlk, handRoot.userData.off);
 
   /* swing triggers */
   const miningNow = !player.canFly && mining.active;
@@ -256,7 +258,7 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   let tx = H_X, ty = H_Y, tz = H_Z;
   let trx = H_RX, try_ = H_RY;
 
-  if (inactive) ty = -2.4;                            // slide below screen
+  if (inactive || torchAway) ty = -2.4;               // slide below screen
 
   if (player._inWater && !player.flying && moving) {  // swim stroke: circular paddle motion
     _swimT += dt;
