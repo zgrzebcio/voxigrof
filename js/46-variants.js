@@ -44,7 +44,12 @@ const BLOCK_VARIANTS = {
   [B.SANDSTONE]:      [{ id: B.SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_SANDSTONE, name: 'polished' }],
   [B.RED_SANDSTONE]:  [{ id: B.RED_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_RED_SANDSTONE, name: 'polished' }],
   [B.PINK_SANDSTONE]: [{ id: B.PINK_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_PINK_SANDSTONE, name: 'polished' }],
+  // glassy sand is a block of its own, red and pink its looks (0.8263; each sand's look in 0.8261). Every one breaks into
+  // glass shards (blockDrop, 50)
+  [B.GLASSY_SAND]:    [{ id: B.GLASSY_RED_SAND, name: 'red' }, { id: B.GLASSY_PINK_SAND, name: 'pink' }],
 };
+// the default's own name in the tooltip's list of variants (0.8261, 20-inventory-ui.js); 'default' for the rest
+const VARIANT_DEFAULT_NAME = {};
 /* A gem cluster's bed (0.7948): the same block with the rock in its variant bits rather than a block of
    its own, so an option can also carry `bits`, OR'd into the variant byte when it is placed. */
 const _clusterBeds = (gem) => [['stone', 1], ['granite', 2], ['marble', 3], ['limestone', 4], ['dolomite', 5]]   // dolomite 0.809
@@ -56,6 +61,23 @@ for (const gem of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.T
 BLOCK_VARIANTS[B.FURNACE] = FURNACE_ROCKS.slice(1).map((name, i) => ({ id: B.FURNACE, name, bits: (i + 1) << V.FURNACE_ROCK_SHIFT }));
 BLOCK_VARIANTS[B.CRAFTING_BENCH] = BENCH_WOODS.slice(1).map((name, i) => ({ id: B.CRAFTING_BENCH, name, bits: (i + 1) << V.BENCH_WOOD_SHIFT }));
 BLOCK_VARIANTS[B.CHEST] = CHEST_WOODS.slice(1).map((name, i) => ({ id: B.CHEST, name, bits: (i + 1) << CHEST_WOOD_SHIFT }));
+VARIANT_DEFAULT_NAME[B.FURNACE] = FURNACE_ROCKS[0];
+VARIANT_DEFAULT_NAME[B.CRAFTING_BENCH] = BENCH_WOODS[0];
+VARIANT_DEFAULT_NAME[B.CHEST] = CHEST_WOODS[0];
+for (const gem of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]) VARIANT_DEFAULT_NAME[gem] = 'ore';
+/* GROWTH STAGES (0.827): a berry bush and wheat are laid at any stage of their growth. The default is the last, ripe
+   (its bits in VARIANT_DEFAULT_BITS); the stages follow in growing order from the slot right of it, round the bar
+   (VARIANT_LINEAR), so a step right from ripe meets the sprout and steps on up to ripe again. Wheat has eight, so
+   its bar is a slot wider. */
+const VARIANT_DEFAULT_BITS = {};
+const VARIANT_LINEAR = new Set();
+for (const bush of BERRY_BUSHES) {
+  BLOCK_VARIANTS[bush] = ['sprout', 'small', 'bush', 'bare', 'green fruit'].map((name, s) => ({ id: bush, name, bits: s }));
+  VARIANT_DEFAULT_BITS[bush] = BERRY_STAGE.GROWN; VARIANT_DEFAULT_NAME[bush] = 'ripe'; VARIANT_LINEAR.add(bush);
+}
+// wheat: variant 0 is ripe, 1..6 its stages (updateWheatGrow, 51-seasons.js; 1..7 until 0.8273)
+BLOCK_VARIANTS[B.WHEAT] = [1, 2, 3, 4, 5, 6].map(b => ({ id: B.WHEAT, name: 'stage ' + b, bits: b }));
+VARIANT_DEFAULT_BITS[B.WHEAT] = 0; VARIANT_DEFAULT_NAME[B.WHEAT] = 'ripe'; VARIANT_LINEAR.add(B.WHEAT);
 // the reverse, for drops: a placed variant breaks back into the block it is a variant of (a bits-only option is that block already)
 // band and pillar join every rock's list (0.8093)
 for (const [rock, K] of [[B.STONE, 'STONE'], [B.GRANITE, 'GRANITE'], [B.MARBLE, 'MARBLE'], [B.LIMESTONE, 'LIMESTONE'], [B.DOLOMITE, 'DOLOMITE']])
@@ -67,6 +89,10 @@ for (const [id, base] of [[B.DIAMOND_CLUSTER_STONE, B.DIAMOND_ORE], [B.EMERALD_C
                           [B.SAPPHIRE_CLUSTER_STONE, B.SAPPHIRE_ORE], [B.TOPAZ_CLUSTER_STONE, B.TOPAZ_ORE]]) _VARIANT_BASE[id] = base;
 _VARIANT_BASE[B.CRACKED_STONE_BRICK] = B.STONE;   // off the bar since 0.8091; a placed one still breaks into stone
 const variantBaseOf = (blockId) => _VARIANT_BASE[blockId] ?? null;
+// every look takes its default's shapes (0.8263, VARIANT_FAMILIES in 02): say so at boot if a look is missing there
+for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k
+    && JSON.stringify(PROPS[+k].shapes || {}) !== JSON.stringify(PROPS[v.id].shapes || {}))
+  console.error(`[variants] ${PROPS[v.id].name} takes other shapes than ${PROPS[+k].name}: add it to VARIANT_FAMILIES (02)`);
 
 const variantToolWorn = () => typeof player !== 'undefined' && !!player && !player.dead &&
   (player.canFly || (equipSlots[EQUIP_INDEX.necklace]?.id === ITEM.CHISEL                // variants are the chisel's alone (0.803)
@@ -77,12 +103,12 @@ const variantToolWorn = () => typeof player !== 'undefined' && !!player && !play
 const VARIANT_SOURCES = [
   // blocks: the neck tool unlocks them
   (id) => (id != null && id < 256 && BLOCK_VARIANTS[id] && variantToolWorn())
-    ? [{ id, name: null }, ...BLOCK_VARIANTS[id]] : null,
+    ? [{ id, name: null, bits: VARIANT_DEFAULT_BITS[id] || 0 }, ...BLOCK_VARIANTS[id]] : null,   // a default with bits: ripe (0.827)
   // ammo types go here (no tool needed)
 ];
 function variantOptions(id) {
   if (id == null) return null;
-  for (const src of VARIANT_SOURCES) { const o = src(id); if (o) return o.slice(0, VARIANT_SLOTS); }
+  for (const src of VARIANT_SOURCES) { const o = src(id); if (o) return o.slice(0, variantSlots(id)); }
   return null;
 }
 // the picked index for an id: per player, never saved
@@ -113,6 +139,10 @@ function variantNameOf(id) {
    right, then left, then further right and left — so a block with one variant fills the middle two and a
    step either way from the default meets a variant. Option i sits in display slot VARIANT_POS[i]. */
 const VARIANT_POS = [3, 4, 2, 5, 1, 6, 0];         // seven slots, the default 4th (0.809)
+// ...a growth block's stages instead run in order from right of the default round the bar, which is as wide as
+// they need (0.827): option i in slot (3 + i) mod the slots
+const variantSlots = (id) => VARIANT_LINEAR.has(id) ? Math.max(VARIANT_SLOTS, 1 + BLOCK_VARIANTS[id].length) : VARIANT_SLOTS;
+const variantPos = (id, i) => VARIANT_LINEAR.has(id) ? (3 + i) % variantSlots(id) : VARIANT_POS[i];
 /* Hold R and scroll, or hold D-pad Right and press a bumper (0.7944; a tap stepped right before): the
    pick moves one FILLED slot left or right, wrapping round and skipping the empty ones. */
 function stepHeldVariant(dir) {
@@ -120,7 +150,7 @@ function stepHeldVariant(dir) {
   const id = slotId(HOTBAR[hotbarSel]);
   const o = variantOptions(id);
   if (!o || o.length < 2) return false;
-  const order = o.map((_, i) => i).sort((a, b) => VARIANT_POS[a] - VARIANT_POS[b]);   // left to right
+  const order = o.map((_, i) => i).sort((a, b) => variantPos(id, a) - variantPos(id, b));   // left to right
   const k = order.indexOf(variantIndex(id));
   _variantPicks()[id] = order[(k + (dir > 0 ? 1 : -1) + order.length) % order.length];
   if (typeof flashBlockName === 'function') flashBlockName();   // the name over the hotbar follows the pick (0.7942)
@@ -170,7 +200,8 @@ function syncVariantHud() {
   const cur = variantIndex(id);
   // each variant drawn in the chisel's picked shape when it can take it, like the hotbar slots (0.7941)
   const shp = o.map(v => (typeof chiselHeldVariant === 'function' ? chiselHeldVariant(v.id) : 0) || v.bits || 0);   // + a bed (0.7948)
-  const srcs = o.map((v, i) => (shp[i] ? renderBlockIcon(v.id, shp[i]) : renderBlockIcon(v.id)));
+  // a growth stage always by its own stage, the sprout's 0 too (0.827)
+  const srcs = o.map((v, i) => (shp[i] || VARIANT_LINEAR.has(id) ? renderBlockIcon(v.id, shp[i]) : renderBlockIcon(v.id)));
   // the bind on its left follows the device you last touched (0.7942): hold R + scroll, or hold D-pad Right + bumpers
   const pad = typeof lastInputDevice !== 'undefined' && lastInputDevice === 'pad';
   const hint = pad ? `<b>D-pad &#9654;</b> + ${_padIsPS() ? 'L1/R1' : 'LB/RB'}` : '<b>R</b> + scroll';
@@ -181,8 +212,8 @@ function syncVariantHud() {
   if (!el) { el = document.createElement('div'); el.className = 'variantBar' + (held ? ' hold' : ''); hotbarEl.appendChild(el); }
   el._key = key;
   let html = `<div class="vKey">${hint}</div>`;
-  for (let pos = 0; pos < VARIANT_SLOTS; pos++) {
-    const i = VARIANT_POS.indexOf(pos);            // the default in the middle (0.7944)
+  for (let pos = 0, n = variantSlots(id); pos < n; pos++) {
+    const i = o.findIndex((_, k) => variantPos(id, k) === pos);   // the default in the middle (0.7944)
     if (i < 0 || !o[i]) { html += '<div class="slot vEmpty"></div>'; continue; }
     html += `<div class="slot${i === cur ? ' sel' : ''}">${srcs[i] ? `<img class="i3d" src="${srcs[i]}" alt="">` : ''}</div>`;
   }

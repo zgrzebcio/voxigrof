@@ -167,7 +167,11 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'grass_warm', 'grass_cold'
                      // 0.824: lightning-struck sand, the carved pumpkin's face and top, the jack o'lantern's face
                      ,'glassy_sand', 'carved_pumpkin_front', 'carved_pumpkin_top', 'jack_o_lantern_front'
-                     ,'glassy_red_sand', 'glassy_pink_sand'];   // 0.8241
+                     ,'glassy_red_sand', 'glassy_pink_sand'   // 0.8241
+                     // 0.827: every berry bush's six stages (T 326-355)
+                     ,...BERRY_COLORS.flatMap(c => [0, 1, 2, 3, 4, 5].map(s => `berry_${c}_stage${s}`))
+                     // 0.829: sugar cane's stages 0-4 and its column pieces (T 356-363)
+                     ,...CANE_PIECES.map(p => 'sugar_cane_' + p)];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -391,7 +395,8 @@ for (let id = 0; id < PROPS.length; id++) {
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
   if (id === B.TORCH || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;
   const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER ? 3 : 1;
-  for (const t of [...(p.faces || []), ...(p.tilesByVar || [])]) if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
+  for (const t of [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || [])])   // cane pieces 0.829
+    if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
 // the warm and cold grass plants sway as their usual selves do (0.823)
 for (const n of ['grass', 'tallgrass_bottom', 'tallgrass_top'])

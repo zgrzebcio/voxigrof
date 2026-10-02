@@ -11,8 +11,11 @@
    array — the UI renders them as two stacked regions ('chest' and 'chest2') so the existing
    drag/drop machinery works unchanged. */
 
-const CHEST_COLS = 7, CHEST_ROWS = 5;                 // wide and short so it fits without scrolling
-const CHEST_SLOTS = CHEST_COLS * CHEST_ROWS;          // 35 per cell; a double stacks to 10 x 7
+/* 0.829: a single chest is 3 rows (5 before); a double is 7, its first half (chestPairOrdered) having a bonus
+   fourth row. A cell's slots are sized to what it shows when the chest opens (fitChestSlots below). */
+const CHEST_COLS = 7, CHEST_ROWS = 3, CHEST_ROWS_BONUS = 1;
+const CHEST_SLOTS = CHEST_COLS * CHEST_ROWS;          // 21 per cell; a double is 21 + 28 = 7 x 7
+const CHEST_SAVE_MAX = 64;                            // the most slots a saved chest is read back with
 const CHESTS = new Map();                             // "x,y,z" -> record
 var activeChest = null;                               // key of the primary cell whose GUI is open
 var activeChest2 = null;                              // key of its partner, or null
@@ -353,6 +356,10 @@ function openChest(x, y, z) {
   if (b) registerChest(b.x, b.y, b.z, (getBlock(b.x, b.y, b.z) >> 8) & 3);
   activeChest = chestKey(a.x, a.y, a.z);
   activeChest2 = b ? chestKey(b.x, b.y, b.z) : null;
+  // each half to its size: the first half of a double has the bonus row (0.829)
+  const fit = [[CHESTS.get(activeChest), CHEST_COLS * (CHEST_ROWS + (b ? CHEST_ROWS_BONUS : 0))]];
+  if (b) fit.push([CHESTS.get(activeChest2), CHEST_SLOTS]);
+  fitChestSlots(fit, a.x, a.y, a.z);
   /* Structure loot is rolled on FIRST OPEN, not when the structure was stamped — a hundred
      untouched chests then cost nothing, and the contents feel rolled for you. */
   const ra = CHESTS.get(activeChest);
@@ -365,6 +372,33 @@ function openChest(x, y, z) {
     if (b) fxPuff(b.x + 0.5, b.y + 0.9, b.z + 0.5, [0.8, 0.74, 0.62], 6);
   }
   toggleInventory(true);
+}
+
+/* Size each cell's slots to what it shows (0.829), list = [[record, slots], ...]. Whatever sits past the end — a
+   5-row chest from before 0.829, or a first half that lost its partner and its bonus row — moves into a free slot,
+   and what finds none falls out at the chest (creative, where nothing drops, keeps it in an extra row). */
+function fitChestSlots(list, x, y, z) {
+  const spill = [];
+  for (const [c, n] of list) {
+    if (!c) continue;
+    for (let i = n; i < c.slots.length; i++) if (c.slots[i]) spill.push(c.slots[i]);
+    c.slots.length = n;
+    for (let i = 0; i < n; i++) if (c.slots[i] === undefined) c.slots[i] = null;
+  }
+  let fell = 0;
+  for (const s of spill) {
+    const at = list.find(([c]) => c && c.slots.includes(null));
+    if (at) { at[0].slots[at[0].slots.indexOf(null)] = s; continue; }
+    if (!player.canFly) {
+      for (let k = 0; k < s.count; k++) spawnDrop(s.id, x, y + 1, z, null, undefined, s.dur ?? null, slotMeta(s));
+      fell++;
+      continue;
+    }
+    const c = list[0][0];                              // creative: one more row to hold it
+    c.slots.push(s);
+    while (c.slots.length % CHEST_COLS) c.slots.push(null);
+  }
+  if (fell && typeof feedWarn === 'function') feedWarn(`Chests are smaller now: ${fell} stack${fell > 1 ? 's' : ''} fell out`);
 }
 
 /* Closing is driven from toggleInventory (Esc, E, clicking away all land there), so the sound
@@ -407,8 +441,7 @@ function updateChests(dt) {
 
 /* ---------------------------------- GUI ---------------------------------- */
 // Rendered to the RIGHT of the inventory. A single chest is CHEST_ROWS x CHEST_COLS; a double
-// stacks a second identical grid above it, giving the 14 x 5 the design calls for. The grid
-// lives in a fixed-height scroller so a double chest can't run off the screen.
+// stacks its partner's grid above the first half's (which has the bonus row): 7 x 7 (0.829).
 function buildChestPanel() {
   const panel = invPanel('chestPanel');
   if (!panel) return;
@@ -422,7 +455,8 @@ function buildChestPanel() {
     const grid = document.createElement('div');
     grid.className = 'grid';
     grid.dataset.region = region;
-    for (let row = 0; row < CHEST_ROWS; row++) {       // row 0 renders at the bottom
+    const rows = Math.ceil(arr.length / CHEST_COLS);   // 3, or 4 for a double's first half (0.829)
+    for (let row = 0; row < rows; row++) {             // row 0 renders at the bottom
       const rowEl = document.createElement('div');
       rowEl.className = 'row';
       for (let col = 0; col < CHEST_COLS; col++) {
@@ -435,7 +469,7 @@ function buildChestPanel() {
     }
     return grid;
   };
-  // 5 x 7 fits on screen outright, and a double is only 10 rows — no scroller needed
+  // 3 x 7 fits on screen outright, and a double is only 7 rows — no scroller needed
   if (b) panel.appendChild(mkGrid(b.slots, 'chest2'));      // partner sits above
   panel.appendChild(mkGrid(a.slots, 'chest'));
   // its own Sort under the slots (0.7571): both halves of a large chest sort as one
@@ -466,7 +500,9 @@ function restoreChests(list) {
     if (!Array.isArray(rec) || typeof rec[0] !== 'string') continue;
     const c = mkChest();
     const arr = Array.isArray(rec[1]) ? rec[1] : [];
-    for (let i = 0; i < CHEST_SLOTS && i < arr.length; i++) {
+    // every saved slot comes back, 35 from before 0.829 too; opening the chest fits them to its rows (fitChestSlots)
+    while (c.slots.length < Math.min(arr.length, CHEST_SAVE_MAX)) c.slots.push(null);
+    for (let i = 0; i < c.slots.length && i < arr.length; i++) {
       const s = arr[i];
       if (!Array.isArray(s)) continue;
       const [raw, count, dur, fresh, wm] = s;

@@ -21,7 +21,9 @@ function scheduleFall(x, y, z) {
   const val = getBlock(x, y, z);
   if (!_fallsUnderGravity(val)) return;
   // billboards don't hold up a falling block — they get crushed, so they count as empty here
-  if (!_fallOpen(getBlock(x, y - 1, z) & 255)) return;
+  // ...and a stack resting on a stack that takes it is queued too: processFalling pours it in (0.8263)
+  const below = getBlock(x, y - 1, z);
+  if (!_fallOpen(below & 255) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
   fallingBlocks.set(`${x},${y},${z}`, val);        // keep the variant: carpets carry layer count
 }
 let _fallTimer = 0;
@@ -554,10 +556,12 @@ function updateEating(dt, wantPlace) {
         player.effects = [];
         if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
       }
+      // a white berry washes seconds off every bad effect running (0.827)
+      if (fp.foodCleanse && typeof cleanseEffects === 'function') cleanseEffects(player, fp.foodCleanse);
       const eff = fp.foodEffect;
       // some effects are only a chance: raw food and rotten flesh may or may not turn your stomach (0.761)
       const effChance = fp.foodEffectChance ?? 1;
-      if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff);
+      if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff, fp.foodEffectTime);
       const heal = fp.foodHeal || 0;
       if (heal > 0) {
         const before = player.hp;
@@ -1024,7 +1028,9 @@ const SAPLINGS = new Map();     // "x,y,z" -> { type, need (days of growing), gr
 /* Since 0.81 a sapling counts days of GROWING rather than waiting for a date: the season speeds it up
    (spring 1.3x), slows it (autumn 0.7x) or stops it (winter), seasonGrowth() in 51-seasons.js. */
 function armSapling(x, y, z, type) {
-  SAPLINGS.set(x + ',' + y + ',' + z, { type, need: 7 + Math.floor(Math.random() * 8), grown: 0, last: worldClockDays() });
+  // ...and who planted it, paid when it grows (0.8283; armSapling runs in the planter's own tick)
+  SAPLINGS.set(x + ',' + y + ',' + z, { type, need: 7 + Math.floor(Math.random() * 8), grown: 0, last: worldClockDays(),
+                                       owner: typeof player !== 'undefined' ? player : null });
 }
 function _putSoft(x, y, z, id) {
   if (y < 0 || y > 199) return;
@@ -1091,6 +1097,7 @@ function updateSaplings() {
     if (r.grown >= r.need) {
       stale.push(k);
       _growTree(x, y, z, r.type);
+      if (r.owner) grantXP(r.owner, XP_SAPLING[r.type] || 0, 'a sapling grew');   // oak 3, birch 4, spruce 5 (0.8283)
     }
   }
   for (const k of stale) SAPLINGS.delete(k);
@@ -1146,6 +1153,7 @@ function frame(now) {
      is rebinding from the pause menu — whether a device has just spoken up. Both run whether or
      not the game is unpaused, because binding is done with the menu open. */
   pollInputCapture();
+  updatePauseRespawn(dt);                   // the pause menu's hold-to-arm Respawn (0.829, 19-vitals.js)
   /* The title panorama is scenery, not a world (0.7144). Nothing in it is meant to change: no
      rot, no melt, no regrowth, no felling, no structures assembling, no leaves coming down. Each
      of these was individually harmless there — their queues are empty on a backdrop — but they
@@ -1208,6 +1216,14 @@ function tickPlayer(dt, now, slot) {
      pad's button held as it shut, does not drop you into a sneak until it has been let go. */
   const dnRaw = (kbOwner && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
   if (player._sneakLatch && !dnRaw) player._sneakLatch = false;
+  /* A sneak kept through the inventory (0.826, toggleInventory in 20-inventory-ui.js) ends, once it is shut, when sneak
+     is let go after a press or you walk; looking around keeps it. */
+  if (player._sneakKeep && !invOpen) {
+    if (fwd || str || player.dead || player.flying) player._sneakKeep = false;
+    else if (dnRaw) player._sneakKeepDn = true;
+    else if (player._sneakKeepDn) player._sneakKeep = false;
+  }
+  if (!player._sneakKeep) player._sneakKeepDn = false;
   /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
      which is all a one-frame-late cancel needs. */
   if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
@@ -1224,7 +1240,9 @@ function tickPlayer(dt, now, slot) {
   const grounded = onGround();
   const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
   player._inWater = inWater;               // exposed for fall damage + hand animation
-  player.sneaking = !player.flying && !inWater && grounded && dnHeld && !player.dead && !invOpen && !player._sneakLatch;   // never in the inventory (0.8243)
+  // never in the inventory (0.8243), unless you were crouched as it opened (0.826)
+  player.sneaking = !player.flying && !inWater && grounded && !player.dead
+    && ((dnHeld && !invOpen && !player._sneakLatch) || !!player._sneakKeep);
   /* Sneak and sprint never together, and a sprint only runs forward: backing up or a pure sidestep drops
      it (0.804). Flying keeps its fast move in every direction. */
   if (player.sneaking) player.fast = false;
@@ -1237,6 +1255,7 @@ function tickPlayer(dt, now, slot) {
   if (!wallClimb && player._wallClimbing && upHeld && fwd > 0.1 && !wallAhead()) player.vy = Math.max(player.vy, WALL_CLIMB_MANTLE_VY);
   player._wallClimbing = wallClimb;
   let dy, hSpeed;
+  player._swimUp = false;                   // swimming up costs stamina (0.8291, tickStats in 54)
   if (player.flying) {
     hSpeed = player.speed * (fast ? player.fastMul : 1);
     dy = ((upHeld ? 1 : 0) - (dnHeld ? 1 : 0)) * hSpeed * dt;
@@ -1248,7 +1267,10 @@ function tickPlayer(dt, now, slot) {
       // glides at near-constant depth (no drift up or down)
       const sprintSwim = fast && fwd > 0.1;
       const glide = sprintSwim && !upHeld && !dnHeld;
-      const acc = (upHeld ? 36 : dnHeld ? -32 : -14) * (glide ? 0.05 : 1);
+      // out of stamina you still rise, at about half the pull, so a tired swimmer is not drowned by it (0.8291)
+      const tired = playerTired();
+      player._swimUp = upHeld;
+      const acc = (upHeld ? (tired ? 20 : 36) : dnHeld ? -32 : -14) * (glide ? 0.05 : 1);
       player.vy = Math.max(dnHeld ? -7 : -5, Math.min(4.5, player.vy + acc * dt));
       if (glide) player.vy *= Math.max(0, 1 - 10 * dt);
       // sprint-swim: pitch steers depth, but vertical component is 95% slower than horizontal
@@ -1280,8 +1302,8 @@ function tickPlayer(dt, now, slot) {
       player.fallStart = null;
     } else {
       // jump strength is a HEIGHT multiplier and height goes with velocity squared, hence the root (0.756)
-      // ...and no jumping while a crafting queue runs (0.804), or out of stamina (0.82)
-      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerIsCrafting() && !playerTired()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul()); }
+      // ...and no jumping out of stamina (0.82); a crafting queue running halves its strength (0.826; no jump 0.804-0.825)
+      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerTired()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul() * (playerIsCrafting() ? CRAFT_JUMP_MUL : 1)); }
       player.vy = Math.max(-58, player.vy - 27 * dt);           // gravity
       // in a cobweb you sink slowly and barely hop (0.766)
       if (playerInCobweb()) player.vy = Math.max(-COBWEB_VY_MAX, Math.min(COBWEB_VY_MAX, player.vy));
@@ -1290,6 +1312,7 @@ function tickPlayer(dt, now, slot) {
     hSpeed = player.walkSpeed * (player.sneaking ? 0.3 : fast ? (inWater ? 1.9 : 1.6) : 1) * (inWater ? 0.45 : 1)
            * playerMoveSpeedMul()                // heavy armor slows you down
            * terrainSpeedMul()                   // leaves/litter -40%, snow carpet -70%
+           * playerStormMoveMul()                // a sandstorm, up to -45% (0.825)
            * (player.blocking ? SHIELD_MOVE_MUL : 1)    // behind a raised shield (0.745)
            * (player._eatProg > 0 ? EAT_MOVE_MUL : 1)   // mid-bite: as slow as a raised shield (0.7591)
            * (player._drawProg > 0 ? DRAW_MOVE_MUL : 1)  // bow string back: the same again (0.7592)
@@ -1410,6 +1433,8 @@ function tickPlayer(dt, now, slot) {
         // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
         player.aliveT = +pr.aliveT || 0; player.dead = !!pr.dead; player._dmgCause = pr.cause || null;
         player._deathDay = typeof pr.deathDay === 'number' ? pr.deathDay : null;
+        player._deathMark = restoreDeathMark(pr.deathMark);   // 0.827
+        player._feats = restoreFeats(pr.feats);               // 0.8283
         player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
         if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_SLOTS) {
           hotbarSel = pr.hotSel; buildHotbar();
@@ -1457,6 +1482,8 @@ function tickPlayer(dt, now, slot) {
     shP += Math.sin(t * 1.46) * 0.025;
     player.yaw += Math.sin(t * 0.9) * 0.7 * dt;
   }
+  // Clear Eyes (0.828): the shake of a hit and nausea's sway both 30% weaker (45-skills.js)
+  { const sm = typeof skillSightMul === 'function' ? skillSightMul() : 1; shP *= sm; shR *= sm; }
   camera.rotation.set(player.pitch + shP, player.yaw, shR);
   applyCameraView(dt);            // F5 third-person: moves the camera back + shows the body
 
@@ -1568,7 +1595,8 @@ function tickPlayer(dt, now, slot) {
         // chips off the face being hit, on every stage (0.8)
         if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
       }
-      const cboxes = rayBoxesAt(hit.x, hit.y, hit.z);
+      let cboxes = rayBoxesAt(hit.x, hit.y, hit.z);
+      if (cboxes && CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) cboxes = [cboxes[hit.bi || 0]];   // only the half being dug (0.8263)
       if (cboxes && cboxes.length) {
         let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
         for (const b of cboxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
@@ -1581,8 +1609,10 @@ function tickPlayer(dt, now, slot) {
       }
       crackMesh.visible = true;
       if (mining.elapsed >= mining.needed) {
-        const mval = getBlock(mining.x, mining.y, mining.z), minedId = mval & 255;
+        const mval = getBlock(mining.x, mining.y, mining.z);
         const mx = mining.x, my = mining.y, mz = mining.z, mbi = mining.bi || 0;
+        // a mixed slab (0.8263): it is the half you were aiming at that breaks, and that block that counts
+        const mix = slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] : mval & 255;
         resetMining();
         // axe on a log: strip it, or fell the tree if it is already stripped. It performs its own
         // block edit and drops, so the ordinary break path is skipped when it claims the hit.
@@ -1592,7 +1622,7 @@ function tickPlayer(dt, now, slot) {
         // the block bursts into bits of itself; a log the axe only notched sheds a few chips (0.8)
         if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
         // the wrong tool for the job (a pickaxe on dirt): double wear below, and no experience
-        const wrongTool = isWrongTool(heldUseId(), mval);
+        const wrongTool = isWrongTool(heldUseId(), mix ? minedId : mval);
         // tier gate: wrong/too-weak tool still breaks the block but yields no drops
         const dropsOk = mineDropAllowed(heldUseId(), minedId);
         let inf = chopped ? null : layerBreakInfo(mx, my, mz, mval);     // a layer stack: only its top layer
@@ -1600,11 +1630,17 @@ function tickPlayer(dt, now, slot) {
         if (!chopped && !inf && !isToolItem(heldUseId()) && DIG_BY_LAYER.has(minedId) && !CORE.shapeOfVal(mval))
           inf = { layerId: minedId, apply: () => setLayerStack(mx, my, mz, new Array(LAYER_MAX - 1).fill(minedId)) };
         // natural blocks only; your own placements pay 0 — and a single layer pays nothing (0.785)
-        if (!wrongTool && !CORE.layerCount(mval) && !inf) awardBlockXP(mx, my, mz, minedId);
+        // no drop, no experience: a flint pickaxe on ore gets nothing (0.829)
+        if (!wrongTool && dropsOk && !CORE.layerCount(mval) && !inf) awardBlockXP(mx, my, mz, minedId);
+        // ...except salt crust, nearly always a single layer on the beach: each salt layer pays (0.8282)
+        else if (!wrongTool && dropsOk && inf && inf.layerId === B.SALT_CRUST) awardBlockXP(mx, my, mz, B.SALT_CRUST);
         // ...and a shovel takes a whole stack at once (0.8244), every layer with its own drop
         const stack = inf && !chopped && ITEM_PROPS[heldUseId()]?.tool === 'shovel' ? layerIdsAt(mx, my, mz, mval) : null;
         if (chopped) {
           /* felling already did everything */
+        } else if (mix) {
+          breakSlabMixHalf(mx, my, mz, mbi ? 1 : 0, mval);   // the other half stays as a slab of its own
+          if (dropsOk) for (const drop of blockDrop(minedId, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
         } else if (stack) {
           setBlock(mx, my, mz, B.AIR);
           if (dropsOk) _dropStackLayers(stack, mx, my, mz);
@@ -1625,6 +1661,8 @@ function tickPlayer(dt, now, slot) {
           // a hollow log also gives back what was packed into it (0.7842)
           if (dropsOk && hollowFillOf(mval)) spawnDrop(hollowFillOf(mval), mx, my, mz);
         }
+        // stone a flint pickaxe cannot keep still gives a pebble or two (0.8291, flintPebbles in 02)
+        if (!dropsOk && !chopped) for (let i = flintPebbles(heldUseId(), minedId); i > 0; i--) spawnDrop(ITEM.STONE_PEBBLE, mx, my, mz);
         /* Tool wear: an ordinary survival break costs 1 durability, 2 when the tool had no
            business on that block (isWrongTool), and NOTHING at all for a billboard — a torch or
            a flower is brushed aside rather than dug, so no edge dulls on it (0.7345). */
@@ -1908,8 +1946,10 @@ function applyEyeVolumeFog() {
   } else if (eyeId === B.WATER) {
     sharedUniforms.fogColor.value.copy(_skyFogColor).multiplyScalar(0.45).lerp(_uwTint, 0.4);
     renderer.setClearColor(sharedUniforms.fogColor.value);
-    sharedUniforms.fogNear.value = 5;
-    sharedUniforms.fogFar.value = 36;
+    // ...30% farther with Clear Eyes (0.828)
+    const see = typeof skillSightMul === 'function' ? 2 - skillSightMul() : 1;
+    sharedUniforms.fogNear.value = 5 * see;
+    sharedUniforms.fogFar.value = 36 * see;
     sharedUniforms.uAmbient.value = _skyAmbient * 0.78;
     sharedUniforms.uDirect.value  = _skyDirect  * 0.65;
   } else {

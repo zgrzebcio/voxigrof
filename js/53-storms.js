@@ -145,15 +145,35 @@ function _strikeTop(x, z) {
   return -1;
 }
 /* Sand that lightning strikes fuses into glassy sand (0.824): the whole sand block it hit and a root of 1-3 more
-   straight under it. Each sand into its own glassy kind (red and pink 0.8241). */
+   straight under it. Each sand into its own glassy kind (red and pink 0.8241). Since 0.826 the heat spreads: the
+   sand round it fuses too, in a patch up to FUSE_R across, likelier and deeper the nearer the strike (FUSE_CHANCE:
+   right beside it 80%, then 55%, at the edge 25%), each column from its own top within a block of the strike's. */
 const FUSE_SANDS = new Map([[B.SAND, B.GLASSY_SAND], [B.RED_SAND, B.GLASSY_RED_SAND], [B.PINK_SAND, B.GLASSY_PINK_SAND]]);
-function _fuseSand(x, y, z) {
-  const deep = 1 + Math.floor(Math.random() * 4);          // the struck cell and up to 3 under it
+const FUSE_R = 2.3;
+const FUSE_CHANCE = (d) => d === 0 ? 1 : d <= 1 ? 0.8 : d <= 1.5 ? 0.55 : 0.25;
+function _fuseColumn(x, y, z, deep) {
   for (let k = 0; k < deep; k++) {
     const v = getBlock(x, y - k, z), glassy = FUSE_SANDS.get(v & 255);
     if (!glassy || ((v >> 8) & 255)) break;                // whole sand only, not a layer or a shape
     setBlock(x, y - k, z, glassy);
   }
+}
+function _fuseSand(x, y, z) {
+  if (!FUSE_SANDS.has(getBlock(x, y, z) & 255)) return;   // the strike has to land on sand
+  for (let dz = -2; dz <= 2; dz++)
+    for (let dx = -2; dx <= 2; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > FUSE_R || Math.random() >= FUSE_CHANCE(d)) continue;
+      let top = -1;                                        // this column's ground, near the strike's height
+      for (let yy = y + 1; yy >= y - 1; yy--) {
+        const v = getBlock(x + dx, yy, z + dz);
+        if (v && PROPS[v & 255]?.model !== 'cross') { top = yy; break; }
+      }
+      if (top < 0) continue;
+      // the struck cell and up to 3 under it; round it 1, or 2 now and then right beside it
+      const deep = d === 0 ? 1 + Math.floor(Math.random() * 4) : 1 + (Math.random() < 0.6 - d * 0.25 ? 1 : 0);
+      _fuseColumn(x + dx, top, z + dz, deep);
+    }
 }
 const _thunders = [];                        // sounds on their way: { t: seconds left, d: distance }
 function strikeLightning(x, y, z) {

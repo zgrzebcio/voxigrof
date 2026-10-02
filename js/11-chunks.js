@@ -133,7 +133,7 @@ function rebuildQueues() {
 }
 
 function disposeChunkMeshes(c) {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {                // five passes since 0.8263 (glass)
     if (c.meshes[i]) {
       _fadeDrop(c.meshes[i]);               // a remesh mid-fade: the new meshes carry the fade on (0.8195)
       scene.remove(c.meshes[i]);
@@ -150,7 +150,7 @@ function disposeChunkMeshes(c) {
    other uniform) and gives it back when done; a remesh mid-fade carries the fade on from where it was. */
 const CHUNK_FADE_IN_S = 0.6, CHUNK_FADE_OUT_S = 0.45;
 const FADING = [];                          // { mesh, p, mat, t, dur, out }
-const _fadeMatPool = [[], [], [], []];
+const _fadeMatPool = [[], [], [], [], []];
 function _fadeMat(p) {
   const pooled = _fadeMatPool[p].pop();
   if (pooled) return pooled;
@@ -186,7 +186,7 @@ function updateChunkFades(dt) {
 }
 // a chunk leaving the drawn range: its meshes fade out on their own, and it will fade in again if it comes back
 function retireChunkMeshes(c) {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const m = c.meshes[i];
     if (!m) continue;
     _fadeDrop(m);
@@ -249,7 +249,7 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain8193:';   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
+const TERRAIN_KEY = 'terrain8273:';   // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
@@ -532,7 +532,7 @@ function applyOneMesh(m) {
     const midY = (m.minY + m.maxY) / 2;
     const sphere = new THREE.Sphere(new THREE.Vector3(8, midY, 8),
                                     Math.sqrt(128 + Math.pow((m.maxY - m.minY) / 2 + 1, 2)) + 1);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const p = m.passes[i];
       if (!p) continue;
       const geo = new THREE.BufferGeometry();
@@ -545,8 +545,8 @@ function applyOneMesh(m) {
       geo.setIndex(new THREE.BufferAttribute(p.index, 1));
       geo.boundingSphere = sphere.clone();                  // manual: skip costly compute
       const mesh = new THREE.Mesh(geo, MATERIALS[i]);
-      mesh.renderOrder = i;                                 // opaque -> cutout -> water -> lava
-      mesh.layers.set(i === 0 ? 0 : i === 1 ? 2 : 3);       // shadow casters: 0 full, 2 weak; water/lava: layer 3
+      mesh.renderOrder = i;                                 // opaque -> cutout -> water -> lava -> glass (0.8263)
+      mesh.layers.set(i === 0 ? 0 : i === 1 || i === 4 ? 2 : 3);   // shadow casters: 0 full, 2 weak (leaves, glass); water/lava: layer 3
       mesh.position.set(m.cx * 16, 0, m.cz * 16);
       mesh.updateMatrix();
       mesh.matrixAutoUpdate = false;                        // static geometry
@@ -591,6 +591,7 @@ function rayBoxesAt(x, y, z) {
   const val = getBlock(x, y, z), prop = PROPS[val & 255];
   if (!prop) return null;
   { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val); if (sb) return sb; }
+  if (CORE.slabMixed(val)) return CORE.slabMixBoxes(val);   // its two halves, so the crosshair knows which (0.8263)
   if (prop.boxesOf) return prop.boxesOf(val);
   const bvr = prop.rayBoxesByVar || prop.boxesByVar;
   return bvr ? (bvr[(val >> 8) & 255] || prop.boxes) : prop.boxes;
@@ -611,7 +612,8 @@ function setBlock(x, y, z, val) {
   const oldVal = c.data[i], oldId = oldVal & 255, newId = val & 255;
   c.data[i] = val;
   // a mixed layer stack's list goes the moment its cell stops being one (setLayerStack writes a new list first)
-  if (CORE.layerMixed(oldVal) && !CORE.layerMixed(val)) LAYER_STACKS.get(key(cx, cz))?.delete(i);
+  // ...and a mixed slab's the same way (0.8263)
+  if (CORE.sideListed(oldVal) && !CORE.sideListed(val)) LAYER_STACKS.get(key(cx, cz))?.delete(i);
   const oldLit = blockLightOf(oldVal) > 0, newLit = blockLightOf(val) > 0;
   if (oldLit && !newLit) glowDel(x, y, z);
   if (newLit && !oldLit) glowAdd(x, y, z);
@@ -782,9 +784,13 @@ function setBlock(x, y, z, val) {
   // gravity: clear below a gravity block → it falls; gravity block placed above air → also falls
   if (newId === B.AIR && y + 1 <= 199) scheduleFall(x, y + 1, z);
   // a stack of snow, leaves, sand, gravel or fiber falls too (0.785)
+  // ...and a stack that comes to rest on a stack with room for it pours down into it (0.8263: ash from a burnt tree,
+  // or any stack stepping down, stopped a cell short and stood on top as a stack of its own)
   if ((LOOSE_LAYER_BLOCKS.has(newId) || (PROPS[newId]?.layerStack && CORE.layerCount(val)))       // fiber falls since 0.786
-      && y > 0 && (getBlock(x, y - 1, z) & 255) === B.AIR)
-    scheduleFall(x, y, z);
+      && y > 0) {
+    const below = getBlock(x, y - 1, z);
+    if ((below & 255) === B.AIR || (CORE.layerCount(val) && canStackLayer(below, newId))) scheduleFall(x, y, z);
+  }
   editRushing = false;
 }
 /* ---- layer stacks (0.785) ----
@@ -843,6 +849,32 @@ function removeLayerAt(x, y, z, i) {
   if (!ids || i < 0 || i >= ids.length) return;
   ids.splice(i, 1);
   setLayerStack(x, y, z, ids);
+}
+/* MIXED SLABS (0.8263, SHAPE_SLAB_MIX in 02): a cell with two halves of different blocks keeps them, low half first,
+   in the same side list as a mixed stack. */
+// the two blocks of a mixed slab, low then high, or null when the cell is not one
+function slabMixIdsAt(x, y, z, v = getBlock(x, y, z)) {
+  if (!CORE.slabMixed(v)) return null;
+  const ids = LAYER_STACKS.get(key(Math.floor(x / 16), Math.floor(z / 16)))?.get(_cellIndex(x, y, z));
+  return ids && ids.length === 2 ? [ids[0], ids[1]] : [v & 255, v & 255];
+}
+// make a cell a mixed slab: `low` in the half at even rotation `rot` (0 bottom, 2 -X, 4 -Z), `high` opposite
+function setSlabMix(x, y, z, low, high, rot) {
+  const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+  let m = LAYER_STACKS.get(key(cx, cz));
+  if (!m) LAYER_STACKS.set(key(cx, cz), m = new Map());
+  m.set(_cellIndex(x, y, z), Uint8Array.of(low, high));
+  const val = CORE.slabMixVal(low, rot, high);      // a glass half, or a glowing one, marked in its bits (0.8264)
+  if (getBlock(x, y, z) === val) { markDirty(getChunk(cx, cz)); return; }
+  setBlock(x, y, z, val);
+}
+// break half `h` (0 low, 1 high) of a mixed slab: the other stays as a slab of its own. Returns the broken block's id.
+function breakSlabMixHalf(x, y, z, h, v = getBlock(x, y, z)) {
+  const ids = slabMixIdsAt(x, y, z, v);
+  if (!ids) return null;
+  const rot = ((v >> 8) & CORE.ROT_MASK) & 6, keep = h ? 0 : 1;
+  setBlock(x, y, z, ids[keep] | ((SHAPE_SLAB + rot + keep) << 8));
+  return ids[h];
 }
 // breaking a stack takes its TOP layer only: which block that was, and how to take it off
 function layerBreakInfo(x, y, z, v = getBlock(x, y, z)) {

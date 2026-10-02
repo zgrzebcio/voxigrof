@@ -38,11 +38,14 @@ const SKILL_CATS = [
 const SKILLS = [
   // ---- survival ----
   { id: 'thickSkin',   cat: 'survival', name: 'Thick Skin',     cost: 1, req: [],
-    desc: '+10% damage reduction' },                                   // was +10% health until 0.791
+    desc: '+10 health and +10% damage reduction' },                    // was +10% health until 0.791; +10 health again 0.828
   { id: 'grassWeaver', cat: 'survival', name: 'Grass Weaver',   cost: 1, req: [],
     desc: '30% better chance of fiber from grass, wheat and bushes' },
   { id: 'slowBurner',  cat: 'survival', name: 'Slow Burner',    cost: 1, req: ['thickSkin'],
-    desc: 'Hunger and oxygen drain 5% slower' },                       // oxygen too since 0.7911
+    desc: 'Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein' },   // hunger and oxygen until 0.828
+  // 0.828: wall climbing goes a block higher and costs 30% less stamina
+  { id: 'climber',     cat: 'survival', name: 'Climber',        cost: 1, req: ['slowBurner'],
+    desc: 'Climb a bare wall one block higher, for 30% less stamina' },
   { id: 'canopy',      cat: 'survival', name: 'Canopy Forager', cost: 1, req: ['grassWeaver'],
     desc: '30% better chance of sticks, saplings and apples from leaves' },
   { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 2, req: ['canopy'],
@@ -71,6 +74,10 @@ const SKILLS = [
     desc: 'Block stacks hold 10 more' },
   { id: 'hazardHide',   cat: 'exploring', name: 'Hazard Hide',   cost: 1, req: ['prospector', 'treasureNose', 'weathered'],
     desc: '30% less damage from falls, lava and cactus' },   // explosions and temperature once they hurt (0.791)
+  // 0.828: whatever clouds your sight or shakes it is 30% weaker: fog, a sandstorm, murky water, heatstroke's blur,
+  // nausea's sway and the jolt of a hit
+  { id: 'clearEyes',    cat: 'exploring', name: 'Clear Eyes',    cost: 1, req: ['hazardHide'],
+    desc: 'Fog, sandstorms, murky water, blur, sway and the shake of a hit cloud or move your view 30% less' },
   // ---- husbandry ----
   { id: 'butcher',     cat: 'husbandry', name: 'Butcher',        cost: 1, req: [],
     desc: '20% chance of one more meat (or leather) from animals you kill' },
@@ -82,6 +89,9 @@ const SKILLS = [
     desc: 'Taming horses and other tameable animals is 10% faster' },
   { id: 'saddler',     cat: 'husbandry', name: 'Saddler',        cost: 2, req: ['gentleHand'],
     desc: 'The saddle recipe costs 20% less' },
+  // 0.828, a path of its own
+  { id: 'luckyHands',  cat: 'husbandry', name: 'Lucky Hands',    cost: 1, req: [],
+    desc: '20% chance of one more flint, stone pebble or berry when you forage one' },
 ];
 const SKILL_BY_ID = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 
@@ -126,6 +136,9 @@ const restoreSkills = (list) => new Set(Array.isArray(list) ? list.filter(id => 
 const skillLeafMul   = () => hasSkill('canopy') ? 1.3 : 1;          // Canopy Forager: leaf loot chances
 const skillFiberMul  = () => hasSkill('grassWeaver') ? 1.3 : 1;     // Grass Weaver: fiber chances
 const skillHazardMul = () => hasSkill('hazardHide') ? 0.7 : 1;      // Hazard Hide: fall, cactus, fire, lava
+const skillSightMul  = () => hasSkill('clearEyes') ? 0.7 : 1;       // Clear Eyes: how strongly fog, blur, sway, shake work (0.828)
+const skillClimbMul  = () => hasSkill('climber') ? 0.7 : 1;         // Climber: wall-climb stamina (0.828)
+const skillClimbExtra = () => hasSkill('climber') ? 1 : 0;          // ...and one block more of wall
 const ORE_BLOCKS = new Set([B.COAL_ORE, B.IRON_ORE, B.COPPER_ORE, B.TIN_ORE, B.GOLD_ORE, B.DIAMOND_ORE,
                             B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]);
 // Prospector: a 20% chance of one more of an ore's first drop (a flat +1 until 0.806; 50-loottable.js)
@@ -344,7 +357,7 @@ function _renderSkillPanel(sp) {
     `<div class="skTree" style="width:${L.width}px;height:${L.height}px">` +
       `<svg width="${L.width}" height="${L.height}">${lines}</svg>${nodes}` +
     '</div>' +
-    '<div class="skHint">Hold a skill for a second to learn it &middot; points come from levels, learning keeps your level &middot; <b>K</b> to close</div>';
+    '<div class="skHint">Hold a skill for half a second to learn it &middot; points come from levels, learning keeps your level &middot; <b>K</b> to close</div>';
   const invTabs = typeof invTabsEl === 'function' ? invTabsEl('skills') : null;
   if (invTabs) sp.querySelector('.skTabsSlot').replaceWith(invTabs);
   for (const el of sp.querySelectorAll('.skTab'))
@@ -357,7 +370,7 @@ function _renderSkillPanel(sp) {
     el.addEventListener('click', () => _skillNodeClick(el.dataset.sk));
   }
 }
-const SKILL_HOLD_TIME = 1;             // seconds held on a skill to learn it (0.804)
+const SKILL_HOLD_TIME = 0.5;           // seconds held on a skill to learn it (0.804; 1 until 0.8291)
 function skillHoldStart(id, src) {
   if (skillState(id) !== 'ready') return false;
   player._skillHold = { id, t: 0, src };
@@ -424,7 +437,7 @@ function skillTipHTML(id) {
   html += `<div class="tipRow"><span>cost</span><b>${s.cost} point${s.cost > 1 ? 's' : ''}</b></div>`;
   for (const r of s.req)
     html += `<div class="tipRow"><span>requires</span><b class="${hasSkill(r) ? 'skOk' : 'skNo'}">${hasSkill(r) ? '&#10003;' : '&#10007;'} ${esc(SKILL_BY_ID[r]?.name || r)}</b></div>`;
-  const line = { owned: 'Learned', ready: 'Hold for a second to learn', poor: `Needs ${s.cost - skillPointsFree()} more point${s.cost - skillPointsFree() > 1 ? 's' : ''}`,
+  const line = { owned: 'Learned', ready: 'Hold for half a second to learn', poor: `Needs ${s.cost - skillPointsFree()} more point${s.cost - skillPointsFree() > 1 ? 's' : ''}`,
                  locked: 'Learn what it requires first' }[st];
   html += `<div class="tipRow"><span>status</span><b>${line}</b></div></div>`;
   return html;

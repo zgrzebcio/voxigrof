@@ -147,7 +147,8 @@ function updateFurnaces(dt) {
     }
     /* Its top is a chimney (0.801): with a block on it the fire has no draught — nothing smelts, but the
        fuel that is lit keeps burning away, and a new piece still catches when there is something to smelt. */
-    const choked = typeof stationCovered === 'function' && stationCovered(x, y, z);
+    // ...a chimney of walls on it carries the draught up, so it is the top of that which must be open (0.827)
+    const choked = typeof stationCovered === 'function' && stationCovered(x, y + CORE.chimneyHeight(getBlock, x, y, z), z);
     f.choked = choked;
     if (lit && canSmelt && !choked) {
       f.progress += dt / rec.time;

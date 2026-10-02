@@ -211,6 +211,31 @@ function feedQuest(name, xp) {
   if (!row.fresh) _feedBump(row.el);
 }
 
+/* A feat (0.8283): a biome found, the top or bottom of the world, a night lived through. The gold star again, the
+   feat on the left and what it paid on the right. */
+function feedFeat(text, xp) {
+  const row = _feedPush('feat:' + text, 'level',
+    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b></span>` + '<span class="fWhy"></span>');
+  if (!row) return;
+  row.el.querySelector('.fAmt').textContent = text;
+  row.el.querySelector('.fWhy').textContent = '+' + xp + ' XP';
+  if (!row.fresh) _feedBump(row.el);
+}
+
+/* What XP came from (0.8284): a green row per source, stacking while it is being added to — eight blocks dug in a
+   row read as one '+8 XP mining'. No chime: XP comes too often for that. Quests, feats and level-ups keep their own
+   gold rows. */
+function feedXP(n, why) {
+  if (!(n > 0) || !why) return;
+  const row = _feedPush('xp:' + why, 'xp',
+    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b> XP</span>` + '<span class="fWhy"></span>');
+  if (!row) return;
+  row.amt += n;
+  row.el.querySelector('.fAmt').textContent = '+' + row.amt;
+  row.el.querySelector('.fWhy').textContent = why;
+  if (!row.fresh) _feedBump(row.el);
+}
+
 /* The old entry point, kept so every existing caller still works. It now lands in the feed as an
    info row; the single-line #toast element it used to write into is gone. */
 function toast(msg) { feedInfo(msg); }

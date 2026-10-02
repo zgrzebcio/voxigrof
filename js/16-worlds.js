@@ -122,13 +122,20 @@ const idbDel = (id) => { if (idb) try { idb.transaction('worlds', 'readwrite').o
 const persistWorlds = () => localStorage.setItem('vg_worlds', JSON.stringify(WORLDS));
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
+// a taken name gets a number in brackets: World, World(1), World(2)... (0.829; was World1)
 function uniqueWorldName(raw) {
   const base = (raw || '').trim().slice(0, 24) || 'World';
   if (!WORLDS.some(w => w.name === base)) return base;
   let n = 1;
-  while (WORLDS.some(w => w.name === base + n)) n++;
-  return base + n;
+  while (WORLDS.some(w => w.name === `${base}(${n})`)) n++;
+  return `${base}(${n})`;
 }
+// the small line under the name box: what the world will really be called (0.829)
+const worldNameHint = document.getElementById('worldNameHint');
+function paintWorldNameHint() {
+  if (worldNameHint) worldNameHint.textContent = 'saved as: ' + uniqueWorldName(worldNameIn.value);
+}
+worldNameIn.addEventListener('input', paintWorldNameHint);
 
 function saveWorld(syncToLS = false) {
   if (!currentWorld) return;
@@ -167,6 +174,8 @@ function saveWorld(syncToLS = false) {
               // a death survives leaving the world (0.757): how long, which day, and what did it
               aliveT: +(player.aliveT || 0).toFixed(1), dead: !!player.dead,
               cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
+              deathMark: serializeDeathMark(player),                       // where they last died (0.827)
+              feats: serializeFeats(player),                               // biomes found, the top and bottom (0.8283)
               craftQueue: serializeCraftQueue(player),                     // 0.76
               skills: serializeSkills(player),                             // 0.79
               quest: serializeQuests(player), saltT: player._saltT || 0 },   // salt timer (0.8099)                            // the starter quest reached (0.798)
@@ -218,6 +227,8 @@ async function loadWorld(w) {
   setPlayerCount(1);                  // the roster is per world; the previous one's players leave
   player.chiselShape = null;          // the chisel's shape is not kept between worlds (0.7844)
   player._variantPick = null;         // ...nor the picked variants (0.794)
+  player._deathMark = null;           // ...nor where they died in another world (0.827)
+  player._feats = null; player._night = null;   // ...nor what they found there (0.8283)
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world (0.785)
@@ -465,6 +476,7 @@ function refreshMenu(screen) {
                       : s === 'profiles' ? (needsFirstProfile() ? 'who is playing?' : 'profiles on this device')
                       : 'infinite voxel world · greedy-meshed · worker-generated';
   if (s === 'worlds') renderWorldList();
+  if (s === 'create') paintWorldNameHint();   // 0.829
   if (s === 'profiles') renderProfiles();
   if (s === 'pause') renderSplitPanel();     // the split-screen roster lives on the pause screen
   paintProfileLabel();

@@ -111,7 +111,8 @@ const CREATIVE_ORDER = [
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
-  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
+  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
+  B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
   B.GLOW_VINE, B.COBWEB,
 ];
 function _defaultCreativeInventory() {
@@ -247,6 +248,7 @@ function tryCarvePumpkin(hit) {
     const facing = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
     setBlock(x, y, z, B.CARVED_PUMPKIN | (facing << 8));
     playBlockSound(B.PUMPKIN, 'break', x, y, z);
+    addXP(XP_CARVE, 'carving');                                                   // 0.8281
     const slot = HOTBAR[hotbarSel];
     if (!player.canFly && slot && slot.dur != null) {
       if (wearSlot(slot) === 'gone') HOTBAR[hotbarSel] = null;
@@ -256,6 +258,7 @@ function tryCarvePumpkin(hit) {
     setBlock(x, y, z, B.JACK_O_LANTERN | (getBlock(x, y, z) & 0xFF00));   // keeps its facing
     playBlockSound(B.TORCH, 'place', x, y, z);
     spendHeld('used');
+    addXP(XP_LANTERN, 'lighting a lantern');                                                 // 0.8281
   }
   return true;
 }
@@ -315,6 +318,12 @@ function doBreak() {
     return;
   }
   if (tryChopLog(hit.x, hit.y, hit.z)) return;   // axe on a log: strip / fell instead of breaking
+  // a mixed slab loses the half you aim at (0.8263); the other stays
+  if (CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) {
+    playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
+    breakSlabMixHalf(hit.x, hit.y, hit.z, hit.bi ? 1 : 0);
+    return;
+  }
   const inf = layerBreakInfo(hit.x, hit.y, hit.z);
   playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
   if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z));   // 0.8
@@ -337,7 +346,7 @@ function doBreak() {
 /* Fiber is the sole gate on every tool recipe (5 per tool), so this rate sets how long the
    stone age lasts. Lowered again in 0.7575: grass 15%, wheat and ripe bushes 20%, bare bushes 30%. */
 const HARVEST_FIBER_CHANCE = 0.15;
-const WHEAT_FIBER_CHANCE = 0.20;                  // wheat straw is fibrous: a better roll than grass (0.7571)
+const WHEAT_FIBER_PER_STAGE = 0.05;               // wheat straw is fibrous: 5% a growth stage, ripe 35% (0.826; 20% flat since 0.7571)
 const BUSH_REACH = 1.5;                          // multiplier on the player's half-width
 // what the on-screen prompt calls each pickable — the plant's own name, not the system's
 const BUSH_NAME = [];
@@ -346,7 +355,9 @@ BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
 BUSH_NAME[B.REDBERRY_BUSH] = 'red berry bush';
 BUSH_NAME[B.BLUEBERRY_BUSH] = 'blue berry bush';
-BUSH_NAME[B.YELLOWBERRY_BUSH] = 'blackberry bush';   // renamed 0.8099
+BUSH_NAME[B.BLACKBERRY_BUSH] = 'blackberry bush';   // renamed 0.8099
+BUSH_NAME[B.YELLOWBERRY_BUSH] = 'yellow berry bush';   // 0.827
+BUSH_NAME[B.WHITEBERRY_BUSH] = 'white berry bush';
 BUSH_NAME[B.FLINT_ROCK] = 'flint pebble';
 BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
 BUSH_NAME[B.MELON] = 'watermelon';
@@ -362,14 +373,17 @@ for (const id of FORAGE_WHOLE) BUSH_NAME[id] = PROPS[id].name.toLowerCase();
 const BERRY_FRUIT = [];
 BERRY_FRUIT[B.REDBERRY_BUSH] = ITEM.BERRIES;
 BERRY_FRUIT[B.BLUEBERRY_BUSH] = ITEM.BLUE_BERRIES;
-BERRY_FRUIT[B.YELLOWBERRY_BUSH] = ITEM.YELLOW_BERRIES;   // poisonous (0.7947)
+BERRY_FRUIT[B.BLACKBERRY_BUSH] = ITEM.BLACKBERRIES;   // poisonous (0.7947)
+BERRY_FRUIT[B.YELLOWBERRY_BUSH] = ITEM.YELLOW_BERRIES;   // 0.827
+BERRY_FRUIT[B.WHITEBERRY_BUSH] = ITEM.WHITE_BERRIES;
 /* Berry bush (0.698). Picking a GROWN bush takes the fruit and leaves the plant standing at
    `empty`, so it regrows (33-felling.js) instead of being consumed — a bush is a renewable
    patch, not a one-shot pickup. An unripe bush yields nothing but a better fiber roll, since
    all you did was strip leaves off it. */
 // how many berries a ripe pick gives: LOOT.berry in 50-loottable.js (0.806)
-const BERRY_FIBER_CHANCE = 0.20;                 // ripe pick: fruit is the reward, fiber is a bonus
-const BERRY_LEAF_FIBER_CHANCE = 0.30;            // unripe pick: fiber is the whole point
+// a fiber with any pick (0.827; 20% ripe, 30% unripe before): 7% at a sprout and 7% more each stage on, 42% ripe
+const BERRY_FIBER_BASE = 0.07, BERRY_FIBER_PER_STAGE = 0.07;
+const berryFiberChance = (stage) => BERRY_FIBER_BASE + BERRY_FIBER_PER_STAGE * stage;
 /* Yield goes STRAIGHT into the inventory — no dropped entity to walk back over. That is what
    makes it work at a sprint: hold the key through a field and every bush lands in a slot as you
    pass. Only when there is genuinely no room does it fall on the ground instead of vanishing. */
@@ -409,7 +423,9 @@ function findBushPickup() {
   const y0 = Math.floor(p.y);
   const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r);
   const z0 = Math.floor(p.z - r), z1 = Math.floor(p.z + r);
-  let best = null, bestD = Infinity;
+  /* A growing mushroom (0.826) says how big it is now; one under 40% grown says it is too small and cannot be
+     picked. Such a one is only the answer when nothing pickable is in reach (`small`, harvestAtPlayer skips it). */
+  let best = null, bestD = Infinity, small = null, smallD = Infinity;
   for (let y = y0; y <= y0 + 1; y++)
     for (let z = z0; z <= z1; z++)
       for (let x = x0; x <= x1; x++) {
@@ -417,30 +433,40 @@ function findBushPickup() {
         if (!BUSH_NAME[id]) continue;
         const dx = (x + 0.5) - p.x, dz = (z + 0.5) - p.z;
         const d = dx * dx + dz * dz;
+        const v = (val >> 8) & 255;
+        // every mushroom says its size, a grown one too (0.8291; only growing ones did)
+        if (PROPS[id].shroom != null && typeof shroomSizeAt === 'function') {
+          const tiny = shroomTooSmall(id, v), size = +shroomSizeAt(x, y, z, v).toFixed(2);
+          const name = `${BUSH_NAME[id]} (${size}x${tiny ? ', too small' : ''})`;
+          if (tiny) { if (d < smallD) { smallD = d; small = { x, y, z, id, v, name, small: true }; } continue; }
+          if (d < bestD) { bestD = d; best = { x, y, z, id, v, name }; }
+          continue;
+        }
         if (d >= bestD) continue;
         bestD = d;
-        const v = (val >> 8) & 255;
         // the prompt says what you would actually get, so a bare bush reads as bare
         let name = BUSH_NAME[id];
         if (isBerryBush(id)) {
           const st = berryStage(v);
           // an unripe bush is not yet telling you which one it is, so neither does the prompt
-          if (st === BERRY_STAGE.SMALL) name = 'berry bush (sprout)';
+          if (st <= BERRY_STAGE.BUSH) name = 'berry bush (young)';            // six stages since 0.827
+          else if (st === BERRY_STAGE.EMPTY) name = 'berry bush (bare)';
           else if (st !== BERRY_STAGE.GROWN) name = 'berry bush (unripe)';
         }
         best = { x, y, z, id, v, name };
       }
-  return best;
+  return best || small;
 }
 /* Returns the cooldown to arm (seconds) on a successful pick, or 0 when nothing was taken. */
 function harvestAtPlayer() {
   const t = findBushPickup();
-  if (!t) return 0;
+  if (!t || t.small) return 0;                   // a mushroom too small to pick stays where it is (0.826)
   const { x, z, id } = t;
   // the right hand grabs when empty; holding anything, the left does it (40-shield.js shows that arm, 0.802)
   if (HOTBAR[hotbarSel]) player._offPickT = 0.35;
   else handPickSwing = true;                     // 24-hands.js plays the grab on the next frame
-  addXP(XP_HARVEST);                             // foraging counts, same as breaking a wild block
+  // foraging counts, same as breaking a wild block; a carved pumpkin or a jack o'lantern taken back up does not (0.8281)
+  if (id !== B.CARVED_PUMPKIN && id !== B.JACK_O_LANTERN) addXP(XP_HARVEST);
   // bits of the plant you pulled (0.801); the whole cell value, not just the variant (fixed 0.803)
   if (typeof fxForage === 'function') fxForage(x, t.y, z, id | (t.v << 8));
   if (isBerryBush(id)) {
@@ -450,21 +476,23 @@ function harvestAtPlayer() {
       // first pick on a ripe bush: take the fruit, leave the plant standing and empty
       setBlock(x, t.y, z, id | (BERRY_STAGE.EMPTY << 8));
       const fruit = BERRY_FRUIT[id];
-      const n = rollLoot(LOOT.berry);           // 1 sure, then 75% and 35% for more (50-loottable.js, 0.806)
+      const n = rollLoot(LOOT.berry)            // 1 sure, then 75% and 35% for more (50-loottable.js, 0.806)
+              + lootBonus(hasSkill('luckyHands'));   // Lucky Hands: 20% for one more (0.828)
       for (let i = 0; i < n; i++) bushGive(fruit, x, t.y, z);
-      if (!player.canFly && Math.random() < fiberChance(BERRY_FIBER_CHANCE)) _giveFiber(x, t.y, z);
+      addXP(n * XP_FORAGE_ITEM);    // one more a berry (0.8281)
+      if (!player.canFly && Math.random() < fiberChance(berryFiberChance(stage))) _giveFiber(x, t.y, z);
       queueBerryGrow(x, t.y, z);
     } else if (stage === BERRY_STAGE.FRUITLING) {
       // half-grown: the unripe fruit is lost, the plant survives at empty
       setBlock(x, t.y, z, id | (BERRY_STAGE.EMPTY << 8));
-      if (!player.canFly && Math.random() < fiberChance(BERRY_LEAF_FIBER_CHANCE)) _giveFiber(x, t.y, z);
+      if (!player.canFly && Math.random() < fiberChance(berryFiberChance(stage))) _giveFiber(x, t.y, z);
       queueBerryGrow(x, t.y, z);
     } else {
       /* Empty or still a sprout: nothing left to strip, so this pick takes the whole plant. On an
          empty bush that is the SECOND pick on one you just picked — and the 1.1s cooldown between
          them is what keeps one held key from stripping and uprooting it in the same motion. */
       setBlock(x, t.y, z, B.AIR);
-      if (!player.canFly && Math.random() < fiberChance(BERRY_LEAF_FIBER_CHANCE)) _giveFiber(x, t.y, z);
+      if (!player.canFly && Math.random() < fiberChance(berryFiberChance(stage))) _giveFiber(x, t.y, z);
     }
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
     return BERRY_REPEAT;
@@ -475,13 +503,21 @@ function harvestAtPlayer() {
   if (FORAGE_WHOLE.has(id)) {                        // a flower or a mushroom: the plant itself (0.819)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
-    // a mushroom picked under 40% grown gives nothing (0.821, 51-seasons.js)
+    /* What it gives (back in 0.826: the line was lost in 0.821, and every pick gave nothing): a mushroom itself, a
+       flower half the time a fiber (blockDrop, 50-loottable.js). One under 40% grown is never picked (above). */
+    for (const d of blockDrop(id)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+    // a mushroom pays by its size: one more every 0.2x, and more again fully grown (0.8282, 35-leveling.js)
+    if (PROPS[id].shroom != null && typeof shroomSizeAt === 'function')
+      addXP(Math.floor(shroomSizeAt(x, t.y, z, t.v) / XP_SHROOM_STEP + 1e-6) + (shroomLeft(t.v) ? 0 : XP_SHROOM_GROWN));
     return BUSH_REPEAT;
   }
   if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE) {   // the stone pebble the same way (0.8095)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.COBBLE, 'break', x, t.y, z);
-    bushGive(id === B.FLINT_ROCK ? ITEM.FLINT : ITEM.STONE_PEBBLE, x, t.y, z);
+    const got = id === B.FLINT_ROCK ? ITEM.FLINT : ITEM.STONE_PEBBLE;
+    const n = 1 + lootBonus(hasSkill('luckyHands'));                  // Lucky Hands (0.828)
+    for (let i = 0; i < n; i++) bushGive(got, x, t.y, z);
+    addXP(n * XP_FORAGE_ITEM);                            // one more a flint or pebble (0.8281)
     return BUSH_REPEAT;
   }
   /* Gourds: picked up whole, and they hand over exactly what breaking them used to (0.7343) —
@@ -489,16 +525,26 @@ function harvestAtPlayer() {
   if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE || id === B.CARVED_PUMPKIN || id === B.JACK_O_LANTERN) {   // cantaloupe 0.8091, carved 0.824
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(id, 'break', x, t.y, z);
-    for (const d of blockDrop(id, true))
+    let slices = 0;
+    for (const d of blockDrop(id, true)) {
       for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+      if (d.id === ITEM.MELON_SLICE || d.id === ITEM.CANTALOUPE_SLICE) slices += d.count;
+    }
+    // a pumpkin XP_PUMPKIN in all; a melon or cantaloupe one more a slice (its fiber not counted; 0.8281)
+    if (id === B.PUMPKIN) addXP(XP_PUMPKIN - XP_HARVEST);
+    else addXP(slices * XP_FORAGE_ITEM);
     return BUSH_REPEAT;
   }
   if (id === B.WHEAT) {
-    const ripe = !((getBlock(x, t.y, z) >> 8) & 7);                  // growing wheat gives straw only (0.81)
+    const st = (getBlock(x, t.y, z) >> 8) & 7, ripe = !st;           // growing wheat gives straw only (0.81)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.WHEAT, 'break', x, t.y, z);
-    if (ripe) for (const d of blockDrop(B.WHEAT)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
-    _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_CHANCE);                 // wheat straw yields fiber as well
+    if (ripe) for (const d of blockDrop(B.WHEAT)) {
+      for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+      addXP(d.count * XP_FORAGE_ITEM);                     // one more a wheat (0.8281)
+    }
+    // wheat straw yields fiber as well: 5% at its first stage, 5% more each stage on, 40% ripe (0.826; 20% flat before)
+    _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_PER_STAGE * (ripe ? 7 : Math.min(6, st)));   // 35% ripe since 0.8273 (six stages)
     return BUSH_REPEAT;
   }
   if (id === B.TALLGRASS) {
@@ -542,11 +588,19 @@ var handPickSwing  = false;   // same, for a successful bush pickup
 /* Chisel shapes (0.783) are variants of the full block, so two halves of the SAME block in one cell are
    simply that full block again: a slab shape put into a half of it fills the cell. */
 const isSlabHalfVal = (v) => { const va = (v >> 8) & 255; return !!PROPS[v & 255]?.shapes?.slab && (va & SHAPE_MASK) === SHAPE_SLAB; };
+/* ...and two halves of DIFFERENT blocks that both take a slab make a mixed slab (0.8263, setSlabMix in 11-chunks.js):
+   the cell keeps both, each in its own art. */
+const slabHalfTakes = (hv, id) => isSlabHalfVal(hv) && ((hv & 255) === id || CORE.slabsMix(hv & 255, id));
 function _fillHalf(x, y, z, id) {
   const p = player.pos, R = player.R;              // cell becomes full — don't squash the player
   if (x + 1 > p.x - R && x < p.x + R && y + 1 > p.y && y < p.y + player.H &&
       z + 1 > p.z - R && z < p.z + R) return false;
-  setBlock(x, y, z, id);
+  const hv = getBlock(x, y, z), have = hv & 255;
+  if (have === id) setBlock(x, y, z, id);
+  else {
+    const r = ((hv >> 8) & 255) & ROT_MASK;         // the half already there; the new one goes in the other
+    if (r & 1) setSlabMix(x, y, z, id, have, r & 6); else setSlabMix(x, y, z, have, id, r);
+  }
   playBlockSound(id, 'place', x, y, z);
   handPlaceSwing = true;
   spendHeld("placed");
@@ -790,7 +844,7 @@ function _doPlace() {
   // filling a half, case 1: clicked the inner flat face of a half of this very block → complete THAT cell
   if (halfFill) {
     const hv = getBlock(hit.x, hit.y, hit.z);
-    if ((hv & 255) === heldId && isSlabHalfVal(hv)) {
+    if (slabHalfTakes(hv, heldId)) {                 // ...or of another that mixes with it (0.8263)
       const h = ((hv >> 8) & 255) & ROT_MASK, o = h >> 1, axisN = o === 0 ? hit.ny : o === 1 ? hit.nx : hit.nz;
       if (axisN === ((h & 1) ? -1 : 1) && _fillHalf(hit.x, hit.y, hit.z, heldId)) return;
     }
@@ -813,7 +867,7 @@ function _doPlace() {
     // ...case 2: unless the target cell holds a half of the held block, which this completes
     if (halfFill) {
       const tv = getBlock(px, py, pz);
-      if ((tv & 255) === heldId && isSlabHalfVal(tv) && _fillHalf(px, py, pz, heldId)) return;
+      if (slabHalfTakes(tv, heldId) && _fillHalf(px, py, pz, heldId)) return;
     }
     // ...or a layer stack the held block piles onto (a layer clicked from the side or below, 0.785)
     if (shaped && shaped.key === 'carpet' && canStackLayer(getBlock(px, py, pz), heldId) && addLayer(px, py, pz, heldId)) {
@@ -958,7 +1012,10 @@ function _doPlace() {
   const type = PROPS[id].model;
   // a placed berry bush arrives RIPE, matching the icon that was in the slot — a bare sprout
   // would give no sign which of the two bushes had just been put down
-  if (isBerryBush(id)) varb = BERRY_STAGE.GROWN;
+  // ...or at the stage picked on the variant bar, ripe by default; wheat the same (0.827)
+  const growth = isBerryBush(id) || id === B.WHEAT;
+  if (growth) varb = typeof variantOptions === 'function' && variantOptions(slotId(slot)) ? heldVariantBitsOf(slotId(slot))
+                   : isBerryBush(id) ? BERRY_STAGE.GROWN : 0;
   if (rot === 'side') {
     // front faces the player: facing = horizontal direction from block toward player
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
@@ -968,9 +1025,13 @@ function _doPlace() {
   }
   if (shaped) varb = _shapeVariantFor(shaped.key, hit, px, py, pz);   // the chisel's shape (0.783)
   // a furnace's rock, a bench's or a chest's wood, picked on the variant bar (0.809)
-  else if (typeof heldVariantBitsOf === 'function') varb |= heldVariantBitsOf(slotId(slot));
+  else if (!growth && typeof heldVariantBitsOf === 'function') varb |= heldVariantBitsOf(slotId(slot));
+  // sugar cane (0.829): planted as a sprout that grows (on another cane a stage on); creative puts it down grown
+  const caneSprout = id === B.SUGAR_CANE && !player.canFly;
+  if (caneSprout) varb = (getBlock(px, py - 1, pz) & 255) === B.SUGAR_CANE ? CANE_STEPS - 1 : CANE_STEPS;
   clearPlantAt(px, py, pz);                 // grass in the way is destroyed, not a blocker
   setBlock(px, py, pz, id | (varb << 8));
+  if (caneSprout && typeof queueCaneGrow === 'function') queueCaneGrow(px, py, pz);
   playBlockSound(id, 'place', px, py, pz);
   if (id === B.CHEST) {
     tryPairChest(px, py, pz, varb & 3);       // link to a lone same-facing neighbour, if any

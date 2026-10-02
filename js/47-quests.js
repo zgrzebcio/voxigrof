@@ -22,8 +22,9 @@ const QUESTS = [
   { name: 'Gather fiber',           hint: 'Hold E on grass, wheat or bushes',        reqs: [_req(ITEM.FIBER, 5)],  xp: 10 },
   { name: 'Find sticks',            hint: 'Break leaves',                            reqs: [_req(ITEM.STICK, 3)],  xp: 10 },
   { name: 'Pick up flint',          hint: 'Hold E on a flint pebble, or dig gravel', reqs: [_req(ITEM.FLINT, 4)],  xp: 10 },   // 4, the hatchet's worth (0.8095)
-  { name: 'Gather food',            hint: 'Berries, apples, meat — anything edible counts',
-    reqs: [_reqAny((id) => !!foodPropsOf(id) || id === ITEM.CANTALOUPE_SLICE, 15, 'food')], xp: 15 },
+  // 20 since 0.8272 (15), and wheat and raw mushrooms count too: things that become food
+  { name: 'Gather food',            hint: 'Berries, apples, meat, wheat, mushrooms — anything edible counts',
+    reqs: [_reqAny((id) => !!foodPropsOf(id) || id === ITEM.CANTALOUPE_SLICE || id === ITEM.WHEAT || (id < 256 && PROPS[id]?.shroom != null), 20, 'food')], xp: 15 },
   // the flint pickaxe left the chain in 0.8095: it breaks stone but keeps none
   { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
   { name: 'Chop wood',              hint: 'Use the hatchet on a tree',
@@ -56,6 +57,9 @@ const QUESTS = [
   { name: 'Every gem',              hint: 'Gem clusters grow in caves. You need a bronze pickaxe',
     reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 100 },
 ];
+// every quest pays half as much again since 0.8281 (the numbers above are the old ones: 10 -> 15, 100 -> 150)
+const QUEST_XP_MUL = 1.5;
+for (const q of QUESTS) q.xp = Math.round(q.xp * QUEST_XP_MUL);
 
 var questEl = document.getElementById('quest');   // one per split-screen pane (36-splitscreen.js)
 const QUEST_CHECK_S = 0.25;

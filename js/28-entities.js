@@ -1778,6 +1778,7 @@ function tryShearSheep() {
     spawnDrop(B.WOOL, bx, by, bz, {
       x: (Math.random() - 0.5) * 2.5, y: 2.2 + Math.random(), z: (Math.random() - 0.5) * 2.5,
     }, 0.5);
+  addXP(XP_SHEAR, 'shearing');                                   // 0.8283
   const slot = HOTBAR[hotbarSel];
   if (!player.canFly && slot && slot.dur != null) {
     if (wearSlot(slot) === 'gone') HOTBAR[hotbarSel] = null;
@@ -1873,7 +1874,7 @@ function damageEntity(ent, dmg) {
     if (!player.canFly) ent.fleeT = isFish(ent) ? FISH_FLEE_TIME : ent.kind === 'cow' ? COW_FLEE_TIME
                                   : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
     if (ent.hp <= 0) {
-      if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent)); }   // killed by the player
+      if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind)); }   // killed by the player
       const i = ENTITIES.indexOf(ent);
       if (i >= 0) _removeEntity(i);
       return true;
@@ -1887,7 +1888,7 @@ function damageEntity(ent, dmg) {
     ent.state = 'chase';
   }
   if (ent.hp <= 0) {
-    if (!player.canFly) { _entDropLoot(ent); addXP(mobKillXP(ent)); }
+    if (!player.canFly) { _entDropLoot(ent); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind)); }
     const i = ENTITIES.indexOf(ent);
     if (i >= 0) _removeEntity(i);
     return true;

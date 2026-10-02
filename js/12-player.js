@@ -201,7 +201,8 @@ function wallClimbWanted(upHeld, fwd, grounded, inWater) {
   if (grounded) player._climbBase = player.pos.y;
   if (!upHeld || fwd <= 0.1 || playerTired()) return false;   // out of stamina (0.82)
   if (!player._wallClimbing && player.vy < WALL_CLIMB_GRAB_VY) return false;
-  if (player.pos.y >= (player._climbBase ?? player.pos.y) + WALL_CLIMB_MAX) return false;
+  // ...one block more with Climber (0.828, 45-skills.js)
+  if (player.pos.y >= (player._climbBase ?? player.pos.y) + WALL_CLIMB_MAX + (typeof skillClimbExtra === 'function' ? skillClimbExtra() : 0)) return false;
   // a climb only STARTS at a wall two blocks high or more: a one-block step is a jump, not a climb (0.8041)
   if (!player._wallClimbing) {
     const p = player.pos, reach = player.R + 0.2;
@@ -327,7 +328,9 @@ function raycastVoxel(origin, dir, maxDist) {
         const hit = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
         if (hit && hit.t <= maxDist && (!best || hit.t < best.t)) { best = hit; bestI = bi; }
       }
-      if (best) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id, bi: bestI, t: best.t };
+      // a mixed slab (0.8263) is the block of the half aimed at: its hardness, its sound, its name
+      const mix = typeof slabMixIdsAt === 'function' ? slabMixIdsAt(x, y, z, b) : null;
+      if (best) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] : id, bi: bestI, t: best.t };
       // no box hit in this cell -> keep traversing
     }
     if (tX < tY && tX < tZ) { if (tX > maxDist) return null; tEnter = tX; x += stepX; tX += dtX; nx = -stepX; ny = 0; nz = 0; }

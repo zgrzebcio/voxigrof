@@ -156,8 +156,8 @@ const ARMOR_SET_BONUS = {
      actually for. It is a multiplier on the penalty, not on your speed. */
   leather: { name: 'Slowness resistance',  terrainDrag: 0.30, good: true,
              desc: 'Full set: leaf and snow slowdown 30% weaker' },
-  /* Cloth (0.824): 40% less from sandstorms and heatstroke. Held here for the 0.825 weather that deals them; nothing
-     reads it yet. */
+  /* Cloth (0.824): 40% less from sandstorms and heatstroke, read by the 0.825 weather (54-stats-effects.js): heatstroke
+     builds 40% slower, and a sandstorm slows you and drains your stamina 40% less. */
   cloth:   { name: 'Weather resistance', sandstormResist: 0.40, heatstrokeResist: 0.40, good: true,
              desc: 'Full set: 40% resistance to sandstorms and heatstroke' },
 };
@@ -443,9 +443,10 @@ function buildEquipPanel() {
   const spd = playerMoveSpeedMul(), str = playerStrength(), atk = playerAtkSpeedMul();
   const cold = Math.min(1, Math.max(-1, _resSum('coldResist'))), heat = Math.min(1, Math.max(-1, _resSum('heatResist')));
   const jmp = playerJumpMul(), cft = playerCraftSpeedMul(), tough = playerToughness();
-  const hunger = typeof playerHungerMul === 'function' ? playerHungerMul() : 1;
-  const air = playerAirMul();
+  const dep = typeof playerDepletionMul === 'function' ? playerDepletionMul() : 1;   // one line for every bar since 0.828
   const hazard = 1 - (typeof skillHazardMul === 'function' ? skillHazardMul() : 1);
+  const hs = typeof playerHeatstrokeResist === 'function' ? playerHeatstrokeResist() : 0;
+  const sight = 1 - (typeof skillSightMul === 'function' ? skillSightMul() : 1);   // Clear Eyes (0.8291)
   let stats =
     row('defense', f1(pts)) +
     row('damage reduced', pct(red)) +
@@ -457,10 +458,11 @@ function buildEquipPanel() {
     row('heat resistance', pct(heat), tone(heat, 0)) +
     row('jump strength', pct(jmp), tone(jmp, 1)) +
     row('crafting speed', pct(cft), tone(cft, 1)) +
-    row('hunger depletion', pct(hunger), tone(hunger, 1, false)) +
-    row('oxygen depletion', pct(air), tone(air, 1, false)) +                  // 0.7911
+    row('stats depletion', pct(dep), tone(dep, 1, false)) +                  // hunger and oxygen depletion until 0.828
     row('hazard reduction', pct(hazard), tone(hazard, 0)) +                   // 0.7911
-    '<div class="stRow slotFree"><span>&mdash;</span><b>&mdash;</b></div>';   // reserved for the next stat
+    row('heatstroke resistance', pct(hs), tone(hs, 0)) +                      // the reserved line (0.825)
+    row('visibility reduction', pct(sight), tone(sight, 0)) +                 // 0.8291
+    '<div class="stRow slotFree"><span>&mdash;</span><b></b></div>';          // an empty line kept for a stat to come (0.8291)
   // the stats get the room; effects are a short strip under them (0.7612)
   stats = '<div class="stGrid">' + _tagStatRows(stats) + '</div>';   // hoverable, with a tooltip each (0.7611)
   const eff = activeEffects();

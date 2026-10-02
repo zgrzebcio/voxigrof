@@ -107,7 +107,7 @@ function buildDropGeom(id, variant = 0) {
   const r = CORE.meshChunk(data.buffer, empty(), empty(), empty(), empty(),
                            lightArr.buffer, lite(), lite(), lite(), lite());
   const passes = [];
-  for (let p = 0; p < 4; p++) {
+  for (let p = 0; p < 5; p++) {                   // pass 4 is glass (0.8263)
     const g = r.passes[p];
     if (!g) continue;
     const geo = new THREE.BufferGeometry();

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voxiGrof</title>
-<link rel="stylesheet" href="css/style.css?v=0.82">
+<link rel="stylesheet" href="css/style.css?v=0.8291">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -16,7 +16,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.8245</div>
+<div id="version">alpha 0.8291</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="interact"></div>
@@ -103,7 +103,10 @@
     <div id="menuCreate" style="display:none">
       <div id="createOpts">
         <div class="seedrow">
-          <input id="worldName" maxlength="24" spellcheck="false" placeholder="world name">
+          <div class="nameCol">
+            <input id="worldName" maxlength="24" spellcheck="false" placeholder="world name">
+            <div id="worldNameHint"></div>
+          </div>
           <input id="seedInput" class="mono" maxlength="24" spellcheck="false" placeholder="seed (optional)">
         </div>
         <label class="crow">mode
@@ -153,6 +156,8 @@
       <div class="seedrow">
         <button id="resumeBtn">Resume</button>
         <button id="quitBtn" style="background:#7d5a32">Save &amp; Quit</button>
+        <!-- 0.829: hover 1 s (2 until 0.8291) to arm, then click — dies on the spot to get unstuck (19-vitals.js) -->
+        <button id="giveUpBtn" title="Stuck? Hover 1 s, then click: you die and respawn (every 20 min)"><small>hover to</small><span>Respawn</span></button>
         <button id="fsBtn2" class="grey" title="Fullscreen (F1)" style="padding:6px 13px;font-size:15px">&#9974;</button>
       </div>
     </div>

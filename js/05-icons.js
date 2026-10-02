@@ -90,13 +90,15 @@ const ICON_MESH_ART = {
 };
 const iconArtReady = (id) => (ICON_MESH_ART[id] || []).every(n => IMAGES[n]);
 
-function renderBlockIcon(id, variant = 0) {
+function renderBlockIcon(id, variant) {
   if (id >= 256) return renderItemIcon(id);
-  // inventory logs read as a full block, matching the item they place
-  if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   // a berry bush shows RIPE in the inventory: stage 0 is a bare sprout, and the two bushes are
   // identical until they fruit, so the sprout icon could not tell red from blue
-  if (!variant && isBerryBush(id)) variant = BERRY_STAGE.GROWN;
+  // ...unless a stage is asked for: the variant bar's sprout IS stage 0 (0.827)
+  if (variant == null && isBerryBush(id)) variant = BERRY_STAGE.GROWN;
+  variant = variant || 0;
+  // inventory logs read as a full block, matching the item they place
+  if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;
   if (ICON3D[key]) return ICON3D[key];
   if (!iconArtReady(id)) return '';               // art still loading — ask again, don't cache
@@ -165,7 +167,7 @@ function renderBlockIcon(id, variant = 0) {
 
   // 2) draw it with the world's materials into an offscreen target
   const scene = new THREE.Scene();
-  for (let p = 0; p < 3; p++) {
+  for (const p of [0, 1, 2, 4]) {                 // not lava; glass in its own pass since 0.8263
     const g = r.passes[p];
     if (!g) continue;
     const geo = new THREE.BufferGeometry();

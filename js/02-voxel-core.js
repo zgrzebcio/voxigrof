@@ -123,6 +123,18 @@ function VOXEL_CORE() {
   // 0.824: lightning-struck sand; the carved pumpkin's face and top, and the lit one's face
   Object.assign(T, { GLASSY_SAND:320, CARVED_PUMPKIN_FRONT:321, CARVED_PUMPKIN_TOP:322, JACK_O_LANTERN_FRONT:323,
                      GLASSY_RED_SAND:324, GLASSY_PINK_SAND:325 });   // 0.8241
+  /* 0.827: every berry bush's own six growth stages, from 326: per kind (BERRY_KINDS) stage 0 sprout .. 5 ripe,
+     textures/Billboards/Plants/Berry_bush/<Kind>/<kind>_berry_stage<n>.png (BERRY_COLORS, 01-textures-data.js) */
+  const BERRY_KINDS = ['RED', 'BLUE', 'BLACK', 'YELLOW', 'WHITE'], BERRY_STAGES = 6;
+  // dirt patches in caves, and how often a yellow berry bush stands on their floor (0.8271, genChunk)
+  const CAVE_DIRT_AT = 0.3, CAVE_YELLOW_BUSH = 0.0072;   // 20% more since 0.8272 (0.006);   // ~14% of cave floor is dirt; a bush every couple of chunks
+  BERRY_KINDS.forEach((k, i) => { for (let s = 0; s < BERRY_STAGES; s++) T['BERRY_' + k + '_S' + s] = 326 + i * BERRY_STAGES + s; });
+  // 0.829: sugar cane's growing stages 0-4 (stage 5 is T.SUGAR_CANE) and a grown column's bottom, middle and top
+  Object.assign(T, { SUGAR_CANE_S0:356, SUGAR_CANE_S1:357, SUGAR_CANE_S2:358, SUGAR_CANE_S3:359, SUGAR_CANE_S4:360,
+                     SUGAR_CANE_BOTTOM:361, SUGAR_CANE_MIDDLE:362, SUGAR_CANE_TOP:363 });
+  /* A cane's variant bits 0-2: steps it still has to grow, CANE_STEPS a sprout .. 0 grown (the world's and old saves').
+     A neighbour above joins the column once it has stalks (CANE_JOIN_LEFT steps left or fewer). Growth: 51-seasons.js. */
+  const CANE_STEPS = 5, CANE_JOIN_LEFT = 3;
   /* The climate colour (0.8231): grass and water blend smoothly toward their warm or cold look by a value per
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
@@ -172,7 +184,7 @@ function VOXEL_CORE() {
               MOSSY_STONE_BRICK:128, CRACKED_STONE_BRICK:129, MOSSY_COBBLE:130, SULFUR_BRICKS:131,
               GRANITE_BRICKS:132, MARBLE_BRICKS:133, LIMESTONE_BRICKS:134,
               GRANITE_MORTAR:135, MARBLE_MORTAR:136, LIMESTONE_MORTAR:137,           // 0.7945
-              YELLOWBERRY_BUSH:138,                                                  // 0.7947
+              BLACKBERRY_BUSH:138,                                                   // 0.7947 (YELLOWBERRY_BUSH until 0.827)
               // gem clusters on a plain stone bed, a variant (0.7947)
               DIAMOND_CLUSTER_STONE:139, EMERALD_CLUSTER_STONE:140, RUBY_CLUSTER_STONE:141,
               SAPPHIRE_CLUSTER_STONE:142, TOPAZ_CLUSTER_STONE:143,
@@ -199,6 +211,7 @@ function VOXEL_CORE() {
               // 0.824: sand fused by lightning; the carved pumpkin and the jack o'lantern
               GLASSY_SAND:196, CARVED_PUMPKIN:197, JACK_O_LANTERN:198,
               GLASSY_RED_SAND:199, GLASSY_PINK_SAND:200,                               // 0.8241
+              YELLOWBERRY_BUSH:201, WHITEBERRY_BUSH:202,                               // 0.827: the real yellow, and white
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -270,7 +283,8 @@ function VOXEL_CORE() {
   PROPS[B.BIRCH_PLANKS] = { name:'Birch planks', solid:true,  opaque:true,  raycast:true, pass:0, model:'cube', stack:60, hardness:3.0, type:'wood', faces:[T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS], desc: '' };
   PROPS[B.BIRCH_LEAVES] = { name:'Birch leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:60, hardness:0.4, type:'grass', faces:[T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES], desc: '' };
   PROPS[B.SAND]    = { name:'Sand',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:1.9, type:'ground', faces:[T.SAND_SIDE,T.SAND_SIDE,T.SAND,T.SAND,T.SAND_SIDE,T.SAND_SIDE], desc: '' };   // own sides 0.8091
-  PROPS[B.GLASS]   = { name:'Glass',      solid:true,  opaque:false, raycast:true,  pass:1, model:'cube', stack:60, hardness:0.9, type:'glass', faces:[T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS], desc: '' };
+  // pass 4 (0.8263): the see-through pass, blended without writing depth, so glass shows through glass (04-materials.js)
+  PROPS[B.GLASS]   = { name:'Glass',      solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.9, type:'glass', faces:[T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS], desc: '' };
   PROPS[B.BEDROCK] = { name:'Bedrock',    solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:Infinity, type:'stone', faces:[T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK], desc: '' };
   PROPS[B.WATER]   = { name:'Water',      solid:false, opaque:false, raycast:false, pass:2, model:'cube', hardness:0, faces:[T.WATER,T.WATER,T.WATER,T.WATER,T.WATER,T.WATER], desc: '' };
   PROPS[B.GLOWSTONE] = { name:'Glowstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', light:20,handLight:10, stack:60, hardness:2.5, type:'glass', faces:[T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE], desc: '' };
@@ -427,6 +441,8 @@ function VOXEL_CORE() {
   // ...red sand and pink sand fuse into their own (0.8241)
   PROPS[B.GLASSY_RED_SAND]  = { ...PROPS[B.GLASSY_SAND], name: 'Glassy red sand',  faces: Array(6).fill(T.GLASSY_RED_SAND) };
   PROPS[B.GLASSY_PINK_SAND] = { ...PROPS[B.GLASSY_SAND], name: 'Glassy pink sand', faces: Array(6).fill(T.GLASSY_PINK_SAND) };
+  // red and pink are glassy sand's variants (0.8263; each sand's own in 0.8261), so like every other look not in the palette
+  for (const id of [B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]) PROPS[id].noInv = true;
   // fiber block (0.769): ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
   PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
@@ -469,7 +485,10 @@ function VOXEL_CORE() {
   PROPS[B.BIRCH_SAPLING] = { name:'Birch sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.BIRCH_SAPLING], desc: '' };
   // Sugar cane — cross billboard; only placeable on sand/grass/dirt next to water, or stacked on
   // an existing cane. Column capped at 5 blocks tall. Break drops one sugar cane per broken block.
-  PROPS[B.SUGAR_CANE]    = { name:'Sugar cane',    solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:64, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,1,0.9]], faces:[T.SUGAR_CANE], desc: '' };
+  PROPS[B.SUGAR_CANE]    = { name:'Sugar cane',    solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:64, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,1,0.9]], faces:[T.SUGAR_CANE], desc: '',
+                             // by steps left to grow (0.829): 0 grown (a column's piece: emitCross), 1 stage 4 .. 5 the sprout
+                             tilesByVar: [T.SUGAR_CANE, T.SUGAR_CANE_S4, T.SUGAR_CANE_S3, T.SUGAR_CANE_S2, T.SUGAR_CANE_S1, T.SUGAR_CANE_S0],
+                             segTiles: [T.SUGAR_CANE_BOTTOM, T.SUGAR_CANE_MIDDLE, T.SUGAR_CANE_TOP] };
   PROPS[B.GRAVEL]      = { name:'Gravel',      solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'ground',  faces:[T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL], desc: '' };
   PROPS[B.RED_MUSHROOM]  = { name:'Red mushroom',  solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.RED_MUSHROOM], desc: '' };
   // the third mushroom (0.7691): grows wherever the red and brown do, and goes into mushroom stew
@@ -487,13 +506,16 @@ function VOXEL_CORE() {
     hardness:0, type:'grass', shroom: kind,
     boxes: [[[5/16, 0, 5/16, 11/16, 7/16, 11/16], [6/16, 0, 6/16, 10/16, 10/16, 10/16], [5/16, 0, 5/16, 11/16, 6/16, 11/16]][SHROOM_SHAPE[kind]]],
     faces: Array(6).fill(SHROOM_T[kind][1]), desc: '', ...extra });
-  PROPS[B.RED_MUSHROOM]        = _shroom('Red mushroom', 0);
-  PROPS[B.BROWN_MUSHROOM]      = _shroom('Brown mushroom', 1);
-  PROPS[B.BLUE_MUSHROOM]       = _shroom('Blue mushroom', 2);
-  PROPS[B.BLACK_MUSHROOM]      = _shroom('Black mushroom', 3);
-  PROPS[B.LAVA_MUSHROOM]       = _shroom('Lava mushroom', 4, { light: 6 });
-  PROPS[B.WHITE_TALL_MUSHROOM] = _shroom('White mushroom', 5);        // "white tall" until 0.821
-  PROPS[B.YELLOW_MUSHROOM]     = _shroom('Yellow mushroom', 6);       // 0.821
+  // where each grows, for its tooltip (0.826)
+  const SHROOM_WHERE = 'Grows on cave floors, in the shade under trees and beside fallen hollow logs';
+  const _oakShroom = { desc: `${SHROOM_WHERE}; in autumn in oak forests, and on an oak hollow log packed with dirt.` };
+  PROPS[B.RED_MUSHROOM]        = _shroom('Red mushroom', 0, { desc: `${SHROOM_WHERE}; in autumn in birch forests, and on a birch hollow log packed with dirt.` });
+  PROPS[B.BROWN_MUSHROOM]      = _shroom('Brown mushroom', 1, _oakShroom);
+  PROPS[B.BLUE_MUSHROOM]       = _shroom('Blue mushroom', 2, { desc: `${SHROOM_WHERE}; in autumn in spruce and snow forests, and on a spruce hollow log packed with dirt.` });
+  PROPS[B.BLACK_MUSHROOM]      = _shroom('Black mushroom', 3, _oakShroom);
+  PROPS[B.LAVA_MUSHROOM]       = _shroom('Lava mushroom', 4, { light: 6, desc: 'Grows on cave floors next to lava, and glows a little.' });
+  PROPS[B.WHITE_TALL_MUSHROOM] = _shroom('White mushroom', 5, _oakShroom);        // "white tall" until 0.821
+  PROPS[B.YELLOW_MUSHROOM]     = _shroom('Yellow mushroom', 6, _oakShroom);       // 0.821
   /* Grilled mushrooms (0.821): what a furnace makes of a mushroom (not the lava one). Food, drawn on their raw
      kind's model, never placed (`noPlace`); what they give besides food is FOOD_NUTRITION in 54-stats-effects.js. */
   // noCreative (0.822): not in the creative palette (13-actions.js), but carried and saved like any block
@@ -676,20 +698,29 @@ function VOXEL_CORE() {
 
      Red keeps block id 82, so an existing world's bushes stay bushes. They do each shift down one
      stage once (0.7331 renumbering), which the regrow timer undoes on its own. */
-  const BERRY_STAGE = { SMALL: 0, EMPTY: 1, FRUITLING: 2, GROWN: 3 };
-  const berryStage = (v) => v & 3;
-  const isBerryBush = (id) => id === B.REDBERRY_BUSH || id === B.BLUEBERRY_BUSH || id === B.YELLOWBERRY_BUSH;
-  const _berryBush = (name, ripe) => ({
-    name, solid:false, opaque:false, raycast:true, noTarget:true,
-    pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass',
-    boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.BERRY_BUSH_EMPTY],
-    // indexed by stage: only the ripe tile differs between the two bushes
-    tilesByVar:[T.BERRY_BUSH_SMALL, T.BERRY_BUSH_EMPTY, T.BERRY_BUSH_FRUITLING, ripe],
-    desc: '',
-  });
-  PROPS[B.REDBERRY_BUSH]  = _berryBush('Red berry bush',  T.BERRY_BUSH_RED);
-  PROPS[B.BLUEBERRY_BUSH] = _berryBush('Blue berry bush', T.BERRY_BUSH_BLUE);
-  PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Blackberry bush', T.BERRY_BUSH_YELLOW);   // poisonous berries (0.7947); blackberries since 0.8099, own art 0.80991
+  /* SIX STAGES since 0.827, each kind in its own art at every one: a sprout, a small bush, a bush, the bare bush a
+     picked one drops back to, green fruit, ripe. The variant byte's low three bits; a bush saved before 0.827 (four
+     stages) reads one of the first four and grows on from there. */
+  const BERRY_STAGE = { SPROUT: 0, SMALL: 1, BUSH: 2, EMPTY: 3, FRUITLING: 4, GROWN: 5 };
+  const berryStage = (v) => Math.min(BERRY_STAGE.GROWN, v & 7);
+  const BERRY_BUSHES = [B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH];
+  const isBerryBush = (id) => BERRY_BUSHES.includes(id);
+  const _berryBush = (name, kind, extra) => {
+    const tiles = []; for (let s = 0; s < BERRY_STAGES; s++) tiles.push(T['BERRY_' + kind + '_S' + s]);
+    return { name, solid:false, opaque:false, raycast:true, noTarget:true,
+      pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass',
+      boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[tiles[BERRY_STAGE.GROWN]],
+      tilesByVar:[...tiles, tiles[5], tiles[5]],         // indexed by stage (6 and 7 never happen: ripe)
+      desc: '', ...extra };
+  };
+  // what each likes and gives (0.827): the berries' own effects are on the items below
+  PROPS[B.REDBERRY_BUSH]    = _berryBush('Red berry bush',    'RED',   { desc: 'Grows in forests, most of all high on the mountains.' });
+  PROPS[B.BLUEBERRY_BUSH]   = _berryBush('Blue berry bush',   'BLUE',  { desc: 'Grows by water: forest lakes and shores, rarely.' });
+  PROPS[B.BLACKBERRY_BUSH]  = _berryBush('Blackberry bush',   'BLACK', { desc: 'Grows in dark, cold forests like the spruce. Its berries are poisonous.' });   // 0.7947 (yellow until 0.8099)
+  // the yellow one glows: a little with green fruit, more when ripe (light by stage, 08-light-glow.js)
+  PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Yellow berry bush', 'YELLOW', { lightByVar: [0, 0, 0, 0, 3, 7, 7, 7],
+                                          desc: 'Grows rarely in the darkest forests and on the dirt of caves, and glows as it ripens.' });
+  PROPS[B.WHITEBERRY_BUSH]  = _berryBush('White berry bush',  'WHITE', { desc: 'Grows in light, sunny forests like the birch.' });
   PROPS[B.PINCUSHION] = { name:'Pincushion', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.7,0.75]], faces:[T.PINCUSHION], desc: '' };
   /* Flint stone (0.732) — a dark nodule lying on the turf. Built on the `carpet` model, which is
      just "one flat box, chosen by variant", so it renders as a low slab rather than a full cube;
@@ -763,7 +794,7 @@ function VOXEL_CORE() {
   /* Wheat grows (0.81): variant 0 is RIPE, as every wheat the world ever generated is, and 1-7 are the growing
      stages 0-6 (51-seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
   PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
-                        tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S6], desc: '' };
+                        tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S5], desc: '' };   // six growing stages since 0.8273 (seven before); 7 only in old saves
   PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
   PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
   PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
@@ -882,24 +913,81 @@ function VOXEL_CORE() {
   // the glass looks take what glass takes (0.8091)
   const _GLASS_VARIANTS = [B.DARK_GLASS, B.GREENHOUSE_GLASS, B.GLASS_BRICKS, B.DARK_GLASS_BRICKS];
   const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS];
+  /* 0.8261: the four rocks and every look of them (brick, mossy brick, polished, band, pillar) take slabs, stairs and
+     panes; every look of the three sandstones takes panes; glowstone and the glowcrystal block slabs and panes;
+     obsidian slabs, stairs and panes; wool slabs and stairs; stone and the tin block walls. Adobe and terracotta lost
+     the cover, the iron and gold blocks the carpet, the iron block the fence. */
+  const _ROCKS = [B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE];
+  const _ROCK_LOOKS = [B.GRANITE_BRICKS, B.MOSSY_GRANITE_BRICKS, B.POLISHED_GRANITE, B.GRANITE_BAND, B.GRANITE_PILLAR,
+                       B.MARBLE_BRICKS, B.MOSSY_MARBLE_BRICKS, B.POLISHED_MARBLE, B.MARBLE_BAND, B.MARBLE_PILLAR,
+                       B.LIMESTONE_BRICKS, B.MOSSY_LIMESTONE_BRICKS, B.POLISHED_LIMESTONE, B.LIMESTONE_BAND, B.LIMESTONE_PILLAR,
+                       B.DOLOMITE_BRICKS, B.MOSSY_DOLOMITE_BRICKS, B.POLISHED_DOLOMITE, B.DOLOMITE_BAND, B.DOLOMITE_PILLAR];
+  const _SANDSTONES = [B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.SANDSTONE_BRICKS, B.POLISHED_SANDSTONE,
+                       B.RED_SANDSTONE_BRICKS, B.POLISHED_RED_SANDSTONE, B.PINK_SANDSTONE_BRICKS, B.POLISHED_PINK_SANDSTONE];
+  const _GLOWS = [B.GLOWSTONE, B.GLOWCRYSTAL_BLOCK];
+  const _NO_COVER = new Set([B.ADOBE, B.ADOBE_BRICK, B.BRICKS, B.TERRACOTTA_BRICKS]);
+  /* 0.8265: hay takes slabs, stairs and carpets (thatch roofs, a straw floor); the copper block slabs, stairs and panes;
+     the iron, gold and tin blocks slabs and panes; dirt slabs and stairs; the snow block slabs, stairs and walls; obsidian
+     walls; the coal, charcoal and gem blocks slabs. A shaped snow block is built, not fallen: it does not melt. */
+  const _METALS = [B.IRON_BLOCK, B.GOLD_BLOCK, B.TIN_BLOCK, B.COPPER_BLOCK];
+  const _GEM_COAL = [B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.RUBY_BLOCK, B.SAPPHIRE_BLOCK, B.TOPAZ_BLOCK];
   const SHAPE_BLOCKS = {
     slab:   [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
-             ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],
+             ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,
+             ..._ROCKS, ..._GLOWS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,                         // 0.8261; sulfur 0.8264
+             B.HAY, ..._METALS, B.DIRT, B.SNOW, ..._GEM_COAL],                                 // 0.8265
     stairs: [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
-             ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],
-    pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS],   // 0.784
-    fence:  [..._ALL_PLANKS, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK],                         // 0.784
+             ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,
+             ..._ROCKS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,                                    // 0.8261; sulfur 0.8264
+             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SNOW],                                           // 0.8265
+    pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,   // 0.784
+             ..._ROCKS, ..._ROCK_LOOKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,    // 0.8261; sulfur 0.8264
+             ..._METALS],                                                                      // 0.8265
+    fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK],                                       // 0.784; iron off 0.8261
     layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822
              B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
-             B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.GLASS, B.IRON_BLOCK, B.GOLD_BLOCK, B.MOSSY_COBBLE],
+             B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.MOSSY_COBBLE,                        // iron and gold off 0.8261, glass 0.8263
+             B.HAY],                                                                           // 0.8265
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
-             B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
+             B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE]
+             .filter(b => !_NO_COVER.has(b)),                                                  // adobe, terracotta off 0.8261
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
-             B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE],
+             B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE,
+             B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,                                             // 0.8261; sulfur 0.8264
+             B.OBSIDIAN, B.SNOW],                                                              // 0.8265
   };
   const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
+  /* EVERY LOOK OF A BLOCK TAKES THE SAME SHAPES (0.8263): its default's. One list per block, its default first,
+     then the looks the variant bar lays it as (BLOCK_VARIANTS, 46-variants.js, which checks the two agree), so a
+     brick or a polished look can never take a shape its plain block does not, or miss one it does. */
+  const VARIANT_FAMILIES = [
+    [B.STONE, B.STONE_BRICK, B.MOSSY_STONE_BRICK, B.CRACKED_STONE_BRICK, B.POLISHED_STONE, B.STONE_BAND, B.STONE_PILLAR],
+    [B.COBBLE, B.MOSSY_COBBLE],
+    [B.GLASS, ..._GLASS_VARIANTS],
+    [B.ADOBE, B.ADOBE_BRICK],
+    [B.BRICKS, B.TERRACOTTA_BRICKS],
+    [B.SULFUR_BLOCK, B.SULFUR_BRICKS],
+    ...['GRANITE', 'MARBLE', 'LIMESTONE', 'DOLOMITE'].map(K =>
+      [B[K], B[K + '_BRICKS'], B['MOSSY_' + K + '_BRICKS'], B['POLISHED_' + K], B[K + '_BAND'], B[K + '_PILLAR']]),
+    ...['', 'RED_', 'PINK_'].map(K => [B[K + 'SANDSTONE'], B[K + 'SANDSTONE_BRICKS'], B['POLISHED_' + K + 'SANDSTONE']]),
+    [B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND],
+    [B.MORTAR, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR, B.DOLOMITE_MORTAR],
+  ];
+  for (const [base, ...looks] of VARIANT_FAMILIES)
+    for (const id of looks) {
+      if (PROPS[base].shapes) PROPS[id].shapes = { ...PROPS[base].shapes };
+      else delete PROPS[id].shapes;
+    }
+  /* FURNACE CHIMNEYS (0.827): a single column of WALLS of any rock (stone, cobblestone, granite, marble, limestone,
+     dolomite, in any of their looks) standing on a furnace is its chimney, up to CHIMNEY_MAX high. The furnace's own
+     chimney cap sits on top of it, and the smoke leaves from there (fxFurnace, 49-particles.js). */
+  const CHIMNEY_MAX = 6;
+  const CHIMNEY_ROCKS = new Set(VARIANT_FAMILIES.filter(f => [B.STONE, B.COBBLE, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE].includes(f[0])).flat());
+  const chimneyWall = (v) => CHIMNEY_ROCKS.has(v & 255) && shapeOfVal(v) === 'wall';
+  // how many chimney walls stand on the furnace at (x, y, z), read through `g` (getBlock, or the mesher's own)
+  const chimneyHeight = (g, x, y, z) => { let k = 0; while (k < CHIMNEY_MAX && chimneyWall(g(x, y + 1 + k, z))) k++; return k; };
   for (const b of LAYER_STACKING) PROPS[b].layerStack = true;
   // how many layers a value holds (0 = not a layer stack), whether it mixes, and a value to write
   const layerCount = (v) => {
@@ -911,6 +999,29 @@ function VOXEL_CORE() {
   const layerMixed = (v) => ((((v >> 8) & 255) & SHAPE_MASK) === SHAPE_LAYER_MIX) && layerCount(v) > 0;
   const layerVal = (id, n, mixed) =>
     (id | (((mixed ? SHAPE_LAYER_MIX : SHAPE_LAYER) + Math.max(1, Math.min(LAYER_MAX, n)) - 1) << 8)) >>> 0;
+  /* MIXED SLABS (0.8263): two halves of DIFFERENT blocks in one cell, kept the way a mixed carpet stack is. The variant
+     byte is SHAPE_SLAB_MIX + the low half's rotation (0, 2 or 4: bottom, -X, -Z), and the two ids, low then high, live
+     beside the chunk in the same list a mixed stack uses (LAYER_STACKS, 11-chunks.js). To everything but the mesher,
+     the crosshair and breaking (both halves, 11-chunks.js) the cell is a full block: shapeOfVal says null.
+     Glass and glowstone mix too since 0.8264, through the rotation's two spare bits:
+       SLAB_MIX_SEE  (8)  a half is see-through (glass): the cell lets light and its neighbours' faces through
+       SLAB_MIX_HIGH (1)  the cell's id is the HIGH half's block, not the low one's: the half that glows (the
+                          brighter, if both do), since a cell's light comes from its id */
+  const SHAPE_SLAB_MIX = 0x90, SLAB_MIX_SEE = 8, SLAB_MIX_HIGH = 1;
+  const slabMixed = (v) => ((((v >> 8) & 255) & SHAPE_MASK) === SHAPE_SLAB_MIX) && !!PROPS[v & 255]?.shapes?.slab;
+  // the value of a mixed slab of `low` and `high`, the low half at even rotation `rot`
+  const slabMixVal = (low, rot, high = low) => {
+    const pl = PROPS[low], ph = PROPS[high];
+    const hi = (ph.light || 0) > (pl.light || 0);
+    const bits = (rot & 6) | (!pl.opaque || !ph.opaque ? SLAB_MIX_SEE : 0) | (hi ? SLAB_MIX_HIGH : 0);
+    return ((hi ? high : low) | ((SHAPE_SLAB_MIX + bits) << 8)) >>> 0;
+  };
+  const slabsMix = (a, b) => a !== b && [a, b].every(id => { const p = PROPS[id];
+    return !!p && !!p.shapes && !!p.shapes.slab && p.solid && p.model === 'cube'; });
+  // the two halves' boxes, low then high
+  const slabMixBoxes = (v) => { const r = ((v >> 8) & ROT_MASK) & 6; return [SLAB_HALF[r], SLAB_HALF[r + 1]]; };
+  // a value whose blocks are listed beside the chunk: a mixed carpet stack or a mixed slab
+  const sideListed = (v) => layerMixed(v) || slabMixed(v);
   const LAYER_BOX = [];
   for (let n = 1; n <= LAYER_MAX; n++) LAYER_BOX[n - 1] = [[0, 0, 0, 1, n / LAYER_MAX, 1]];
   const NO_BOXES = [];
@@ -1000,7 +1111,8 @@ function VOXEL_CORE() {
   // opacity of a VALUE: a shaped block lets light and its neighbours' faces through; its full block does not
   const opaqueVal = (v) => {
     const p = PROPS[v & 255];
-    return !!p && !!p.opaque && !(((v >> 8) & 255) && p.shapes && shapeOfVal(v));
+    return !!p && !!p.opaque && !(((v >> 8) & 255) && p.shapes && shapeOfVal(v))
+      && !(slabMixed(v) && ((v >> 8) & SLAB_MIX_SEE));                // a mixed slab with a glass half (0.8264)
   };
   /* ...but it is not nothing either (0.819): light LEAVING a shaped cell of an opaque block loses this many levels
      more than the usual one, so a slab roof shades what is under it and a stack of layers darkens by its depth.
@@ -2281,6 +2393,20 @@ function VOXEL_CORE() {
           if (!snowAbove) data[idx(x, hh, z)] = B.GRASS;
         }
 
+      /* ---- dirt in caves (0.8271): patches of it on cave floors, a block deep, where a 3D noise says so (some 10-block
+         blobs, a pure function of world position, so chunk borders agree). Mushrooms grow on it as on stone, and the
+         yellow berry bush grows only on it down there. ---- */
+      for (let z = 0; z < CZ; z++)
+        for (let x = 0; x < CX; x++) {
+          const top = Math.min(H[(x + 2) + (z + 2) * 20] - 6, 94), wx = cx * 16 + x, wz = cz * 16 + z;
+          for (let y = 4; y < top; y++) {
+            if ((data[idx(x, y, z)] & 255) !== B.STONE || (data[idx(x, y + 1, z)] & 255) !== B.AIR) continue;
+            if (fbm3(wx * 0.09 + 911, y * 0.12 - 37, wz * 0.09 - 411, 2) < CAVE_DIRT_AT) continue;
+            data[idx(x, y, z)] = B.DIRT;
+            if ((data[idx(x, y - 1, z)] & 255) === B.STONE) data[idx(x, y - 1, z)] = B.DIRT;
+          }
+        }
+
       /* ---- red mushrooms: cave floors + shadowed ground under leaves ---- */
       // where a brown mushroom grows, a black, a white or (0.821) a yellow one may instead, a quarter each (0.8091)
       const brownish = (r) => r < 0.25 ? B.BROWN_MUSHROOM : r < 0.5 ? B.BLACK_MUSHROOM : r < 0.75 ? B.WHITE_TALL_MUSHROOM : B.YELLOW_MUSHROOM;
@@ -2299,16 +2425,17 @@ function VOXEL_CORE() {
           // cave floors: stone floor with air directly above, below surface crust
           const caveTop = Math.min(h - 4, 94);
           for (let y = 3; y < caveTop; y++) {
-            if ((data[idx(x, y, z)] & 255) === B.STONE &&
-                (data[idx(x, y + 1, z)] & 255) === B.AIR &&
-                hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.0005)             // halved in 0.799 (was 0.002), again 0.819
+            const floor = data[idx(x, y, z)] & 255, cave = (floor === B.STONE || floor === B.DIRT) && (data[idx(x, y + 1, z)] & 255) === B.AIR;   // dirt 0.8271
+            if (cave && hash3(cx * 1171 + x, y + 3000, cz * 937 + z) < 0.0005)             // halved in 0.799 (was 0.002), again 0.819
               data[idx(x, y + 1, z)] = hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 1 / 3
                 ? B.RED_MUSHROOM : hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 2 / 3
                 ? brownish(hash3(cx * 1181 + x, y + 4100, cz * 941 + z)) : B.BLUE_MUSHROOM;   // thirds since 0.7691
             // a lava mushroom on cave floor near lava (0.8091)
-            else if ((data[idx(x, y, z)] & 255) === B.STONE && (data[idx(x, y + 1, z)] & 255) === B.AIR &&
-                     hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < 0.015 && lavaNear(x, y, z))   // halved 0.819
+            else if (cave && hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < 0.015 && lavaNear(x, y, z))   // halved 0.819
               data[idx(x, y + 1, z)] = B.LAVA_MUSHROOM;
+            // a yellow berry bush, in any stage, on the cave's dirt (0.8271; rarely on any floor in 0.827): it glows as it ripens
+            else if (cave && floor === B.DIRT && hash3(cx * 1193 + x, y + 3200, cz * 953 + z) < CAVE_YELLOW_BUSH)
+              data[idx(x, y + 1, z)] = B.YELLOWBERRY_BUSH | ((((hash3(cx * 1197 + x, y + 3300, cz * 959 + z) * BERRY_STAGES) | 0) % BERRY_STAGES) << 8);
           }
           // surface under leaves: air at h+1 with leaves within 2..5 blocks above
           if (h > WATER_LEVEL && h < 120) {
@@ -2449,7 +2576,7 @@ function VOXEL_CORE() {
         const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
         if (h < 100 || h > 198 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || Math.round(LVL[gi]) !== 0) continue;
         const meadow = fbm((cx * 16 + mx) * 0.006 + 6006, (cz * 16 + mz) * 0.006 - 3003, 2) > 0.32;
-        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.06 : 0.012)) continue;
+        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.12 : 0.024)) continue;   // twice as many patches since 0.826 (0.06, 0.012)
         const want = 4 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 4) | 0);
         for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
           const lx = mx + (((hash3(cx * 43 + ai + k * 7 + 4400,  71, cz * 47 + ai + k * 5) * 5) | 0) - 2);
@@ -2458,7 +2585,8 @@ function VOXEL_CORE() {
           const lh = H[(lx + 2) + (lz + 2) * 20];
           if (lh < 100 || lh > 198) continue;
           if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS || (data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
-          data[idx(lx, lh + 1, lz)] = B.WHEAT;
+          // in any stage (0.826; always ripe before): variant 0 ripe, 1..6 growing (updateWheatGrow, 51-seasons.js; 1..7 until 0.8273)
+          data[idx(lx, lh + 1, lz)] = B.WHEAT | ((((hash3(cx * 37 + lx + 4500, lh, cz * 41 + lz + 4500) * 7) | 0) % 7) << 8);
           got++;
         }
       }
@@ -2514,17 +2642,26 @@ function VOXEL_CORE() {
           const tallCh   = (isPlains ? 0.05 : 0.015) * (1 - alt * 0.75);
           /* Berry bushes are scattered thinly and land in a RANDOM growth stage, so a fresh world
              already has some ripe and some bare — the regrow timer takes over from there. */
-          const berryCh = (isPlains ? 0 : 0.003) * (1 - alt * 0.75);              // forests only since 0.8233
+          const berryCh = (isPlains ? 0 : 0.0045) * (1 - alt * 0.75);             // forests only since 0.8233; 25% more 0.826 (0.003), 20% more 0.8272
           if (r < flowerCh) {
             data[idx(lx, h + 1, lz)] = hash3(cx * 31 + lx + 12, 19, cz * 29 + lz + 7) < 0.5 ? B.POPPY : B.ORCHID;
           } else if (r < flowerCh + berryCh) {
             /* Stage and KIND are rolled from two independent hashes, so a fresh world already has
                sprouts, bare bushes and ripe ones of both bushes — the regrow timer takes over from
                there. The stage numbers are the growth order, so the roll is just 0..3. */
-            const stage = Math.min(BERRY_STAGE.GROWN, (hash3(cx * 41 + lx + 909, 37, cz * 43 + lz + 606) * 4) | 0);
-            // red and blue as common as each other, the poisonous yellow one rarer (0.7947)
-            const kind = hash3(cx * 53 + lx + 4242, 29, cz * 59 + lz + 2424);
-            const bush = kind < 0.4 ? B.REDBERRY_BUSH : kind < 0.8 ? B.BLUEBERRY_BUSH : B.YELLOWBERRY_BUSH;
+            const stage = Math.min(BERRY_STAGE.GROWN, (hash3(cx * 41 + lx + 909, 37, cz * 43 + lz + 606) * BERRY_STAGES) | 0);
+            /* Which bush, by what the place is like (0.827; red 40%, blue 40%, black 20% anywhere before): white in
+               a birch wood, black in a spruce one, blue by water, red the higher up, yellow now and then in a deep
+               (dark) forest. Each is a weight, so a mixed place grows a mix. */
+            const ti = terrainInfo(wx, wz);
+            let wet = false;
+            for (let dz = -3; dz <= 3 && !wet; dz++) for (let dx = -3; dx <= 3; dx++) if (WW[(lx + 8 + dx) + (lz + 8 + dz) * 32]) { wet = true; break; }
+            const high = Math.min(1, Math.max(0, (h - 120) / 40));
+            const W = [[B.REDBERRY_BUSH, 0.3 + 2 * high], [B.BLUEBERRY_BUSH, wet ? 3 : 0.08],
+                       [B.BLACKBERRY_BUSH, TAIGA[gi] || ti.fTaiga > 0.5 ? 3 : 0.12],
+                       [B.YELLOWBERRY_BUSH, ti.deepF > 0.5 ? 0.5 : 0.02], [B.WHITEBERRY_BUSH, birchAt(wx, wz) ? 3 : 0.1]];
+            let roll = hash3(cx * 53 + lx + 4242, 29, cz * 59 + lz + 2424) * W.reduce((a, w) => a + w[1], 0), bush = B.REDBERRY_BUSH;
+            for (const [b, w] of W) { roll -= w; if (roll <= 0) { bush = b; break; } }
             data[idx(lx, h + 1, lz)] = bush | (stage << 8);
           } else if (r < flowerCh + berryCh + tallCh && h + 2 < CY && (data[idx(lx, h + 2, lz)] & 255) === B.AIR) {
             data[idx(lx, h + 1, lz)] = B.TALL_LOWER;
@@ -2759,7 +2896,7 @@ function VOXEL_CORE() {
     const climateAt = (x, z) => {
       const t = terrainInfo(x, z);
       // air: on the climate ladder (0.8232) the level's own warmth or cold in degrees (CLIMATE_LADDER), else null
-      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), h: t.h, air: t.air };
+      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), red: t.fRed || 0, h: t.h, air: t.air };   // red: the sandstorm's colour (0.825)
     };
     return { genChunk, heightAt, biomeAt, climateAt, climAt };
   }
@@ -2777,7 +2914,7 @@ function VOXEL_CORE() {
     if (!Bp) return true;                     // an id this build does not know: treat it as open
     if (opaqueVal(b)) return false;           // hidden behind an opaque neighbour (a chiseled one is not, 0.783)
     if (A.opaque) return true;                // opaque against transparent -> visible
-    if (Bp.shapes && ((b >> 8) & 255) && shapeOfVal(b)) return true;   // glass beside a glass slab still needs its face
+    if (Bp.shapes && ((b >> 8) & 255) && (shapeOfVal(b) || slabMixed(b))) return true;   // glass beside a glass slab (or a mixed one, 0.8264) still needs its face
     if ((a & 255) === (b & 255)) return false; // same type (incl. leaf|leaf): cull inner faces —
                                                // inside a bush only the outer shell renders, and
                                                // the cutout pass is double-sided so that shell
@@ -2817,7 +2954,7 @@ function VOXEL_CORE() {
     if (p.model === 'log') return (id | (((va & 3) | (LOG_W_BLOCK << 2)) << 8)) >>> 0;
     if (id === B.WATER || id === B.LAVA) return id;
     if (!p.opaque) return id;                                      // leaves and glass: no variant, so they merge
-    return p.shapes && shapeOfVal(v) ? id : v;
+    return p.shapes && (shapeOfVal(v) || slabMixed(v)) ? id : v;    // a mixed slab far off: its low block (0.8263)
   }
   function lodDownsample(data, light) {
     const out = new Uint32Array(data.length), lout = new Uint8Array(light.length);
@@ -2925,7 +3062,8 @@ function VOXEL_CORE() {
     }
 
     // one growable buffer set per render pass
-    const passes = [null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], index: [], v: 0 }));
+    // 0 opaque, 1 cutout (leaves, plants), 2 water, 3 lava, 4 see-through (glass, 0.8263)
+    const passes = [null, null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], index: [], v: 0 }));
     let minY = 200, maxY = 0;
     function pushClim(g, tile, c0, c1, c2, c3) {
       if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
@@ -2999,7 +3137,7 @@ function VOXEL_CORE() {
             const a = data[pos[0] + (pos[2] << 4) + (pos[1] << 8)];
             let m = 0, ml = 0;
             if (a !== 0 && P[a & 255] && P[a & 255].model === 'cube' && (a & 255) !== B.WATER && (a & 255) !== B.LAVA
-                && !(((a >> 8) & 255) && P[a & 255].shapes && shapeOfVal(a))) {   // a chiseled cube emits with the models below (0.783)   // non-cube models emit separately; water/lava handled by emitWater/emitLava
+                && !(((a >> 8) & 255) && P[a & 255].shapes && (shapeOfVal(a) || slabMixed(a)))) {   // a chiseled cube emits with the models below (0.783), a mixed slab too (0.8263)   // non-cube models emit separately; water/lava handled by emitWater/emitLava
               npos[0] = pos[0]; npos[1] = pos[1]; npos[2] = pos[2]; npos[d] += s;
               const nv = gb(npos[0], npos[1], npos[2]);
               const nl = gl(npos[0], npos[1], npos[2]);
@@ -3153,7 +3291,13 @@ function VOXEL_CORE() {
       }
     }
     // `u`: the box the UVs are taken from, the box itself unless a model maps its whole picture on each face (0.824)
-    function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0, u = b) {
+    // `ps`: the render pass, 0 unless the block is see-through (glass shapes and carpets in the cutout pass, 0.8261)
+    /* Shapes and carpets of a see-through block (glass and its looks) go in its own pass with the full block, so they
+       stay see-through (0.8261; drawn in the opaque pass since shapes came in 0.783, which showed glass solid; the
+       see-through pass 4 since 0.8263). Leaf and snow carpets stay where they were. */
+    const _shapePass = (id) => { const p = PROPS[id].pass; return p === 4 ? 4 : p === 1 && !PROPS[id].layerStack ? 1 : 0; };
+    // `skip`: faces left out, a bit each in the order below (top 1, bottom 2, +X 4, -X 8, +Z 16, -Z 32; 0.8264)
+    function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0, u = b, ps = 0, skip = 0) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       const op = (xx, yy, zz) => opaqueVal(gb(xx, yy, zz));
       let L = own ? gl(x, y, z) : -1;
@@ -3161,23 +3305,23 @@ function VOXEL_CORE() {
       if (glow && L >= 0 && (L & 15) < glow) L = (L & 0xF0) | glow;
       const lit = (inner, xx, yy, zz) => (inner && L >= 0 ? L : gl(xx, yy, zz));
       const T4 = (k, a, c, d, e) => ((sw >> k) & 1) ? [[a[1],a[0]], [c[1],c[0]], [d[1],d[0]], [e[1],e[0]]] : [a, c, d, e];
-      if (b[4] < 1 || !op(x, y+1, z))            // top
-        quad(0, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
+      if (!(skip & 1) && (b[4] < 1 || !op(x, y+1, z)))    // top
+        quad(ps, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
              ...T4(2, [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]]), f[2], 255, lit(b[4] < 1, x, y+1, z));
-      if (b[1] > 0 || !op(x, y-1, z))            // bottom
-        quad(0, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],
+      if (!(skip & 2) && (b[1] > 0 || !op(x, y-1, z)))    // bottom
+        quad(ps, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],
              ...T4(3, [u[0],u[2]],[u[3],u[2]],[u[3],u[5]],[u[0],u[5]]), f[3], 140, lit(b[1] > 0, x, y-1, z));
-      if (b[3] < 1 || !op(x+1, y, z))            // +X
-        quad(0, [x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],
+      if (!(skip & 4) && (b[3] < 1 || !op(x+1, y, z)))    // +X
+        quad(ps, [x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],
              ...T4(0, [1-u[2],u[1]],[1-u[2],u[4]],[1-u[5],u[4]],[1-u[5],u[1]]), f[0], 178, lit(b[3] < 1, x+1, y, z));
-      if (b[0] > 0 || !op(x-1, y, z))            // -X
-        quad(0, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],
+      if (!(skip & 8) && (b[0] > 0 || !op(x-1, y, z)))    // -X
+        quad(ps, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],
              ...T4(1, [u[2],u[1]],[u[5],u[1]],[u[5],u[4]],[u[2],u[4]]), f[1], 178, lit(b[0] > 0, x-1, y, z));
-      if (b[5] < 1 || !op(x, y, z+1))            // +Z
-        quad(0, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
+      if (!(skip & 16) && (b[5] < 1 || !op(x, y, z+1)))   // +Z
+        quad(ps, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
              ...T4(4, [u[0],u[1]],[u[3],u[1]],[u[3],u[4]],[u[0],u[4]]), f[4], 216, lit(b[5] < 1, x, y, z+1));
-      if (b[2] > 0 || !op(x, y, z-1))            // -Z
-        quad(0, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],
+      if (!(skip & 32) && (b[2] > 0 || !op(x, y, z-1)))   // -Z
+        quad(ps, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],
              ...T4(5, [1-u[0],u[1]],[1-u[0],u[4]],[1-u[3],u[4]],[1-u[3],u[1]]), f[5], 216, lit(b[2] > 0, x, y, z-1));
     }
     for (let y = 0; y < yCap; y++)
@@ -3191,8 +3335,11 @@ function VOXEL_CORE() {
              hitbox, it never blocks a placement. Emitted in the cell above so the open air lights it.
              Since 0.809 it is 6px tall (furnace_*.json) in its rock's own chimney art, the whole picture
              on every face rather than a window of the furnace's. */
-          if (vid === B.FURNACE && !lod && !opaqueVal(gb(x, y + 1, z)))
-            emitChimney(x, y + 1, z, FURNACE_T[furnaceRockOf((val >> 8) & 255)]);
+          // ...on top of a chimney of walls when one stands on it (0.827)
+          if (vid === B.FURNACE && !lod) {
+            const k = chimneyHeight(gb, x, y, z);
+            if (y + 1 + k < 200 && !opaqueVal(gb(x, y + 1 + k, z))) emitChimney(x, y + 1 + k, z, FURNACE_T[furnaceRockOf((val >> 8) & 255)]);
+          }
           // a far chunk leaves out the small models: pebbles, gourds, salt, vines, the mortar, clusters (0.8092)
           if (lod) { const md = PROPS[vid].model; if (md === 'carpet' || md === 'wall' || md === 'voxel' || md === 'cluster') continue; }
           if (lc) {
@@ -3205,12 +3352,24 @@ function VOXEL_CORE() {
               const b = at(i);
               let j = i + 1;
               while (j < lc && at(j) === b) j++;
-              if (PROPS[b]) emitBoxFaces(x, y, z, [0, i / LAYER_MAX, 0, 1, j / LAYER_MAX, 1], PROPS[b].faces);
+              if (PROPS[b]) { const bx = [0, i / LAYER_MAX, 0, 1, j / LAYER_MAX, 1]; emitBoxFaces(x, y, z, bx, PROPS[b].faces, false, 0, 0, bx, _shapePass(b)); }
               i = j;
             }
           }
           else if (shapeBoxes)
-            for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, PROPS[vid].faces);
+            for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, PROPS[vid].faces, false, 0, 0, bx, _shapePass(vid));
+          else if (slabMixed(val)) {                     // two slabs of different blocks (0.8263): each half in its own art
+            const ids = layers ? layers.get(x + (z << 4) + (y << 8)) : null;
+            const hb = slabMixBoxes(val), ax = (((val >> 8) & ROT_MASK) & 6) >> 1;   // 0 y, 1 x, 2 z
+            const two = [0, 1].map(h => ids && ids.length === 2 && PROPS[ids[h]] ? ids[h] : vid);
+            /* The face where the halves meet is drawn only when the half across it can be seen through (0.8264): a
+               glass half shows the stone under it, but never draws its own face flat against that stone. Each half
+               in its own pass, so a glass half is see-through like a glass slab. */
+            const INNER = [[1, 2], [4, 8], [16, 32]][ax];          // the low half's inner face, the high half's
+            for (let h = 0; h < 2; h++)
+              emitBoxFaces(x, y, z, hb[h], PROPS[two[h]].faces, false, 0, 0, hb[h], _shapePass(two[h]),
+                           PROPS[two[1 - h]].opaque ? INNER[h] : 0);
+          }
           else if (PROPS[vid].model === 'hollow')      // a hollow log (0.7842): bark shell and its filling, lit from inside
             for (const [bx, f, sw] of hollowParts(val)) emitBoxFaces(x, y, z, bx, f, true, sw);
           else if (PROPS[vid].model === 'carpet' || PROPS[vid].model === 'wall') {   // a wall plate is an upright carpet (0.765)
@@ -3286,6 +3445,14 @@ function VOXEL_CORE() {
       // per-variant billboard texture (berry bush growth stages)
       const tv = PROPS[blockId].tilesByVar;
       if (tv && tv[varb] != null) tile = tv[varb];
+      /* sugar cane (0.829): a grown cell in a column draws its bottom, middle or top piece; alone it stays whole.
+         A cane above joins once it has stalks, so a fresh sprout on top does not cut the crown off under it. */
+      if (blockId === B.SUGAR_CANE && !(varb & 7)) {
+        const va = gb(x, y + 1, z);
+        const up = (va & 255) === B.SUGAR_CANE && ((va >> 8) & 7) <= CANE_JOIN_LEFT;
+        const dn = (gb(x, y - 1, z) & 255) === B.SUGAR_CANE;
+        if (up || dn) tile = up && dn ? T.SUGAR_CANE_MIDDLE : up ? T.SUGAR_CANE_BOTTOM : T.SUGAR_CANE_TOP;
+      }
       /* Lit by its OWN cell as well as the one above (0.7521). The cell above alone reads as 0
          wherever a plant grows under a ceiling, so a mushroom in a low tunnel took the darkness of
          the rock over it even beside a torch. Per nibble: sky and torchlight each take the brighter. */
@@ -3599,7 +3766,9 @@ function VOXEL_CORE() {
            HOLLOW_FILLS, opaqueVal, lightDim, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK,
            SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, solidVal,
-           BERRY_STAGE, berryStage, isBerryBush };
+           SHAPE_SLAB_MIX, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, VARIANT_FAMILIES,   // 0.8263
+           BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
+           BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS };                                             // cane 0.829
 }
 
 /* ---------- worker entry point (stringified into the blob together with VOXEL_CORE) ---------- */
@@ -3672,7 +3841,7 @@ const legacyItemId = (id) => {
   if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = LEGACY_SHAPE[id][0] || null;
   return id === B.STONE_BRICK ? B.STONE : id;
 };
-const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush } = CORE;
+const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS } = CORE;
 
 // Items (IDs >= 256) — separate registry from blocks
 const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 260, APPLE: 261,
@@ -3715,7 +3884,7 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                HAMMER: 384,    // 0.788
                // the pig (0.789) and what comes off one
                PORK: 385, COOKED_PORK: 386, FAT: 387,
-               YELLOW_BERRIES: 388,
+               BLACKBERRIES: 388,                    // YELLOW_BERRIES until 0.827, when the real yellow came
                // fish (0.805, 28-entities.js): what each of the four drops, and its cooked form
                COD: 389, COOKED_COD: 390, SALMON: 391, COOKED_SALMON: 392,
                PIKE: 393, COOKED_PIKE: 394, CATFISH: 395, COOKED_CATFISH: 396,
@@ -3723,7 +3892,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
                STONE_PEBBLE: 398,                                                // 0.8095
                SALT: 399,
               COMPRESSED_ROTTEN_FLESH: 400,
-              CLOTH_HELMET: 401, CLOTH_CHESTPLATE: 402, CLOTH_LEGGINGS: 403, CLOTH_BOOTS: 404, CLOTH_GLOVES: 405 };   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              CLOTH_HELMET: 401, CLOTH_CHESTPLATE: 402, CLOTH_LEGGINGS: 403, CLOTH_BOOTS: 404, CLOTH_GLOVES: 405,
+              YELLOW_BERRIES: 406, WHITE_BERRIES: 407 };   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
   [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
@@ -3857,14 +4027,20 @@ const ITEM_PROPS = {
   [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 40, icon: 'melon_slice',   foodSatFull: 5, food: 5,  foodSat: 10,  eatTime: 0.84, spoil: 1200, desc: '' },
   // its own picture since 0.8098
   [ITEM.SALT]: { name: 'Salt', stack: 60, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
-  [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 60, icon: 'stone_pebble', desc: 'Five make a stone block' },   // 0.8095
+  [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 60, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
   [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 40, icon: 'cantaloupe_slice', foodSatFull: 5, food: 5, foodSat: 10, eatTime: 0.84, spoil: 1200, desc: '' },
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
-  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
+  /* Berries (0.827): all fill you the same, and each kind adds its own. Red heals a little, blue quenches 1.5x the
+     thirst (FOOD_NUTRITION, 54-stats-effects.js), black is poisonous, yellow fills 1.5x the food, white takes thirst
+     but washes a second off every bad effect running (foodCleanse, 22-main-loop.js). */
+  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodHeal: 2, desc: '' },
   [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
-  // yellow berries (0.7947): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison, 54-stats-effects.js)
-  [ITEM.YELLOW_BERRIES]: { name: 'Blackberries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600,
-                           foodEffect: 'poison', desc: 'Poisonous' },
+  // blackberries (0.7947 as the yellow ones): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison)
+  [ITEM.BLACKBERRIES]:  { name: 'Blackberries',   stack: 60, icon: 'blackberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600,
+                          foodEffect: 'poison', foodEffectTime: 5, desc: 'Poisonous' },   // 5 s, not poison's 10 (0.8291)
+  [ITEM.YELLOW_BERRIES]: { name: 'Yellow berries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 7.5, foodSat: 5, eatTime: 0.6, spoil: 600, desc: '' },
+  [ITEM.WHITE_BERRIES]: { name: 'White berries',  stack: 60, icon: 'whiteberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodCleanse: 1,
+                          desc: 'Takes a little thirst, but washes a second off every bad effect with a time' },
   // 0.761: the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
   [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 15, food: 30,  foodSat: 30,  eatTime: 4.8, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
   [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 35, food: 60, foodSat: 70, eatTime: 4.8, foodHeal: 15, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
@@ -3902,7 +4078,7 @@ const ITEM_PROPS = {
 //   atkSpeed    fraction added to the attack-speed multiplier
   /* Leather is the insulating tier: every piece traps heat, which is 8% cold resistance and a 5%
      heat PENALTY each. The boots are the one piece that helps you move (+0.5%). */
-  [ITEM.LEATHER_HELMET]:     { name: 'Leather cap',        stack: 1, icon: 'leather_helmet',     equip: 'helmet',     armor: 5, tier: 1, durability: 55,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
+  [ITEM.LEATHER_HELMET]:     { name: 'Leather cap',        stack: 1, icon: 'leather_helmet',     equip: 'helmet',     armor: 5, tier: 1, durability: 55,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, heatstrokeResist: 0.25, heatstrokeTrigger: 5, desc: '' },
   [ITEM.LEATHER_CHESTPLATE]: { name: 'Leather tunic',      stack: 1, icon: 'leather_chestplate', equip: 'chestplate', armor: 15, tier: 1, durability: 80,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
   [ITEM.LEATHER_LEGGINGS]:   { name: 'Leather trousers',   stack: 1, icon: 'leather_leggings',   equip: 'leggings',   armor: 10, tier: 1, durability: 75,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
   [ITEM.LEATHER_BOOTS]:      { name: 'Leather boots',      stack: 1, icon: 'leather_boots',      equip: 'boots',      armor: 5, tier: 1, durability: 65,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, moveSpeed: 0.005, desc: '' },
@@ -3922,8 +4098,10 @@ const ITEM_PROPS = {
   [ITEM.DIAMOND_LEGGINGS]:   { name: 'Diamond leggings',   stack: 1, icon: 'diamond_leggings',   equip: 'leggings',   armor: 30, tier: 5, durability: 495, armorMat: 'diamond', desc: '' },
   [ITEM.DIAMOND_BOOTS]:      { name: 'Diamond boots',      stack: 1, icon: 'diamond_boots',      equip: 'boots',      armor: 15, tier: 5, durability: 429, armorMat: 'diamond', desc: '' },
   /* Cloth (0.824) is the light, cool tier: little armor, but each piece is 8% heat resistance, and the full set
-     guards against sandstorms and heatstroke (ARMOR_SET_BONUS, 31-equipment.js). */
-  [ITEM.CLOTH_HELMET]:       { name: 'Cloth bandana',      stack: 1, icon: 'cloth_helmet',       equip: 'helmet',     armor: 5, tier: 1, durability: 40,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
+     guards against sandstorms and heatstroke (ARMOR_SET_BONUS, 31-equipment.js). A hat on — the bandana or the
+     leather cap — shades the head (0.825): heatstroke comes 25% slower and only 5°C hotter (heatstrokeResist,
+     heatstrokeTrigger; 54-stats-effects.js). */
+  [ITEM.CLOTH_HELMET]:       { name: 'Cloth bandana',      stack: 1, icon: 'cloth_helmet',       equip: 'helmet',     armor: 5, tier: 1, durability: 40,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, heatstrokeResist: 0.25, heatstrokeTrigger: 5, desc: '' },
   [ITEM.CLOTH_CHESTPLATE]:   { name: 'Cloth tunic',        stack: 1, icon: 'cloth_chestplate',   equip: 'chestplate', armor: 10, tier: 1, durability: 60,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
   [ITEM.CLOTH_LEGGINGS]:     { name: 'Cloth trousers',     stack: 1, icon: 'cloth_leggings',     equip: 'leggings',   armor: 5, tier: 1, durability: 55,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
   [ITEM.CLOTH_BOOTS]:        { name: 'Cloth boots',        stack: 1, icon: 'cloth_boots',        equip: 'boots',      armor: 5, tier: 1, durability: 45,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
@@ -3956,6 +4134,8 @@ for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, 
    the ground in survival. One that grew in the world is still a block, and creative still places them. */
 PROPS[B.PUMPKIN].spoil = 14400;
 PROPS[B.PUMPKIN].noPlace = true;
+// flowers cannot be planted in survival either (0.826): picked, they come apart into fiber (FLOWER_BLOCKS, 50-loottable.js)
+for (const id of [B.POPPY, B.ORCHID, B.PINCUSHION]) PROPS[id].noPlace = true;
 
 // blocks that only DROP when broken with the right tool type at (or above) a tier.
 // Not listed = always drops. Block still breaks either way, just yields nothing.
@@ -3965,8 +4145,8 @@ const MINE_REQ = {
   [B.STONE_BRICK]: { tool: 'pick', tier: 2 },
   [B.BRICKS]:      { tool: 'pick', tier: 1 },
   [B.FURNACE]:     { tool: 'pick', tier: 1 },
-  [B.COAL_ORE]:    { tool: 'pick', tier: 1 },
-  [B.COPPER_ORE]:  { tool: 'pick', tier: 1 },
+  [B.COAL_ORE]:    { tool: 'pick', tier: 2 },     // stone pickaxe and up, like stone itself (0.829)
+  [B.COPPER_ORE]:  { tool: 'pick', tier: 2 },     // 0.829
   [B.IRON_ORE]:    { tool: 'pick', tier: 2 },
   [B.TIN_ORE]:     { tool: 'pick', tier: 2 },
   [B.GOLD_ORE]:    { tool: 'pick', tier: 3 },
@@ -4034,6 +4214,15 @@ for (const [id, like] of CORE.VARIANT_BLOCKS) {
   if (MINE_REQ[like]) MINE_REQ[id] = MINE_REQ[like];
   for (const k in TOOL_BLOCKS) if (TOOL_BLOCKS[k].has(like)) TOOL_BLOCKS[k].add(id);
 }
+/* A flint pickaxe on stone or a rock (0.8291) keeps no block, but knocks out a stone pebble, and a second one 25% of
+   the time. Not cobblestone: flint keeps that whole. A rock's variants (bricks, polished...) count as the rock. */
+const FLINT_PEBBLE_ROCKS = new Set([B.STONE, B.STONE_BRICK, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE]);
+for (const [id, like] of CORE.VARIANT_BLOCKS) if (FLINT_PEBBLE_ROCKS.has(like)) FLINT_PEBBLE_ROCKS.add(id);
+function flintPebbles(heldId, blockId) {
+  const p = heldId != null && heldId >= 256 ? ITEM_PROPS[heldId] : null;
+  if (!p || p.tool !== 'pick' || (p.tier || 0) !== 1 || !FLINT_PEBBLE_ROCKS.has(blockId)) return 0;
+  return 1 + (Math.random() < 0.25 ? 1 : 0);
+}
 /* Hollow logs (0.7842): cut with a hatchet like any log. HOLLOW_FILL_OF is what can be packed into one
    (block id -> fill index in its variant); an UPRIGHT one full of dirt or grass takes what grass takes, and
    one full of sand takes a cactus. */
@@ -4088,7 +4277,8 @@ const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
 /* Loose blocks (0.786): they fall, land as a pile of 8 walk-through layers (pouring into a pile below), and
    a layer of one breaks away to nothing. */
 const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK,   // not ash: a whole ash block stands, its layers fall (0.8193)
-                                    B.SNOW]);   // a whole snow block falls too, and lands as a drift (0.8244)
+                                    B.SNOW,     // a whole snow block falls too, and lands as a drift (0.8244)
+                                    B.ASH]);    // ...and a whole ash block, landing as a pile of 8 layers (0.8262)
 /* By hand, slowly (0.8244): the loose ground and glass. Twice what a flint tool of the block's own kind takes
    (handMineFactor); sand, gravel and snow come away a layer at a time (DIG_BY_LAYER, 22-main-loop.js), glass whole. */
 const DIG_BY_LAYER = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.SNOW]);

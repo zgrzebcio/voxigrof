@@ -66,9 +66,9 @@ snow block falls like sand. Snow outside snow biomes melts slowly, a layer at a 
 5°C; above the snowline the air is 0°C or colder.
 
 1. **Fiber.** Hold `E` on short grass, tall grass, wheat and berry bushes. Foraging needs both hands, so your offhand must be empty. Each pick has a chance to
-   give fiber (grass 15%, wheat and ripe bushes 20%, bare bushes 30%). Fiber goes into every early
+   give fiber (grass 15%, wheat 5% a growth stage, a berry bush 7% plus 7% a growth stage). Fiber goes into every early
    recipe, so gather plenty.
-2. **Sticks.** Break leaves. Leaves drop sticks (a 30% chance of one, rarely up to four), a sapling
+2. **Sticks.** Break leaves. Leaves drop sticks (a 21% chance of one, rarely up to four), a sapling
    5% of the time and an apple 1%. Torn off by bare hand, every chance is halved.
 3. **Flint.** Small flint pebbles lie on the ground; hold `E` on one to pick it up. Gravel also
    drops flint 5% of the time.
@@ -77,8 +77,8 @@ snow block falls like sand. Snow outside snow biomes melts slowly, a layer at a 
 6. **Crafting bench.** 5 planks and 5 fiber. Right click it to open the full recipe list: stone and
    metal tools, armor, the furnace, chests, beds and more.
 7. **Stone.** A flint pickaxe breaks natural rock (stone, granite, marble, limestone, dolomite) but keeps
-   nothing; only a stone pickaxe or better does. Crafted blocks (cobblestone, sandstone, terracotta, furnace) it keeps. Pick up **stone pebbles** from the ground
-   (hold `E`) instead; 5 make a stone block at the bench. 5 stone make a stone pickaxe.
+   only a stone pebble (a second one 25% of the time); a stone pickaxe or better keeps the block. Crafted blocks (cobblestone, sandstone, terracotta, furnace) it keeps. Pick up **stone pebbles** from the ground
+   (hold `E`) instead; 5 make a cobblestone at the bench. 5 cobblestone make a stone pickaxe.
 8. **Furnace.** 12 cobblestone, crafted at the bench. Put fuel in the bottom slot and something to smelt
    in the top one.
 
@@ -91,7 +91,10 @@ keeps 4 hours and can no longer be planted.
 
 A crafting bench or mortar needs its top clear: with a block or plant standing on it, it will not open,
 and an order on it cannot be worked or taken. A furnace's top is its chimney: covered, it stops smelting
-but the lit fuel keeps burning away. A craft you are part way through is kept when you let go,
+but the lit fuel keeps burning away. A column of up to 6 walls of any rock (stone, cobblestone, granite, marble,
+limestone, dolomite, any look) on a furnace makes its chimney taller: the cap and the smoke move to its top, and
+that top must be clear. A bench's or mortar's floating order shows through walls within 8 blocks, and hides farther
+off. A craft you are part way through is kept when you let go,
 walk away or leave the world.
 
 **Fish.** Cod, salmon, pike and catfish swim in water at least two blocks deep, from the small cod
@@ -124,14 +127,15 @@ anything else 5.
 
 **Vitals (0.82).** Every bar is out of 100, five icons each: health and armor left of the hotbar, food and
 thirst right, the temperature dial in the middle with stamina and oxygen over it (those two only while not
-full). With the inventory open you also see energy, vegetables, fruit and protein, and hovering a bar shows
-its numbers. Food, thirst, stamina, energy, fruit, vegetables and protein can go past full into an
+full, or stamina while it is being used). With the inventory open you also see energy, vegetables, fruit and protein, and
+hovering a bar shows its numbers and everything changing it right now (skills, effects, temperature, heatstroke). Food, thirst, stamina, energy, fruit, vegetables and protein can go past full into an
 **over-stat** (up to 50, the white outline) that is used up first; you start (and respawn) with every one
 full. From full, food lasts 40 minutes, thirst 20, energy 50 (two and a half days without
 sleep) and fruit, vegetables and protein 35. Health heals while food is above 30 and thirst above 20.
 Eating takes 20% longer than it used to.
-- **Stamina** pays for sprinting, jumping and wall climbing. It comes back while you rest (20% faster
-  sneaking), using food and thirst. Empty, you cannot sprint, jump or climb until it is back to 20.
+- **Stamina** pays for sprinting, jumping, wall climbing and swimming (swimming up a lot, along a little, treading water a trickle; no rest off the bottom). It comes back 3 s after you last used it (5 s once exhausted; 20% faster
+  sneaking), faster the longer you rest and the emptier it is, using food and thirst (more thirst since 0.829). Oxygen comes back faster the longer you breathe too. Empty, you are **Exhausted** until it is back to 20: no sprint, jump or climb,
+  20% slower (40% in a full sandstorm), and after 10 s of it you lose 0.3 health a second.
 - **Thirst** drops over time and hurts at 0. Look at water with an empty hand and hold `E` to drink to
   full; berries, melons, apples, cantaloupe, milk and stew help too.
 - **Energy** drops over time, faster when you use stamina or get hurt. A night in bed fills it.
@@ -141,11 +145,17 @@ Eating takes 20% longer than it used to.
   45°C **Hot** (thirst and fruit do). Cold and Hot also drain health slowly, faster the further past the line
   (0.3 a second at it, up to 1.5). Cold and heat resistance from gear take their share off all of it (leather
   +8% cold each piece, cloth +8% heat and -3% cold). All show in the effects, as do **Sneaking** and **Climbing**.
-  Sneak needs a fresh press after opening or closing the inventory.
+  Sneak needs a fresh press after opening or closing the inventory, but if you are crouched as it opens you stay
   Your temperature follows a big change faster than a small one, and resistance slows the turn toward cold or
   heat. Torches and glowstone warm you a little, placed or held; the glowcrystal block cools you a little.
   Desert nights are cold: near 0°C in spring, -10°C in winter. A held torch goes out under water and is put
   away until you surface. The bars fill sideways.
+- **Heatstroke (0.825)** builds while your body is over 35°C in a sunny or clear day's sun under open sky: 0 to
+  100% in 4 minutes in a desert at midday, slower when cooler, half as fast outside deserts. It goes down in shade or
+  at night, faster under a roof, fastest in water. From 20% thirst and fruit drain faster, 30% food, vegetables and
+  protein too, 40% your sight blurs, 50% energy drains fast and stamina barely comes back, 70% you lose health,
+  90% you see mirages, and at 100% you die. A hat (cloth bandana or leather cap) slows it 25% and lets you get 5°C
+  hotter first; the full cloth set slows it 40% more.
 
 **Water and lava (0.8245)** do not flow for now: a bucket places one still block, and digging beside water
 opens nothing.
@@ -159,8 +169,17 @@ time — see [Food and spoiling](#food-and-spoiling).
 
 ## Levels and skills
 
-Breaking naturally-generated blocks, smelting, crafting and killing pay experience. Breaking a
-block you placed yourself pays nothing, so a stack of dirt is not an XP loop. Nothing is lost on
+Breaking naturally-generated blocks, smelting, crafting and killing pay experience. The rarer sources say so in a green feed row
+(+22 XP iron ore, +15 XP taming, +6 XP loot chest...); everyday digging, foraging, crafting and smelting do not. Breaking a
+block you placed yourself pays nothing, so a stack of dirt is not an XP loop. Foraging pays 1, plus 1 for every
+berry, wheat, melon slice, flint or pebble it gives; a pumpkin 4, carving one 4 and lighting it 1; a mushroom 1 more
+for every 0.2x of its size and 2 more fully grown. Built blocks (cobblestone, planks, sandstone, adobe, terracotta, hay)
+pay nothing, so a village is no XP mine; sulfur tips 4, glow vines 5, cobwebs 3, salt (each layer), clay and hollow
+logs 2. Every 30 s out in a storm, hail, a sandstorm or with your body Cold or Hot pays 1. Taming pays 10 plus the
+animal's level, shearing and milking 5, a repair 2 per tier of the tool (2-10), a sapling you planted growing 3 (oak),
+4 (birch) or 5 (spruce). Found once: each biome 10 the first time you stand in it, the top (y 199) and bottom (y 2)
+of the world 20 each. A night lived through with more than half of it outside pays 5, a blood moon 30. Glassy sand pays 5,
+and quests half as much again as before 0.8281. Nothing is lost on
 death: your level is a record of what you have done.
 
 A kill pays a base for what the creature is **plus its level** (every creature rolls a level of
@@ -176,9 +195,10 @@ learn it. A bar fills across it while you hold, and there is no way to unlearn o
 
 | Survival | Cost | Needs | Effect |
 |---|---|---|---|
-| Thick Skin | 1 | — | +10% damage reduction |
+| Thick Skin | 1 | — | +10 health and +10% damage reduction |
 | Grass Weaver | 1 | — | 30% better chance of fiber from grass, wheat and bushes |
-| Slow Burner | 1 | Thick Skin | Hunger and oxygen drain 5% slower |
+| Slow Burner | 1 | Thick Skin | Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables, protein (the stats depletion) |
+| Climber | 1 | Slow Burner | Climb a bare wall one block higher, for 30% less stamina |
 | Canopy Forager | 1 | Grass Weaver | 30% better chance of sticks, saplings and apples from leaves |
 | Timber Shaker | 2 | Canopy Forager | Every swing that cuts a log shakes the tree: each leaf on it has a 2% chance to fall and drop its loot |
 
@@ -198,6 +218,7 @@ learn it. A bar fills across it while you hold, and there is no way to unlearn o
 | Weathered | 2 | — | +10% cold and heat resistance |
 | Pack Rat | 1 | Treasure Nose | Block stacks hold 10 more |
 | Hazard Hide | 1 | Prospector + Treasure Nose + Weathered | 30% less damage from falls, lava and cactus |
+| Clear Eyes | 1 | Hazard Hide | Fog, sandstorms, murky water, heatstroke blur, nausea sway and the shake of a hit cloud or move your view 30% less |
 
 | Husbandry | Cost | Needs | Effect |
 |---|---|---|---|
@@ -206,6 +227,7 @@ learn it. A bar fills across it while you hold, and there is no way to unlearn o
 | Lingering | 1 | Preserver | Food and potion effects last 25% longer |
 | Gentle Hand | 2 | Butcher | Taming is 10% faster |
 | Saddler | 2 | Gentle Hand | The saddle recipe costs 20% less |
+| Lucky Hands | 1 | — | 20% chance of one more flint, stone pebble or berry when you forage |
 
 **Mender's repairs.** A tool or piece of armor worn to zero stays in its slot, marked broken, and
 does nothing — a broken pickaxe mines like a bare hand. Drag it onto the recipe list or the
@@ -282,8 +304,8 @@ but is most common in its best band.
 
 | Ore | Best depth (y) | Found between (y) | Pickaxe needed | Drops |
 |---|---|---|---|---|
-| Coal | 60–90 | 35–180 | Flint | 1–3 coal and 2–5 coal chunks |
-| Copper | 70–80 | 20–85 | Flint | 1–3 raw copper |
+| Coal | 60–90 | 35–180 | Stone | 1–3 coal and 2–5 coal chunks |
+| Copper | 70–80 | 20–85 | Stone | 1–3 raw copper |
 | Iron | 50–65 | 15–130 | Stone | 1–2 raw iron |
 | Tin | 40–45 | 10–70 | Stone | 1–3 raw tin |
 | Gold | 20–30 | 5–40 | Iron | 1–2 raw gold |
@@ -313,8 +335,22 @@ much of it is left; the tooltip gives the time in minutes and seconds. At zero, 
 is lost — the feed says "spoiled" — and the clock starts again on the next one, so a stack rots one
 at a time.
 
-**Blackberries are poisonous.** Blackberry bushes grow among the red and blue ones, a little
-rarer. Their berries fill you like the others, but eating one poisons you for 10 seconds: you lose
+**Berry bushes (0.827)** come in five kinds, each growing through six stages in its own look (sprout, small, bush,
+bare, green fruit, ripe); a picked one drops back to bare and fruits again. Every berry fills you the same, plus:
+- **Red:** heals 2. Grows in forests, most of all high on the mountains.
+- **Blue:** 1.5x the thirst. Grows rarely, by forest lakes and shores.
+- **Black (blackberries):** poisonous. Grows in dark, cold forests like the spruce.
+- **Yellow:** 1.5x the food. Grows rarely in the darkest forests and on the dirt patches of cave floors; it glows a little with green fruit and
+  more when ripe.
+- **White:** takes 5 thirst but washes a second off every bad effect with a time (poison, nausea). Grows in birch woods.
+
+With the chisel worn (or in creative) a berry bush or wheat can be laid at any growth stage from the variant bar: ripe is
+the default, and the stages follow from the slot right of it.
+
+If you die, a mark on your screen shows where: how far it is and how long your dropped things still lie there. It
+waits at the edge of the view when the spot is behind you, and goes when you reach it.
+
+**Blackberries are poisonous.** Their berries fill you like the others, but eating one poisons you for 10 seconds: you lose
 2.5 health a second, and your health does not regenerate meanwhile, down to your last 5 but never past it. Running effects show as small slots right of the hotbar, with the seconds left.
 
 - **Chests do not tick.** Anything in storage keeps, and comes back out with the time it went in.
@@ -370,14 +406,16 @@ The wheel has two pages — turn them with the mouse wheel or a bumper:
 
 | Shape | Blocks that take it |
 |---|---|
-| Slab, vertical slab, stairs | Stone, cobblestone, all planks, terracotta, stone brick, glass, both sandstones |
-| Pane (a thin plate through the middle) | Wool, glass, all planks, stone, cobblestone, terracotta |
-| Fence (a post that joins its neighbours, too tall to jump) | All planks, terracotta, iron block, copper block |
-| Carpet (a layer 1/8 thick) | Wool, all planks, stone, cobblestone, glass, iron and gold block — plus the stacking set below |
-| Cover (a 1/8 plate you walk straight through) | Dirt, grass, stone, cobblestone, all planks, stone brick, terracotta, granite, marble, limestone, both sandstones |
-| Wall (solid, thin, a full block tall) | Cobblestone, stone brick, terracotta, iron, copper and gold block, granite, marble, limestone, wool, both sandstones |
+| Slab, vertical slab, stairs | Stone, cobblestone, all planks, terracotta, stone brick, glass, the sandstones, granite, marble, limestone, dolomite, obsidian, wool, sulfur block, hay bale, copper block, dirt, snow block; slabs only: glowstone, glowcrystal block, the iron, gold, tin, coal, charcoal and gem blocks |
+| Pane (a thin plate through the middle) | Wool, glass, all planks, stone, cobblestone, terracotta, granite, marble, limestone, dolomite (every look), the sandstones (every look), glowstone, glowcrystal block, obsidian, sulfur block, the iron, gold, tin and copper blocks |
+| Fence (a post that joins its neighbours, too tall to jump) | All planks, terracotta, copper block |
+| Carpet (a layer 1/8 thick) | Wool, all planks, stone, cobblestone, hay bale — plus the stacking set below |
+| Cover (a 1/8 plate you walk straight through) | Dirt, grass, stone, cobblestone, all planks, stone brick, granite, marble, limestone, dolomite, the sandstones (not adobe or terracotta) |
+| Wall (solid, thin, a full block tall) | Stone, cobblestone, stone brick, terracotta, iron, copper, gold and tin block, granite, marble, limestone, wool, the sandstones, sulfur block, obsidian, snow block |
 
-Two slabs of the same block in one space become the full block again. Snow, leaves, sand, red sand,
+Glass shapes are see-through like the full block (0.8261), and since 0.8263 glass shows through other glass from every side. Every look of a block (brick, polished, mossy...) takes exactly the shapes its plain block takes (0.8263).
+
+Two slabs of the same block in one space become the full block again; two slabs of different blocks share the space as a mixed slab, each in its own look (0.8263), and breaking one leaves the other. Glass and glowstone mix too (0.8264): a glass half stays see-through, and a glowing half still lights the area. Snow, leaves, sand, red sand,
 gravel and fiber block stack up to 8 carpet layers in one space, in any mix, and you walk through
 them; snow cover and leaf litter in the world are these same layers. Breaking takes the top layer:
 snow gives a snowball with a shovel, leaves drop what leaves drop, sand, gravel and fiber give
@@ -419,8 +457,8 @@ deep snow -3 · snow, snow forest -2 · cold plains, spruce forest -1 · plains,
 red sand 3. Deep snow is treeless and mostly solid snow. The level also sets how warm the air feels.
 
 **What grows where (0.8233).** Pumpkins in the cold (cold plains, spruce forest), watermelons in the warm plains,
-rare cantaloupes and wild wheat patches (4+) on mild plains and meadows, sugar cane in stands on warm and hot shores,
-berry bushes in forests only. The odd oak grows among the spruces; salt crust is a bit commoner by the sea.
+rare cantaloupes and wild wheat patches (4+, twice as many since 0.826, in any growth stage) on mild plains and meadows, sugar cane in stands on warm and hot shores (planted cane starts as a sprout; a stand with water by its foot grows a block taller at a time, up to 5),
+berry bushes in forests only (25% more since 0.826, 20% more again in 0.8272). Picking wheat gives a fiber 5% per growth stage, 35% ripe; wheat grows through six stages to ripe. The odd oak grows among the spruces; salt crust is a bit commoner by the sea.
 
 A month is 7 days and a new world starts on 1 April. Spring (March-May) makes plants grow 30% faster,
 summer as normal, autumn 30% slower, and in winter (December-February) nothing grows. Through autumn oak and
@@ -434,7 +472,7 @@ a cover of snow, except on about one mountain in ten, which stays bare. A world 
 growth, long days).
 
 The world is split into weather regions (16x16 chunks), each with its own weather lasting 6-24 hours, blending smoothly into its neighbours near the edges (the debug screen shows a neighbouring weather that is blending in, e.g. "sunny (storm 30%)"): clear,
-sunny, cloudy, windy (a sandstorm in deserts), rainy (snowy in snow biomes, and everywhere but deserts in winter), darky, storm or foggy.
+sunny, cloudy, windy (a **sandstorm** in deserts: sand-coloured murk that closes in over 30-60 s to a few blocks of sight, flying sand, you walk up to 45% slower and lose stamina; a roof or a cave stops it, the cloth set takes 40% off), rainy (snowy in snow biomes, and everywhere but deserts in winter), darky, storm or foggy.
 Clear, sunny and cloudy skies are the usual weather; the rest are rare and follow the season: spring brings rain, fog
 and dark skies, summer is sunniest with the most storms, autumn has rain, dark skies, storms and the most hail,
 and winter is cloudy with snow (0.8241). Clouds
@@ -466,7 +504,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
   glow a little. They cannot be planted in survival. **Autumn is mushroom time:** forests grow new ones (brown,
   black, white and yellow under oaks, red among birches, blue among spruces), most of all beside fallen hollow
   logs. A new mushroom comes up small and grows to its own size over about 15 minutes of daylight (not at
-  night); picked before it is 40% grown it gives nothing. Out in the open a grown mushroom lasts about 30
+  night); under 40% grown it cannot be picked, and the pickup prompt shows its size now (e.g. 0.33x). Each Out in the open a grown mushroom lasts about 30
   minutes and then rots away, and winter clears them all; cave and lava mushrooms stay. A furnace grills any
   but the lava one into food. Mushroom stew takes a bowl and one brown, black, yellow and white mushroom.
 - **Cantaloupe.** A gourd like the watermelon, found in patches on grassland. Gather it and it comes apart
@@ -475,11 +513,12 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
   toward you; right-click it with a torch to light it. Both can be placed, and they never spoil. A plain pumpkin
   still cannot be placed in survival.
 - **Glassy sand (0.824).** Lightning fuses any sand it strikes, plus a short root under it, into glassy sand of
-  its own colour (red and pink since 0.8241). It gives 0–2 glass
-  shards when broken.
+  its own colour (red and pink since 0.8241), and since 0.826 the sand round the strike in a small patch. It gives 0–2 glass
++
++  and broken it still gives shards, not sand. A block's tooltip lists its variants, the default first.
 - **Cloth armor (0.824).** Bandana, tunic, trousers, boots and gloves from cloth and fiber at the bench (boots and
   gloves also take 2 sticks and a leather). Light armor, but each piece is 8% heat resistance. The full set is 40%
-  resistance to sandstorms and heatstroke, which arrive in 0.825.
+  resistance to sandstorms and heatstroke (0.825).
 - **Salt crust.** A thin white crust on beach sand at the water's edge. It piles and mixes in layers like sand and slows you 3% a layer. A shovel breaks it: 70% chance of salt, 10% of a second. Salt carried with food, or kept in a chest with food, makes that food last 50% longer, a salt is used the moment it has food to keep (salt put in beside food, or food beside salt) and keeps that inventory's food for 20 minutes, then the next goes in (none while there is no food). Food in chests spoils like carried food, and a chest out of range catches up when you come back (its salt spent first).
 - **Adobe.** 1 clay block and 5 wheat make 4 adobe at the crafting bench.
 
@@ -547,5 +586,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 **Cloth** is spun from 20 fiber at the bench and goes into beds, backpacks and metal tools. A
 **backpack** adds two more rows of carrying space, a **belt** five quick slots.
 
-Sleeping in a bed skips the night and sets your respawn point. Hold `Shift` in the crafting list to
+Sleeping in a bed skips the night and sets your respawn point. Stuck? The pause menu's **Respawn** (keep the cursor on it 1 s, then click) kills you on the spot, once every 20 minutes. Hold `Shift` in the crafting list to
 craft as many as you can afford in one click.
+
+**Chests** hold 3 rows; a double chest 7 (0.829, 5 and 10 before; anything past that falls out when you open it).

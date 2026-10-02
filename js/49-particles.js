@@ -573,12 +573,13 @@ function fxFurnace(f, x, y, z, facing, dt) {
   if (f._fxT > 0 || _fxScale <= 0) return;
   f._fxT = _rnd(0.3, 0.5) / Math.max(0.3, _fxScale);
   if (!_fxNear(x + 0.5, y + 1, z + 0.5)) return;
-  // out of the chimney (0.8041)
-  _fxSmoke(x + _rnd(0.4, 0.6), y + 1.3, z + _rnd(0.4, 0.6), 0.6, _fxLight(x + 0.5, y + 1.5, z + 0.5));
+  // out of the chimney (0.8041), at the top of a chimney of walls when one stands on it (0.827)
+  const top = y + 1 + (typeof CORE.chimneyHeight === 'function' ? CORE.chimneyHeight(getBlock, x, y, z) : 0);
+  _fxSmoke(x + _rnd(0.4, 0.6), top + 0.3, z + _rnd(0.4, 0.6), 0.6, _fxLight(x + 0.5, top + 0.5, z + 0.5));
   // something in the input slot is being fired: embers jump out of the open top (0.803)
   if (f.slots && f.slots[1] && Math.random() < 0.7)
     for (let k = 0, n = 1 + (Math.random() < 0.4); k < n; k++)
-      _fxEmber(x + _rnd(0.4, 0.6), y + 1.27, z + _rnd(0.4, 0.6), _rnd(-0.5, 0.5), _rnd(1.8, 3), _rnd(-0.5, 0.5));
+      _fxEmber(x + _rnd(0.4, 0.6), top + 0.27, z + _rnd(0.4, 0.6), _rnd(-0.5, 0.5), _rnd(1.8, 3), _rnd(-0.5, 0.5));
   if (Math.random() < 0.55) {
     const [fx, fz] = _FX_FRONT[facing & 3] || _FX_FRONT[0];
     const side = _rnd(-0.25, 0.25);
@@ -874,7 +875,9 @@ function fxPlace(x, y, z, val) {
 const _FX_BERRY_COL = {};
 _FX_BERRY_COL[B.REDBERRY_BUSH] = [0.82, 0.12, 0.16];
 _FX_BERRY_COL[B.BLUEBERRY_BUSH] = [0.25, 0.36, 0.88];
-_FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.25, 0.12, 0.3];   // blackberries (0.80991)
+_FX_BERRY_COL[B.BLACKBERRY_BUSH] = [0.25, 0.12, 0.3];   // blackberries (0.80991)
+_FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.95, 0.8, 0.2];   // 0.827
+_FX_BERRY_COL[B.WHITEBERRY_BUSH] = [0.92, 0.92, 0.86];
 const _FX_LEAF_DARK = [0.2, 0.38, 0.14], _FX_WHEAT = [0.88, 0.76, 0.36];
 function _fxGrassCol() {
   const t = sharedUniforms.uTintColor && sharedUniforms.uTintColor.value;
@@ -1277,6 +1280,41 @@ function _fxAmbient(dt) {
     }
   }
 }
+/* A SANDSTORM (0.825, sandstormAt in 51-seasons.js): sand streams past each player on the wind, thicker as the storm
+   builds round them (eased like its fog, 52-clouds.js), yellow or red by the ground; none under a roof or in a cave. */
+const _FX_SAND = [0.86, 0.72, 0.47], _FX_RED_SAND = [0.76, 0.42, 0.24], _fxSandCol = [0, 0, 0];
+const FX_SAND_PER_S = 90;                     // at a full storm, before the particle setting
+function _fxSandstorm(p, dt) {
+  const ey = p.pos.y + (p.EYE || 1.62);
+  p._fxSandT = (p._fxSandT || 0) - dt;
+  if (p._fxSandT <= 0) {                      // looked at twice a second
+    p._fxSandT = 0.5;
+    const roof = getSkyWorld(Math.floor(p.pos.x), Math.floor(ey), Math.floor(p.pos.z)) < 12;
+    p._fxSandAim = roof || typeof sandstormAt !== 'function' ? 0 : sandstormAt(p.pos.x, p.pos.z);
+    if (p._fxSandAim > 0) {
+      const w = weatherAt(p.pos.x, p.pos.z, p.pos.y), v = windVector(w.dir);
+      p._fxSandWind = [v[0], v[1], Math.max(6, w.speed / 3.6 * 0.6)];   // blocks a second
+      p._fxSandRed = sandstormRedAt(p.pos.x, p.pos.z);
+    }
+  }
+  const cur = p._fxSand || 0, aim = p._fxSandAim || 0;
+  p._fxSand = cur + (aim - cur) * (1 - Math.exp(-dt / (aim > cur ? 15 : 3)));
+  if (p._fxSand < 0.02 || !p._fxSandWind) { p._fxSandAcc = 0; return; }
+  const [wx, wz, sp] = p._fxSandWind, red = p._fxSandRed || 0;
+  for (let c = 0; c < 3; c++) _fxSandCol[c] = _FX_SAND[c] + (_FX_RED_SAND[c] - _FX_SAND[c]) * red;
+  p._fxSandAcc = Math.min(40, (p._fxSandAcc || 0) + FX_SAND_PER_S * p._fxSand * _fxScale * dt);
+  while (p._fxSandAcc >= 1) {
+    p._fxSandAcc -= 1;
+    // upwind of the player, so the sand blows on past them
+    const x = p.pos.x + _rnd(-7, 7) - wx * 5, y = ey + _rnd(-2.2, 2.5), z = p.pos.z + _rnd(-7, 7) - wz * 5;
+    if (getBlock(Math.floor(x), Math.floor(y), Math.floor(z))) continue;
+    const i = _fxDust(x, y, z, _fxSandCol, _fxLight(x, y, z), _rnd(0.8, 1.4), _rnd(0.05, 0.11));
+    if (i < 0) break;
+    const S = FX.sprites, s = sp * _rnd(0.8, 1.3);
+    S.vx[i] = wx * s; S.vz[i] = wz * s; S.vy[i] = _rnd(-0.5, 0.6);
+    S.grav[i] = 0.3; S.drag[i] = 0; S.flags[i] = FX_FADEIN;
+  }
+}
 function updateParticles(dt) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   _fxBudget = FX_SPAWN_BUDGET;
@@ -1295,6 +1333,7 @@ function updateParticles(dt) {
       }
       if (!p.flying) _fxBodyInFluid(p, p.pos.x, p.pos.y, p.pos.z, p.vy || 0, dt, p.pos.y + (p.EYE || 1.62));
       _fxEffects(p, dt);                      // 0.803
+      _fxSandstorm(p, dt);                    // 0.825
     }
     // creatures near a player splash too
     if (typeof ENTITIES !== 'undefined')

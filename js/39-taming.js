@@ -63,6 +63,7 @@ function tryMilkCow() {
   if (slot.count <= 0 && typeof feedItem === 'function') feedItem(ITEM.MILK_BUCKET, 1, 'milked');
   saveHotbar(); buildHotbar(); updateHotbar();
   playSound('fillWater', { gain: 0.8, rate: 1.1, pos: { x: cow.x, y: cow.y + 1, z: cow.z } });
+  addXP(XP_MILK, 'milking');                                    // 0.8283
   return true;
 }
 
@@ -282,6 +283,7 @@ function finishTaming(e, tp) {
   if (typeof fxTamed === 'function') fxTamed(e.x, e.y + 1.2, e.z);   // hearts and sparkles (0.803)
   dismountRider(player, true);
   toast(`tamed the ${tp.label}!`);
+  addXP(XP_TAME + (e.level | 0), 'taming');                    // 10 and one a level (0.8283)
   openNameDialog(e, tp);
 }
 

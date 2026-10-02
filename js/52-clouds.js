@@ -300,29 +300,55 @@ const _mistGrey = new THREE.Color(0.74, 0.77, 0.8), _mistCol = new THREE.Color()
 scene.fog = new THREE.Fog(0xffffff, 1e6, 1e7);   // three's own materials follow the land's fog (22, applyEyeVolumeFog)
 /* The fog where this eye stands, eased per camera so walking into a foggy region (or the weather turning) closes
    in over a few seconds. Called on the surface branch of applyEyeVolumeFog, after it set the clear-air fog. */
+/* A SANDSTORM (0.825, sandstormAt in 51-seasons.js) is a murk of its sand's colour, yellow or red by the ground under
+   it. Round each eye it thickens over SAND_FOG_EASE_S (most of the way in 30-60 s) down to SAND_FOG_FAR blocks of
+   sight; under a roof or in a cave it thins to SAND_FOG_ROOF_FAR, so the room is clear but the storm outside is not. */
+const SAND_FOG_FAR = 3.5, SAND_FOG_ROOF_FAR = 18, SAND_FOG_EASE_S = 15, SAND_FOG_CLEAR_S = 8;
+const _sandYellow = new THREE.Color(0.86, 0.71, 0.45), _sandRed = new THREE.Color(0.74, 0.4, 0.22), _sandCol = new THREE.Color();
+function _sandAround(st, cam, now, dts) {
+  if (st.sandT == null || now - st.sandT > 500) {      // sampled twice a second
+    st.sandT = now;
+    const x = cam.position.x, z = cam.position.z;
+    st.sandAim = typeof sandstormAt === 'function' ? sandstormAt(x, z) : 0;
+    if (st.sandAim > 0) st.sandRed = sandstormRedAt(x, z);
+    st.sandInAim = getSkyWorld(Math.floor(x), Math.floor(cam.position.y), Math.floor(z)) < 12 ? 1 : 0;
+    if (st.sand == null) { st.sand = st.sandAim; st.sandIn = st.sandInAim; }
+  }
+  st.sand += (st.sandAim - st.sand) * (1 - Math.exp(-dts / (st.sandAim > st.sand ? SAND_FOG_EASE_S : SAND_FOG_CLEAR_S)));
+  st.sandIn += (st.sandInAim - st.sandIn) * (1 - Math.exp(-dts / 1.2));
+  if (st.sand < 0.003) st.sand = 0;
+}
 function applyMist(cam) {
   const m = mistAt(cam.position.x, cam.position.z), now = performance.now();
   let st = cam.userData.mist;
   if (!st) st = cam.userData.mist = { dense: m.dense, light: m.light, bow: m.bow, t: now };
-  const k = 1 - Math.exp(-Math.min(1, (now - st.t) / 1000) / FOG_EASE_S);
+  const dts = Math.min(1, (now - st.t) / 1000), k = 1 - Math.exp(-dts / FOG_EASE_S);
   st.t = now;
   st.dense += (m.dense - st.dense) * k; st.light += (m.light - st.light) * k; st.bow += (m.bow - st.bow) * k;
+  _sandAround(st, cam, now, dts);
   // above the cloud layer the air is clear, whatever the weather below (0.8197)
-  const clear = 1 - cloudsBelow(cam.position.y), dense = st.dense * clear, light = st.light * clear;
+  // ...and Clear Eyes takes 30% off fog and sand alike (0.828, 45-skills.js)
+  const sm = typeof skillSightMul === 'function' ? skillSightMul() : 1;
+  const sky = 1 - cloudsBelow(cam.position.y), clear = sky * sm, dense = st.dense * clear, light = st.light * clear, sand = st.sand * clear;
   const U = sharedUniforms, baseFar = U.fogFar.value, ratio = U.fogNear.value / baseFar;
   let far = Math.min(baseFar, baseFar + (FOG_LIGHT_FAR - baseFar) * light);
   far += (Math.min(far, FOG_DENSE_FAR) - far) * dense;
+  far += (Math.min(far, SAND_FOG_FAR + (SAND_FOG_ROOF_FAR - SAND_FOG_FAR) * st.sandIn) - far) * sand;   // 0.825
   U.fogFar.value = far;
-  U.fogNear.value = far * (ratio + (0.1 - ratio) * light) * (1 - dense);   // thick fog starts at the eye
+  U.fogNear.value = far * (ratio + (0.1 - ratio) * light) * (1 - dense) * (1 - sand);   // thick fog starts at the eye
   const a = Math.max(dense, light);
   _mistCol.copy(_mistGrey).multiplyScalar(0.2 + 0.8 * _skyDayF);
   U.fogColor.value.lerp(_mistCol, a * 0.85);
-  U.uDirect.value *= 1 - 0.5 * a;                                                   // the sun comes through soft
-  skyVisibility(Math.max(0, 1 - dense - 0.6 * light));
+  if (sand > 0) {
+    _sandCol.copy(_sandYellow).lerp(_sandRed, st.sandRed || 0).multiplyScalar(0.2 + 0.8 * _skyDayF);
+    U.fogColor.value.lerp(_sandCol, Math.min(1, sand * 1.15));
+  }
+  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand);                             // the sun comes through soft
+  skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand));
   // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades (0.817)
-  U.uSkyFog.value = Math.min(1, dense + 0.6 * light);
-  U.uHaze.value = 1 - 0.8 * a;
-  const bow = st.bow * _skyDayF * clear;
+  U.uSkyFog.value = Math.min(1, dense + 0.6 * light + sand);
+  U.uHaze.value = (1 - 0.8 * a) * (1 - 0.8 * sand);
+  const bow = st.bow * _skyDayF * sky * (1 - sand);
   rainbowMat.uniforms.uBow.value = bow;
   rainbowMesh.visible = bow > 0.01;
 }

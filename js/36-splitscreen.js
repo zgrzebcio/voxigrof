@@ -60,7 +60,7 @@ const SWAP_KEYS = [
   'wasMoving', 'lastFlying', '_hlId', '_hlLevel', '_hlX', '_hlY', '_hlZ', '_hlRaw',
   // this player's slice of the HUD
   'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl',
-  'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl',
+  'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl', 'heatBlurEl', 'deathMarkEl',
   'deathEl', 'deathCauseEl', 'deathStatsEl', '_interactShown', 'blocknameTimer',
 ];
 
@@ -253,6 +253,8 @@ function _makePane(index) {
   }
   // the damage vignette is created (not appended) by 19-vitals.js — one per pane
   inner.appendChild(index === 0 ? hurtEl : hurtEl.cloneNode(true));
+  // ...and the heatstroke blur (0.825), FIRST so every other part of the HUD draws over it, sharp
+  inner.insertBefore(index === 0 ? heatBlurEl : heatBlurEl.cloneNode(false), inner.firstChild);
   /* ...and this seat's cursor / drag ghost / tooltip. These stay on the body in unscaled screen
      space, so they are hung off the pane object rather than nested inside it. */
   pane._cursors = {};
@@ -264,6 +266,8 @@ function _makePane(index) {
     pane._cursors[id] = el;
   }
   // a corner tag naming whose quarter this is; hidden when playing solo
+  // the death mark (0.827) on the pane itself, outside the scaled HUD: it is placed in the view's own pixels
+  pane.appendChild(index === 0 ? deathMarkEl : deathMarkEl.cloneNode(false));
   const tag = document.createElement('div');
   tag.className = 'paneTag';
   tag.textContent = defaultPlayerName(index);
@@ -288,6 +292,8 @@ function _bindPaneDom(pane, g) {
   g.xpLevelEl    = q('#xpLevel');
   g.xpPopsEl     = q('#xpPops');
   g.hurtEl       = q('#hurtOverlay');
+  g.heatBlurEl   = q('#heatBlur');                // 0.825
+  g.deathMarkEl  = q('#deathMark');               // 0.827
   g.deathEl      = q('#deathScreen');
   g.deathCauseEl = q('#deathCause');
   g.deathStatsEl = q('#deathStats');
@@ -753,6 +759,7 @@ function renderAllViews(dt) {
     if (cr) { crackMesh.position.set(cr.px, cr.py, cr.pz); crackMesh.scale.set(cr.sx, cr.sy, cr.sz); }
     alignSkyTo(camera);                  // the dome is drawn around THIS eye
     applyEyeVolumeFog();                 // water / lava murk for THIS eye, restored per pass
+    if (typeof showMiragesFor === 'function') showMiragesFor(st.player);   // heatstroke's mirages: this player's own (0.825)
     renderer.render(scene, camera);
     /* first-person hand — its own depth buffer, always on top. Only the active player's rig is
        visible; clearDepth is scissored to this viewport, so it never wipes a finished one. */
@@ -808,6 +815,8 @@ function _serializeSlot(i) {
     homeSpawn: p.homeSpawn ? p.homeSpawn.toArray() : null,
     spawnBedKey: p.spawnBedKey || null,
     aliveT: +(p.aliveT || 0).toFixed(1), dead: !!p.dead, cause: p._dmgCause || null, deathDay: p._deathDay ?? null,   // 0.757
+    deathMark: serializeDeathMark(p),                                                                       // 0.827
+    feats: serializeFeats(p),                                                                               // 0.8283
     craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken (0.76)
     skills: serializeSkills(p),           // learned skills (0.79)
     quest: serializeQuests(p),            // the starter quest reached (0.798)
@@ -937,6 +946,8 @@ function applyExtraPlayerRestore(slot) {
   // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
   player.aliveT = +rec.aliveT || 0; player.dead = !!rec.dead; player._dmgCause = rec.cause || null;
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
+  player._deathMark = restoreDeathMark(rec.deathMark);   // 0.827
+  player._feats = restoreFeats(rec.feats);               // 0.8283
   player.craftQueue = restoreCraftQueue(rec.craftQueue);
   player.skills = restoreSkills(rec.skills);   // 0.79
   player.questIdx = restoreQuests(rec.quest);  // 0.798

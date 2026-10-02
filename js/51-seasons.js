@@ -71,7 +71,8 @@ const WEATHER_TYPES = ['clear', 'sunny', 'cloudy', 'windy', 'rainy', 'darky', 's
 /* The weather by season (0.8241): fair skies — clear, sunny, cloudy — are the usual thing all year, and every other
    weather is rare, each season leaning its own way. Spring: rain, fog and dark skies. Summer: sun above all, then
    storms (thunder), rain and strong wind (a sandstorm in a desert). Autumn: rain, dark skies, storms (the most hail,
-   HAIL_BY_SEASON), wind and fog. Winter: cloud, and rain that falls as snow (weatherName). Heatstroke comes in 0.825.
+   HAIL_BY_SEASON), wind and fog. Winter: cloud, and rain that falls as snow (weatherName). Sunny and clear days give
+   heatstroke (0.825, 54-stats-effects.js); a desert's strong wind is a sandstorm (sandstormAt).
    Each row is out of 100, in WEATHER_TYPES order. */
 const WEATHER_BY_SEASON = [
   //  clear sunny cloudy windy rainy darky storm foggy
@@ -264,6 +265,31 @@ function mistAt(x, z) {
   return { dense, light, bow };
 }
 
+/* SANDSTORM (0.825): a desert region's strong wind (weatherName calls it a sandstorm) fills the air with sand. Its
+   share at a world position, 0..1, blended between region centres like mistAt, and thinner where the ground under
+   it is less desert (an edge over grass: 40%). Whoever reads it eases it in (30-60 s): applyMist (52-clouds.js) for
+   the sight, tickSandstorm (54-stats-effects.js) for the body, _fxSandstorm (49-particles.js) for the sand. */
+function sandstormAt(x, z) {
+  if (_titleCalm()) return 0;
+  const H = worldClockDays() * 24;
+  const u = x / REGION_BLOCKS - 0.5, v = z / REGION_BLOCKS - 0.5;
+  const i0 = Math.floor(u), j0 = Math.floor(v), fu = _smooth(u - i0), fv = _smooth(v - j0);
+  let s = 0;
+  for (const [di, dj, wgt] of [[0, 0, (1 - fu) * (1 - fv)], [1, 0, fu * (1 - fv)], [0, 1, (1 - fu) * fv], [1, 1, fu * fv]]) {
+    if (wgt <= 0) continue;
+    const rx = i0 + di, rz = j0 + dj;
+    if (regionKind(rx, rz) === 'warm' && _pickWeather(rx, rz, _weatherStretch(rx, rz, H).start) === 'windy') s += wgt;
+  }
+  if (!s) return 0;
+  const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : null;
+  return s * (c ? 0.4 + 0.6 * Math.min(1, c.hot) : 1);
+}
+// how red a sandstorm's sand is at a position, 0 (desert sand) .. 1 (red sand)
+function sandstormRedAt(x, z) {
+  const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : null;
+  return c && c.hot > 0 ? Math.min(1, (c.red || 0) / c.hot) : 0;
+}
+
 /* HAIL (0.819): some storms bring hail, rolled once per storm like the rest of the weather. The share at a position,
    blended between region centres like weatherAt; 53-storms.js does the rest. How many by season (0.8241, a flat 35%
    before): autumn's storms most, winter's none — its storms are snow. */
@@ -379,7 +405,8 @@ function showTitleDate(on) {
 const SEASON_LEAVES = new Set([B.LEAVES, B.BIRCH_LEAVES]);               // spruce keeps its needles
 // mushrooms left this list in 0.821: they have their own year now (mushroom growth, below)
 const SEASON_PLANTS = new Set([B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
-  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHEAT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
+  B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
+  B.WHEAT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
 // "cx,cz" -> Map(cell index -> the value that stood there): what autumn took and spring may give back. Saved.
 const SEASON_MEM = new Map();
 const SEASON_CHUNK_EVERY_H = 1;              // a chunk looks at the season again every in-game hour
@@ -480,6 +507,7 @@ function updateSeasons(dt) {
   }
   updateWheatGrow(dt);
   updateShroomGrow(dt);                                          // 0.821
+  updateCaneGrow(dt);                                            // 0.829
 }
 function serializeSeasons() {
   const out = [];
@@ -497,7 +525,7 @@ function restoreSeasons(list) {
   }
 }
 
-/* ---- wheat growth (0.81): variants 1..7 are stages 0..6, 0 is ripe. Same adoption sweep and pause
+/* ---- wheat growth (0.81): variants 1..6 are stages 0..5, 0 is ripe (its art is wheat_stage6 since 0.8273; 1..7 before). Same adoption sweep and pause
    outside the simulation radius as the berry bushes (33-felling.js), each stage on its own clock. ---- */
 const wheatGrow = new Map();
 const WHEAT_STAGE_LIFE = 0.35, WHEAT_STAGE_JITTER = 0.3;    // in-game days per stage
@@ -527,7 +555,7 @@ function updateWheatGrow(dt) {
     if ((v & 255) !== B.WHEAT || !st) { wheatGrow.delete(k); continue; }
     const left = t - step;
     if (left > 0) { wheatGrow.set(k, left); continue; }
-    const next = st >= 7 ? 0 : st + 1;                           // past stage 6 it is ripe
+    const next = st >= 6 ? 0 : st + 1;                           // past stage 5 it is ripe (6 until 0.8273)
     setBlock(x, y, z, B.WHEAT | (next << 8));
     if (next) wheatGrow.set(k, _wheatLife()); else wheatGrow.delete(k);
   }
@@ -539,8 +567,8 @@ function updateWheatGrow(dt) {
      - in autumn on the forest floor, a few a chunk (_shroomAutumn), and more beside a fallen hollow log;
      - on top of a hollow log packed with dirt or grass, spring to autumn (both processHollowMushrooms, 22).
    They grow by day only, SHROOM_GROW_S from sprout to full. Under the open sky (not in a cave, and never the lava
-   kind) a grown one lasts SHROOM_LIFE_S and is gone, and in winter they all go, a few at a time. Picked while
-   under 40% grown, a mushroom gives nothing (shroomTooSmall). The clocks are not saved: a chunk's mushrooms are
+   kind) a grown one lasts SHROOM_LIFE_S and is gone, and in winter they all go, a few at a time. Under 40% grown a
+   mushroom cannot be picked (shroomTooSmall; it gave nothing before 0.826), and the prompt says how big it is. The clocks are not saved: a chunk's mushrooms are
    picked up again on its next hourly season pass (_shroomChunk), which restarts a grown one's time. */
 const SHROOM_STEPS = 31, SHROOM_GROW_S = 900, SHROOM_LIFE_S = 1800;
 const SHROOM_WILD = new Set([B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM,
@@ -553,6 +581,20 @@ const SHROOM_AUTUMN_TRIES = 2, SHROOM_AUTUMN_CHANCE = 0.03;   // per chunk, per 
 const SHROOM_AUTUMN_MAX = 6;                                  // a chunk with this many out already grows no more
 const shroomLeft = (vr) => ((vr || 0) >> 3) & 31;
 const shroomTooSmall = (id, vr) => PROPS[id]?.shroom != null && shroomLeft(vr) > SHROOM_STEPS * 0.6;
+/* How big a mushroom is right now, as the mesher draws it (emitShroom, 02-voxel-core.js): its full size (bits 0-2,
+   0.5x..1.5x; 0 = sized by a hash of where it stands) times the share it has grown, never under 12%. The pickup
+   prompt shows it (0.826, findBushPickup in 13-actions.js). */
+function shroomSizeAt(x, y, z, vr) {
+  const m = (vr || 0) & 7;
+  let size;
+  if (m) size = 0.5 + (m - 1) / 6;
+  else {
+    let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 217645177) + Math.imul(z | 0, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
+    size = 0.5 + (h >>> 0) / 4294967296;
+  }
+  return size * Math.max(0.12, 1 - shroomLeft(vr) / SHROOM_STEPS);
+}
 const shroomGrow = new Map();       // "x,y,z" -> seconds to its next step (growing) or until it goes (grown)
 const _shroomStepS = () => SHROOM_GROW_S / SHROOM_STEPS;
 // a new mushroom, just come up: a random full size, all its growing ahead of it
@@ -570,6 +612,7 @@ function _shroomChunk(c) {
   let out = 0;
   for (let i = 0; i < data.length; i++) {
     const v = data[i], id = v & 255;
+    if (id === B.SUGAR_CANE) { _caneAdopt(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v); continue; }   // the same scan finds cane (0.829)
     if (!SHROOM_WILD.has(id) || _skyAt(c, i) === 0) continue;      // a cave's stay as they are
     const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
     if (season === 3 && sHash(x, y, z, 9 + d.year * 16) < d.progress * 1.5) {   // winter takes them
@@ -632,7 +675,59 @@ function updateShroomGrow(dt) {
     shroomGrow.delete(k);
   }
 }
-function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); _regionKind.clear(); _seasonKeys = []; }
+/* ---- sugar cane grows (0.829) ----
+   A cane's variant bits 0-2 are the steps it still has to grow (CANE_STEPS a sprout .. 0 grown; the mesher draws stage
+   0-4, then a grown column's pieces). A grown cane on top of its column, with air over it and water beside the column's
+   foot, puts a new shoot on itself until the column is CANE_MAX_H high. Found by each chunk's season pass (_shroomChunk's
+   scan) and by planting (13-actions.js); its clock waits outside the simulation radius, and in winter. */
+const CANE_MAX_H = 5;
+const CANE_STEP_LIFE = 0.15, CANE_STEP_JITTER = 0.1;   // in-game days a step: a new block about every 20 minutes
+const caneGrow = new Map();
+const _caneLife = () => (CANE_STEP_LIFE + Math.random() * CANE_STEP_JITTER) * _dayLen();
+function queueCaneGrow(x, y, z) { caneGrow.set(x + ',' + y + ',' + z, _caneLife()); }
+// can this grown cane put a shoot on top: the column's top, under CANE_MAX_H, air above, water beside its foot
+function _caneCanRise(x, y, z) {
+  if (y + 1 >= 199 || (getBlock(x, y + 1, z) & 255) !== B.AIR) return false;
+  let foot = y;
+  while (foot > 1 && (getBlock(x, foot - 1, z) & 255) === B.SUGAR_CANE) foot--;
+  if (y - foot + 1 >= CANE_MAX_H) return false;
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+    for (const yy of [foot, foot - 1]) if ((getBlock(x + dx, yy, z + dz) & 255) === B.WATER) return true;
+  return false;
+}
+// the season pass meets a cane: keep a clock on it if it is still growing, or could grow taller
+function _caneAdopt(x, y, z, v) {
+  const k = x + ',' + y + ',' + z;
+  if (!caneGrow.has(k) && (((v >> 8) & 7) || _caneCanRise(x, y, z))) caneGrow.set(k, _caneLife());
+}
+let _caneTickT = 0;
+function updateCaneGrow(dt) {
+  _caneTickT += dt;
+  if (_caneTickT < 1) return;
+  const step = _caneTickT * (typeof tickFactor === 'function' ? tickFactor() : 1) * seasonGrowth();
+  _caneTickT = 0;
+  if (!step) return;                                             // winter: nothing grows
+  for (const [k, t] of caneGrow) {
+    const [x, y, z] = k.split(',').map(Number);
+    if (!inSimRange(x, z)) continue;
+    const v = getBlock(x, y, z);
+    if ((v & 255) !== B.SUGAR_CANE) { caneGrow.delete(k); continue; }
+    if (t - step > 0) { caneGrow.set(k, t - step); continue; }
+    const left = (v >> 8) & 7;
+    if (left) {                                                  // a stage on
+      setBlock(x, y, z, B.SUGAR_CANE | ((((v >> 8) & ~7) | (left - 1)) << 8));
+      if (left > 1 || _caneCanRise(x, y, z)) caneGrow.set(k, _caneLife()); else caneGrow.delete(k);
+      continue;
+    }
+    caneGrow.delete(k);
+    if (_caneCanRise(x, y, z)) {                                 // grown: a new shoot on top, past the seedling
+      setBlock(x, y + 1, z, B.SUGAR_CANE | ((CANE_STEPS - 1) << 8));
+      queueCaneGrow(x, y + 1, z);
+    }
+  }
+}
+
+function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); caneGrow.clear(); _regionKind.clear(); _seasonKeys = []; }
 
 /* ---- the wind the renderer bends plants with: player one's (0.81) ---- */
 function updateWindUniforms() {

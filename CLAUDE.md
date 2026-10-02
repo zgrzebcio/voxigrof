@@ -85,6 +85,20 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   (`_groupOf`); a 2-high gap in the ground-floor wall counts as a doorway. Groups: village, desert_village (grass paths, sand carpets swept).
 - **Fluid flow is OFF (0.8245):** `FLUID_FLOW` (00-config) gates `queueWaterAt`/`queueLavaAt`/`updateFluids` (22). Shadows off:
   the chunk shader uses sky light as the shadow (`sS`, 04), so caves stay dark.
+- **Heatstroke and sandstorm (0.825, 54):** `p.heatstroke` 0..100 (`_tickHeatstroke`, `heatstrokeMuls`, saved as `vit.hs`;
+  death after the armor soak in 19); exposure sampled with temperature (`_sampleExposure`: `_hsSun`, `_roofed`, `_sandAim`).
+  Sandstorm = desert region's 'windy' (`sandstormAt` 51); body `p._sandFelt`, fog per eye `_sandAround` (52), sand `_fxSandstorm` (49).
+  Blur `#heatBlur` and mirages (`showMiragesFor`, per view in 36) live in 19.
+- **Render passes (0.8263):** 0 opaque, 1 cutout (leaves, plants), 2 water, 3 lava, 4 glass (blended, no depth write, `matGlass`
+  in 04). Shapes and carpets mesh through `emitBoxFaces(..., ps)`; `_shapePass` (02) keeps a glass shape in pass 4.
+- **Mixed slabs (0.8263):** `SHAPE_SLAB_MIX` (0x90 + low half's rotation) on the low half's id; the two ids sit in `LAYER_STACKS` like a
+  mixed carpet (`slabMixIdsAt`/`setSlabMix`/`breakSlabMixHalf` in 11). shapeOfVal is null, so it acts as a full block;`n  rotation bits 8 (SLAB_MIX_SEE: a glass half, not opaque) and 1 (SLAB_MIX_HIGH: the cell id is the glowing high half), 0.8264.
+- **Variant shapes (0.8263):** every look takes its default's shapes (`VARIANT_FAMILIES` in 02; 46 logs an error if BLOCK_VARIANTS disagrees).
+- **Berry bushes (0.827):** five kinds (`BERRY_BUSHES`, 02; ids: black 138 = old YELLOWBERRY, yellow 201, white 202), six stages in the variant's
+  low 3 bits (`BERRY_STAGE`, own art per kind `T.BERRY_<KIND>_S<n>`); kind by place in genChunk. `lightByVar` = light per variant (08 `blockLightOf`).
+  Growth-stage variants (berry, wheat) use `VARIANT_DEFAULT_BITS` + `VARIANT_LINEAR` (46). ITEM.BLACKBERRIES is 388 (old YELLOW_BERRIES).
+- **Death mark (0.827):** `player._deathMark` {x,y,z,left}, `#deathMark` on the pane (19, 36), saved as `deathMark`. Furnace chimney:
+  `chimneyHeight` (02) = rock walls on it (mesher cap, 49 smoke, 26 choke test).
 - **Value-based helpers.** Ask a whole cell value what it is with `CORE.shapeOfVal`, `solidVal`,
   `opaqueVal` and `shapeBoxesAt`. Do not check the bare id.
 

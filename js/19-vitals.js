@@ -48,7 +48,8 @@ function _vitRowShown(r, inv) {
   if (inv) return true;
   if (r.inv) return false;
   if (r.key === 'armor') return playerArmorPoints() > 0;
-  if (r.key === 'stamina') return player.stamina < MAX_STAMINA - 0.05;
+  // ...and while it is being used, which may be only over-stamina going (0.828; hidden then before)
+  if (r.key === 'stamina') return player.stamina < MAX_STAMINA - 0.05 || player._stamShowT > 0;
   if (r.key === 'air') return !!player._eyeUnder || player.air < MAX_AIR - 0.05;
   return true;
 }
@@ -68,7 +69,7 @@ function _drawFill(g, img, cols, x, y, s, frac, fromRight) {
   }
 }
 function _paintBarRow(g, r) {
-  const p = player, max = VITAL_MAX[r.key], per = max / VIT_ICONS, s = r.size;
+  const p = player, max = r.key === 'hp' ? playerMaxHP(p) : VITAL_MAX[r.key], per = max / VIT_ICONS, s = r.size;   // Thick Skin's 110 (0.828)
   const v = p[r.key] ?? max, ok = OVER_KEY[r.key], over = ok ? (p[ok] || 0) : 0, overPer = MAX_OVER / VIT_ICONS;
   const bg = GUI_IMG[r.key + 'Bg'], fill = GUI_IMG[r.key], ovr = GUI_IMG[r.key + 'Over'];
   for (let j = 0; j < VIT_ICONS; j++) {
@@ -153,7 +154,7 @@ function vitalsTipAt(cx, cy) {
 const VIT_KEYS = ['hp', 'food', 'saturation', 'thirst', 'thirstO', 'stamina', 'staminaO', 'energy', 'energyO',
                   'fruit', 'fruitO', 'veg', 'vegO', 'protein', 'proteinO', 'air', 'temp'];
 function _vitalsKey() {
-  let k = (invOpen ? 'I' : '') + (player._eyeUnder ? 'U' : '') + '|' + armorBarSignature();
+  let k = (invOpen ? 'I' : '') + (player._eyeUnder ? 'U' : '') + (player._stamShowT > 0 ? 'S' : '') + playerMaxHP() + '|' + armorBarSignature();
   for (const key of VIT_KEYS) k += ',' + Math.round((player[key] || 0) * 2);
   return k;
 }
@@ -231,7 +232,12 @@ function updateVitals(dt) {
     _hurtA = Math.max(0, _hurtA - dt * 1.6);
     hurtEl.style.opacity = _hurtA.toFixed(3);
   }
+  // heatstroke's blur and mirages (0.825): before the survival test, so creative clears them
+  _syncHeatBlur();
+  _updateMirages(dt);
+  _syncDeathMark(dt);                            // where you last died (0.827)
   if (!survival) return;
+  if (typeof flushOwedXP === 'function') flushOwedXP();   // XP earned while another seat ran (a sapling grew, 0.8283)
   if (!player.dead) player.aliveT = (player.aliveT || 0) + dt;   // survival stopwatch for the death screen
   /* The damage baseline is the HP this player had when updateVitals LAST FINISHED, not the HP it
      has on entry (0.7293).
@@ -361,6 +367,10 @@ function updateVitals(dt) {
   }
   // void death
   if (player.pos.y < -30) { player.hp = 0; player._dmgCause = 'fell into the void'; }
+  // heatstroke at 100% (0.825, 54-stats-effects.js): no armor softens it
+  if (player.heatstroke >= 100) { player.hp = 0; player._dmgCause = 'died of heatstroke'; }
+  // the pause menu's Respawn (0.829): after the soak too, so armor never saves you from your own choice
+  if (player._giveUp) { player._giveUp = false; player.hp = 0; player._dmgCause = 'gave up'; }
   // death: drop everything around the body, freeze input, show the death screen —
   // respawn happens when the player clicks Respawn (respawnPlayer below)
   if (player.hp <= 0 && !player.dead) {
@@ -378,6 +388,8 @@ function updateVitals(dt) {
        touched. Read before equipSlots is emptied, since that is where the pack itself sits. */
     const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
     _dropLifeOverride = DROP_LIFE_DEATH;         // everything a death spills lies 20 minutes (0.7981)
+    // ...and the spot is marked on this player's screen until they get back to it or it all runs out (0.827)
+    player._deathMark = { x: dx0, y: dy0, z: dz0, left: DROP_LIFE_DEATH };
     for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length],
                               [equipSlots, equipSlots.length], [beltSlots, beltSlots.length],
                               [invSlots2, packN]])
@@ -434,11 +446,180 @@ function hurtFlash(lost) {
   hurtEl.style.opacity = _hurtA.toFixed(3);
 }
 
+/* HEATSTROKE ON THE VIEW (0.825). From 40% the world blurs, more as it climbs (heatstrokeBlur, 54-stats-effects.js),
+   under a faint orange edge; the HUD stays sharp over it. Per player like the hurt vignette: 36-splitscreen.js puts
+   it first in the player's pane, under the rest of the HUD. */
+var heatBlurEl = document.createElement('div');
+heatBlurEl.id = 'heatBlur';
+function _syncHeatBlur() {
+  const px = Math.round(heatstrokeBlur(player) * (typeof skillSightMul === 'function' ? skillSightMul() : 1) * 4) / 4;   // Clear Eyes (0.828)
+  if (heatBlurEl._px === px) return;
+  heatBlurEl._px = px;
+  heatBlurEl.style.display = px > 0 ? 'block' : 'none';
+  const f = px > 0 ? `blur(${px}px)` : '';
+  heatBlurEl.style.backdropFilter = f;
+  heatBlurEl.style.webkitBackdropFilter = f;
+  heatBlurEl.style.setProperty('--hs', (px / HS_BLUR_MAX).toFixed(2));
+}
+/* MIRAGES (0.825). From HS_MIRAGE_AT heatstroke, by day, pools of water that are not there shimmer on open ground
+   12-26 blocks ahead, on sand most of all. Each fades in, and fades away as you come within MIRAGE_NEAR of it, walk
+   far from it, or the heatstroke eases. Each player sees only their own (showMiragesFor, from renderAllViews in
+   36-splitscreen.js); they cast no shadow (layer 1). */
+const MIRAGE_MAX = 3, MIRAGE_NEAR = 7, MIRAGE_FAR = 40;
+const _MIRAGE_SAND = new Set([B.SAND, B.RED_SAND, B.PINK_SAND]);
+const _mirageGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const _MIRAGE_VS = `varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const _MIRAGE_FS = `uniform float uTime, uA; uniform vec3 uSky; varying vec2 vUv;
+  void main() {
+    vec2 q = vUv * 2.0 - 1.0;
+    float edge = smoothstep(1.0, 0.35, length(q));
+    float w = 0.5 + 0.5 * sin(uTime * 2.3 + q.x * 9.0 + sin(q.y * 6.0 + uTime * 1.7) * 1.5);
+    vec3 col = mix(uSky, vec3(0.5, 0.72, 0.95), 0.4) * (0.9 + 0.2 * w);
+    gl_FragColor = vec4(col, edge * uA * (0.5 + 0.3 * w));
+  }`;
+// a spot on open ground ahead of `p` ([x, y, z] of the pool's middle), or null
+function _mirageSpot(p) {
+  const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
+  for (let tries = 0; tries < 6; tries++) {
+    const ang = (Math.random() - 0.5) * 1.2, d = 12 + Math.random() * 14, c = Math.cos(ang), s = Math.sin(ang);
+    const x = Math.floor(p.pos.x + (fx * c - fz * s) * d), z = Math.floor(p.pos.z + (fx * s + fz * c) * d);
+    for (let y = Math.floor(p.pos.y) + 6; y > p.pos.y - 12; y--) {
+      const v = getBlock(x, y, z), id = v & 255;
+      if (id === B.WATER || id === B.LAVA) break;
+      if (!v || !CORE.solidVal(v)) continue;
+      if (getSkyWorld(x, y + 1, z) < 15 || (!_MIRAGE_SAND.has(id) && Math.random() < 0.6)) break;
+      return [x + 0.5, y + 1.03, z + 0.5];
+    }
+  }
+  return null;
+}
+function _updateMirages(dt) {
+  const p = player;
+  const on = !p.canFly && !p.dead && (p.heatstroke || 0) >= HS_MIRAGE_AT && (typeof _skyDayF !== 'number' || _skyDayF > 0.3);
+  let M = p._mirages;
+  if (!M) {
+    if (!on) return;
+    M = p._mirages = { group: new THREE.Group(), pools: [], t: 1 };
+    scene.add(M.group);
+  }
+  M.t -= dt;
+  if (on && M.pools.length < MIRAGE_MAX && M.t <= 0) {
+    M.t = 1.5 + Math.random() * 3;
+    const s = _mirageSpot(p);
+    if (s) {
+      const mat = new THREE.ShaderMaterial({ vertexShader: _MIRAGE_VS, fragmentShader: _MIRAGE_FS, transparent: true, depthWrite: false,
+        uniforms: { uTime: { value: 0 }, uA: { value: 0 }, uSky: { value: new THREE.Color() } } });
+      const mesh = new THREE.Mesh(_mirageGeo, mat);
+      mesh.layers.set(1);
+      mesh.renderOrder = 2;
+      mesh.position.set(s[0], s[1], s[2]);
+      mesh.rotation.y = Math.random() * Math.PI;
+      mesh.scale.set(3 + Math.random() * 3, 1, 2 + Math.random() * 2);
+      M.group.add(mesh);
+      M.pools.push({ mesh, a: 0, x: s[0], z: s[2], seed: Math.random() * 10, going: false });
+    }
+  }
+  const time = performance.now() / 1000;
+  for (let i = M.pools.length - 1; i >= 0; i--) {
+    const q = M.pools[i], d = Math.hypot(q.x - p.pos.x, q.z - p.pos.z);
+    q.going = q.going || !on || d < MIRAGE_NEAR || d > MIRAGE_FAR;
+    q.a = q.going ? q.a - dt / 1.2 : Math.min(1, q.a + dt / 2.5);
+    if (q.going && q.a <= 0) { M.group.remove(q.mesh); q.mesh.material.dispose(); M.pools.splice(i, 1); continue; }
+    const u = q.mesh.material.uniforms;
+    u.uA.value = q.a; u.uTime.value = time + q.seed;
+    u.uSky.value.copy(typeof _skyFogColor !== 'undefined' ? _skyFogColor : sharedUniforms.fogColor.value);
+  }
+}
+// only the viewing player's mirages are drawn in their view
+function showMiragesFor(who) {
+  for (const p of PLAYERS) if (p._mirages) p._mirages.group.visible = p === who;
+}
+
+/* THE DEATH MARK (0.827). Where a player last died, on their own screen: a skull over the spot with how far it is
+   and how long the things they dropped there still lie. Off screen or behind them it waits at the edge of the view,
+   on the side to turn to. It goes when they come within DEATH_MARK_TOUCH of it, or when the time runs out; that
+   clock only runs while the spot is simulated, as the drops' own does (15-drops.js). Saved with the player.
+   Per player like the hurt vignette: 36-splitscreen.js puts it in the player's pane, outside the HUD's scaling. */
+const DEATH_MARK_TOUCH = 2, DEATH_MARK_EDGE = 28;
+var deathMarkEl = document.createElement('div');
+deathMarkEl.id = 'deathMark';
+const _dmV = new THREE.Vector3();
+function _syncDeathMark(dt) {
+  const p = player, m = p._deathMark, el = deathMarkEl;
+  if (!el) return;
+  const hide = () => { if (el.style.display !== 'none') el.style.display = 'none'; };
+  if (!m) return hide();
+  if (typeof inSimRange === 'function' && inSimRange(m.x, m.z)) m.left -= dt;
+  const d = Math.hypot(p.pos.x - (m.x + 0.5), p.pos.y - m.y, p.pos.z - (m.z + 0.5));
+  if (m.left <= 0 || (!p.dead && p.spawned && d < DEATH_MARK_TOUCH)) { p._deathMark = null; return hide(); }
+  if (p.dead || !p.spawned || p.canFly || menuScene || !el.parentElement) return hide();
+  const W = el.parentElement.clientWidth, H = el.parentElement.clientHeight;
+  if (!W || !H) return hide();
+  camera.updateMatrixWorld();
+  _dmV.set(m.x + 0.5, m.y + 1.2, m.z + 0.5).applyMatrix4(camera.matrixWorldInverse);
+  const behind = _dmV.z > 0;
+  _dmV.applyMatrix4(camera.projectionMatrix);
+  let sx = _dmV.x, sy = _dmV.y;
+  if (behind) { sx = -sx; sy = -sy; }
+  let x = (sx * 0.5 + 0.5) * W, y = (0.5 - sy * 0.5) * H;
+  // off screen or behind: slide it in along the line from the middle to the edge
+  const hx = W / 2 - DEATH_MARK_EDGE, hy = H / 2 - DEATH_MARK_EDGE, dx = x - W / 2, dy = y - H / 2;
+  const out = behind || Math.abs(dx) > hx || Math.abs(dy) > hy;
+  if (out) {
+    const k = Math.min(hx / Math.max(1e-6, Math.abs(dx)), hy / Math.max(1e-6, Math.abs(dy)));
+    x = W / 2 + dx * k; y = H / 2 + dy * k;
+  }
+  const s = Math.max(0, Math.ceil(m.left)), txt = `☠ ${Math.round(d)} m · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  if (el._txt !== txt) { el._txt = txt; el.textContent = txt; }
+  el.style.display = 'block';
+  el.style.left = x.toFixed(1) + 'px';
+  el.style.top = y.toFixed(1) + 'px';
+  el.classList.toggle('edge', out);
+}
+// a saved mark, or null (16-worlds.js, 36-splitscreen.js)
+const restoreDeathMark = (r) => r && [r.x, r.y, r.z, r.left].every(n => typeof n === 'number' && isFinite(n)) && r.left > 0
+  ? { x: r.x, y: r.y, z: r.z, left: r.left } : null;
+const serializeDeathMark = (p) => p._deathMark ? { x: p._deathMark.x, y: p._deathMark.y, z: p._deathMark.z, left: Math.round(p._deathMark.left) } : null;
+
 /* ---- death screen ----
    `deathEl` and friends are per-player pane elements, swapped with the rest of the HUD, so a
    player dying in split screen darkens only their own quarter of the screen. The pointer lock is
    released only when the player who died is the one holding the mouse (player one). */
 var deathEl = null, deathCauseEl = null, deathStatsEl = null;
+/* Respawn from the pause menu (0.829): a way out when stuck. Keep the mouse or the pad cursor on it for
+   GIVE_UP_HOLD_S to arm it, then click: player one dies on the spot, everything dropped as any death, and the
+   button cools down for GIVE_UP_COOLDOWN_S (on the player, saved in `vit.gu`, ticked in tickStats). */
+const GIVE_UP_HOLD_S = 1, GIVE_UP_COOLDOWN_S = 20 * 60;   // hold 2 s until 0.8291
+const giveUpBtn = document.getElementById('giveUpBtn');
+let _giveUpHold = 0, _giveUpTxt = '';
+function updatePauseRespawn(dt) {
+  if (!giveUpBtn) return;
+  const p = PLAYERS[0];
+  const show = !playing && menuScreen === 'pause' && !!currentWorld && !!p && !p.dead && !p.canFly;
+  giveUpBtn.style.display = show ? '' : 'none';
+  if (!show) { _giveUpHold = 0; return; }
+  const cd = p._giveUpCd || 0;
+  const over = giveUpBtn.matches(':hover') || (typeof _mHover !== 'undefined' && _mHover === giveUpBtn);
+  _giveUpHold = cd <= 0 && over ? Math.min(GIVE_UP_HOLD_S, _giveUpHold + dt) : 0;
+  const armed = _giveUpHold >= GIVE_UP_HOLD_S;
+  giveUpBtn.classList.toggle('cool', cd > 0);
+  giveUpBtn.classList.toggle('armed', armed);
+  giveUpBtn.style.setProperty('--hold', (100 * _giveUpHold / GIVE_UP_HOLD_S).toFixed(1) + '%');
+  // two lines (0.8291): a small one saying what to do, and a big "Respawn"
+  const left = Math.ceil(cd), mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  const txt = cd > 0 ? `ready in ${mmss}` : armed ? 'click to' : over ? 'keep holding' : 'hover to';
+  if (txt !== _giveUpTxt) giveUpBtn.innerHTML = `<small>${_giveUpTxt = txt}</small><span>Respawn</span>`;
+}
+if (giveUpBtn) giveUpBtn.addEventListener('click', () => {
+  const p = PLAYERS[0];
+  if (!p || p.dead || p.canFly || (p._giveUpCd || 0) > 0 || _giveUpHold < GIVE_UP_HOLD_S) return;
+  p._giveUp = true;                              // updateVitals kills on the next frame, the death screen follows
+  p._giveUpCd = GIVE_UP_COOLDOWN_S;
+  _giveUpHold = 0;
+  setPlaying(true);
+});
+
 function showDeathScreen(cause) {
   if (!deathEl) return;
   if (deathCauseEl) deathCauseEl.textContent = 'You ' + cause;

@@ -44,11 +44,13 @@ function _recalcLevel() {
   return leveled;
 }
 
-/* The one entry point. Silently ignored in creative — a build mode has nothing to earn. */
-function addXP(n) {
+/* The one entry point. Silently ignored in creative — a build mode has nothing to earn. why (0.8284) is what it was
+   for, shown in the feed (feedXP, 42-feed.js); quests, feats and level-ups leave it out, having rows of their own. */
+function addXP(n, why) {
   if (!(n > 0)) return;
   if (typeof player !== 'undefined' && player.canFly) return;
   const gain = Math.round(n);
+  if (why && gain > 0 && typeof feedXP === 'function') feedXP(gain, why);
   playerXP += gain;
   const leveled = _recalcLevel();
   xpBarDirty = true;
@@ -74,6 +76,7 @@ function resetXP() { setXP(0); }
    Ores are far and away the best rate — they are the reason to go down, and the only source that
    makes the ×3 curve climbable at any speed. */
 const XP_BLOCK_DEFAULT = 1;
+const XP_FEED_FROM = 5;            // a block worth this much says so in the feed (0.8284)
 const XP_BLOCK = {};
 {
   const set = (id, n) => { XP_BLOCK[id] = n; };
@@ -82,10 +85,22 @@ const XP_BLOCK = {};
   set(B.EMERALD_ORE, 60); set(B.RUBY_ORE, 60); set(B.SAPPHIRE_ORE, 60);   // gems (0.766)
   set(B.TOPAZ_ORE, 60);                                                   // 0.769
   set(B.SULFUR_BLOCK, 8); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 12);
+  // lightning's glassy sand is rare to come across (0.8281)
+  set(B.GLASSY_SAND, 5); set(B.GLASSY_RED_SAND, 5); set(B.GLASSY_PINK_SAND, 5);
   // scenery is free — you are not going to grind a level out of grass
   set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
   set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0);
-  set(B.COBBLESTONE, 0); set(B.STONE_BRICK, 0);
+  set(B.STONE_BRICK, 0);
+  /* Built things never grow in the wild, only in villages and by your hand (0.8282: COBBLESTONE was misspelt and
+     paid 1): cobblestone, planks, sandstone, adobe, terracotta and hay, every look of each. Breaking a village teaches
+     nothing. */
+  for (const fam of CORE.VARIANT_FAMILIES) if ([B.COBBLE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.ADOBE, B.BRICKS].includes(fam[0]))
+    for (const id of fam) set(id, 0);
+  set(B.PLANKS, 0); set(B.BIRCH_PLANKS, 0); set(B.SPRUCE_PLANKS, 0);
+  // a little more for what is rare or hard to come by (0.8282)
+  set(B.SULFUR_UP_TIP, 4); set(B.SULFUR_DOWN_TIP, 4); set(B.GLOW_VINE, 5); set(B.COBWEB, 3);
+  set(B.SALT_CRUST, 2); set(B.CLAY, 2);                                // salt pays per layer too (22-main-loop.js)
+  set(B.HOLLOW_LOG, 2); set(B.HOLLOW_BIRCH_LOG, 2); set(B.HOLLOW_SPRUCE_LOG, 2);
   // furniture breaks by hand since 0.7442 (see HAND_BREAK_BLOCKS) — moving your own bed or
   // chest is housekeeping, so it pays nothing. Crafting them still pays: each recipe's xpToGive (25-crafting.js).
   set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.BED, 0); set(B.HAY, 0);
@@ -100,6 +115,40 @@ function mobKillXP(ent) {
   return base + Math.max(0, (ent && ent.level) | 0);
 }
 const XP_HARVEST = 1;              // a bush pickup that actually yielded something
+/* ...and since 0.8281 one more for every berry, wheat, melon or cantaloupe slice, flint and stone pebble it hands you
+   (13-actions.js). A pumpkin is XP_PUMPKIN in all; a carved one or a jack o'lantern picked back up pays nothing, but
+   carving a face pays XP_CARVE and putting the torch in XP_LANTERN. */
+const XP_FORAGE_ITEM = 1, XP_PUMPKIN = 4, XP_CARVE = 4, XP_LANTERN = 1;
+/* A mushroom (0.8282) pays by how big it is when picked: one more for every 0.2x of its size (shroomSizeAt,
+   51-seasons.js), and XP_SHROOM_GROWN more when it is fully grown. Too small to pick, it pays nothing. */
+const XP_SHROOM_STEP = 0.2, XP_SHROOM_GROWN = 2;
+/* Weathering it (0.8282): every XP_WEATHER_S out in the open through a storm, a sandstorm, hail, or a body Cold or
+   Hot pays XP_WEATHER (tickStats, 54-stats-effects.js). */
+const XP_WEATHER = 1, XP_WEATHER_S = 30;
+/* 0.8283: taming an animal (XP_TAME + its level), shearing and milking, a repair (2 per tier of the tool, 2..10;
+   dismantling pays nothing), a sapling you planted growing into a tree, each biome the first time you set foot in
+   it, the top and the bottom of the world once each, and a night outside: more than half of it under the open sky
+   and alive at dawn (a blood moon instead pays XP_BLOOD_MOON). */
+const XP_TAME = 10, XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;
+const XP_SAPLING = { [B.OAK_SAPLING]: 3, [B.BIRCH_SAPLING]: 4, [B.SPRUCE_SAPLING]: 5 };
+const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = 199, WORLD_BOTTOM_Y = 2;
+// XP for a player who may not be the seat running right now (a sapling they planted grew); paid on their next tick
+function grantXP(p, n, why) {
+  if (!p || !(n > 0)) return;
+  if (typeof player !== 'undefined' && p === player) { addXP(n, why); return; }
+  const owed = p._xpOwed || (p._xpOwed = {});
+  owed[why || ''] = (owed[why || ''] || 0) + n;
+}
+function flushOwedXP() {
+  const owed = player._xpOwed;
+  if (!owed) return;
+  player._xpOwed = null;
+  for (const why in owed) addXP(owed[why], why || undefined);
+}
+// what a player has found once and for all (0.8283): the biomes, the top and the bottom. Saved with the player.
+const restoreFeats = (r) => ({ biomes: new Set(r && Array.isArray(r.biomes) ? r.biomes.filter(b => typeof b === 'string') : []),
+                               top: !!(r && r.top), bottom: !!(r && r.bottom) });
+const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p._feats.top, bottom: p._feats.bottom } : null;
 // smelting XP lives on each furnace recipe since 0.775 (SMELT_RECIPES, 26-furnace.js), paid on taking the output
 
 /* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its
@@ -112,7 +161,7 @@ const XP_LOOT_DEFAULT = [3, 8];
 function awardLootXP(table) {
   const r = table && Array.isArray(table.xp) ? table.xp : XP_LOOT_DEFAULT;
   const lo = Math.max(0, r[0] | 0), hi = Math.max(lo, r[1] | 0);
-  addXP(lo + Math.floor(Math.random() * (hi - lo + 1)));
+  addXP(lo + Math.floor(Math.random() * (hi - lo + 1)), 'loot chest');
 }
 
 /* ---- the player-placed ledger ----
@@ -145,7 +194,8 @@ function takePlayerPlaced(x, y, z) {
 function awardBlockXP(x, y, z, id) {
   if (takePlayerPlaced(x, y, z)) return;
   const n = XP_BLOCK[id] != null ? XP_BLOCK[id] : XP_BLOCK_DEFAULT;
-  addXP(n);
+  // the feed names only a rare find (0.8284): an ore, a gem, glassy sand, a glow vine — not every block of dirt
+  addXP(n, n >= XP_FEED_FROM ? (PROPS[id]?.name || '').toLowerCase() : undefined);
 }
 
 function serializeXP() { return { xp: playerXP, placed: [...playerPlaced] }; }

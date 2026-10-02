@@ -117,7 +117,7 @@ const TEXTURES = {
   birch_planks:         'textures/Blocks/Woods/birch/birch_planks.png',
   birch_leaves:         'textures/Blocks/Woods/birch/birch_leaves.png',
   grass:                'textures/Billboards/Plants/short_grass.png',
-  wheat_full:           'textures/Billboards/Plants/Wheat/wheat_full.png',
+  wheat_full:           'textures/Billboards/Plants/Wheat/wheat_stage6.png',   // the ripe wheat is stage 6 since 0.8273 (wheat_full.png before)
   wool:                 'textures/Blocks/Natures/wool.png',
   pumpkin_top:          'textures/Blocks/Plants/pumpkin_top.png',
   pumpkin_side:         'textures/Blocks/Plants/pumpkin_side.png',
@@ -144,7 +144,7 @@ const TEXTURES = {
   sulfur_block:         'textures/Blocks/Natures/sulfur_block.png',
   sulfur_down_tip:      'textures/Billboards/sulfur_down_tip.png',
   sulfur_up_tip:        'textures/Billboards/sulfur_up_tip.png',
-  sugar_cane:           'textures/Billboards/Plants/sugar_cane.png',
+  sugar_cane:           'textures/Billboards/Plants/Sugar_cane/sugar_cane_stage5.png',   // grown, alone (0.829)
   oak_sapling:          'textures/Billboards/Plants/Saplings/oak_sapling.png',
   birch_sapling:        'textures/Billboards/Plants/Saplings/birch_sapling.png',
   stripped_oak_log:         'textures/Blocks/Woods/oak/oak_stripped_log_side.png',
@@ -285,8 +285,16 @@ const DECOR_PARTS = ['band_side', 'band_top', 'pillar_side', 'pillar_top'];
 for (const r of DECOR_ROCKS)
   for (const p of DECOR_PARTS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
-// wheat's growth stages (0.81): stage 0 sprout .. 6, then wheat_full
+// wheat's growth stages (0.81): stage 0 sprout .. 5, and 6 is the ripe wheat (0.8273; 0..6 then wheat_full before)
 for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
+// every berry bush's six growth stages (0.827), in BERRY_KINDS order (02-voxel-core.js); stage 5 is ripe
+const BERRY_COLORS = ['red', 'blue', 'black', 'yellow', 'white'];
+for (const c of BERRY_COLORS) for (let s = 0; s < 6; s++)
+  TEXTURES[`berry_${c}_stage${s}`] = `textures/Billboards/Plants/Berry_bush/${c[0].toUpperCase() + c.slice(1)}/${c}_berry_stage${s}.png`;
+/* sugar cane (0.829): stages 0 sprout .. 4 growing ('sugar_cane' above is stage 5, grown and alone), and the
+   three pieces of a grown column: bottom, middle, top */
+const CANE_PIECES = ['stage0', 'stage1', 'stage2', 'stage3', 'stage4', 'bottom', 'middle', 'top'];
+for (const p of CANE_PIECES) TEXTURES['sugar_cane_' + p] = `textures/Billboards/Plants/Sugar_cane/sugar_cane_${p}.png`;
 /* Mushrooms (0.821): ONE sheet per kind, textures/Blocks/mushrooms/<kind>_mushroom.png (256x128 at 8 texels a
    model pixel; yellow_mushroom.json shows how a sheet maps onto the model). At atlas build each sheet is cut
    into the part tiles the mesher has always used (CROP_TILES, 03-atlas.js), each at its own size in a layer's
@@ -380,7 +388,9 @@ const ITEM_TEXTURES = {
   melon_slice:   'textures/Items/Consumables/Fruits/melon_slice.png',
   redberries:    'textures/Items/Consumables/Fruits/redberries.png',
   blueberries:   'textures/Items/Consumables/Fruits/blueberries.png',
-  yellowberries: 'textures/Items/Consumables/Fruits/blackberries.png',    // 0.7947; blackberries since 0.8099
+  blackberries:  'textures/Items/Consumables/Fruits/blackberries.png',    // 0.7947 ('yellowberries' until 0.827)
+  yellowberries: 'textures/Items/Consumables/Fruits/yellowberries.png',   // the real yellow (0.827)
+  whiteberries:  'textures/Items/Consumables/Fruits/whiteberries.png',    // 0.827
   brick:         'textures/Items/Materials/brick.png',
   potato:        'textures/Items/Plants/potato.png',
   potato_bake:   'textures/Items/Consumables/Vege/baked_potato.png',
@@ -420,7 +430,7 @@ const ITEM_TEXTURES = {
   gunpowder:       'textures/Items/Materials/gunpowder.png',
   charcoal:        'textures/Items/Materials/charcoal.png',
   sulfur:          'textures/Items/Materials/sulfur.png',
-  sugarcane:       'textures/Billboards/Plants/sugar_cane.png',   // the item art is gone (0.821): the plant's own
+  sugarcane:       'textures/Items/Plants/sugar_cane.png',   // its own item art again (0.829)
   sugar:           'textures/Items/Materials/sugar.png',
   paper:           'textures/Items/Materials/paper.png',
   book:            'textures/Items/Materials/book.png',

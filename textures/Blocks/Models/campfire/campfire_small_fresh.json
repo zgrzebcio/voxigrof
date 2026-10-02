@@ -1,0 +1,147 @@
+{
+  "description": "campfire small fresh (sticks log-cabin style; flames on two crossed planes)",
+  "textures": {
+    "stick_end": "blocks/models/campfire/campfire_stick_end",
+    "stick_side": "blocks/models/campfire/campfire_stick_side"
+  },
+  "elements": [
+    {
+      "name": "stick",
+      "from": [
+        1.5,
+        0.0,
+        7.25
+      ],
+      "to": [
+        14.5,
+        1.5,
+        8.75
+      ],
+      "faces": {
+        "east": {
+          "texture": "#stick_end",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#stick_end",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#stick_end",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "north": {
+          "texture": "#stick_end",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "name": "stick",
+      "from": [
+        7.25,
+        1.5,
+        1.5
+      ],
+      "to": [
+        8.75,
+        3.0,
+        14.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "north": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#stick_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    }
+  ]
+}

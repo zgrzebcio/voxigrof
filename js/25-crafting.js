@@ -170,7 +170,8 @@ RECIPES_ADVANCED.push(
   // adobe (0.8091): a clay block bound with straw; appended so saved recipe indices hold
   { in: [[B.CLAY, 1], [ITEM.WHEAT, 5]], out: [B.ADOBE, 4], timeToCraft: 4, xpToGive: 5 },
   // five stone pebbles press into a stone block (0.8095): the first stone a flint pickaxe cannot give you
-  { in: [[ITEM.STONE_PEBBLE, 5]], out: [B.STONE, 1], timeToCraft: 2, xpToGive: 2 },
+  // ...a cobblestone since 0.826: loose stones packed together, not smooth stone
+  { in: [[ITEM.STONE_PEBBLE, 5]], out: [B.COBBLE, 1], timeToCraft: 2, xpToGive: 2 },
   // 0.821: rotten flesh pressed five into one, and that worked slowly into leather for a little XP
   { in: [[ITEM.ROTTEN_FLESH, 5]],             out: [ITEM.COMPRESSED_ROTTEN_FLESH, 1], timeToCraft: 3,  xpToGive: 1 },
   { in: [[ITEM.COMPRESSED_ROTTEN_FLESH, 1]],  out: [ITEM.LEATHER, 1],                  timeToCraft: 20, xpToGive: 5 },
@@ -273,6 +274,7 @@ const canCraft = (r) => recipeIn(r).every(([id, n]) => invCount(id) >= n);
    ================================================================================================ */
 const CRAFT_QUEUE_MAX = 6;                   // 5 until 0.778; the slimmer rows left room for a sixth slot
 const CRAFT_MOVE_MUL = 0.6;          // walking speed while your personal queue runs
+const CRAFT_JUMP_MUL = 0.5;          // ...and jump strength (0.826; no jumping at all before)
 // Walk and Work (0.79): the slowdown (1 - CRAFT_MOVE_MUL) is a quarter smaller — 60% walking becomes 70%
 const craftMoveMul = () => (typeof hasSkill === 'function' && hasSkill('walkWork'))
   ? 1 - (1 - CRAFT_MOVE_MUL) * 0.75 : CRAFT_MOVE_MUL;
@@ -410,6 +412,8 @@ function updateCraftQueue(dt) {
         if (e.t >= repairTime(e.rep.id)) {
           q.shift();
           _giveItems(e.rep.id, 1, 'repaired', false, e.rep.meta);
+          // 2 a tier of the tool, 2..10 (0.8283); dismantling pays nothing
+          addXP(Math.min(10, Math.max(2, XP_REPAIR_PER_TIER * Math.round(ITEM_PROPS[e.rep.id]?.tier || 1))), 'repairing');
           refreshSlotsUI();
         }
       }
@@ -967,6 +971,9 @@ function _animatePestle(key, b) {
     fxGrind(b, b.pestle.position.x, y0 + 0.5, b.pestle.position.z, dt);
   }
 }
+/* The order tag over a bench or mortar (0.827) shows through walls, but only to someone within BENCH_TAG_NEAR of it;
+   farther off it is hidden. */
+const BENCH_TAG_NEAR = 8;
 function updateBenchDisplays() {
   for (const [key, b] of BENCHES) {
     if (!_benchHasOrder(b)) { _benchClear(key); continue; }
@@ -975,7 +982,7 @@ function updateBenchDisplays() {
       _drawBenchTag(b);
       const tex = new THREE.CanvasTexture(b.canvas);
       tex.colorSpace = THREE.SRGBColorSpace;
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));   // through walls (0.827)
       s.renderOrder = 10;
       s.layers.set(1);                                 // the no-shadow layer the name tags use
       const [x, y, z] = key.split(',').map(Number);
@@ -987,6 +994,8 @@ function updateBenchDisplays() {
       continue;
     }
     if (b.dirty) { b.dirty = false; _drawBenchTag(b); b.sprite.material.map.needsUpdate = true; }
+    const sp = b.sprite.position;
+    b.sprite.visible = PLAYERS.some(p => p.spawned && !p.dead && Math.hypot(p.pos.x - sp.x, p.pos.y + 1 - sp.y, p.pos.z - sp.z) < BENCH_TAG_NEAR);
   }
 }
 // what the crosshair says while you look at a bench with an order on it (18-hud.js)

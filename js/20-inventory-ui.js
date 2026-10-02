@@ -292,7 +292,9 @@ function _blockFormsHTML(id) {
                                  `<div class="tcEff info">${_tipEsc(names.join(', '))}</div></div>`;
   let html = '';
   const vars = typeof BLOCK_VARIANTS !== 'undefined' ? BLOCK_VARIANTS[id] : null;
-  if (vars && vars.length) html += list('Variants', vars.map(v => v.name));
+  // the default leads the list (0.8261): its own name where it has one (a furnace's stone), else "default"
+  if (vars && vars.length)
+    html += list('Variants', [(typeof VARIANT_DEFAULT_NAME !== 'undefined' && VARIANT_DEFAULT_NAME[id]) || 'default', ...vars.map(v => v.name)]);
   const shapes = PROPS[typeof heldBlockOf === 'function' ? heldBlockOf(id) : id]?.shapes;
   if (shapes && typeof CHISEL_SHAPES !== 'undefined') {
     const names = CHISEL_SHAPES.filter(s => !s.soon && shapes[CHISEL_BLOCK_SHAPE[s.key]]).map(s => s.name.toLowerCase());
@@ -336,7 +338,7 @@ function itemTooltipHTML(id, dur, fresh, wm) {
   const ed = p.foodEffect && typeof EFFECT_DEFS !== 'undefined' ? EFFECT_DEFS[p.foodEffect] : null;
   if (ed) {
     const ch = p.foodEffectChance;                    // a chance effect says how likely it is (0.761)
-    const what = `${ed.name} (${ed.time}s)`;          // "50% chance to Nausea (10s)" (0.7611)
+    const what = `${ed.name} (${p.foodEffectTime || ed.time}s)`;   // "50% chance to Nausea (10s)" (0.7611); a food's own length (0.8291)
     conds.push(['eat', ch != null && ch < 1 ? `${Math.round(ch * 100)}% chance to ${what}` : what, ed.good ? '' : 'bad']);
   }
   for (const [c, eff, cls] of conds)
@@ -370,6 +372,7 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (p.atkSpeed) rows.push(['attack speed', (p.atkSpeed > 0 ? '+' : '') + _tipNum(p.atkSpeed * 100) + '%']);
     if (p.coldResist) rows.push(['cold resistance', (p.coldResist > 0 ? '+' : '') + _tipNum(p.coldResist * 100) + '%']);
     if (p.heatResist) rows.push(['heat resistance', (p.heatResist > 0 ? '+' : '') + _tipNum(p.heatResist * 100) + '%']);
+    if (p.heatstrokeResist) rows.push(['heatstroke', _tipNum(p.heatstrokeResist * 100) + '% slower' + (p.heatstrokeTrigger ? ', ' + _tipNum(p.heatstrokeTrigger) + '°C later' : '')]);   // a hat (0.825)
   }
   /* Mender (0.79): anything that wears says what a repair costs and where it can be done — cost in the
      tooltip, where you look before you drag it over. Broken says so; Well made (Fine Work) says so. */
@@ -394,7 +397,8 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
     // what else it fills (0.82, FOOD_NUTRITION in 54-stats-effects.js)
     for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein']])
-      if (p[k]) rows.push([label, '+' + _tipNum(p[k])]);
+      if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst (0.827)
+    if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
     /* How long this food has left before one of it spoils, against how long it keeps from fresh
        (0.7891). A recipe icon has no instance behind it, so it shows the full shelf life. */
@@ -999,7 +1003,14 @@ function toggleInventory(open, mode) {
   if (open === invOpen) return;
   invOpen = open;
   _invSeq = open ? ++_invSeqNext : 0;
-  if (typeof player !== 'undefined' && player) { player._sneakLatch = true; player.sneaking = false; }   // a fresh press to sneak again (0.8243)
+  /* A fresh press to sneak again (0.8243). But crouched as it opens, you stay crouched (0.826): through the inventory
+     and after it, until you let go of sneak or walk (_sneakKeep, 22-main-loop.js), so an open bag never walks you
+     off an edge. */
+  if (typeof player !== 'undefined' && player) {
+    player._sneakLatch = true;
+    if (open) player._sneakKeep = !!player.sneaking;
+    if (!player._sneakKeep) player.sneaking = false;
+  }
   invWrapEl.style.display = open ? 'flex' : 'none';
   if (open) {
     alignInvWrap();                             // needs the panel laid out, so after display:flex

@@ -92,6 +92,9 @@ function chiselSlotIcon(id) {
   const bits = typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(id) : 0;   // a cluster's bed (0.7948)
   if (typeof heldBlockOf === 'function') id = heldBlockOf(id);
   const v = chiselHeldVariant(id) || bits;
+  // a growth stage picked on the variant bar shows as that stage, the sprout (0) too (0.827)
+  if (typeof VARIANT_DEFAULT_BITS !== 'undefined' && id in VARIANT_DEFAULT_BITS && typeof variantOptions === 'function' && variantOptions(id))
+    return renderBlockIcon(id, bits);
   return v ? renderBlockIcon(id, v) : renderBlockIcon(id);
 }
 // one point of wear per shaped placement, survival only; at 0 the tool breaks

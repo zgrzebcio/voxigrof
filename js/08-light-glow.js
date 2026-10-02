@@ -31,13 +31,15 @@ const FURNACE_GLOW = 5;
    full-chunk scan at load — see the note there. The furnace is included unconditionally because
    whether it glows depends on its variant, which this table cannot see. */
 const EMITTER_ID = new Uint8Array(256);
-for (let id = 0; id < 256; id++) if (PROPS[id] && PROPS[id].light > 0) EMITTER_ID[id] = 1;
+for (let id = 0; id < 256; id++) if (PROPS[id] && (PROPS[id].light > 0 || PROPS[id].lightByVar)) EMITTER_ID[id] = 1;
 EMITTER_ID[B.FURNACE] = 1;
 
 function blockLightOf(val) {
   const id = val & 255;
   if (id === B.FURNACE) return ((val >> 8) & V.FURNACE_ON) ? FURNACE_GLOW : 0;   // lit bit (facing bits below it)
-  return PROPS[id]?.light || 0;
+  const p = PROPS[id];
+  if (p?.lightByVar) return p.lightByVar[(val >> 8) & 7] || 0;   // by stage: the yellow berry bush as it ripens (0.827)
+  return p?.light || 0;
 }
 // per-position emission: read the block's own light level (torch 10, glowstone 14, furnace 5...)
 const glowLevelAt = (gx, gy, gz) => blockLightOf(getBlock(gx, gy, gz)) || GLOW_LEVEL;

@@ -323,7 +323,7 @@ function makeMat(opts) {
   });
 }
 const matOpaque = makeMat({});
-const matCutout = makeMat({ transparent: true, depthWrite: true, side: THREE.DoubleSide }); // leaves + glass
+const matCutout = makeMat({ transparent: true, depthWrite: true, side: THREE.DoubleSide }); // leaves, plants (glass until 0.8263)
                                               // double-sided: standing inside a bush you see the
                                               // canopy shell around you instead of x-raying out
 const matWater  = makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexShader: VSH_WATER }); // water with wave
@@ -358,7 +358,11 @@ const VSH_LAVA = /* glsl */`
     gl_Position = projectionMatrix * mv;
   }`;
 const matLava = makeMat({ vertexShader: VSH_LAVA });
-const MATERIALS = [matOpaque, matCutout, matWater, matLava];
+/* Glass (0.8263): its own pass, blended WITHOUT writing depth and drawn after everything else in its chunk. In the cutout
+   pass the first glass face drawn hid every glass face behind it, so glass seen through other glass went missing
+   from some sides. Blending in any order costs nothing that shows on art this clear. */
+const matGlass  = makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
+const MATERIALS = [matOpaque, matCutout, matWater, matLava, matGlass];
 // spruce needles ship almost white; tint the tile instead of shipping a second sheet
 sharedUniforms.uTintTile.value = CORE.T.SPRUCE_LEAVES;
 

@@ -35,10 +35,11 @@ const LOOT = {
   wheat:       [[1, 1], [1, 0.4]],
   melon:       [[2, 1], [1, 0.7], [1, 0.5], [1, 0.3], [1, 0.15]],
   salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second (0.8097)
-  fiberCarpet: [[1, 0.6], [1, 0.05]],                         // a fiber carpet layer: 60% one fiber, 5% a second (0.819)
+  fiberCarpet: [[1, 0.75], [1, 0.0625]],                      // a fiber carpet layer: 75% one fiber, 6% a second (0.819; 25% more 0.827)
   ashLayer:    [[1, 0.5]],                                    // an ash layer: ashes half the time (0.8191)
+  flower:      [[1, 0.5]],                                    // a flower picked or broken: half the time one fiber (0.826)
   // leaves, as they decay (or cut with a tool); by bare hand every chance is halved
-  stick:       [[1, 0.3], [1, 0.15], [1, 0.03], [1, 0.005]],
+  stick:       [[1, 0.21], [1, 0.105], [1, 0.021], [1, 0.0035]],   // 30% rarer since 0.826 (0.3, 0.15, 0.03, 0.005)
   apple:       [[1, 0.01]],
   sapling:     [[1, 0.05]],
   // animals
@@ -70,6 +71,7 @@ const BLOCK_DROP = {
   [B.GRASS]: B.DIRT,
   [B.STONE]: B.COBBLE,
 };
+const FLOWER_BLOCKS = new Set([B.POPPY, B.ORCHID, B.PINCUSHION]);   // 0.826
 const GRAVEL_FLINT_CHANCE = 0.05;          // a gravel block, and since 0.799 a gravel layer too (22-main-loop.js)
 const GOURD_FIBER_CHANCE = 0.4;            // a melon or pumpkin also gives a fiber (0.799)
 const ORE_LOOT = {
@@ -89,6 +91,12 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
   if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash (0.8191)
   if (blockId === B.FIRE) return [];
+  // a flower comes apart into fiber, never the flower (0.826; its dye, picked with shears, comes with the paint update)
+  if (FLOWER_BLOCKS.has(blockId)) return _drop(ITEM.FIBER, rollLoot(LOOT.flower));
+  /* Glassy sand, and its red and pink looks (variants since 0.8263), always break into glass shards: ahead of the
+     variant rule below, which would hand a red one back as plain glassy sand */
+  if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
+    return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
   // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
   // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)
@@ -127,8 +135,6 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];
   if (blockId === B.GLASS) return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassShard));
-  if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
-    return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
   if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs (0.769)
   if (blockId === B.SNOW)  return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
   if (blockId === B.SUGAR_CANE) return [{ id: ITEM.SUGAR_CANE, count: 1 }];
