@@ -1149,6 +1149,7 @@ function frame(now) {
   updateTileAnimation(now);                 // water and lava step through their frames (0.8093)
   updateWindUniforms();                     // grass and leaves bend with the wind (0.81)
   updateMusic();                            // menu track on/off follows menuScene
+  updateWeatherSound(dt);                   // rain and snow loops (0.831, 32-sound.js)
   /* Input routing, before anybody is ticked: which pad drives which seat, and — while the player
      is rebinding from the pause menu — whether a device has just spoken up. Both run whether or
      not the game is unpaused, because binding is done with the menu open. */
@@ -1582,7 +1583,8 @@ function tickPlayer(dt, now, slot) {
         const byLayer = hand && DIG_BY_LAYER.has(hit.id & 255) && !CORE.layerCount(hv) && !CORE.shapeOfVal(hv);
         const layerMul = (CORE.layerCount(hv) || byLayer) ? (PROPS[hit.id].layerStack ? 0.25 : 0.5) : 1;
         mining.needed = PROPS[hit.id].hardness * layerMul * 0.9 * softBlockMineMul(hit.id)
-                      / (hand ? handMineFactor(hit.id) : toolFactor(heldUseId(), hit.id));
+                      / (hand ? handMineFactor(hit.id) : toolFactor(heldUseId(), hit.id))
+                      / Math.max(0.01, typeof playerMiningSpeedMul === 'function' ? playerMiningSpeedMul() : 1);   // mining speed stat (0.8323)
         mining.stage = -1;
       }
       mining.elapsed += dt;
@@ -1648,7 +1650,8 @@ function tickPlayer(dt, now, slot) {
           inf.apply();
           if (dropsOk) _dropLayer(inf.layerId, mx, my, mz);
         } else {
-          setBlock(mx, my, mz, B.AIR);
+          // broken ice leaves its water behind (0.8321) — only ice that froze from water (0.833); creative just clears it
+          setBlock(mx, my, mz, minedId === B.ICE && !player.canFly && ((mval >> 8) & 255) === ICE_FROM_WATER ? B.WATER : B.AIR);
           queueWaterAround(mx, my, mz);
           queueLavaAround(mx, my, mz);
           if (_isLog(minedId)) scheduleLeavesCheck(mx, my, mz);
@@ -1711,7 +1714,7 @@ function tickPlayer(dt, now, slot) {
     else if (!_open(fx, ey, fz) && _open(fx, by, fz)) { py = by; }
     if (lvl !== _hlLevel || id !== _hlId || px !== _hlX || py !== _hlY || pz !== _hlZ) {
       _hlId = id; _hlLevel = lvl; _hlX = px; _hlY = py; _hlZ = pz;
-      updatePlayerLight(slot, px, py, pz, lvl);     // each player owns one glow slot
+      updatePlayerLight(slot, px, py, pz, lvl, id != null && id < 256 && !!PROPS[id]?.coldLight);   // each player owns one glow slot; a crystal torch's is blue (0.834)
     }
   }
 

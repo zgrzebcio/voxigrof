@@ -21,8 +21,8 @@
            FOG_LIGHT_FAR. It greys the sky and hides the sun, moon and stars (applyMist, per eye).
    RAINBOW (0.816) a ring of 42 degrees round the point opposite the sun, only above the horizon and by day. */
 
-const CLOUD_COVER = { clear: 0.12, sunny: 0.04, cloudy: 0.7, windy: 0.35, rainy: 0.85, darky: 0.95, storm: 1, foggy: 0.6 };
-const CLOUD_DARK = { rainy: 0.5, darky: 1, storm: 1 };   // dark clouds: darky and storm; rain is grey
+const CLOUD_COVER = { clear: 0.12, sunny: 0.04, cloudy: 0.7, windy: 0.35, rainy: 0.85, darky: 0.95, storm: 1, foggy: 0.6, blizzard: 1 };
+const CLOUD_DARK = { rainy: 0.5, darky: 1, storm: 1, blizzard: 0.6 };   // dark clouds: darky and storm; rain is grey; a blizzard heavy grey (0.83)
 const CLOUD_WIND = 0.1;                                   // share of the wind's speed the clouds drift at (0.25 until 0.818)
 const CLOUD_FADE_S = 40;                                  // real seconds a change of weather takes to reach the sky
 const CLOUD_STEP_H = 0.035;                               // noise past the level for each block of height
@@ -318,6 +318,21 @@ function _sandAround(st, cam, now, dts) {
   st.sandIn += (st.sandInAim - st.sandIn) * (1 - Math.exp(-dts / 1.2));
   if (st.sand < 0.003) st.sand = 0;
 }
+/* RAIN AND SNOW FOG (0.83, precipAt in 51-seasons.js): a light grey haze in the rain, thicker the harder it falls
+   (RAIN_FOG_FAR at its heaviest), a whiter one in falling snow (SNOW_FOG_FAR), and a blizzard's white-out
+   (BLIZZARD_FOG_FAR; BLIZZARD_ROOF_FAR under a roof). Eased per eye like the sand. */
+const RAIN_FOG_FAR = 60, SNOW_FOG_FAR = 36, BLIZZARD_FOG_FAR = 7, BLIZZARD_ROOF_FAR = 18, PRECIP_FOG_EASE_S = 6;
+const _rainGrey = new THREE.Color(0.5, 0.55, 0.62), _snowWhite = new THREE.Color(0.84, 0.87, 0.92), _wxCol = new THREE.Color();
+function _precipAround(st, cam, now, dts) {
+  if (st.wxT == null || now - st.wxT > 500) {          // sampled twice a second
+    st.wxT = now;
+    const pr = typeof precipAt === 'function' ? precipAt(cam.position.x, cam.position.z, cam.position.y) : { rain: 0, snow: 0, blizzard: 0 };
+    st.rainAim = pr.rain; st.snowAim = pr.snow; st.blizAim = pr.blizzard;
+    if (st.rain == null) { st.rain = st.rainAim; st.snow = st.snowAim; st.bliz = st.blizAim; }
+  }
+  const k = 1 - Math.exp(-dts / PRECIP_FOG_EASE_S);
+  st.rain += (st.rainAim - st.rain) * k; st.snow += (st.snowAim - st.snow) * k; st.bliz += (st.blizAim - st.bliz) * k;
+}
 function applyMist(cam) {
   const m = mistAt(cam.position.x, cam.position.z), now = performance.now();
   let st = cam.userData.mist;
@@ -326,16 +341,23 @@ function applyMist(cam) {
   st.t = now;
   st.dense += (m.dense - st.dense) * k; st.light += (m.light - st.light) * k; st.bow += (m.bow - st.bow) * k;
   _sandAround(st, cam, now, dts);
+  _precipAround(st, cam, now, dts);                       // 0.83
   // above the cloud layer the air is clear, whatever the weather below (0.8197)
   // ...and Clear Eyes takes 30% off fog and sand alike (0.828, 45-skills.js)
-  const sm = typeof skillSightMul === 'function' ? skillSightMul() : 1;
+  const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // vegetable sickness too (0.8323)
   const sky = 1 - cloudsBelow(cam.position.y), clear = sky * sm, dense = st.dense * clear, light = st.light * clear, sand = st.sand * clear;
+  // under a roof the rain and snow are outside: a third of their haze (a blizzard's has its own roof distance)
+  const roof = 1 - 0.65 * st.sandIn, rain = st.rain * clear * roof, snow = st.snow * clear * roof, bliz = st.bliz * clear;
   const U = sharedUniforms, baseFar = U.fogFar.value, ratio = U.fogNear.value / baseFar;
   let far = Math.min(baseFar, baseFar + (FOG_LIGHT_FAR - baseFar) * light);
   far += (Math.min(far, FOG_DENSE_FAR) - far) * dense;
   far += (Math.min(far, SAND_FOG_FAR + (SAND_FOG_ROOF_FAR - SAND_FOG_FAR) * st.sandIn) - far) * sand;   // 0.825
+  far += (Math.min(far, RAIN_FOG_FAR) - far) * rain;                                                     // 0.83
+  far += (Math.min(far, SNOW_FOG_FAR) - far) * snow;
+  far += (Math.min(far, BLIZZARD_FOG_FAR + (BLIZZARD_ROOF_FAR - BLIZZARD_FOG_FAR) * st.sandIn) - far) * bliz;
   U.fogFar.value = far;
-  U.fogNear.value = far * (ratio + (0.1 - ratio) * light) * (1 - dense) * (1 - sand);   // thick fog starts at the eye
+  U.fogNear.value = far * (ratio + (0.1 - ratio) * light) * (1 - dense) * (1 - sand)   // thick fog starts at the eye
+                  * Math.max(0, 1 - 0.3 * rain - 0.4 * snow - 0.95 * bliz);
   const a = Math.max(dense, light);
   _mistCol.copy(_mistGrey).multiplyScalar(0.2 + 0.8 * _skyDayF);
   U.fogColor.value.lerp(_mistCol, a * 0.85);
@@ -343,12 +365,16 @@ function applyMist(cam) {
     _sandCol.copy(_sandYellow).lerp(_sandRed, st.sandRed || 0).multiplyScalar(0.2 + 0.8 * _skyDayF);
     U.fogColor.value.lerp(_sandCol, Math.min(1, sand * 1.15));
   }
-  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand);                             // the sun comes through soft
-  skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand));
+  if (rain > 0.01) U.fogColor.value.lerp(_wxCol.copy(_rainGrey).multiplyScalar(0.2 + 0.8 * _skyDayF), rain * 0.6);
+  const white = Math.min(1, snow * 0.7 + bliz);
+  if (white > 0.01) U.fogColor.value.lerp(_wxCol.copy(_snowWhite).multiplyScalar(0.18 + 0.82 * _skyDayF), white);
+  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.6 * bliz);   // the sun comes through soft
+  const wx = 0.3 * rain + 0.4 * snow + bliz;
+  skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand - wx));
   // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades (0.817)
-  U.uSkyFog.value = Math.min(1, dense + 0.6 * light + sand);
-  U.uHaze.value = (1 - 0.8 * a) * (1 - 0.8 * sand);
-  const bow = st.bow * _skyDayF * sky * (1 - sand);
+  U.uSkyFog.value = Math.min(1, dense + 0.6 * light + sand + wx);
+  U.uHaze.value = (1 - 0.8 * a) * (1 - 0.8 * sand) * Math.max(0, 1 - 0.8 * wx);
+  const bow = st.bow * _skyDayF * sky * (1 - sand) * Math.max(0, 1 - 2 * (rain + snow));   // no rainbow while it still falls
   rainbowMat.uniforms.uBow.value = bow;
   rainbowMesh.visible = bow > 0.01;
 }

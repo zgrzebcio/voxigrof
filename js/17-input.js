@@ -140,7 +140,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               split: !!newSplitChk.checked,
               structures: !!newStructChk.checked,   // villages and dungeons, fixed at creation (0.7594)
               seasons: !!newSeasonChk.checked,      // off: always 1 July, fixed at creation (0.818)
-              biomeRev: 7,                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232); older worlds keep theirs
+              biomeRev: 8,                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232), every biome twice as big (0.833); older worlds keep theirs
               createdVersion: GAME_VERSION, lastVersion: GAME_VERSION,
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);

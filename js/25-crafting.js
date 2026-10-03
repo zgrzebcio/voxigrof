@@ -38,7 +38,7 @@ const RECIPES_BASIC = [
   { in: [[V_PLANKS, 5], [ITEM.FIBER, 5]],                                    out: [B.CRAFTING_BENCH, 1], timeToCraft: 3, xpToGive: 5 },
   // 0.821: brown, black, yellow and white, one of each and no stand-ins (red and blue left it); same place, so saved queues keep it
   { in: [[ITEM.BOWL, 1], [B.BROWN_MUSHROOM, 1], [B.BLACK_MUSHROOM, 1], [B.YELLOW_MUSHROOM, 1], [B.WHITE_TALL_MUSHROOM, 1]], out: [ITEM.MUSHROOM_STEW, 1], timeToCraft: 5, xpToGive: 20 },
-  { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1]],                  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },
+  { in: [[V_COAL, 1], [ITEM.STICK, 1], [ITEM.FIBER, 1], [ITEM.FLINT, 2]],  out: [B.TORCH, 4], timeToCraft: 1.5, xpToGive: 1 },   // the flint lights it (0.834)
   { in: [[ITEM.GLASS_SHARD, 5]],                                             out: [B.GLASS, 1], timeToCraft: 2, xpToGive: 2 },
   { in: [[ITEM.SUGAR_CANE, 1]],                                              out: [ITEM.SUGAR, 2], station: 'mortar', timeToCraft: 3, xpToGive: 2 },
   { in: [[B.STONE, 1]],                                                      out: [B.STONE_BRICK, 1], timeToCraft: 1, xpToGive: 1, removed: true },   // brick is a variant of stone since 0.794
@@ -50,6 +50,8 @@ const RECIPES_BASIC = [
   { in: [[ITEM.FLINT, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_HATCHET, 1], timeToCraft: 5, xpToGive: 8 },
   { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_HOE, 1], timeToCraft: 4, xpToGive: 8 },
   { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6]],                 out: [ITEM.ARROW, 2], timeToCraft: 3, xpToGive: 5 },
+  // the cold crystal torch (0.834): twice the fire torch's time, last so saved queues keep their places
+  { in: [[ITEM.GLOW_CRYSTAL, 1], [ITEM.FIBER, 2], [ITEM.STICK, 1]],          out: [B.CRYSTAL_TORCH, 5], timeToCraft: 3, xpToGive: 2 },
 ];
 const RECIPES_ADVANCED = [
   { in: [[ITEM.COAL_CHUNK, 5]],                                              out: [ITEM.COAL, 1], timeToCraft: 2.5, xpToGive: 1 },       // 5 since 0.7691
@@ -182,7 +184,13 @@ RECIPES_ADVANCED.push(
   { in: [[ITEM.CLOTH, 4], [ITEM.FIBER, 14]],                                  out: [ITEM.CLOTH_LEGGINGS, 1],   timeToCraft: 5, xpToGive: 30 },
   { in: [[ITEM.CLOTH, 2], [ITEM.FIBER, 8], [ITEM.STICK, 2], [ITEM.LEATHER, 1]], out: [ITEM.CLOTH_BOOTS, 1],      timeToCraft: 4, xpToGive: 20 },
   { in: [[ITEM.CLOTH, 2], [ITEM.FIBER, 8], [ITEM.STICK, 2], [ITEM.LEATHER, 1]], out: [ITEM.CLOTH_GLOVES, 1],     timeToCraft: 4, xpToGive: 20 },
+  // the bone block (0.833): ten bones pressed into one, like the storage blocks, and back
+  { in: [[ITEM.BONE, 10]],    out: [B.BONE_BLOCK, 1], timeToCraft: 2, xpToGive: 2 },
+  { in: [[B.BONE_BLOCK, 1]],  out: [ITEM.BONE, 10],   timeToCraft: 1, xpToGive: 1 },
 );
+// 0.831: every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
+const CRAFT_XP_MUL = 1.25;
+for (const r of [...RECIPES_BASIC, ...RECIPES_ADVANCED]) if (r.xpToGive > 1) r.xpToGive = Math.round(r.xpToGive * CRAFT_XP_MUL);
 
 // which list is shown: 'basic' (E / pocket) or 'advanced' (crafting bench = basic + advanced)
 var craftMode = 'basic';
@@ -725,7 +733,7 @@ function onRecipeClick(r, all, n = 1) {
    iron, stone, flint (a hoe sits just under its own set); then armor, iron before leather; then
    ingredients and food; and last the blocks you build and decorate with, with pressed ore blocks below
    them — they are storage, not something you need at hand. */
-const _RANK_STATION = new Set([B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.CHEST, B.BED, B.TORCH, B.LADDER, B.DOOR]);
+const _RANK_STATION = new Set([B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.CHEST, B.BED, B.TORCH, B.CRYSTAL_TORCH, B.LADDER, B.DOOR]);
 const _RANK_TOOL_MAT = { diamond: 1, bronze: 2, iron: 3, golden: 4, stone: 5, flint: 6 };
 function recipeRank(r) {
   const id = r.out && r.out[0];

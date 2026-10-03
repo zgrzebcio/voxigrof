@@ -85,7 +85,7 @@ const ICON_MESH_ART = {
   [B.CHEST]: ['chest_front', 'chest_side', 'chest_top', 'chest_bottom',
               'chest_front_metal', 'chest_side_metal', 'chest_top_metal',
               'oak_planks', 'birch_planks', 'spruce_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js)
-  [B.BED]:   ['bed_top', 'bed_long', 'bed_end', 'bed_leg', 'bed_down'],
+  [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342
   [B.DOOR]:  ['oak_door'],
 };
 const iconArtReady = (id) => (ICON_MESH_ART[id] || []).every(n => IMAGES[n]);
@@ -119,19 +119,17 @@ function renderBlockIcon(id, variant) {
   }
   if (id === B.BED) {                     // bed has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
-    const m = bedMattressMesh();
-    const legs = bedUndersideMesh();
+    const m = bedMesh(bedWoodOf(variant));  // its wood, picked on the variant bar (0.8342)
     const g = new THREE.Group();
     g.add(m.mesh);
-    g.add(legs.mesh);
-    g.position.set(-0.5, -0.3, -1);       // centre the 1x2 footprint on the origin
+    g.position.set(-0.5, -0.25, -1);      // centre the 1x2 footprint on the origin (half a block tall, 0.8342)
     scene.add(g);
     const cam = new THREE.OrthographicCamera(-1.5, 1.5, 1.5, -1.5, 0.1, 12);
     cam.position.set(2.0, 1.9, 2.2);
     cam.lookAt(0, 0, 0);
     const url = _renderIconScene(scene, cam);
     for (const c of g.children) c.geometry.dispose();
-    for (const mt of [...m.mats, ...legs.mats]) mt.dispose();
+    for (const mt of m.mats) mt.dispose();
     ICON3D[key] = url;
     const im = new Image(); im.src = url; ICON_IMG[key] = im;
     return url;
@@ -155,12 +153,12 @@ function renderBlockIcon(id, variant) {
   const data = new Uint32Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   data[CORE.idx(8, 64, 8)] = (id | (variant << 8)) >>> 0;
   const empty = () => new Uint32Array(16 * 200).buffer;
-  const lite = () => new Uint8Array(16 * 200).fill(0xF0).buffer;
+  const lite = () => new Uint16Array(16 * 200).fill(0xF0).buffer;
   // icons render fully sky-lit (high nibble 15); if the block itself glows, brighten its own
   // faces too so the icon reads as "lit" (glowstone faces get glow level 15 in the icon mesh)
-  const lightArr = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
+  const lightArr = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
   if (PROPS[id].light) {
-    for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]]) lightArr[CORE.idx(d[0], d[1], d[2])] = 0xFF;
+    for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]]) lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue (0.834)
   }
   const r = CORE.meshChunk(data.buffer, empty(), empty(), empty(), empty(),
                            lightArr.buffer, lite(), lite(), lite(), lite());

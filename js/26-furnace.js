@@ -13,7 +13,7 @@
 const FURNACES = new Map();                 // "x,y,z" -> {slots, burn, burnMax, progress, lit, ash, xp, ashy}
 var activeFurnace = null;                   // key of the furnace whose GUI is open (null = none)
 
-/* The smelting book (0.775). time: seconds per item, xp: per item, banked until the output is taken.
+/* The smelting book (0.775). time: seconds per item, xp: per item (x SMELT_XP_MUL, below), banked until the output is taken.
    Raw ore takes 9 s, ground powder 7 s, and the rest 4-15 s a piece. cat is the book tab. */
 const SMELT_RECIPES = [
   { in: ITEM.RAW_IRON,      out: ITEM.IRON_INGOT,    time: 9, xp: 5, cat: 'metals' },
@@ -52,6 +52,9 @@ const SMELT_RECIPES = [
   { in: B.WHITE_TALL_MUSHROOM, out: B.GRILLED_WHITE_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
   { in: B.YELLOW_MUSHROOM,     out: B.GRILLED_YELLOW_MUSHROOM, time: 4, xp: 1, cat: 'food' },
 ];
+// 0.831: smelting pays half as much again — but what paid 1 still pays 1 (0.832; it was 1.5)
+const SMELT_XP_MUL = 1.5;
+for (const r of SMELT_RECIPES) if (r.xp >= 2) r.xp *= SMELT_XP_MUL;
 const SMELT = {};                                              // input id -> recipe
 for (const r of SMELT_RECIPES) SMELT[r.in] = r;
 
@@ -117,8 +120,14 @@ function _furnaceAsh(k, f, points) {
 }
 
 const PROGRESS_COOL_SEC = 20;    // seconds an unfuelled smelt takes to slide back to nothing (0.7992)
-function updateFurnaces(dt) {
-  _crackleTick = performance.now();
+/* Smelting runs on the world's clock (0.8321): a night slept through (29-bed.js) hands its skipped seconds here, and
+   every loaded furnace burns and smelts through them in one-second steps, quietly — no crackle, smoke or bar redraw. */
+const FURNACE_CATCHUP_MAX = DAY_LEN;
+function furnaceCatchUp(sec) {
+  for (let t = Math.min(FURNACE_CATCHUP_MAX, sec); t > 0; t -= 1) updateFurnaces(Math.min(1, t), true);
+}
+function updateFurnaces(dt, quiet = false) {
+  if (!quiet) _crackleTick = performance.now();
   const burning = new Set();
   for (const [k, f] of FURNACES) {
     const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
@@ -171,10 +180,12 @@ function updateFurnaces(dt) {
       const keep = ((getBlock(x, y, z) >> 8) & 255) & ~V.FURNACE_ON;   // the rotation and the rock (0.809)
       setBlock(x, y, z, B.FURNACE | ((keep | (lit ? V.FURNACE_ON : 0)) << 8));
     }
+    if (quiet) continue;                                     // a night's catch-up: no sound, no smoke (0.8321)
     if (lit) { _furnaceCrackle(k, x, y, z); burning.add(k); }
     // smoke from the top, a flicker at the mouth (0.8, 49-particles.js)
     if (lit && !choked && typeof fxFurnace === 'function') fxFurnace(f, x, y, z, (getBlock(x, y, z) >> 8) & 3, dt);
   }
+  if (quiet) return;
   _stopCrackles(burning);
   _updateFurnaceBars();
 }
@@ -212,7 +223,7 @@ setInterval(() => { if (_crackles.size && performance.now() - _crackleTick > 300
 // layout:  [input] [progress→] [output]
 //          [flame]             [ash meter]
 //          [fuel]              [ashes]
-// with the smelting book toggled by the button in the corner
+// with the smelting book always open above it (0.832; a button in the corner toggled it before)
 function buildFurnacePanel() {
   const panel = invPanel('furnacePanel');
   if (!panel) return;
@@ -223,8 +234,6 @@ function buildFurnacePanel() {
     `<div class="fbar ${cls}"><img class="fbase" src="textures/Gui/Interactables/Lit_progress.png" alt="">` +
     `<div class="ffill"><img src="textures/Gui/Interactables/Lit_progress.png" alt=""></div></div>`;
   panel.innerHTML =                                         // untitled since 0.796: the Furnace tab names it
-    `<button class="fbookBtn${furnBookOpen ? ' sel' : ''}" title="Smelting book">` +
-      `<img src="textures/Items/Materials/book.png" alt=""></button>` +
     `<div id="furnGrid">` +
       `<div class="fcol">` +
         `<div class="slot" data-fi="1">${slotInner(f.slots[1])}</div>` +
@@ -244,7 +253,6 @@ function buildFurnacePanel() {
   // Furnace / Equipment / Skill tree (0.795) — on the very top: over the book while it is open (0.796)
   addInvTabs(panel.querySelector('.fbook') || panel, 'furnace');
   panel.classList.toggle('bookOpen', furnBookOpen);         // squares the top corners where the book joins (0.7761)
-  panel.querySelector('.fbookBtn').addEventListener('click', () => { furnBookOpen = !furnBookOpen; buildFurnacePanel(); });
   for (const tab of panel.querySelectorAll('#furnTabs .ctab'))
     tab.addEventListener('click', () => { furnBookCat = tab.dataset.cat; _furnBookScroll = 0; buildFurnacePanel(); });
   const list = panel.querySelector('.fbList');
@@ -274,7 +282,7 @@ function _sizeFurnBook(panel) {
 /* ---- smelting book (0.775) ----
    Read-only rows in the crafting list's look: input, time and fuel, arrow, output, XP. Tabs pick a
    category; All shows every category under its own heading, fuel last. */
-var furnBookOpen = false, furnBookCat = 'all', _furnBookScroll = 0;
+var furnBookOpen = true, furnBookCat = 'all', _furnBookScroll = 0;   // always open since 0.832 (its button is gone)
 const FURN_BOOK_CATS = [
   { key: 'all',       label: 'All',       icon: null },
   { key: 'metals',    label: 'Metals',    icon: ITEM.IRON_INGOT },

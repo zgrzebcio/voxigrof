@@ -59,11 +59,11 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 - **Light through shapes (0.819):** `CORE.lightDim(v)` is how many extra levels light loses LEAVING a shaped cell of an
   opaque block (slab 4, stairs 6...). Sky/block light queues carry the outgoing level; setBlock relights when it changes.
 - **Biome revision (0.819):** `makeGen(seed, type, biomeRev)`; worlds keep `w.biomeRev` (missing = 1; 2 bigger snow/desert;
-  3 (0.8193) fewer desert hills; 4 (0.822) pink warm beaches; 5 (0.823) bigger biomes, deep/spruce forests, fewer oceans; 6 (0.8231) tall spruce forest trees; 7 (0.8232) the climate ladder — new worlds), so old worlds' new chunks still match their old ones.
+  3 (0.8193) fewer desert hills; 4 (0.822) pink warm beaches; 5 (0.823) bigger biomes, deep/spruce forests, fewer oceans; 6 (0.8231) tall spruce forest trees; 7 (0.8232) the climate ladder; 8 (0.833) every biome 2x (BS 1/3) — new worlds), so old worlds' new chunks still match their old ones.
 - **Far ring (0.8193):** `drawDist()` = `viewDist` + `FAR_RING` (4) chunks loaded and drawn at LOD 2, no creatures shown; fog and camera
   reach use drawDist. `viewDist` is still the full-detail setting.
 - **Batched lighting (0.8193):** `relight`/`reskyAround` take a box (x2, y2, z2); `_litEdits` (22) runs edits with light held and relights once per area.
-- **Vitals (0.82).** Everything a player's numbers are lives in 54-stats-effects.js. Bars are 0..100; any damage or heal
+- **Vitals (0.82).** Everything a player's numbers are lives in 54-stats-effects.js. Bars are 0..100 (stamina and oxygen 0..200 since 0.831, `vit.s2` marks it); any damage or heal
   to a player is written x `VITAL_K` (mob `dmg`, arrows, lightning, falls...). A save's `vit` record marks the 0..100 scale;
   without it `restoreVitals` multiplies hp/food/saturation up.
 - **Entities (0.823)** are on the 100 scale too: mob health, hunger, thirst and every damage number (weapons, arrows, mobs)
@@ -99,6 +99,29 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   Growth-stage variants (berry, wheat) use `VARIANT_DEFAULT_BITS` + `VARIANT_LINEAR` (46). ITEM.BLACKBERRIES is 388 (old YELLOW_BERRIES).
 - **Death mark (0.827):** `player._deathMark` {x,y,z,left}, `#deathMark` on the pane (19, 36), saved as `deathMark`. Furnace chimney:
   `chimneyHeight` (02) = rock walls on it (mesher cap, 49 smoke, 26 choke test).
+- **Rain and snow (0.83):** `precipAt(x, z, y)` (51) = { rain, snow, blizzard } blended per region (`_regionPrecip`; snow per
+  `_snowsIn`: snow region, 95% of winter). Particles `_fxWeather` + `_fxRainLand` (49, own pools `FX.weather`/`FX.puddles`,
+  `FX_RAIN` flag), fog `_precipAround` in `applyMist` (52), ground `updateWeatherGround` (51: rain washes snow/ash/salt
+  layers, snow lays layers, salt on shores). `blizzard` is a WEATHER_TYPE (`regionCold`). Cold snow layers melt x0.1 (33).
+- **Ice (0.8321):** `B.ICE` 203, pass 4 like glass. New chunks freeze in their data on arrival (`iceDressChunk`, from finishChunkGen; no setBlock); later freeze/thaw on the season pass (`_iceChunk`, 51: top water cell only;
+  snow biomes always, winter elsewhere but deserts, thaw by day). Heat melt `iceMelt` (51) fed by the setBlock hook
+  (`iceHeatPlaced`/`iceQueueIfHot`, 11) and a held torch (`iceWarmHeld` from tickStats). Broken ice leaves water (22) only when its variant is ICE_FROM_WATER (0.833, set by freezing); placed/structure ice breaks to nothing and never thaws.
+- **Torches and burnout (0.834, 56-torches.js):** `B.TORCH` (23) is the FIRE torch; `TORCH_UNLIT` 209, `CRYSTAL_TORCH` 210; all three
+  have `PROPS.torch` (emitTorch, wall placement/support, held fattening) — check that, not `B.TORCH`, for "any torch". Fire-only rules
+  (ice/snow melt, heat, dry, doused under water, sets mobs alight) still test `B.TORCH`. `BURNS` map "x,y,z" -> world-second due
+  (`BURN_S`, `BURNT_AS`), fed by `burnPlaced` (setBlock hook) and `burnSeen` (finishChunkGen emitter scan), run by `updateBurns` (from
+  updateSeasons), saved as world `burns`. Held: `tickHeldBurn` (from tickStats), clocks `p._torchBurn` saved as `vit.tb`. Spent glow
+  blocks `GLOWSTONE_SPENT` 211 / `GLOWCRYSTAL_SPENT` 212 (grey tiles built in 03, `greyed`).
+- **Bed art (0.8342, 29-bed.js):** four grey 512x192 sheets in Interactables/Bed (`BED_PARTS`: frame, blanket, sheet, pillow), same
+  layout (top | underside, then side | head | foot, 128 px a block); `bedTexture(wood, colors)` tints each part and lays them into one
+  texture (frame by its planks, bedding by `BED_COLORS_DEFAULT` until dyes; `setBedLook` re-skins). Wood in variant bits 4-5
+  (`BED_WOOD_SHIFT`, variant bar like the chest). Model `_bedGeometry`: mattress+rail box over 4 legs, BED_H 0.5, and a raised
+  pillow box (0.8343, `BED_PILLOW_*` rects measured from bed_pillow.png: its side/head strips are moved to rows 192+ of the
+  512x320 bed texture and the sheet fills their gap; its top is a pillow-only copy there too, 0.8344; those copies are filled
+  solid, 0.8345, and the box is rounded in geometry instead, `BED_PILLOW_R`/`_RV`, 0.8346).
+- **Light colour (0.834):** `c.light` = level (bits 0-4, `LIGHT_LEVEL_MASK`) | `LIGHT_COLD_BIT` 0x80 from `coldLight` sources (08 flood
+  carries it; sources are `[x,y,z,level,coldBit]`). The mesh light is Uint16: bit 8 = cold (`LIGHT_COLD`, `litMax` in 02); the
+  shader (04) mixes `uGlowColor` toward `uColdGlowColor`. Icons/drops pass Uint16 light arrays too.
 - **Value-based helpers.** Ask a whole cell value what it is with `CORE.shapeOfVal`, `solidVal`,
   `opaqueVal` and `shapeBoxesAt`. Do not check the bare id.
 
@@ -147,4 +170,5 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 52-clouds | cloud layer: raymarched in a shader (`cloudMat`), cover/dark per weather (`CLOUD_COVER`), wind drift (`updateClouds`); shared GLSL + ground shade `CLOUD_GLSL` in 04. Fog per eye (`applyMist`, schedule `mistAt` in 51), rainbow (`rainbowMesh`) |
 | 53-storms | lightning (`strikeLightning`, bolts, thunder), fire on players/creatures (`fireT`, `_entBurnDeath` in 28), hail (`hailAt` in 51), aurora strength (`uAurora` on the sky dome). Fire blocks (0.8191): `B.FIRE` (model 'none', light 13) tracked in `FIRE_CELLS`, `igniteAt`, burn table `_BURN`, ash `B.ASH` |
 | 55-biomes | the land's shape and biome names, moved out of makeGen (0.823): BIOME_CORE / BIOMES.makeBiomes (`terrainInfo`, `biomeAt`, `birchAt`, `snowForestAt`, climate colour `climAt`), `biomeBase` (Deep/Warm/Cold stripped, for biome-keyed lists). Stringified into the worker before VOXEL_CORE (10-workers) and loaded BEFORE 02 in index.html; self-contained like VOXEL_CORE |
+| 56-torches | torches and glow blocks burning out (0.834): `BURNS`, `updateBurns`, rain dousing, held burn `tickHeldBurn`, relighting `tryLightTorch` (flint / glow crystal) |
 | 54-stats-effects | ALL player stats and effects (0.82): vital caps (`MAX_HP`... out of 100, `VITAL_K` = 5 from the old 20), over-stats (`OVER_KEY`, `gainStat`/`drainStat`), `tickStats` (stamina, thirst, energy, nutrients, oxygen), `ambientTemp`, drinking (`updateDrinking`), `FOOD_NUTRITION`, save (`serializeVitals`/`restoreVitals`), stat getters + `STAT_TIPS`, `EFFECT_DEFS` and the effect bar |

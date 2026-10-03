@@ -23,17 +23,23 @@
    speed). Since 0.8192 a salt is used up the MOMENT it has work to do — salt put in beside food, or food put in
    beside salt — and then keeps that inventory's food for SALT_USE_S on a clock of its own (player._saltT, a
    chest's saltT: hidden, no count or bar). The clock only runs while there is food; when it runs out and there
-   is still food and salt, the next one goes in at once. With no food beside it, salt keeps. */
-const SALT_LIFE = 1.5, SALT_USE_S = 1200;   // food lasts 1.5x as long; one salt keeps it 20 minutes
+   is still food and salt, the next one goes in at once. With no food beside it, salt keeps.
+   0.832: salted food spoils SALT_SLOW slower (25% since 0.8321; it lasted 1.5x, a third slower, before), and the player's salt in use
+   shows as the Salted effect with its time left (stateEffects, 54-stats-effects.js). */
+const SALT_SLOW = 0.25, SALT_USE_S = 1200;  // salted food spoils 25% slower (50% in 0.832), carried or in a chest; one salt keeps it 20 minutes
+const PRESERVER_SLOW = 0.1;                 // the Preserver skill: carried food 10% slower (0.7911)
 
 // blocks can carry a clock too since 0.7992 (the pumpkin)
 const spoilMax = (id) => (id == null ? 0 : ((id >= 256 ? ITEM_PROPS[id]?.spoil : PROPS[id]?.spoil) || 0));
 const isPerishable = (id) => spoilMax(id) > 0;
 // the clock a slot is on right now, full if it somehow has none (an older save, a hand-made slot)
 const slotFresh = (s) => (s && s.fresh != null) ? s.fresh : spoilMax(s && s.id);
-/* How many clock-seconds one real second takes off carried food: 0.9 with Preserver (0.7911), so the
-   clock itself keeps its meaning — the bar still reads fresh/max — and only runs down slower. */
-const spoilRate = () => (typeof hasSkill === 'function' && hasSkill('preserver')) ? 0.9 : 1;
+/* How many clock-seconds one real second takes off carried food, so the clock itself keeps its meaning — the bar
+   still reads fresh/max — and only runs down slower. SPOIL SPEED (0.832), a stat: 100%, less Preserver's 10% and,
+   while salt is in use, its 25% — both together 65%. `salted` defaults to whether the player's salt is running. */
+const playerSpoilMul = (salted = typeof player !== 'undefined' && player && player._saltT > 0) =>
+  Math.max(0.1, 1 - ((typeof hasSkill === 'function' && hasSkill('preserver')) ? PRESERVER_SLOW : 0) - (salted ? SALT_SLOW : 0));
+const spoilRate = () => playerSpoilMul();
 
 /* Merging n items into `dst`. Call this INSTEAD of `dst.count += n` wherever the incoming items
    come from another slot — a drop, a drag, a sort, a quick-move — and pass that slot's clock. */
@@ -69,7 +75,7 @@ function tickSpoilage(dt) {
   const leftovers = [];
   // returns 0 = not food, 1 = clock moved, 2 = an item was lost
   // salt in the pack: food carried alongside it lasts 50% longer, and it is used up while it works (0.8098)
-  let rate = spoilRate();
+  let salted = false;
   if (_carriedFood() > 0) {
     // nothing salting yet, and salt at hand: one goes into use at once, good for SALT_USE_S (0.8192)
     if (!(player._saltT > 0) && _takeCarried(ITEM.SALT)) {
@@ -78,10 +84,11 @@ function tickSpoilage(dt) {
       hotLost = invLost = offLost = hotPaint = invPaint = offPaint = true;   // the salt's own slot shows it
     }
     if (player._saltT > 0) {
-      rate /= SALT_LIFE;
+      salted = true;
       player._saltT = Math.max(0, player._saltT - steps);
     }
   }
+  const rate = playerSpoilMul(salted);                 // the spoil speed stat (0.832)
   const drain = (slot, onEmpty) => {
     if (!slot || !isPerishable(slot.id)) return 0;
     const max = spoilMax(slot.id);
@@ -167,7 +174,7 @@ function _takeCarried(id) {
   }
   return false;
 }
-/* Food in a chest spoils at the carried rate; salt in the same chest stretches it 50% and is used one per
+/* Food in a chest spoils at the carried rate; salt in the same chest slows it by SALT_SLOW and is used one per
    SALT_USE_S. Only chests inside the simulation radius tick — but a chest keeps the WORLD CLOCK time it was
    last ticked (spoilT), so one that was out of range catches up the moment it is back (0.8099): the salt
    there is spent first, one per 20 minutes for as long as it lasts, and the food then loses that salted
@@ -202,7 +209,7 @@ function _tickChestSpoil() {
       salted += d; left -= d; rest -= d;
     }
     c.saltT = left;
-    const drain = salted / SALT_LIFE + (elapsed - salted);              // seconds off the food's clocks
+    const drain = salted * (1 - SALT_SLOW) + (elapsed - salted);       // seconds off the food's clocks (salted SALT_SLOW slower, 0.832)
     const leftovers = [];
     for (let i = 0; i < sl.length; i++) {
       const s = sl[i];

@@ -182,7 +182,7 @@
                 border-top:1px solid rgba(255,255,255,.14); padding-top:5px; }
   #equipStats .stGrid, #equipStats .effList { display:grid; grid-template-columns:1fr 1fr; column-gap:14px;
                                               row-gap:2px; align-content:start; }
-  #equipStats .effList { max-height:46px; overflow-y:auto; scrollbar-width:thin; }
+  #equipStats .effList { overflow:visible; }   /* every effect shown, no scrollbar (0.8323) */
   #equipStats .effList .stRow { font-size:9px; }
   #equipStats .stRow.none { grid-column:1 / -1; }
   #equipStats .ctitle { margin-top:6px; padding-top:5px;
@@ -306,15 +306,16 @@
   #hotbar .variantBar .vEmpty { opacity:.3; }
   /* ---- effect bar (0.797): running effects right of the hotbar, half-size slots (23px, a slot is 46),
      after the chisel's slot when that is out. Icon on top, seconds left under it. ---- */
-  #hotbar .effBar { position:absolute; left:calc(100% + 9px); bottom:2px; display:flex; gap:3px; align-items:flex-end; }
+  #hotbar .effBar { position:absolute; left:calc(100% + 9px); bottom:2px; display:flex; gap:4px; align-items:flex-end; }
   #hotbar .effBar.afterChisel { left:calc(100% + 9px + 50px + 6px); }
-  #hotbar .effSlot { position:relative; width:23px; height:23px; box-sizing:border-box; border-radius:4px;
+  /* 0.8323: half as big again (35px; 23 before), icon and time with it */
+  #hotbar .effSlot { position:relative; width:35px; height:35px; box-sizing:border-box; border-radius:5px;
                      background:rgba(10,10,16,.6); border:1px solid rgba(255,255,255,.25);
                      display:flex; align-items:flex-start; justify-content:center; }
   #hotbar .effSlot.good { border-color:rgba(126,230,58,.7); }
   #hotbar .effSlot.bad  { border-color:rgba(230,90,70,.8); }
-  #hotbar .effSlot i { font-style:normal; font-size:12px; line-height:14px; }
-  #hotbar .effSlot b { position:absolute; left:0; right:0; bottom:-1px; text-align:center; font:700 8px/1 system-ui,sans-serif;
+  #hotbar .effSlot i { font-style:normal; font-size:18px; line-height:21px; }
+  #hotbar .effSlot b { position:absolute; left:0; right:0; bottom:-1px; text-align:center; font:700 12px/1 system-ui,sans-serif;
                        color:#fff; text-shadow:0 0 2px #000, 1px 1px 0 #000; }
   #hotbar .variantBar.hold { border-color:rgba(255,255,255,.6); box-shadow:0 0 8px rgba(255,255,255,.3); }   /* bind held (0.7944) */
   /* the bind, left of the bar: R, or D-pad Right on a pad (0.7942) */

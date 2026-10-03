@@ -20,7 +20,15 @@ const TEXTURES = {
   glow_vine:        'textures/Blocks/Plants/glow_vine.png',            // 0.765
   glowcrystal:      'textures/Blocks/Natures/glow_crystal_block.png',   // 0.765; renamed 0.808
   clay:             'textures/Blocks/Natures/clay.png',
-  snow:             'textures/Blocks/Natures/snow.png',
+  snow:             'textures/Blocks/Natures/Winter/snow.png',   // Winter folder since 0.8321
+  ice:              'textures/Blocks/Natures/Winter/ice.png',    // 0.8321
+  // 0.833: ice and snow bricks, the snow-ice brick; the bone block and its brick
+  ice_bricks:       'textures/Blocks/Decorations/Winter/ice_bricks.png',
+  snow_bricks:      'textures/Blocks/Decorations/Winter/snow_bricks.png',
+  snow_ice_bricks:  'textures/Blocks/Decorations/Winter/snow_ice_bricks.png',
+  bone_block_side:  'textures/Blocks/Natures/bone_block_side.png',
+  bone_block_top:   'textures/Blocks/Natures/bone_block_top.png',
+  bone_bricks:      'textures/Blocks/Decorations/bone_bricks.png',
   grass_block_snow: 'textures/Blocks/Natures/grass_block_snow.png',
   cobblestone:      'textures/Blocks/Decorations/cobblestone.png',
   coal_ore:         'textures/Blocks/Ores/coal_ore.png',
@@ -75,7 +83,12 @@ const TEXTURES = {
   crafting_bench_top:   'textures/Blocks/Interactables/Crafting_station/crafting_station_top.png',
   crafting_bench_front: 'textures/Blocks/Interactables/Crafting_station/crafting_station_front.png',
   crafting_bench_side:  'textures/Blocks/Interactables/Crafting_station/crafting_station_side.png',
-  torch:                'textures/Billboards/torch.png',
+  // the old torch's tile (T.TORCH) is no longer drawn by anything: its art went in 0.8341, so it shows the fire torch
+  torch:                'textures/Blocks/Interactables/Torch/torch_fire.png',
+  // 0.834: the fire torch (the old torch's place), the unlit torch, the crystal torch, at 128px (own folder 0.8341)
+  torch_fire:           'textures/Blocks/Interactables/Torch/torch_fire.png',
+  torch_unlit:          'textures/Blocks/Interactables/Torch/torch_unlit.png',
+  torch_crystal:        'textures/Blocks/Interactables/Torch/torch_crystal.png',
   furnace_front:        'textures/Blocks/Interactables/Furnace/furnace_front.png',
   furnace_front_on:     'textures/Blocks/Interactables/Furnace/furnace_front_lit.png',
   furnace_side:         'textures/Blocks/Interactables/Furnace/furnace_side.png',
@@ -90,11 +103,11 @@ const TEXTURES = {
   cactus_bottom:        'textures/Blocks/Plants/cactus_bottom.png',
   oak_door:             'textures/Blocks/Interactables/Oak_door.png',   // not in the atlas — used by the door mesh + icon
   // bed: also outside the atlas, sampled directly by the bed mesh in 29-bed.js
-  bed_top:              'textures/Blocks/Interactables/white_bed_top.png',    // 128x64, spans both halves
-  bed_long:             'textures/Blocks/Interactables/white_bed_front.png',  // 128x64, the long side
-  bed_end:              'textures/Blocks/Interactables/white_bed_side.png',   // 64x64, head/foot cap
-  bed_leg:              'textures/Blocks/Interactables/bed_leg.png',
-  bed_down:             'textures/Blocks/Interactables/bed_down.png',         // underside of the legs
+  // 0.8342: one grey sheet per part, each tinted on its own (frame by its wood, the bedding by colour); layout in 29
+  bed_frame:            'textures/Blocks/Interactables/Bed/bed_frame.png',
+  bed_blanket:          'textures/Blocks/Interactables/Bed/bed_blanket.png',
+  bed_sheet:            'textures/Blocks/Interactables/Bed/bed_sheet.png',
+  bed_pillow:           'textures/Blocks/Interactables/Bed/bed_pillow.png',
   // chest: also outside the atlas, sampled directly by the chest mesh in 30-chest.js
   chest_top:            'textures/Blocks/Interactables/Chest/chest_top.png',
   chest_bottom:         'textures/Blocks/Interactables/Chest/chest_bottom.png',
@@ -268,13 +281,16 @@ Object.assign(TEXTURES, {
   glow_crystal_block_emissive: 'textures/Blocks/Natures/Overlays/glow_crystal_block_emissive.png',
   glow_vine_emissive:          'textures/Blocks/Plants/Overlays/glow_vine_emissive.png',
   jack_o_lantern_emissive:     'textures/Blocks/Plants/Overlays/jack_o_lantern_emissive.png',   // 0.824
+  torch_fire_emissive:         'textures/Blocks/Interactables/Torch/Overlays/torch_fire_emissive.png',      // 0.8341
+  torch_crystal_emissive:      'textures/Blocks/Interactables/Torch/Overlays/torch_crystal_emissive.png',   // 0.8341
 });
 const EMISSIVE_TILES = {
   glowstone:   'glowstone_emissive',
   glowcrystal: 'glow_crystal_block_emissive',
   glow_vine:   'glow_vine_emissive',
   jack_o_lantern_front: 'jack_o_lantern_emissive',   // 0.824
-  torch:       'auto',
+  torch_fire:    'torch_fire_emissive',      // the flame and its embers (overlays 0.8341; 'auto' in 0.834)
+  torch_crystal: 'torch_crystal_emissive',   // the crystal (0.8341; 'auto_cold' in 0.834)
   furnace_front_on: 'auto',
   mushroom_lava_cap_top: 'auto', mushroom_lava_cap_side: 'auto',
 };

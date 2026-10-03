@@ -58,7 +58,7 @@ const QUESTS = [
     reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 100 },
 ];
 // every quest pays half as much again since 0.8281 (the numbers above are the old ones: 10 -> 15, 100 -> 150)
-const QUEST_XP_MUL = 1.5;
+const QUEST_XP_MUL = 1.5 * 1.5;            // +50% in 0.8281, and again in 0.831
 for (const q of QUESTS) q.xp = Math.round(q.xp * QUEST_XP_MUL);
 
 var questEl = document.getElementById('quest');   // one per split-screen pane (36-splitscreen.js)

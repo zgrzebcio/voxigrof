@@ -173,7 +173,7 @@ function _rebuildHeld(id, variant = 0) {
   }
   // a shield is its own model: the extruded front plus the held-side picture (40-shield.js)
   if (isShield && typeof buildShieldNode === 'function') { target.add(buildShieldNode(id)); return; }
-  if (id === B.TORCH) { wrapHeldTorch(target, passes); return; }
+  if (id < 256 && PROPS[id]?.torch) { wrapHeldTorch(target, passes); return; }   // every torch (0.834)
   for (const { p, geo, mat: mo, node } of passes)
     target.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
 }

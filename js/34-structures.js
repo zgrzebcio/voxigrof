@@ -86,6 +86,7 @@ function isGearLoot(id) {
   const p = id != null && id >= 256 ? ITEM_PROPS[id] : null;
   return !!(p && (p.tool || p.ranged));
 }
+const LOOT_MIN_KINDS = 3;                       // different things a loot chest always holds (0.833)
 function rollLootInto(slots, table) {
   if (!table || !Array.isArray(table.entries)) return 0;
   const entries = table.entries.filter((e) => {
@@ -96,39 +97,37 @@ function rollLootInto(slots, table) {
   const [rMin, rMax] = Array.isArray(table.rolls) ? table.rolls : [1, 3];
   const rolls = _lootRange(Math.max(0, rMin | 0), Math.max(rMin | 0, rMax | 0));
   let placed = 0;
+  const got = new Set();                         // the different things this roll has put in (0.833)
+  const put = (e, id) => {
+    const free = [];
+    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
+    if (!free.length) return false;
+    // a free slot at random rather than front-to-back, so a chest looks looted
+    const at = free[Math.floor(Math.random() * free.length)];
+    slots[at] = mkSlot(id, Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1))));
+    placed++; got.add(id);
+    return true;
+  };
   for (let r = 0; r < rolls; r++) {
     const e = entries[Math.floor(Math.random() * entries.length)];
     if (!e || Math.random() >= (e.chance ?? 1)) continue;
     const id = resolveLootId(e.id);
     if (id == null) continue;
-    // pick a free slot at random rather than filling front-to-back, so a chest looks looted
-    const free = [];
-    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
-    if (!free.length) break;
-    const at = free[Math.floor(Math.random() * free.length)];
-    const n = Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1)));
-    slots[at] = mkSlot(id, n);
-    placed++;
+    if (!put(e, id)) break;
   }
-  /* Never hand back an empty chest (0.7291). Every roll testing its own `chance` means a table
-     with 3-6 rolls at ~35% each lands nothing surprisingly often, and walking a dungeon to open a
-     chest with nothing in it reads as a bug even when the dice were honest. So if the rolls came
-     up empty, take one entry unconditionally — chance ignored, since this IS the failure case. */
-  if (!placed) {
-    const free = [];
-    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
-    // walk from a random start so the guaranteed item is not always the first valid entry
-    // the FILTERED list, same as the rolls — the guarantee must not be a back door for gear
-    const off = Math.floor(Math.random() * entries.length);
-    for (let j = 0; j < entries.length && free.length; j++) {
-      const e = entries[(off + j) % entries.length];
-      const id = e && resolveLootId(e.id);
-      if (id == null) continue;
-      const at = free[Math.floor(Math.random() * free.length)];
-      slots[at] = mkSlot(id, Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1))));
-      placed++;
-      break;
-    }
+  /* Never a near-empty chest. Every roll testing its own `chance` lands little surprisingly often, and a chest with one
+     thing in it reads as a bug even when the dice were honest (0.7291 made sure of one). Since 0.833 a chest holds at
+     least LOOT_MIN_KINDS different things (a table's `minKinds` may say otherwise): entries it has not got yet are added,
+     drawn by their own chance as a weight, so a rare one (a bucket, a gem) stays rare — and from the FILTERED list, so
+     this is never a back door for gear. */
+  const kinds = new Set(entries.map(e => resolveLootId(e.id))).size;
+  const want = Math.min(table.minKinds ?? LOOT_MIN_KINDS, kinds);
+  while (got.size < want) {
+    const left = entries.filter(e => !got.has(resolveLootId(e.id)));
+    if (!left.length) break;
+    let r = Math.random() * left.reduce((n, e) => n + (e.chance ?? 1), 0), e = left[left.length - 1];
+    for (const c of left) { r -= (c.chance ?? 1); if (r <= 0) { e = c; break; } }
+    if (!put(e, resolveLootId(e.id))) break;
   }
   return placed;
 }
@@ -170,14 +169,19 @@ function fillPendingLoot(x, y, z, slots) {
   const rec = PENDING_LOOT.get(k);
   if (!rec) return false;
   PENDING_LOOT.delete(k);
-  const table = resolveLootTable(STRUCTURES.get(rec.struct), rec.table);
+  const prefab = STRUCTURES.get(rec.struct), table = resolveLootTable(prefab, rec.table);
   rollLootInto(slots, table);
   /* Treasure Nose (0.79): one chest in four holds one item more. Chance ignored on the extra roll,
      the same way the empty-chest guarantee below ignores it — "one more" should mean one more. */
   if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < 0.25) rollLootExtra(slots, table);
-  awardLootXP(table);                    // finding the chest is the achievement, not its contents
+  awardLootXP(table, lootXpMul(prefab)); // finding the chest is the achievement, not its contents
   return true;
 }
+/* What a loot chest's XP is multiplied by (0.833): twice its table's for any, three times in a desert village, and a
+   prefab's own `lootXpMul` over both (the igloo's is 4). */
+const LOOT_XP_MUL = 2, LOOT_XP_MUL_GROUP = { desert_village: 3 };
+const lootXpMul = (prefab) => !prefab ? LOOT_XP_MUL
+  : prefab.lootXpMul > 0 ? prefab.lootXpMul : (LOOT_XP_MUL_GROUP[_groupOf(prefab)] ?? LOOT_XP_MUL);
 function serializePendingLoot() {
   return [...PENDING_LOOT].map(([k, v]) => [k, v.table, v.struct]);
 }
@@ -518,7 +522,7 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     if (id === B.CHEST) registerChest(x, y, z, variant & 3);
     if (id === B.DOOR && !((variant >> 3) & 1))
       registerDoor(x, y, z, variant & 3, !!(variant & 4), !!(variant & DOOR_HINGE_R));
-    if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3);
+    if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342
   }
   return end;
 }

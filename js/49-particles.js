@@ -51,13 +51,15 @@ const _rnd = (a, b) => a + Math.random() * (b - a);
 // per-particle behaviour bits. HANG: no gravity until `phase` seconds old (a drip gathering).
 // POP: dies the moment it lands instead of lying there.
 const FX_COLLIDE = 1, FX_REST = 2, FX_FADEIN = 4, FX_IN_WATER = 8, FX_DIE_IN_FLUID = 16, FX_BOUNCE = 32,
-      FX_HANG = 64, FX_POP = 128, FX_FLAP = 256;   // FLAP: swaps between the two butterfly frames (0.803)
+      FX_HANG = 64, FX_POP = 128, FX_FLAP = 256,   // FLAP: swaps between the two butterfly frames (0.803)
+      FX_RAIN = 512;                               // RAIN: a raindrop, which splashes where it lands (_fxRainLand, 0.83)
 
 /* ---------------------------------- the sprite sheet ----------------------------------
    8x8 cells of 16 px, drawn in white and greys so the per-particle colour tints them. Pixel art to sit
    with the block textures; nearest filtering keeps it crisp. */
 const FXS = { SMOKE_L: 0, SMOKE_M: 1, SMOKE_S: 2, SPARK: 3, STAR: 4, HEART: 5, Z: 6, DROP: 7,
-              BUBBLE: 8, FLAME: 9, DUST: 10, BOOT: 11, HOOF: 12, EMBER: 13, BUTTERFLY: 14, BUTTERFLY2: 15 };
+              BUBBLE: 8, FLAME: 9, DUST: 10, BOOT: 11, HOOF: 12, EMBER: 13, BUTTERFLY: 14, BUTTERFLY2: 15,
+              RAIN: 16, FLAKE: 17, PUDDLE: 18, RING: 19 };   // the weather (0.83)
 const _fxSheet = (() => {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -103,6 +105,15 @@ const _fxSheet = (() => {
   // a butterfly, wings open and wings half closed: the two frames it flaps between (0.803)
   map(FXS.BUTTERFLY,  ['XX...XX', 'XXX.XXX', 'XoX#XoX', '.XX#XX.', '.oX#Xo.', 'XX.#.XX', 'X.....X']);
   map(FXS.BUTTERFLY2, ['.X...X.', '.XX.XX.', '.oX#Xo.', '..X#X..', '..X#X..', '.X.#.X.']);
+  // the weather (0.83): a falling streak of rain, a snowflake, a puddle (a decal) and a ripple ring on water
+  map(FXS.RAIN, [':', 'o', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'o', ':']);
+  map(FXS.FLAKE, ['..o..', '.oXo.', 'oXXXo', '.oXo.', '..o..']);
+  map(FXS.PUDDLE, ['...XXXXXX.....', '.XXXXXXXXXXX..', 'XXXXXXXXXXXXX.', 'XXXXXXXXXXXXXX',
+                   '.XXXXXXXXXXXXX', '..XXXXXXXXXXX.', '....XXXXXXX...']);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    if (d > 5.4 && d < 6.9) px(FXS.RING, x, y, 1);
+  }
   const tex = new THREE.CanvasTexture(c);          // default colour space: raw, like the atlas
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
@@ -265,7 +276,7 @@ class FxPool {
         if (f & FX_COLLIDE) {
           const bx = Math.floor(nx), bz = Math.floor(nz);
           if (vy < 0 && _fxSolid(bx, Math.floor(ny - 0.03), bz)) {
-            if (f & FX_POP) { this.kill(i); continue; }
+            if (f & FX_POP) { if (f & FX_RAIN) _fxRainLand(nx, ny, nz, false); this.kill(i); continue; }
             ny = Math.floor(ny - 0.03) + 1.03;
             if ((f & FX_BOUNCE) && vy < -2) vy *= -0.3;
             else { vy = 0; f |= FX_REST; this.flags[i] = f; }
@@ -274,7 +285,10 @@ class FxPool {
         }
         if (f & (FX_IN_WATER | FX_DIE_IN_FLUID)) {
           const inW = _fxFluidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz));
-          if (((f & FX_IN_WATER) && !inW) || ((f & FX_DIE_IN_FLUID) && inW && vy < 0)) { this.kill(i); continue; }
+          if (((f & FX_IN_WATER) && !inW) || ((f & FX_DIE_IN_FLUID) && inW && vy < 0)) {
+            if ((f & FX_RAIN) && inW) _fxRainLand(nx, ny, nz, true);   // a ring on the water (0.83)
+            this.kill(i); continue;
+          }
         }
         x = nx; y = ny; z = nz;
         this.x[i] = x; this.y[i] = y; this.z[i] = z; this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz;
@@ -382,15 +396,29 @@ const FX = {
   decals:  new FxDecals(FX_LOW ? 64 : 160),
   // what the first-person hand holds: a torch's flame, a gem's glint, crumbs while eating (0.801)
   hand:    new FxPool(FX_LOW ? 80 : 160, false, () => _fxSheet, handScene, true),
+  // rain and snow round each player, their own pool so a downpour never starves the rest (0.83)
+  weather: new FxPool(FX_LOW ? 900 : 2600, false, () => _fxSheet),
+  puddles: new FxDecals(FX_LOW ? 48 : 128),       // ...and where it lands: puddles, rings on water
 };
 
 /* ---------------------------------- helpers ---------------------------------- */
+/* getBlock for the pools' collision, keeping the last chunk it looked in (0.83): rain and snow are thousands of
+   particles each testing the block under them every frame. Forgotten at the start of every frame (_fxBlockReset),
+   so a chunk loaded or unloaded between frames is never read stale. */
+let _fxCx = 1e9, _fxCz = 1e9, _fxData = null;
+const _fxBlockReset = () => { _fxCx = _fxCz = 1e9; _fxData = null; };
+function _fxBlock(x, y, z) {
+  if (y < 0 || y > 199) return 0;
+  const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+  if (cx !== _fxCx || cz !== _fxCz) { const c = getChunk(cx, cz); _fxCx = cx; _fxCz = cz; _fxData = c && c.data; }
+  return _fxData ? _fxData[(x & 15) + ((z & 15) << 4) + (y << 8)] : 0;
+}
 function _fxSolid(x, y, z) {
-  const v = getBlock(x, y, z);
+  const v = _fxBlock(x, y, z);
   return v !== 0 && (CORE.solidVal(v) || !!PROPS[v & 255]?.opaque);
 }
 function _fxFluidAt(x, y, z) {
-  const id = getBlock(x, y, z) & 255;
+  const id = _fxBlock(x, y, z) & 255;
   return id === B.WATER || id === B.LAVA;
 }
 function _fxNear(x, y, z) {
@@ -757,6 +785,7 @@ for (const [col, ...ids] of [
   [[0.5, 0.65, 1],   ITEM.SAPPHIRE, B.SAPPHIRE_ORE, B.SAPPHIRE_CLUSTER_STONE],
   [[1, 0.82, 0.4],   ITEM.TOPAZ,    B.TOPAZ_ORE,    B.TOPAZ_CLUSTER_STONE],
 ]) for (const id of ids) if (id != null) _FX_GEM[id] = col;
+const _FX_CRYSTAL = [0.55, 0.85, 1];                 // the crystal torch's glint (0.834)
 function _fxGlint(pool, x, y, z, col, size, life = 0.55) {
   const i = pool.add(x, y, z, life);
   if (i < 0) return -1;
@@ -771,12 +800,12 @@ function _fxGlint(pool, x, y, z, col, size, life = 0.55) {
    the hand; very small and faint by design. */
 function _fxHeldOne(dt, grp, id, own, key, tipY) {
   if (id == null || !grp || !grp.parent) return;
-  const torch = id === B.TORCH, gem = _FX_GEM[id];
-  if (!torch && !gem) return;
+  const torch = id === B.TORCH, crystal = id === B.CRYSTAL_TORCH, gem = _FX_GEM[id];
+  if (!torch && !crystal && !gem) return;
   const k = '_fxHeldT' + key;
   player[k] = (player[k] || 0) - dt;
   if (player[k] > 0) return;
-  player[k] = torch ? 0.1 / Math.max(0.4, _fxScale) : 0.5;
+  player[k] = torch ? 0.1 / Math.max(0.4, _fxScale) : crystal ? 0.35 : 0.5;
   grp.updateWorldMatrix(true, false);
   const H = FX.hand;
   if (torch) {
@@ -793,6 +822,11 @@ function _fxHeldOne(dt, grp, id, own, key, tipY) {
       H.color(i, 1, _rnd(0.6, 0.85), 0.2);
       H.s0[i] = 0.014; H.s1[i] = 0.004; H.vx[i] = _rnd(-0.06, 0.06); H.vy[i] = _rnd(0.15, 0.3); H.fade[i] = 0.4; H.own[i] = own;
     }
+  } else if (crystal) {
+    // a crystal torch has no flame: its crystal glints blue now and then (0.834)
+    _fxV.set(_rnd(-0.03, 0.03), tipY + _rnd(-0.03, 0.04), _rnd(-0.03, 0.03)); grp.localToWorld(_fxV);
+    const i = _fxGlint(H, _fxV.x, _fxV.y, _fxV.z, _FX_CRYSTAL, 0.035);
+    if (i >= 0) H.own[i] = own;
   } else if (id < 256) {
     /* a held gem CLUSTER (0.804): a solid model, so a glint inside it was hidden by its own faces. It
        sparkles on its surface instead, a little proud of it, a bit more often than a loose gem */
@@ -951,11 +985,16 @@ function _fxTorches(dt, live) {
     const py = p.pos.y;
     forEachGlowNear(p.pos.x, p.pos.z, 20, (x, y, z) => {
       if (Math.abs(y - py) > 16) return;
-      const v = getBlock(x, y, z);
-      if ((v & 255) !== B.TORCH) return;
+      const v = getBlock(x, y, z), id = v & 255;
+      if (id !== B.TORCH && id !== B.CRYSTAL_TORCH) return;
       const d = _FX_TORCH_DIR[(v >> 8) & 7];
       // the tip: an upright stick is 40/64 tall; a wall one leans in from its wall (see emitTorch in 02)
       const tx = x + 0.5 - (d ? d[0] * 0.24 : 0), ty = y + (d ? 0.84 : 0.66), tz = z + 0.5 - (d ? d[1] * 0.24 : 0);
+      // a crystal torch does not burn: its crystal glints blue now and then (0.834)
+      if (id === B.CRYSTAL_TORCH) {
+        if (Math.random() < dt * 0.9 * k) _fxGlint(FX.sprites, tx + _rnd(-0.05, 0.05), ty + _rnd(-0.06, 0.04), tz + _rnd(-0.05, 0.05), _FX_CRYSTAL, 0.06);
+        return;
+      }
       const r = Math.random();
       if (r < dt * 2.4 * k) _fxFlame(tx + _rnd(-0.02, 0.02), ty, tz + _rnd(-0.02, 0.02), 0.35, 0.09);
       else if (r < dt * 3.1 * k) _fxEmber(tx, ty + 0.03, tz, _rnd(-0.2, 0.2), _rnd(0.6, 1.2), _rnd(-0.2, 0.2));
@@ -1315,9 +1354,95 @@ function _fxSandstorm(p, dt) {
     S.grav[i] = 0.3; S.drag[i] = 0; S.flags[i] = FX_FADEIN;
   }
 }
+/* RAIN AND SNOW (0.83): what falls round each player (precipAt in 51-seasons.js), eased in and out over a few seconds
+   like the sand. More, faster and longer streaks the harder it rains; snow drifts down with a sway, and a blizzard
+   drives it sideways with the wind. A drop or flake is only made where the sky is open above it, so none fall under a
+   roof, a canopy or in a cave, and each dies on what it hits: rain leaves the odd puddle on the ground, or a ring and a
+   splash on water (_fxRainLand). Nothing falls above the clouds. */
+const FX_RAIN_PER_S = 900, FX_SNOW_PER_S = 240, FX_BLIZZARD_PER_S = 700;   // at full strength, before the particle setting
+const FX_PUDDLE_CHANCE = 0.03, FX_SPLASH_CHANCE = 0.12, FX_RING_CHANCE = 0.45;
+function _fxWeather(p, dt) {
+  const ey = p.pos.y + (p.EYE || 1.62);
+  p._fxWxT = (p._fxWxT || 0) - dt;
+  if (p._fxWxT <= 0) {                        // looked at twice a second
+    p._fxWxT = 0.5;
+    const pr = typeof precipAt === 'function' ? precipAt(p.pos.x, p.pos.z, ey) : null;
+    p._fxRainAim = pr ? pr.rain : 0; p._fxSnowAim = pr ? pr.snow : 0; p._fxBlizAim = pr ? pr.blizzard : 0;
+    if (pr && (pr.rain > 0 || pr.snow > 0)) {
+      const w = weatherAt(p.pos.x, p.pos.z, ey), v = windVector(w.dir);
+      p._fxWxWind = [v[0], v[1], w.speed / 3.6];                 // blocks a second
+    }
+  }
+  const k = 1 - Math.exp(-dt / 5);
+  p._fxRain = (p._fxRain || 0) + ((p._fxRainAim || 0) - (p._fxRain || 0)) * k;
+  p._fxSnow = (p._fxSnow || 0) + ((p._fxSnowAim || 0) - (p._fxSnow || 0)) * k;
+  p._fxBliz = (p._fxBliz || 0) + ((p._fxBlizAim || 0) - (p._fxBliz || 0)) * k;
+  if (!p._fxWxWind || (p._fxRain < 0.01 && p._fxSnow < 0.01)) { p._fxRainAcc = p._fxSnowAcc = 0; return; }
+  const [wx, wz, ws] = p._fxWxWind, open = (x, y, z) => getSkyWorld(Math.floor(x), Math.floor(y), Math.floor(z)) >= 15;
+  // rain: faster, bigger and thicker as it gets heavier
+  const r = p._fxRain;
+  p._fxRainAcc = Math.min(60, (p._fxRainAcc || 0) + FX_RAIN_PER_S * r * _fxScale * dt);
+  const fall = 13 + 9 * r, push = ws * 0.35;
+  while (p._fxRainAcc >= 1) {
+    p._fxRainAcc -= 1;
+    const x = p.pos.x + _rnd(-14, 14) - wx * push * 0.5, y = ey + _rnd(-2, 14), z = p.pos.z + _rnd(-14, 14) - wz * push * 0.5;
+    if (!open(x, y, z)) continue;
+    const i = FX.weather.add(x, y, z, 1.8);
+    if (i < 0) break;
+    const W = FX.weather, L = _fxLight(x, y, z), s = 0.34 + 0.2 * r;
+    W.setRect(i, ..._R.RAIN);
+    W.s0[i] = W.s1[i] = s * _rnd(0.85, 1.15);
+    W.color(i, 0.62 * L, 0.7 * L, 0.84 * L, 0.42 + 0.2 * r);
+    W.vx[i] = wx * push; W.vz[i] = wz * push; W.vy[i] = -fall * _rnd(0.9, 1.1);
+    W.fade[i] = 0; W.flags[i] = FX_COLLIDE | FX_POP | FX_DIE_IN_FLUID | FX_RAIN;
+  }
+  // snow: drifting flakes, or a blizzard's driven ones
+  const sn = p._fxSnow, bz = p._fxBliz;
+  p._fxSnowAcc = Math.min(60, (p._fxSnowAcc || 0) + (FX_SNOW_PER_S * sn + FX_BLIZZARD_PER_S * bz) * _fxScale * dt);
+  const side = ws * (0.2 + 0.6 * bz);
+  while (p._fxSnowAcc >= 1) {
+    p._fxSnowAcc -= 1;
+    const x = p.pos.x + _rnd(-12, 12) - wx * side * 1.2, y = ey + _rnd(-3, 9), z = p.pos.z + _rnd(-12, 12) - wz * side * 1.2;
+    if (!open(x, y, z)) continue;
+    const i = FX.weather.add(x, y, z, bz > 0.5 ? _rnd(2.2, 3.2) : _rnd(4.5, 6.5));
+    if (i < 0) break;
+    const W = FX.weather, L = _fxLight(x, y, z);
+    W.setRect(i, ..._R.FLAKE);
+    W.s0[i] = W.s1[i] = _rnd(0.22, 0.36);
+    W.color(i, 0.95 * L, 0.97 * L, L, 0.9);
+    W.vx[i] = wx * side * _rnd(0.8, 1.2); W.vz[i] = wz * side * _rnd(0.8, 1.2); W.vy[i] = -_rnd(1, 1.7) * (1 + bz);
+    W.sway[i] = 0.5 * (1 - bz) + 0.1;
+    W.fade[i] = 0.25; W.flags[i] = FX_COLLIDE | FX_DIE_IN_FLUID | FX_FADEIN;
+  }
+}
+// a raindrop has hit something: now and then a puddle on open ground, a ring and a splash on water
+function _fxRainLand(x, y, z, water) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  if (water) {
+    const sy = _fxSurface(x, y, z), L = _fxLight(x, sy + 0.3, z);
+    if (Math.random() < FX_RING_CHANCE) {
+      const s = _rnd(0.25, 0.55);
+      FX.puddles.add(x, sy + 0.012, z, 1, 0, s, s, FXS.RING, 0.85 * L, 0.92 * L, L, 0.5, _rnd(0.45, 0.8));
+    }
+    if (Math.random() < FX_SPLASH_CHANCE * 2) _fxDrop(x, sy + 0.03, z, _rnd(-0.7, 0.7), _rnd(1.4, 2.6), _rnd(-0.7, 0.7), L, 0.4);
+    return;
+  }
+  const gy = Math.floor(y - 0.03) + 1;                          // the top of what it hit
+  if (getBlock(bx, gy, bz)) return;                             // a plant, a carpet, snow: nothing to see
+  const hit = getBlock(bx, gy - 1, bz);
+  if (!PROPS[hit & 255]?.opaque || CORE.shapeOfVal(hit)) return; // leaves, glass, a slab: no puddle
+  const L = _fxLight(x, gy + 0.3, z);
+  if (Math.random() < FX_PUDDLE_CHANCE) {
+    const a = Math.random() * 6.283, w = _rnd(0.35, 0.8);
+    FX.puddles.add(x, gy + 0.004, z, Math.cos(a), Math.sin(a), w, w * _rnd(0.6, 0.9), FXS.PUDDLE,
+                   0.42 * L, 0.5 * L, 0.62 * L, 0.32, _rnd(5, 9));
+  }
+  if (Math.random() < FX_SPLASH_CHANCE) _fxDrop(x, gy + 0.03, z, _rnd(-0.6, 0.6), _rnd(1, 1.8), _rnd(-0.6, 0.6), L, 0.3);
+}
 function updateParticles(dt) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   _fxBudget = FX_SPAWN_BUDGET;
+  _fxBlockReset();                            // 0.83
   if (_fxScale > 0) {
     _fxAmbient(dt);
     let live = 0;
@@ -1334,6 +1459,7 @@ function updateParticles(dt) {
       if (!p.flying) _fxBodyInFluid(p, p.pos.x, p.pos.y, p.pos.z, p.vy || 0, dt, p.pos.y + (p.EYE || 1.62));
       _fxEffects(p, dt);                      // 0.803
       _fxSandstorm(p, dt);                    // 0.825
+      _fxWeather(p, dt);                      // rain and snow (0.83)
     }
     // creatures near a player splash too
     if (typeof ENTITIES !== 'undefined')
@@ -1349,8 +1475,10 @@ function updateParticles(dt) {
   FX.sprites.update(dt);
   FX.decals.update(dt);
   FX.hand.update(dt);
+  FX.weather.update(dt);                      // 0.83
+  FX.puddles.update(dt);
 }
-function fxClear() { FX.bits.clear(); FX.sprites.clear(); FX.decals.clear(); FX.hand.clear(); }
+function fxClear() { FX.bits.clear(); FX.sprites.clear(); FX.decals.clear(); FX.hand.clear(); FX.weather.clear(); FX.puddles.clear(); }
 
 /* ---------------------------------- the setting ---------------------------------- */
 const fxSel = document.getElementById('fxSel');

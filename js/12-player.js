@@ -17,9 +17,9 @@ var player = {
   canFly: true,                             // false in survival mode
   // vitals out of 100 since 0.82 (54-stats-effects.js); saturation is food's over-stat, the other
   // over-stats are thirstO, energyO, fruitO, vegO, proteinO (0..50); temp is °C, null until measured
-  hp: 100, food: 100, saturation: 0, thirst: 100, stamina: 100, energy: 100, fruit: 100, veg: 100, protein: 100,
+  hp: 100, food: 100, saturation: 0, thirst: 100, stamina: 200, energy: 100, fruit: 100, veg: 100, protein: 100,   // stamina 200 (0.831)
   thirstO: 0, energyO: 0, fruitO: 0, vegO: 0, proteinO: 0, staminaO: 0, temp: null,   // staminaO 0.821
-  air: 100,                                 // oxygen — drains underwater, drowning at 0
+  air: 200,                                 // oxygen — drains underwater, drowning at 0 (200 since 0.831)
   fallStart: null, prevOnGround: true,      // fall-height tracker + jump edge detection
   spawned: false,
   spawnPos: null,                           // first-spawn point — respawn target after death

@@ -16,7 +16,8 @@
    Every cell's turn is a hash of its position, compared against how far through the season the world is.
    That makes a chunk far away catch up exactly on its next visit: it simply finds the state it should be in.
 
-   WEATHER is text for now (the visuals come later). The world is split into WEATHER_REGION x WEATHER_REGION
+   WEATHER (rain and snow on screen and on the ground since 0.83: precipAt below, _fxWeather in 49, the fog in 52).
+   The world is split into WEATHER_REGION x WEATHER_REGION
    chunk regions; each runs its own weather in stretches of 6 to 24 in-game hours, drawn from a hash of the
    region and the time, weighted by season and by the region's biome. What comes next is known 12 hours
    ahead (weatherHere().next), for the clouds that will one day roll in first.
@@ -67,24 +68,27 @@ function sHash(a, b, c, d) {
 }
 
 /* ================================== weather ================================== */
-const WEATHER_TYPES = ['clear', 'sunny', 'cloudy', 'windy', 'rainy', 'darky', 'storm', 'foggy'];
+const WEATHER_TYPES = ['clear', 'sunny', 'cloudy', 'windy', 'rainy', 'darky', 'storm', 'foggy', 'blizzard'];   // blizzard 0.83
 /* The weather by season (0.8241): fair skies — clear, sunny, cloudy — are the usual thing all year, and every other
    weather is rare, each season leaning its own way. Spring: rain, fog and dark skies. Summer: sun above all, then
    storms (thunder), rain and strong wind (a sandstorm in a desert). Autumn: rain, dark skies, storms (the most hail,
    HAIL_BY_SEASON), wind and fog. Winter: cloud, and rain that falls as snow (weatherName). Sunny and clear days give
    heatstroke (0.825, 54-stats-effects.js); a desert's strong wind is a sandstorm (sandstormAt).
-   Each row is out of 100, in WEATHER_TYPES order. */
+   Each row is out of 100, in WEATHER_TYPES order.
+   BLIZZARD (0.83): a cold region's own — the colder (regionCold) the more often, most in winter and autumn — and
+   rare anywhere else in winter (never in a desert). Wind, white-out fog, heavy snow that piles up, bitter cold. */
 const WEATHER_BY_SEASON = [
-  //  clear sunny cloudy windy rainy darky storm foggy
-  [    24,   18,   26,    3,   10,    7,    2,   10 ],   // spring
-  [    24,   40,   14,    5,    6,    2,    8,    1 ],   // summer
-  [    20,   12,   28,    6,   12,    9,    6,    7 ],   // autumn
-  [    22,   10,   36,    4,   16,    5,    1,    6 ],   // winter
+  //  clear sunny cloudy windy rainy darky storm foggy blizzard
+  [    24,   18,   26,    3,   10,    7,    2,   10,   0 ],   // spring
+  [    24,   40,   14,    5,    6,    2,    8,    1,   0 ],   // summer
+  [    20,   12,   28,    6,   12,    9,    6,    7,   0 ],   // autumn
+  [    22,   10,   36,    4,   16,    5,    1,    6,   1 ],   // winter
 ];
+const BLIZZARD_COLD = [6, 2, 8, 14];            // added in a region by season, times its cold to the 1.5 (0.83)
 /* Wind speed range per weather, km/h (scaled down in 0.8121): under 10 is a light breeze, about 30 an ordinary
    windy day, past 60 very strong — only a storm (or a storm high over the sea) gets there. */
 const WIND_RANGE = { clear: [5, 15], sunny: [0, 8], cloudy: [8, 20], windy: [25, 42], rainy: [12, 30],
-                     darky: [10, 25], storm: [45, 65], foggy: [0, 6] };
+                     darky: [10, 25], storm: [45, 65], foggy: [0, 6], blizzard: [40, 60] };
 const OCEAN_WIND = 1.3;                          // open sea: nothing in the wind's way, 30% stronger (0.8121)
 // a region's biome, read once at its centre: 'warm' (deserts), 'snow', 'ocean' (0.8121), or ''
 const _regionKind = new Map();
@@ -95,6 +99,20 @@ function regionKind(rx, rz) {
     const b = typeof mainGen !== 'undefined' && mainGen ? mainGen.biomeAt(rx * REGION_BLOCKS + REGION_BLOCKS / 2, rz * REGION_BLOCKS + REGION_BLOCKS / 2) : '';
     v = /Desert|Red Sand/.test(b) ? 'warm' : /Snow/.test(b) ? 'snow' : /Ocean/.test(b) ? 'ocean' : '';
     _regionKind.set(k, v);
+  }
+  return v;
+}
+/* How cold a region is, 0..1, read once at its centre (0.83): on the climate ladder its air from 0°C down to -24°C
+   (deep snow 1, snow about 0.67, cold plains 0.3), on older worlds its snow cover. Blizzards follow it. */
+const _regionCold = new Map();
+function regionCold(rx, rz) {
+  const k = rx + ',' + rz;
+  let v = _regionCold.get(k);
+  if (v == null) {
+    const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climateAt
+      ? mainGen.climateAt(rx * REGION_BLOCKS + REGION_BLOCKS / 2, rz * REGION_BLOCKS + REGION_BLOCKS / 2) : null;
+    v = !c ? 0 : c.air != null ? Math.max(0, Math.min(1, -c.air / 24)) : Math.min(1, c.snow || 0);
+    _regionCold.set(k, v);
   }
   return v;
 }
@@ -115,18 +133,28 @@ function _pickWeather(rx, rz, start) {
   const season = gameDate(start / 24).season, kind = regionKind(rx, rz);
   const w = WEATHER_TYPES.map((t, i) => {
     let v = WEATHER_BY_SEASON[season][i];
-    if (kind === 'warm') v *= { sunny: 3, rainy: 0.2, windy: 1.5, foggy: 0.2, cloudy: 0.6 }[t] || 1;
+    if (kind === 'warm') v *= { sunny: 3, rainy: 0.2, windy: 1.5, foggy: 0.2, cloudy: 0.6, blizzard: 0 }[t] ?? 1;
     if (kind === 'snow') v *= { sunny: 0.5, rainy: 1.3 }[t] || 1;
+    if (t === 'blizzard' && kind !== 'warm') v += BLIZZARD_COLD[season] * Math.pow(regionCold(rx, rz), 1.5);   // 0.83
     return v;
   });
   let r = sHash(rx, rz, Math.floor(start), 99) * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return WEATHER_TYPES[i]; }
   return 'clear';
 }
-// what a weather is called where it falls: rain is snow in a snow biome, strong wind is a sandstorm in a desert
-// ...and in winter rain is snow anywhere but a desert (0.8241; `season` 0-3, the weather's own)
-function weatherName(type, kind, season = -1) {
-  if (type === 'rainy' && (kind === 'snow' || (season === 3 && kind !== 'warm'))) return 'snowy';
+/* Does a stretch's rain fall as snow (0.83)? Always in a snow region; in winter 95% of the time anywhere but a
+   desert (PRECIP_WINTER_SNOW, rolled once a stretch; every winter rain was snow from 0.8241). */
+const PRECIP_WINTER_SNOW = 0.95;
+function _snowsIn(rx, rz, start) {
+  const kind = regionKind(rx, rz);
+  if (kind === 'snow') return true;
+  return kind !== 'warm' && gameDate(start / 24).season === 3 && sHash(rx, rz, Math.floor(start), 61) < PRECIP_WINTER_SNOW;
+}
+// what a weather is called where it falls: rain that falls as snow is snowy (a storm a snowstorm), strong wind is a
+// sandstorm in a desert (`snows`: _snowsIn of its stretch, 0.83)
+function weatherName(type, kind, snows = false) {
+  if (type === 'rainy' && snows) return 'snowy';
+  if (type === 'storm' && snows) return 'snowstorm';
   if (type === 'windy' && kind === 'warm') return 'sandstorm';
   return type;
 }
@@ -145,8 +173,9 @@ function _regionWeather(rx, rz, H) {
   const speed = Math.max(0, base * (0.85 + 0.15 * Math.sin(H * 2.1 + rx) + 0.1 * Math.sin(H * 5.3 + rz)))
               * (kind === 'ocean' ? OCEAN_WIND : 1);
   const dir = ((sHash(rx, rz, Math.floor(H / 24), 11) * 360 + 40 * Math.sin(H * 0.3 + rz)) % 360 + 360) % 360;
-  const season = gameDate(s.start / 24).season;            // for its name (0.8241)
-  return { type, kind, season, next, nextIn: next ? Math.max(0, Math.ceil(s.end - H)) : null, speed, dir };
+  // rain or snow, for its name (0.83; the season until then)
+  const snows = _snowsIn(rx, rz, s.start), nextSnows = next ? _snowsIn(rx, rz, s.end) : false;
+  return { type, kind, snows, nextSnows, next, nextIn: next ? Math.max(0, Math.ceil(s.end - H)) : null, speed, dir };
 }
 const _smooth = (t) => t * t * (3 - 2 * t);
 /* BLENDED between regions (0.813). A position takes the four region centres around it, weighted by how near
@@ -173,7 +202,7 @@ function weatherAt(x, z, y = null, aheadH = 0) {
   for (const t in mix) if (mix[t] > best) { best = mix[t]; type = t; }
   // direction from the blended vector; where the winds cancel out, the leading region's
   const dir = Math.hypot(vx, vz) > 0.5 ? ((Math.atan2(vx, -vz) * 180 / Math.PI) + 360) % 360 : lead.dir;
-  return { type, name: weatherName(type, lead.kind, lead.season), mix, next: lead.next, nextName: lead.next && weatherName(lead.next, lead.kind, lead.season),
+  return { type, name: weatherName(type, lead.kind, lead.snows), mix, next: lead.next, nextName: lead.next && weatherName(lead.next, lead.kind, lead.nextSnows),
            nextIn: lead.nextIn, speed: spd + (y == null ? 0 : windHeightBonus(y)), dir };
 }
 // the wind as a unit vector in the world (x east, z south): heading 0 is north (-z)
@@ -309,6 +338,103 @@ function hailAt(x, z) {
   return hail;
 }
 
+/* RAIN AND SNOW (0.83): how much falls at a world position, { rain, snow, blizzard } each 0..1, blended between region
+   centres like hailAt: a region's share times its stretch's strength. A rainy stretch is light to heavy (rolled once),
+   a storm heavy, a blizzard full and all snow. Rain falls as snow where _snowsIn says, and with `y` given, snow too up
+   within PRECIP_SNOWLINE of the snowline; above the cloud layer nothing falls. Read by the particles (_fxWeather, 49),
+   the fog (applyMist, 52) and the ground (updateWeatherGround below). */
+const PRECIP_SNOWLINE = 6;
+function _regionPrecip(rx, rz, H) {
+  const s = _weatherStretch(rx, rz, H), type = _pickWeather(rx, rz, s.start);
+  if (type !== 'rainy' && type !== 'storm' && type !== 'blizzard') return null;
+  const k = Math.floor(s.start);
+  const amt = type === 'blizzard' ? 1 : type === 'storm' ? 0.85 + 0.15 * sHash(rx, rz, k, 63) : 0.3 + 0.7 * sHash(rx, rz, k, 63);
+  return { amt, snow: type === 'blizzard' || _snowsIn(rx, rz, s.start), blizzard: type === 'blizzard' };
+}
+function precipAt(x, z, y = null) {
+  const out = { rain: 0, snow: 0, blizzard: 0 };
+  if (_titleCalm()) return out;
+  if (y != null && typeof cloudsBelow === 'function' && cloudsBelow(y) >= 1) return out;
+  const H = worldClockDays() * 24;
+  const u = x / REGION_BLOCKS - 0.5, v = z / REGION_BLOCKS - 0.5;
+  const i0 = Math.floor(u), j0 = Math.floor(v), fu = _smooth(u - i0), fv = _smooth(v - j0);
+  for (const [di, dj, wgt] of [[0, 0, (1 - fu) * (1 - fv)], [1, 0, fu * (1 - fv)], [0, 1, (1 - fu) * fv], [1, 1, fu * fv]]) {
+    if (wgt <= 0) continue;
+    const r = _regionPrecip(i0 + di, j0 + dj, H);
+    if (!r) continue;
+    if (r.snow) out.snow += r.amt * wgt; else out.rain += r.amt * wgt;
+    if (r.blizzard) out.blizzard += wgt;
+  }
+  if (y != null && out.rain > 0 && y >= snowlineY(x, z) - PRECIP_SNOWLINE) { out.snow += out.rain; out.rain = 0; }
+  return out;
+}
+
+/* WEATHER ON THE GROUND (0.83). Every WXG_TICK seconds, round one seat (sweepOriginPlayer), a few random columns
+   whose top is under the open sky:
+     - rain washes the top layer of snow, ash or salt off (WXG_RAIN_MELT, by how hard it falls);
+     - falling snow lays a layer on open solid ground or tops up a drift, to WXG_SNOW_MAX layers (WXG_BLIZZARD_MAX in
+       a blizzard, which lays it three times as fast);
+     - a dry sandy shore beside the sea grows a crust of salt, very slowly (WXG_SALT), up to WXG_SALT_MAX layers.
+   Chances are per sampled column, times the world's tick speed; a column is sampled about every 200 s, so at full
+   strength rain takes a layer every ~4 min, snow lays one every ~6 min (a blizzard ~2), salt every ~6 h. */
+const WXG_TICK = 1, WXG_TRIES = 16, WXG_R = 28;
+const WXG_RAIN_MELT = 0.8, WXG_SNOW_LAY = 0.6, WXG_SNOW_MAX = 3, WXG_BLIZZARD_MAX = 6;
+const WXG_SALT = 0.01, WXG_SALT_MAX = 2;
+const _WXG_WASHED = new Set([B.SNOW, B.ASH, B.SALT_CRUST]);
+const _WXG_SAND = new Set([B.SAND, B.RED_SAND, B.PINK_SAND]);
+let _wxgT = 0;
+// the top cell of a column near height y0, if open to the sky: its y, else null
+function _openTop(x, z, y0) {
+  for (let y = Math.min(198, y0 + 24), lo = Math.max(1, y0 - 24); y >= lo; y--) {
+    if (!getBlock(x, y, z)) continue;
+    return getSkyWorld(x, y + 1, z) >= 15 ? y : null;
+  }
+  return null;
+}
+function _laySnow(x, y, z, v, ids, max) {
+  if (ids) { if (ids.length < Math.min(max, LAYER_MAX - 1)) setLayerStack(x, y, z, [...ids, B.SNOW]); return; }
+  if (y >= 198 || !CORE.solidVal(v) || CORE.shapeOfVal(v) || !PROPS[v & 255]?.opaque) return;   // whole, solid, opaque tops only
+  if (!getBlock(x, y + 1, z)) setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1));
+}
+function _laySalt(x, y, z, v, ids) {
+  let ground = y;
+  if (ids) { if (ids.length >= WXG_SALT_MAX || ids.some(b => b !== B.SALT_CRUST)) return; ground = y - 1; }
+  if (!_WXG_SAND.has(getBlock(x, ground, z) & 255) || Math.abs(ground - WATER_Y) > 1) return;   // a beach, at the sea
+  let sea = false;
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+    if ((getBlock(x + dx, ground, z + dz) & 255) === B.WATER || (getBlock(x + dx, ground + 1, z + dz) & 255) === B.WATER) { sea = true; break; }
+  if (!sea) return;
+  if (ids) setLayerStack(x, y, z, [...ids, B.SALT_CRUST]);
+  else if (!getBlock(x, y + 1, z)) setBlock(x, y + 1, z, CORE.layerVal(B.SALT_CRUST, 1));
+}
+function updateWeatherGround(dt) {
+  _wxgT += dt;
+  if (_wxgT < WXG_TICK) return;
+  const step = Math.min(5, _wxgT) * (typeof tickFactor === 'function' ? tickFactor() : 1);
+  _wxgT = 0;
+  const sp = typeof sweepOriginPlayer === 'function' ? sweepOriginPlayer() : null;
+  if (!sp) return;
+  const px = Math.floor(sp.pos.x), py = Math.floor(sp.pos.y), pz = Math.floor(sp.pos.z);
+  const pr = precipAt(sp.pos.x, sp.pos.z);       // the sweep is small beside a region: one reading serves it
+  const bliz = pr.blizzard > 0.5;
+  for (let n = 0; n < WXG_TRIES; n++) {
+    const x = px + ((Math.random() * (2 * WXG_R + 1)) | 0) - WXG_R, z = pz + ((Math.random() * (2 * WXG_R + 1)) | 0) - WXG_R;
+    if (!inSimRange(x, z)) continue;
+    const y = _openTop(x, z, py);
+    if (y == null) continue;
+    const v = getBlock(x, y, z), ids = layerIdsAt(x, y, z, v);
+    if (pr.rain > 0.05 && ids && _WXG_WASHED.has(ids[ids.length - 1])) {
+      if (Math.random() < WXG_RAIN_MELT * pr.rain * step) removeLayerAt(x, y, z, ids.length - 1);
+      continue;
+    }
+    if (pr.snow > 0.05) {
+      if (Math.random() < WXG_SNOW_LAY * pr.snow * (bliz ? 3 : 1) * step) _laySnow(x, y, z, v, ids, bliz ? WXG_BLIZZARD_MAX : WXG_SNOW_MAX);
+      continue;
+    }
+    if (pr.rain <= 0.05 && Math.random() < WXG_SALT * step) _laySalt(x, y, z, v, ids);
+  }
+}
+
 /* SNOWLINE (0.819): above it the ground keeps a cover of snow, in every biome. It follows the sun's year
    (07-sky.js), so it sits high in summer and comes down the mountains in winter, and it is ragged by a block or
    two either way. The season sweep lays the snow (_snowlineChunk); snow melt leaves anything above it alone
@@ -438,7 +564,7 @@ function _placePlant(x, y, z, v) {
    have given. Returns false when it ran out of budget (it carries on next frame). */
 let _seasonOps = 0;
 function _seasonChunk(c) {
-  if (!seasonsOn()) { _shroomChunk(c); return _snowlineChunk(c); }   // always July: the high snow (0.819), mushrooms (0.821)
+  if (!seasonsOn()) { _shroomChunk(c); _iceChunk(c); return _snowlineChunk(c); }   // always July: the high snow (0.819), mushrooms (0.821), ice (0.8321)
   const d = gameDate(), k = key(c.cx, c.cz), wx0 = c.cx * 16, wz0 = c.cz * 16;
   if (d.season >= 2) {
     const level = d.season === 3 ? 1.01 : d.progress;           // how much of the fall has happened
@@ -485,6 +611,7 @@ function _seasonChunk(c) {
     }
   }
   _shroomChunk(c);                                               // mushrooms, every season (0.821)
+  _iceChunk(c);                                                  // water freezing and thawing (0.8321)
   return _snowlineChunk(c);                                      // and the snowline, every season (0.819)
 }
 // per frame: a couple of chunks inside the simulation radius whose hour has come round
@@ -508,6 +635,9 @@ function updateSeasons(dt) {
   updateWheatGrow(dt);
   updateShroomGrow(dt);                                          // 0.821
   updateCaneGrow(dt);                                            // 0.829
+  updateWeatherGround(dt);                                       // rain washes, snow lays, salt grows (0.83)
+  updateIceMelt(dt);                                             // ice by heat (0.8321)
+  if (typeof updateBurns === 'function') updateBurns(dt);        // torches and glow blocks burning out (0.834, 56-torches.js)
 }
 function serializeSeasons() {
   const out = [];
@@ -727,7 +857,157 @@ function updateCaneGrow(dt) {
   }
 }
 
-function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); caneGrow.clear(); _regionKind.clear(); _seasonKeys = []; }
+/* ---- ice (0.8321) ----
+   FREEZING. Each chunk's season pass looks at the top of every column under the open sky: water there freezes over
+   (only that top cell) in a snow biome at any time, and in winter everywhere but a desert — a little more of it each
+   day through the first third of winter. In spring (and any warmer time, a world with seasons off too) that seasonal
+   ice melts back, by day only, through the first third of spring. A snow biome's ice stays, and so does ice a player
+   put down. Nothing freezes near heat.
+   HEAT melts ice in ICE_MELT_S: a torch within 1 block (placed, or held by a player standing that close), a lit
+   furnace within 3, fire 5, lava 9 (cubes round the source). Ice in reach is found when the heat appears (a setBlock
+   hook, iceHeatPlaced in 11-chunks.js), when ice is placed (iceQueueIfHot) and twice a second round a torch in hand. */
+const ICE_MELT_S = 8, ICE_REACH = 9;
+const ICE_HEAT_R = { [B.TORCH]: 1, [B.FIRE]: 5, [B.LAVA]: 9 };
+const ICE_FURNACE_R = 3;
+const iceMelt = new Map();                      // "x,y,z" -> seconds of heat it has had
+const _iceHeld = new Set();                     // cells a held torch warmed since the last melt tick
+let _iceT = 0;
+const _iceKey = (x, y, z) => x + ',' + y + ',' + z;
+/* 0.8322, the cost: the heat scans read blocks through one cached chunk (_iceBlk, forgotten at each call's start)
+   rather than getBlock's string key per cell; a biome is read once per 8x8 blocks and kept (_iceKindAt), not 256
+   times a chunk; heat is only looked for where some light source is in the chunk or beside it (_heatAround); and a
+   chunk arriving from the generator is frozen straight in its data (iceDressChunk), not by a setBlock (an edit and a
+   re-mesh) per cell on its first season pass. */
+let _ibCx = 1e9, _ibCz = 1e9, _ibData = null;
+const _iceBlkReset = () => { _ibCx = _ibCz = 1e9; _ibData = null; };
+function _iceBlk(x, y, z) {
+  if (y < 0 || y > 199) return 0;
+  const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+  if (cx !== _ibCx || cz !== _ibCz) { const c = getChunk(cx, cz); _ibCx = cx; _ibCz = cz; _ibData = c && c.data; }
+  return _ibData ? _ibData[(x & 15) + ((z & 15) << 4) + (y << 8)] : 0;
+}
+function _heatReach(v) {
+  const id = v & 255;
+  if (id === B.FURNACE) return blockLightOf(v) > 0 ? ICE_FURNACE_R : 0;
+  return ICE_HEAT_R[id] || 0;
+}
+// any light source in this chunk or the eight round it? (heat is always one, and reaches at most 9 < 16 blocks)
+function _heatAround(cx, cz) {
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (glowByChunk.has((cx + dx) + ',' + (cz + dz))) return true;
+  return false;
+}
+// is a placed heat source in reach of this cell? (every one of them gives light, so the light index finds them)
+function iceHeatNear(x, y, z) {
+  let hot = false;
+  forEachGlowNear(x, z, ICE_REACH, (gx, gy, gz) => {
+    const r = _heatReach(getBlock(gx, gy, gz));
+    if (r && Math.abs(gx - x) <= r && Math.abs(gy - y) <= r && Math.abs(gz - z) <= r) { hot = true; return false; }
+  });
+  return hot;
+}
+const _queueIce = (x, y, z) => { const k = _iceKey(x, y, z); if (!iceMelt.has(k)) iceMelt.set(k, 0); };
+// heat just appeared at (x, y, z): every ice in its reach starts to melt
+function iceHeatPlaced(x, y, z, v) {
+  const r = _heatReach(v);
+  if (!r) return;
+  _iceBlkReset();
+  for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++)
+    if ((_iceBlk(x + dx, y + dy, z + dz) & 255) === B.ICE) _queueIce(x + dx, y + dy, z + dz);
+}
+// ice just placed: if heat is already in reach, it melts (the season pass checks that itself: _iceSetting)
+let _iceSetting = false;
+function iceQueueIfHot(x, y, z) {
+  if (!_iceSetting && _heatAround(Math.floor(x / 16), Math.floor(z / 16)) && iceHeatNear(x, y, z)) _queueIce(x, y, z);
+}
+// a player holding a lit torch at (px, py, pz), feet: the ice within a block of them warms (from tickStats, 54)
+function iceWarmHeld(px, py, pz) {
+  _iceBlkReset();
+  for (let dy = -1; dy <= 2; dy++) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++)
+    if ((_iceBlk(px + dx, py + dy, pz + dz) & 255) === B.ICE) { _queueIce(px + dx, py + dy, pz + dz); _iceHeld.add(_iceKey(px + dx, py + dy, pz + dz)); }
+}
+function updateIceMelt(dt) {
+  _iceT += dt;
+  if (_iceT < 1) return;
+  const step = Math.min(5, _iceT);
+  _iceT = 0;
+  for (const [k, t] of iceMelt) {
+    const [x, y, z] = k.split(',').map(Number);
+    if ((getBlock(x, y, z) & 255) !== B.ICE) { iceMelt.delete(k); continue; }
+    if (!_iceHeld.has(k) && !iceHeatNear(x, y, z)) { iceMelt.delete(k); continue; }   // the heat went: it sets again
+    if (t + step < ICE_MELT_S) { iceMelt.set(k, t + step); continue; }
+    iceMelt.delete(k);
+    // ice that froze from water melts back into it; ice someone put down just melts away (0.833)
+    setBlock(x, y, z, ((getBlock(x, y, z) >> 8) & 255) === ICE_FROM_WATER ? B.WATER : B.AIR);
+    if (typeof fxSnowMelt === 'function') fxSnowMelt(x, y, z);
+  }
+  _iceHeld.clear();
+}
+// a column's kind for ice, read once per 8x8 blocks and kept: 1 a snow biome, 2 a desert, 0 the rest
+const _iceKinds = new Map();
+function _iceKindAt(x, z) {
+  const k = (x >> 3) + ',' + (z >> 3);
+  let v = _iceKinds.get(k);
+  if (v === undefined) {
+    const b = typeof mainGen !== 'undefined' && mainGen ? mainGen.biomeAt((x & ~7) + 4, (z & ~7) + 4) : '';
+    v = /Snow/.test(b) ? 1 : /Desert|Red Sand/.test(b) ? 2 : 0;
+    if (_iceKinds.size > 65536) _iceKinds.clear();
+    _iceKinds.set(k, v);
+  }
+  return v;
+}
+// should open water at (x, y, z) be ice now? a snow biome's always; elsewhere but a desert, a share more each day of
+// winter's first third
+const _iceFreezes = (x, y, z, kind, d, season) =>
+  kind === 1 || (kind === 0 && season === 3 && sHash(x, y, z, 40 + d.year * 16) < d.progress * 3);
+// the top non-air cell of a chunk column (open sky above it), as its data index, or -1
+function _iceTop(data, li) {
+  let y = 198;
+  while (y > 1 && !data[li + (y << 8)]) y--;
+  return y > 1 ? li + (y << 8) : -1;
+}
+/* A chunk just in from the generator (finishChunkGen, 11-chunks.js, after its edits and its lights are in): its open
+   water is frozen as the season says, straight in the data — no edits, no re-mesh, no light work (ice and water both
+   let light through). A reload dresses it again the same way, so nothing needs saving. */
+function iceDressChunk(c) {
+  if (typeof menuScene !== 'undefined' && menuScene) return;
+  const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
+  const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16, heat = _heatAround(c.cx, c.cz);
+  for (let col = 0; col < 256; col++) {
+    const lx = col & 15, lz = col >> 4, i = _iceTop(data, lx + (lz << 4));
+    if (i < 0 || (data[i] & 255) !== B.WATER) continue;
+    const x = wx0 + lx, z = wz0 + lz, y = i >> 8;
+    if (!_iceFreezes(x, y, z, _iceKindAt(x, z), d, season) || (heat && iceHeatNear(x, y, z))) continue;
+    data[i] = B.ICE | (ICE_FROM_WATER << 8);                     // ice that was water (0.833)
+  }
+}
+function _iceChunk(c) {
+  const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
+  const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16, heat = _heatAround(c.cx, c.cz);
+  const day = !(typeof isDarkTime === 'function' && isDarkTime());
+  for (let col = 0; col < 256; col++) {
+    const lx = col & 15, lz = col >> 4, i = _iceTop(data, lx + (lz << 4));
+    if (i < 0) continue;
+    const id = data[i] & 255;
+    if (id !== B.WATER && id !== B.ICE) continue;
+    const x = wx0 + lx, z = wz0 + lz, y = i >> 8, kind = _iceKindAt(x, z);
+    if (id === B.WATER) {
+      if (!_iceFreezes(x, y, z, kind, d, season) || (heat && iceHeatNear(x, y, z))) continue;
+      if (_seasonOps >= SEASON_OPS_PER_FRAME) return;
+      _seasonOps++;
+      _iceSetting = true; setBlock(x, y, z, B.ICE | (ICE_FROM_WATER << 8)); _iceSetting = false;   // from water (0.833)
+    } else if (heat && iceHeatNear(x, y, z)) {
+      _queueIce(x, y, z);                                          // heat beside it from before a reload: it melts
+    } else if (kind !== 1 && season !== 3 && day && ((data[i] >> 8) & 255) === ICE_FROM_WATER) {   // only ice that was water (0.833)
+      // out of winter, by day: seasonal ice melts, a share more each day of spring's first third (at once later on)
+      if (season === 0 && sHash(x, y, z, 41 + d.year * 16) >= d.progress * 3) continue;
+      if (_seasonOps >= SEASON_OPS_PER_FRAME) return;
+      _seasonOps++;
+      setBlock(x, y, z, B.WATER);
+    }
+  }
+}
+
+function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); caneGrow.clear(); _regionKind.clear(); _regionCold.clear(); iceMelt.clear(); _iceHeld.clear(); _iceKinds.clear(); _seasonKeys = []; }
 
 /* ---- the wind the renderer bends plants with: player one's (0.81) ---- */
 function updateWindUniforms() {

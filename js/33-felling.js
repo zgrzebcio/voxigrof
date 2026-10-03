@@ -168,9 +168,24 @@ function clearLitterRot() { litterRot.clear(); _litterSweep = 0; }
    Snow that ends up outside a cold biome is temporary: a drift blown over the seam, a carpet the
    player carried south, whatever the generator feathered across a border. Same shape as the litter
    rot above — each cell gets its own countdown when first noticed and loses ONE layer per firing,
-   so a drift thins unevenly instead of vanishing in one frame. Cold biomes are left alone. */
+   so a drift thins unevenly instead of vanishing in one frame. Cold biomes are left alone.
+   0.83: cold snow melts too, ten times slower (MELT_COLD_MUL), and not while snow is falling on it — layers only:
+   a whole snow block in the cold, and the snowline's cover, keep. Rain washes layers off (51, updateWeatherGround). */
 const snowMelt = new Map();         // "x,y,z" -> seconds until this cell loses its next snow layer
 const MELT_LIFE = 0.35, MELT_LIFE_JITTER = 0.5;                   // in-game days per layer
+const MELT_COLD_MUL = 0.1;                                        // 0.83
+const MELT_COLD_CAP = 400;          // a snow biome is all snow: track at most this many cells at once (each tick tests their heat)
+// is snow falling here? one reading per 32-block cell per tick (0.83, precipAt in 51)
+const _meltSnowing = new Map();
+function _snowingAt(x, z) {
+  if (typeof precipAt !== 'function') return false;
+  const k = (x >> 5) + ',' + (z >> 5);
+  let s = _meltSnowing.get(k);
+  if (s === undefined) _meltSnowing.set(k, s = precipAt(x, z).snow > 0.05);
+  return s;
+}
+// cold snow that never melts: a whole block of it, or the snowline's
+const _meltKeeps = (x, y, z) => getBlock(x, y, z) === B.SNOW || _aboveSnowline(x, y, z);
 const MELT_TICK = 1.0, MELT_SWEEP_TICK = 4.0, MELT_SWEEP_TRIES = 24;
 let _meltTimer = 0, _meltSweep = 0;
 const _warmCol = new Map();         // "x,z" -> is this column warm? (biomeAt is not cheap)
@@ -236,7 +251,8 @@ function sweepSnowMelt() {
     if (snowLayerTopAt(x, y, z) < 0) continue;
     const k = x + ',' + y + ',' + z;
     if (snowMelt.has(k)) continue;
-    if (!_snowMelts(x, y, z) && snowHeat(x, y, z) === 1) continue;   // cold enough, no heat: keep it (0.8244)
+    if (!_snowMelts(x, y, z) && snowHeat(x, y, z) === 1                                     // cold, no heat:
+        && (_meltKeeps(x, y, z) || snowMelt.size >= MELT_COLD_CAP)) continue;               // a block keeps (0.8244); layers melt slowly (0.83)
     snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
 }
@@ -247,14 +263,16 @@ function updateSnowMelt(dt) {
   if (_meltTimer < MELT_TICK) return;
   const step = _meltTimer * (typeof tickFactor === 'function' ? tickFactor() : 1);
   _meltTimer = 0;
+  _meltSnowing.clear();
   for (const [k, t] of snowMelt) {
     const [x, y, z] = k.split(',').map(Number);
     if (!inSimRange(x, z)) continue;             // melt clock pauses outside the sim radius
     const si = snowLayerTopAt(x, y, z);
     if (si < 0) { snowMelt.delete(k); continue; }                 // mined, replaced, or already gone
-    const heat = snowHeat(x, y, z);
-    if (!_snowMelts(x, y, z) && heat === 1) { snowMelt.delete(k); continue; }  // heat removed, or cold again (0.8244)
-    const left = t - step * heat;
+    const heat = snowHeat(x, y, z), warm = _snowMelts(x, y, z);
+    if (!warm && heat === 1 && _meltKeeps(x, y, z)) { snowMelt.delete(k); continue; }  // heat removed, or cold again (0.8244)
+    if (!warm && heat === 1 && _snowingAt(x, z)) continue;         // cold snow waits while more falls (0.83)
+    const left = t - step * (heat > 1 ? heat : warm ? 1 : MELT_COLD_MUL);   // cold layers: slowly (0.83)
     if (left > 0) { snowMelt.set(k, left); continue; }
     // a whole block melts down into a drift of 7 (0.8244), a drift a layer at a time
     if (getBlock(x, y, z) === B.SNOW) setLayerStack(x, y, z, new Array(LAYER_MAX - 1).fill(B.SNOW));
@@ -264,7 +282,7 @@ function updateSnowMelt(dt) {
     else snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
   }
 }
-function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _meltAir.clear(); }
+function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _meltAir.clear(); _meltSnowing.clear(); }
 
 /* ---- berry bush regrowth (0.698) ----
    A bush below `grown` climbs one stage at a time, sprout -> small -> bush -> empty -> fruitling -> grown (six

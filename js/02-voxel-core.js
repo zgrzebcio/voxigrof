@@ -132,6 +132,13 @@ function VOXEL_CORE() {
   // 0.829: sugar cane's growing stages 0-4 (stage 5 is T.SUGAR_CANE) and a grown column's bottom, middle and top
   Object.assign(T, { SUGAR_CANE_S0:356, SUGAR_CANE_S1:357, SUGAR_CANE_S2:358, SUGAR_CANE_S3:359, SUGAR_CANE_S4:360,
                      SUGAR_CANE_BOTTOM:361, SUGAR_CANE_MIDDLE:362, SUGAR_CANE_TOP:363 });
+  T.ICE = 364;                                                     // 0.8321
+  Object.assign(T, { ICE_BRICKS:365, SNOW_BRICKS:366, SNOW_ICE_BRICKS:367, BONE_BLOCK_SIDE:368, BONE_BLOCK_TOP:369, BONE_BRICKS:370 });   // 0.833
+  // 0.834: the three torches at 128px, and the spent glow blocks (grey copies built at atlas build, 03)
+  Object.assign(T, { TORCH_FIRE:371, TORCH_UNLIT:372, TORCH_CRYSTAL:373, GLOWSTONE_SPENT:374, GLOWCRYSTAL_SPENT:375 });
+  /* Ice that froze from water (0.833) carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
+     and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
+  const ICE_FROM_WATER = 1;
   /* A cane's variant bits 0-2: steps it still has to grow, CANE_STEPS a sprout .. 0 grown (the world's and old saves').
      A neighbour above joins the column once it has stalks (CANE_JOIN_LEFT steps left or fewer). Growth: 51-seasons.js. */
   const CANE_STEPS = 5, CANE_JOIN_LEFT = 3;
@@ -212,6 +219,11 @@ function VOXEL_CORE() {
               GLASSY_SAND:196, CARVED_PUMPKIN:197, JACK_O_LANTERN:198,
               GLASSY_RED_SAND:199, GLASSY_PINK_SAND:200,                               // 0.8241
               YELLOWBERRY_BUSH:201, WHITEBERRY_BUSH:202,                               // 0.827: the real yellow, and white
+              ICE:203,                                                                 // 0.8321
+              // 0.833: ice and snow bricks, the snow-ice brick both share; the bone block and its brick
+              ICE_BRICKS:204, SNOW_BRICKS:205, SNOW_ICE_BRICKS:206, BONE_BLOCK:207, BONE_BRICKS:208,
+              // 0.834: the burnt-out torch, the cold crystal torch, and the two glow blocks gone dark
+              TORCH_UNLIT:209, CRYSTAL_TORCH:210, GLOWSTONE_SPENT:211, GLOWCRYSTAL_SPENT:212,
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -287,11 +299,19 @@ function VOXEL_CORE() {
   PROPS[B.GLASS]   = { name:'Glass',      solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.9, type:'glass', faces:[T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS], desc: '' };
   PROPS[B.BEDROCK] = { name:'Bedrock',    solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:Infinity, type:'stone', faces:[T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK], desc: '' };
   PROPS[B.WATER]   = { name:'Water',      solid:false, opaque:false, raycast:false, pass:2, model:'cube', hardness:0, faces:[T.WATER,T.WATER,T.WATER,T.WATER,T.WATER,T.WATER], desc: '' };
-  PROPS[B.GLOWSTONE] = { name:'Glowstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', light:20,handLight:10, stack:60, hardness:2.5, type:'glass', faces:[T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE], desc: '' };
+  PROPS[B.GLOWSTONE] = { name:'Glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', light:20,handLight:10, stack:60, hardness:2.5, type:'glass', faces:[T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE], desc: '' };
   // the six halves a slab shape can fill: bottom, top, -X, +X, -Z, +Z (see CHISEL SHAPES below)
   const SLAB_HALF = [[0,0,0,1,0.5,1],[0,0.5,0,1,1,1],[0,0,0,0.5,1,1],[0.5,0,0,1,1,1],[0,0,0,1,1,0.5],[0,0,0.5,1,1,1]];
   PROPS[B.CLAY]    = { name:'Clay',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:2.2, type:'ground', faces:[T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY], desc: '' };
   PROPS[B.SNOW]    = { name:'Snow',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:1.2, type:'snow', faces:[T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW], desc: '' };
+  /* Ice (0.8321): see-through like glass (pass 4). It covers the water of a snow biome all year and every lake in winter
+     but a desert's; breaking it leaves water and drops nothing, and heat melts it (51-seasons.js). */
+  PROPS[B.ICE]     = { name:'Ice',        solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.5, type:'glass', faces:Array(6).fill(T.ICE),
+                       desc: 'Breaks into water. Melts within 1 block of a torch, 3 of a lit furnace, 5 of fire, 9 of lava' };
+  // the bone block (0.833): pressed from ten bones; a pillar that turns to the face it is put on, its brick a look of it
+  PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2, type:'stone',
+                          pillar: true, rot: 'all',
+                          faces:[T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_TOP, T.BONE_BLOCK_TOP, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE], desc: '' };
   /* Stripped logs: what a log becomes after the first axe hit. Same 'log' model so the 0.6692
      gap-fill still welds them to their neighbours, and softer than a live log because the bark
      is already off. */
@@ -330,13 +350,20 @@ function VOXEL_CORE() {
   const WALL_T = 1 / 16;
   const WALL_VAR = [[[0, 0, 0, 1, 1, WALL_T]], [[0, 0, 1 - WALL_T, 1, 1, 1]],
                     [[0, 0, 0, WALL_T, 1, 1]], [[1 - WALL_T, 0, 0, 1, 1, 1]]];
+  // coldLight (0.834): its light is blue, carried through the flood fill (08) to the shader (04)
   PROPS[B.GLOW_VINE] = { name:'Glow vine', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
-                         light:10, stack:60, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
+                         light:10, coldLight:true, stack:60, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                          faces:[T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE], desc: '' };
   // five glow crystals pressed into a block: brighter than glowstone's reach, a real room light (0.765)
   PROPS[B.GLOWCRYSTAL_BLOCK] = { name:'Glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
-                         light:18, handLight:12, stack:60, hardness:2.5, type:'glass',
+                         light:18, handLight:12, coldLight:true, stack:60, hardness:2.5, type:'glass',
                          faces:[T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL], desc: '' };
+  /* The glow blocks burn out (0.834, 56-torches.js): 30-60 minutes after they are placed or first seen they go dark,
+     their own picture in grey. A spent one gives no light and breaks into nothing. */
+  PROPS[B.GLOWSTONE_SPENT] = { name:'Spent glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,
+                         hardness:2.5, type:'glass', faces:Array(6).fill(T.GLOWSTONE_SPENT), desc: 'Burnt out: it gives no light, and breaks into nothing' };
+  PROPS[B.GLOWCRYSTAL_SPENT] = { name:'Spent glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,
+                         hardness:2.5, type:'glass', faces:Array(6).fill(T.GLOWCRYSTAL_SPENT), desc: 'Burnt out: it gives no light, and breaks into nothing' };
   /* Cobweb (0.766): a billboard strung in cave corners — floor, wall or ceiling, it needs no support.
      Walking into one slows you by 80% (12-player.js); only a sword cuts the string out of it. */
   PROPS[B.COBWEB] = { name:'Cobweb', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60,
@@ -565,8 +592,15 @@ function VOXEL_CORE() {
     [[0.43, 0.18, 0.00, 0.57, 0.81, 0.33]],
     [[0.43, 0.18, 0.67, 0.57, 0.81, 1.00]],
   ];
-  PROPS[B.TORCH] = { name:'Torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH],
-                     desc: 'Carried in the offhand it lights your way; forage with an empty main hand' };   // 0.7992
+  /* 0.834: the fire torch (the old torch, id kept), the unlit one it burns down to, and the crystal torch. `torch`: drawn
+     as a stick by emitTorch, hangs on walls, held fattened in the hand. They burn out (56-torches.js): fire 5-10 minutes,
+     crystal 15-30; rain puts a fire torch out. Right-click an unlit one with flint or a glow crystal to light it. */
+  PROPS[B.TORCH] = { name:'Fire torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_FIRE], torch:true,
+                     desc: 'Carried in the offhand it lights your way; forage with an empty main hand. Burns out in 5-10 minutes; rain puts it out' };   // 0.7992; burns out 0.834
+  PROPS[B.TORCH_UNLIT] = { name:'Unlit torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_UNLIT], torch:true,
+                     desc: 'Place it, then right-click it with flint to light it, or with a glow crystal for a crystal torch' };
+  PROPS[B.CRYSTAL_TORCH] = { name:'Crystal torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:12, handLight:6, coldLight:true, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_CRYSTAL], torch:true,
+                     desc: 'A cold blue light: it melts nothing and stays lit under water and in rain. Burns out in 15-30 minutes' };
   // furnace: front picked per variant facing (rot:'side'); lit bit swaps the front tile
   // its top is a chimney since 0.801: an open hole that must stay clear (26-furnace.js)
   PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP_OPEN,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE],
@@ -606,7 +640,7 @@ function VOXEL_CORE() {
                      stack:60, hardness:4.5, type:'wood', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],   // 4.5 = bench (0.769)
                      faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
   PROPS[B.BED] = { name:'Bed', solid:true, opaque:false, raycast:true, pass:1, model:'bed', rot:'side',
-                   stack:1, hardness:1.0, type:'wood', boxes:[[0, 0, 0, 1, 0.5625, 1]],
+                   stack:1, hardness:1.0, type:'wood', boxes:[[0, 0, 0, 1, 0.5, 1]],   // half a block, as its art (0.8342; 9/16 before)
                    faces:[T.WOOL,T.WOOL,T.WOOL,T.PLANKS,T.WOOL,T.WOOL], desc: '' };
   // oak stairs: base half-slab + back step. variant: bits 0-1 facing (full side toward player),
   // bit 2 (4) = upside-down (ceiling placement). Two boxes per variant, shared by collision,
@@ -866,6 +900,12 @@ function VOXEL_CORE() {
     [B.GLASS_BRICKS,           B.GLASS,     'Glass (brick)',           T.GLASS_BRICKS],
     [B.DARK_GLASS_BRICKS,      B.GLASS,     'Glass (dark brick)',      T.DARK_GLASS_BRICKS],
     [B.TERRACOTTA_BRICKS,      B.BRICKS,    'Terracotta (brick)',      T.TERRACOTTA_BRICKS],   // 0.8093
+    /* 0.833: ice and snow bricks; the snow-ice brick is a look of both (on both bars, 46) and breaks back into snow. The
+       brick ones are solid to see through, unlike ice. The bone block's brick has no axis. */
+    [B.ICE_BRICKS,             B.ICE,       'Ice (brick)',             T.ICE_BRICKS,      { opaque: true, pass: 0 }],
+    [B.SNOW_BRICKS,            B.SNOW,      'Snow (brick)',            T.SNOW_BRICKS],
+    [B.SNOW_ICE_BRICKS,        B.SNOW,      'Snow-ice bricks',         T.SNOW_ICE_BRICKS],
+    [B.BONE_BRICKS,            B.BONE_BLOCK, 'Bone block (brick)',     T.BONE_BRICKS,     { pillar: false }],
     // band and pillar (0.8093): own tops; a pillar turns to the face it is placed on, like a log
     ...[[B.STONE, 'Stone', 'STONE'], [B.GRANITE, 'Granite', 'GRANITE'], [B.MARBLE, 'Marble', 'MARBLE'],
         [B.LIMESTONE, 'Limestone', 'LIMESTONE'], [B.DOLOMITE, 'Dolomite', 'DOLOMITE']].flatMap(([rock, nm, K], r) => [
@@ -924,7 +964,7 @@ function VOXEL_CORE() {
                        B.DOLOMITE_BRICKS, B.MOSSY_DOLOMITE_BRICKS, B.POLISHED_DOLOMITE, B.DOLOMITE_BAND, B.DOLOMITE_PILLAR];
   const _SANDSTONES = [B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.SANDSTONE_BRICKS, B.POLISHED_SANDSTONE,
                        B.RED_SANDSTONE_BRICKS, B.POLISHED_RED_SANDSTONE, B.PINK_SANDSTONE_BRICKS, B.POLISHED_PINK_SANDSTONE];
-  const _GLOWS = [B.GLOWSTONE, B.GLOWCRYSTAL_BLOCK];
+  const _GLOWS = [B.GLOWSTONE, B.GLOWCRYSTAL_BLOCK, B.GLOWSTONE_SPENT, B.GLOWCRYSTAL_SPENT];   // spent: a shape burns out as itself (0.834)
   const _NO_COVER = new Set([B.ADOBE, B.ADOBE_BRICK, B.BRICKS, B.TERRACOTTA_BRICKS]);
   /* 0.8265: hay takes slabs, stairs and carpets (thatch roofs, a straw floor); the copper block slabs, stairs and panes;
      the iron, gold and tin blocks slabs and panes; dirt slabs and stairs; the snow block slabs, stairs and walls; obsidian
@@ -935,11 +975,11 @@ function VOXEL_CORE() {
     slab:   [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
              ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,
              ..._ROCKS, ..._GLOWS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,                         // 0.8261; sulfur 0.8264
-             B.HAY, ..._METALS, B.DIRT, B.SNOW, ..._GEM_COAL],                                 // 0.8265
+             B.HAY, ..._METALS, B.DIRT, B.SNOW, ..._GEM_COAL, B.ICE],                          // 0.8265; ice 0.833 (it takes snow's, for the snow-ice brick both share)
     stairs: [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.STONE_BRICK, B.GLASS, B.SANDSTONE, B.RED_SANDSTONE,
              ..._BRICK_VARIANTS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,
              ..._ROCKS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,                                    // 0.8261; sulfur 0.8264
-             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SNOW],                                           // 0.8265
+             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SNOW, B.ICE],                                    // 0.8265; ice 0.833
     pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS, B.MOSSY_COBBLE, ..._GLASS_VARIANTS,   // 0.784
              ..._ROCKS, ..._ROCK_LOOKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,    // 0.8261; sulfur 0.8264
              ..._METALS],                                                                      // 0.8265
@@ -947,14 +987,14 @@ function VOXEL_CORE() {
     layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822
              B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.MOSSY_COBBLE,                        // iron and gold off 0.8261, glass 0.8263
-             B.HAY],                                                                           // 0.8265
+             B.HAY, B.ICE],                                                                    // 0.8265; ice 0.833
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE]
              .filter(b => !_NO_COVER.has(b)),                                                  // adobe, terracotta off 0.8261
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE,
              B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,                                             // 0.8261; sulfur 0.8264
-             B.OBSIDIAN, B.SNOW],                                                              // 0.8265
+             B.OBSIDIAN, B.SNOW, B.ICE],                                                       // 0.8265; ice 0.833
   };
   const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
@@ -974,6 +1014,7 @@ function VOXEL_CORE() {
     ...['', 'RED_', 'PINK_'].map(K => [B[K + 'SANDSTONE'], B[K + 'SANDSTONE_BRICKS'], B['POLISHED_' + K + 'SANDSTONE']]),
     [B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND],
     [B.MORTAR, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR, B.DOLOMITE_MORTAR],
+    [B.ICE, B.ICE_BRICKS], [B.SNOW, B.SNOW_BRICKS, B.SNOW_ICE_BRICKS], [B.BONE_BLOCK, B.BONE_BRICKS],   // 0.833
   ];
   for (const [base, ...looks] of VARIANT_FAMILIES)
     for (const id of looks) {
@@ -2926,7 +2967,13 @@ function VOXEL_CORE() {
   const DIR_FACE  = [    2,        3,        0,        1,        4,        5   ]; // faces[] index
   const DIR_SHADE = [   255,      140,      178,      178,      216,      216  ]; // baked light
   const mask = new Int32Array(16 * 200);      // reused across sweeps (max plane size)
-  const maskL = new Uint8Array(16 * 200);     // parallel mask of per-face block-light level
+  const maskL = new Uint16Array(16 * 200);    // parallel mask of per-face block-light level (with its colour bit, 0.834)
+  /* Light COLOUR (0.834): a packed light is block light (bits 0-3) | sky light (4-7) | LIGHT_COLD (bit 8), set where the
+     brightest block light reaching the cell is a cold one (crystal torch, glowcrystal block, glow vine). The shader (04)
+     tints that light blue. Two lights joined per nibble keep the colour of the brighter block light. */
+  const LIGHT_COLD = 0x100;
+  const litMax = (m, n) => (Math.max((m >> 4) & 15, (n >> 4) & 15) << 4)
+                         | ((m & 15) >= (n & 15) ? m & (15 | LIGHT_COLD) : n & (15 | LIGHT_COLD));
 
   /* ---- LEVEL OF DETAIL (0.8092) ----
      A far chunk is meshed simpler (11-chunks.js picks the level from its distance):
@@ -2957,21 +3004,21 @@ function VOXEL_CORE() {
     return p.shapes && (shapeOfVal(v) || slabMixed(v)) ? id : v;    // a mixed slab far off: its low block (0.8263)
   }
   function lodDownsample(data, light) {
-    const out = new Uint32Array(data.length), lout = new Uint8Array(light.length);
+    const out = new Uint32Array(data.length), lout = new Uint16Array(light.length);
     for (let y0 = 0; y0 < 200; y0 += 2)
       for (let z0 = 0; z0 < 16; z0 += 2)
         for (let x0 = 0; x0 < 16; x0 += 2) {
-          let best = 0, rank = 0, glo = 0, sky = 0;
+          let best = 0, rank = 0, glo = 0, sky = 0, cold = 0;
           for (let dy = 1; dy >= 0; dy--)
             for (let dz = 0; dz < 2; dz++)
               for (let dx = 0; dx < 2; dx++) {
                 const i = (x0 + dx) + ((z0 + dz) << 4) + ((y0 + dy) << 8), v = data[i], r = _lodRank(v);
                 if (r > rank) { rank = r; best = v; }
                 const l = light[i];
-                if ((l & 15) > glo) glo = l & 15;
-                if ((l >> 4) > sky) sky = l >> 4;
+                if ((l & 15) > glo) { glo = l & 15; cold = l & LIGHT_COLD; }
+                if (((l >> 4) & 15) > sky) sky = (l >> 4) & 15;
               }
-          const v = rank ? _lodVal(best) : 0, l = glo | (sky << 4);
+          const v = rank ? _lodVal(best) : 0, l = glo | (sky << 4) | cold;
           // a log keeps ONE full-width column per group: four would each draw their own bark (a tree grew 4x the faces)
           const oneCol = rank && PROPS[v & 255].model === 'log';
           for (let dy = 0; dy < 2; dy++)
@@ -2985,15 +3032,15 @@ function VOXEL_CORE() {
   }
   // a neighbour's border light (16 x 200, [i + y*16]) evened out in 2x2 groups to match
   function lodEdgeLight(s) {
-    const o = new Uint8Array(s.length);
+    const o = new Uint16Array(s.length);
     for (let y = 0; y < 200; y += 2)
       for (let i = 0; i < 16; i += 2) {
-        let glo = 0, sky = 0;
+        let glo = 0, sky = 0, cold = 0;
         for (const k of [i + y * 16, i + 1 + y * 16, i + (y + 1) * 16, i + 1 + (y + 1) * 16]) {
-          if ((s[k] & 15) > glo) glo = s[k] & 15;
-          if ((s[k] >> 4) > sky) sky = s[k] >> 4;
+          if ((s[k] & 15) > glo) { glo = s[k] & 15; cold = s[k] & LIGHT_COLD; }
+          if (((s[k] >> 4) & 15) > sky) sky = (s[k] >> 4) & 15;
         }
-        const l = glo | (sky << 4);
+        const l = glo | (sky << 4) | cold;
         o[i + y * 16] = o[i + 1 + y * 16] = o[i + (y + 1) * 16] = o[i + 1 + (y + 1) * 16] = l;
       }
     return o;
@@ -3006,9 +3053,9 @@ function VOXEL_CORE() {
     let data = new Uint32Array(dataBuf);
     const sxn = new Uint32Array(sxnB), sxp = new Uint32Array(sxpB);
     const szn = new Uint32Array(sznB), szp = new Uint32Array(szpB);
-    let light = new Uint8Array(lightBuf);     // this chunk's block-light (flood-filled main-thread)
-    let lxn = new Uint8Array(lxnB), lxp = new Uint8Array(lxpB);
-    let lzn = new Uint8Array(lznB), lzp = new Uint8Array(lzpB);
+    let light = new Uint16Array(lightBuf);    // this chunk's block-light (flood-filled main-thread); 16 bits for the colour (0.834)
+    let lxn = new Uint16Array(lxnB), lxp = new Uint16Array(lxpB);
+    let lzn = new Uint16Array(lznB), lzp = new Uint16Array(lzpB);
     // the real light, kept for the dark-cave test below: the evened light of level 2 is only for shading
     const L0 = { light, lxn, lxp, lzn, lzp };
     if (lod >= 2) {
@@ -3042,7 +3089,7 @@ function VOXEL_CORE() {
       return data[x + (z << 4) + (y << 8)];
     }
     // neighbour-aware light read (a face's light = light of the transparent cell it faces).
-    // Byte is PACKED: low nibble = block light (glow), high nibble = sky light.
+    // Byte is PACKED: low nibble = block light (glow), high nibble = sky light; bit 8 its colour (LIGHT_COLD, 0.834).
     function gl(x, y, z) {
       if (y > 199) return 0xF0;               // open sky above the world
       if (y < 0) return 0;
@@ -3058,7 +3105,7 @@ function VOXEL_CORE() {
       if (y < 0) return 0;
       const v = x < 0 ? L0.lxn[z + y * 16] : x > 15 ? L0.lxp[z + y * 16] : z < 0 ? L0.lzn[x + y * 16]
               : z > 15 ? L0.lzp[x + y * 16] : L0.light[x + (z << 4) + (y << 8)];
-      return v >> 4;
+      return (v >> 4) & 15;
     }
 
     // one growable buffer set per render pass
@@ -3412,7 +3459,7 @@ function VOXEL_CORE() {
     // how far a wall torch's foot slides toward its wall: the stick's centre on the wall plane, half of it buried (0.7531)
     const TORCH_WALL = 0.5;
     const TORCH_BOX = [28 / 64, 0, 28 / 64, 36 / 64, 40 / 64, 36 / 64];
-    function emitTorch(x, y, z, varb) {
+    function emitTorch(x, y, z, varb, id = B.TORCH) {   // id: which torch, for its picture (0.834)
       const d = TORCH_DIRS[varb & 7] || null;
       const nx = d ? d[0] : 0, nz = d ? d[1] : 0;
       const T3 = (px, py, pz) => {
@@ -3423,7 +3470,7 @@ function VOXEL_CORE() {
       /* The cap samples the flame's top 2x2 (texture rows 6-7, v 0.5-0.625) and the foot the end of
          the stick (rows 14-15). Both used to take the box's own XZ footprint as UVs, which lands mid
          sprite: half flame, half brown stick across the top of every torch (0.7523). */
-      const b = TORCH_BOX, tile = PROPS[B.TORCH].faces[0], lite = gl(x, y, z);
+      const b = TORCH_BOX, tile = PROPS[id].faces[0], lite = gl(x, y, z);
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
       quad(1, T3(x0,y1,z0),T3(x0,y1,z1),T3(x1,y1,z1),T3(x1,y1,z0),
            [b[0],0.5],[b[0],0.625],[b[3],0.625],[b[3],0.5], tile, 255, lite);          // top
@@ -3457,7 +3504,7 @@ function VOXEL_CORE() {
          wherever a plant grows under a ceiling, so a mushroom in a low tunnel took the darkness of
          the rock over it even beside a torch. Per nibble: sky and torchlight each take the brighter. */
       const la = gl(x, y + 1, z), lo = gl(x, y, z);
-      const lite = (Math.max(la >> 4, lo >> 4) << 4) | Math.max(la & 15, lo & 15);
+      const lite = litMax(la, lo);
       const sh = 210;
       quad(1,[x,y,z+1],[x+1,y,z],[x+1,y+1,z],[x,y+1,z+1], [0,0],[1,0],[1,1],[0,1],tile,sh,lite);
       quad(1,[x,y+1,z+1],[x+1,y+1,z],[x+1,y,z],[x,y,z+1], [0,1],[1,1],[1,0],[0,0],tile,sh,lite);
@@ -3470,7 +3517,7 @@ function VOXEL_CORE() {
           const val = data[x + (z << 4) + (y << 8)];
           const bid = val & 255;
           if (!lod && PROPS[bid] && PROPS[bid].model === 'cross') {   // a far chunk draws no plants or torches (0.8092)
-            if (bid === B.TORCH) emitTorch(x, y, z, (val >> 8) & 255);   // a stick, not a billboard
+            if (PROPS[bid].torch) emitTorch(x, y, z, (val >> 8) & 255, bid);   // a stick, not a billboard (every torch, 0.834)
             else if (PROPS[bid].shroom != null) emitShroom(x, y, z, PROPS[bid].shroom, (val >> 8) & 255);   // a model (0.8091), grown so far (0.821)
             else emitCross(x, y, z, bid, (val >> 8) & 255);
           }
@@ -3561,7 +3608,6 @@ function VOXEL_CORE() {
       const UVF = [(l) => [1 - l[2], l[1]], (l) => [l[2], l[1]], (l) => [l[0], l[2]],
                    (l) => [l[0], l[2]], (l) => [l[0], l[1]], (l) => [1 - l[0], l[1]]];
       const lit = (d) => gl(x + NB[d][0], y + NB[d][1], z + NB[d][2]);
-      const litMax = (m, n) => (Math.max(m >> 4, n >> 4) << 4) | Math.max(m & 15, n & 15);
       // one quad of local points, wound to face `n` (an outward direction, need not be unit)
       const face = (pts, n, ud, tile, shade, lite) => {
         const [c0, c1, c2] = pts;
@@ -3625,8 +3671,7 @@ function VOXEL_CORE() {
          TOP faces read the AIR above the surface, which is open sky at 15 no matter how deep
          the water is — so a 40-block ocean lit identically to a puddle. The surface is now
          darkened by how much water sits UNDER it, which is what actually reads as depth. */
-      const maxLite = (a, b) =>
-        (Math.max(a >> 4, b >> 4) << 4) | Math.max(a & 15, b & 15);
+      const maxLite = litMax;                 // with the light's colour (0.834)
       const DEPTH_MAX = 7;                    // past this the surface stops getting darker
       function topLite() {
         let d = 0;
@@ -3634,8 +3679,8 @@ function VOXEL_CORE() {
         const above = gl(x, y + 1, z);
         // scale rather than subtract: at night the sky nibble is already low and a flat -7
         // would clamp every deep surface to pitch black
-        const sky = Math.round((above >> 4) * (1 - 0.62 * (d / DEPTH_MAX)));
-        return (sky << 4) | (above & 15);
+        const sky = Math.round(((above >> 4) & 15) * (1 - 0.62 * (d / DEPTH_MAX)));
+        return (sky << 4) | (above & (15 | LIGHT_COLD));
       }
       /* A surface source uses topLite() for its whole ring — top quad and all four side quads —
          so the depth shading stays continuous around the waterline instead of the top face
@@ -3754,7 +3799,7 @@ function VOXEL_CORE() {
       uv:    new Float32Array(g.uv),
       tile:  new Uint16Array(g.tile),        // a texture-array layer: past 255 since 0.809
       shade: new Uint8Array(g.shade),
-      lite:  new Uint8Array(g.lite),
+      lite:  new Uint16Array(g.lite),        // bit 8 the light's colour (0.834)
       clim:  new Int8Array(g.clim),          // the climate colour, -127 cold .. 127 warm (0.8231)
       index: new Uint32Array(g.index),
     }));
@@ -3768,7 +3813,7 @@ function VOXEL_CORE() {
            SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, solidVal,
            SHAPE_SLAB_MIX, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, VARIANT_FAMILIES,   // 0.8263
            BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
-           BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS };                                             // cane 0.829
+           BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER };                             // cane 0.829; ice 0.833
 }
 
 /* ---------- worker entry point (stringified into the blob together with VOXEL_CORE) ---------- */
@@ -3841,7 +3886,7 @@ const legacyItemId = (id) => {
   if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = LEGACY_SHAPE[id][0] || null;
   return id === B.STONE_BRICK ? B.STONE : id;
 };
-const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS } = CORE;
+const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS, ICE_FROM_WATER } = CORE;
 
 // Items (IDs >= 256) — separate registry from blocks
 const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 260, APPLE: 261,
@@ -4190,7 +4235,7 @@ function mineDropAllowed(heldId, blockId) {
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
   shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
-  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK,
+  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK, B.ICE, B.BONE_BLOCK,   // ice 0.8321; bone 0.833
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,

@@ -63,7 +63,9 @@ function BIOME_CORE() {
     const FEWER_HILLS = biomeRev >= 3;                // 0.8193: about 30% fewer desert hills
     const REV5 = biomeRev >= 5;                       // 0.823
     const LADDER = biomeRev >= 7;                     // 0.8232: the climate ladder
-    const BS = REV5 ? 1 / 1.5 : 1;                    // biome-scale noise at two thirds the frequency: 1.5x as big
+    const BIGGER = biomeRev >= 8;                     // 0.833: every biome twice as big again
+    // biome-scale noise at two thirds the frequency: 1.5x as big (rev 5); at a third: 3x the old, twice rev 5's (rev 8)
+    const BS = BIGGER ? 1 / 3 : REV5 ? 1 / 1.5 : 1;
     const CONT_LIFT = REV5 ? 0.1 : 0;                 // the continents raised: less ocean, and less of it deep
     const DEEP_FROM = REV5 ? 0.05 : -0.20;            // ...and the abyssal mask starts later
 

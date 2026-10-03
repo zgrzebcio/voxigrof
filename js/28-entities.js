@@ -702,10 +702,19 @@ function applyCameraView(dt) {
        climbing in and getting up read as movements rather than a snap. */
     _selfLie += ((player.sleepingAt ? 1 : 0) - _selfLie) * Math.min(1, dt * 9);
     const lie = _selfLie;
-    _selfModel.root.position.set(player.pos.x,
-      player.pos.y - 0.14 * _selfCrouch * (1 - lie) - 0.72 * lie, player.pos.z);
-    _selfModel.root.rotation.y = player.yaw + Math.PI;   // model faces +Z, yaw 0 looks -Z
-    _selfModel.root.rotation.x = -Math.PI / 2 * lie;     // onto its back, feet toward the foot end
+    /* 0.8323: the body lies along the BED, not the way you look (the mouse still turns your head while you lie), on
+       its back whichever way the bed points — the tip is about the body's own X now (Euler 'YXZ': yaw first), where it
+       was about the world's X and rolled a sideways bed's sleeper onto their right side. The feet are pulled back half
+       a body length from the bed's middle so the sleeper lies on the mattress, head on the pillow, not beside it. */
+    if (player.sleepingAt) player._bedDir = BED_DIR[player.sleepingAt.facing & 3];   // kept on the player for the ease out of bed
+    const bd = player._bedDir || [0, 1], half = 0.9 * lie;       // half the body's 1.8 length
+    _selfModel.root.rotation.order = 'YXZ';
+    _selfModel.root.position.set(player.pos.x - bd[0] * half,
+      player.pos.y - 0.14 * _selfCrouch * (1 - lie) + 0.23 * lie, player.pos.z - bd[1] * half);   // the back of the head on the mattress
+    const yawStand = player.yaw + Math.PI, yawBed = Math.atan2(bd[0], bd[1]) + Math.PI;   // model faces +Z, yaw 0 looks -Z
+    const dyaw = Math.atan2(Math.sin(yawBed - yawStand), Math.cos(yawBed - yawStand));
+    _selfModel.root.rotation.y = yawStand + dyaw * lie;
+    _selfModel.root.rotation.x = -Math.PI / 2 * lie;     // onto its back, head toward the pillow
     _syncSelfHeld();
     // worn armor on the body, for third person and everyone else's view (0.821, 31-equipment.js)
     if (typeof syncArmorOnModel === 'function') syncArmorOnModel(_selfModel, equipSlots);
@@ -841,7 +850,8 @@ const SHEEP_SPEED = 2.0, SHEEP_FLEE_SPEED = 5.2;
 const FLEE_SPEED_MUL = 1.56;             // every grazer bolts faster than its FLEE_SPEED says: +30% in 0.799, +20% again in 0.7992
 const SHEEP_FLEE_TIME = 6;
 const SHEEP_H = 1.3;                     // shorter than a humanoid
-const SHEEP_REGROW = 10;                 // seconds for the fleece to grow back once it starts
+const SHEEP_WOOL_S = 1800;               // seconds for a shorn fleece to grow back (0.8324; 10 s once it had eaten before)
+const SHEEP_GRAZE_CUT = 300;             // ...less this for every patch of grass it eats
 const SHEEP_GRAZE_CD = 5;                // how often a shorn sheep looks for grass to eat
 const SHEEP_GRAZE_CHANCE = 0.25;
 // sheep like the cold: spruce forest and the mountains most (0.8233)
@@ -1249,7 +1259,8 @@ function spawnSheep(x, y, z, opts = {}) {
     woolColor: opts.woolColor != null ? opts.woolColor : 'white',   // tint on the fleece only
     size,
     woolGrow: woolly ? 1 : 0,                 // 0..1 regrow animation
-    regrowing: false,
+    regrowing: !woolly,
+    woolLeft: woolly ? 0 : SHEEP_WOOL_S,      // seconds until the fleece is back (0.8324)
     grazeCd: SHEEP_GRAZE_CD,
     hx: opts.hx != null ? opts.hx : x,
     hz: opts.hz != null ? opts.hz : z,
@@ -1381,7 +1392,7 @@ function setHeldOnArm(grp, id) {
      lie along the arm, which with the arm raised to hold them put them flat on top of the fist. Their lower
      part now sits in the fist and the rest rises clear of it. A block sits in front of the fist. A torch is
      held three times the size of a plant so it reads at a distance, and fattened like the first-person one. */
-  const isTorch = id === B.TORCH;
+  const isTorch = id < 256 && !!PROPS[id]?.torch;   // every torch (0.834)
   const upright = isCross || (isItem && !isTool);
   grp.position.set(0, (upright ? -10.3 : -11.5) * PX, (isTool ? 1.5 : upright ? 2.0 : 4.4) * PX);
   grp.scale.setScalar(isTool ? 0.42 : isTorch ? 0.63 : isItem ? 0.42 * 0.70 : 0.42 * 0.50);
@@ -1770,7 +1781,8 @@ function tryShearSheep() {
   if (!ent || ent.kind !== 'sheep' || !ent.woolly) return false;
   ent.woolly = false;
   ent.woolGrow = 0;
-  ent.regrowing = false;
+  ent.regrowing = true;
+  ent.woolLeft = SHEEP_WOOL_S;                  // 0.8324
   ent.grazeCd = SHEEP_GRAZE_CD;
   const bx = Math.floor(ent.x), by = Math.floor(ent.y + 0.5), bz = Math.floor(ent.z);
   const n = rollLoot(LOOT.shearWool);           // 50-loottable.js (0.806)
@@ -2074,7 +2086,8 @@ function serializeEntities() {
         s: e.saddled ? 1 : 0, bo: e.boosted ? 1 : 0,
         g: e.gender, lv: e.level, h: +entHunger(e).toFixed(2), th: +entThirst(e).toFixed(2),   // thirst 0.823
         sz: e.size, tn: e.tintHex,
-      } : e.kind === 'sheep' ? { wc: e.woolColor, sz: e.size, g: e.gender, lv: e.level }             // 0.743 fleece, 0.744 size
+      } : e.kind === 'sheep' ? { wc: e.woolColor, sz: e.size, g: e.gender, lv: e.level,             // 0.743 fleece, 0.744 size
+                                 wl: e.woolly ? 0 : Math.round(e.woolLeft || 0) }                      // regrow time left (0.8324)
         : e.kind === 'cow'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level,  // 0.744 size + tints
                                  mk: e.milkCd > 0 ? Math.round(e.milkCd) : 0 }                        // 0.767 milk cooldown
         : e.kind === 'pig'   ? { sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level }  // 0.789
@@ -2170,6 +2183,7 @@ function restoreEntities(list) {
         hz: typeof hz === 'number' ? hz : z,
       });
       if (typeof yaw === 'number') s.yaw = yaw;
+      if (!s.woolly) s.woolLeft = extra && extra.wl >= 0 ? extra.wl : SHEEP_WOOL_S;   // 0.8324
       continue;
     }
     const inventory = Array.isArray(inv)
@@ -2481,26 +2495,28 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
 
   const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
 
-  /* ---- fleece: graze to regrow, then animate it filling out (sheep only) ---- */
+  /* ---- fleece (0.8324): back on its own SHEEP_WOOL_S after shearing, growing all the while; every patch of grass it
+     eats takes SHEEP_GRAZE_CUT off. Until 0.8324 it had to eat once and then grew back in 10 s. ---- */
   if (!cow && !horse && !pig && !e.woolly) {
-    if (e.regrowing) {
-      e.woolGrow = Math.min(1, e.woolGrow + dt / SHEEP_REGROW);
-      if (e.woolGrow >= 1) { e.woolly = true; e.regrowing = false; }
-    } else {
-      e.grazeCd -= dt;
-      if (e.grazeCd <= 0) {
-        e.grazeCd = SHEEP_GRAZE_CD;
-        const gx = Math.floor(e.x), gy = Math.floor(e.y - 0.02), gz = Math.floor(e.z);
-        if (e.onGround && _plainGrass(getBlock(gx, gy, gz)) && Math.random() < SHEEP_GRAZE_CHANCE) {
-          setBlock(gx, gy, gz, B.DIRT);        // eats the turf down to bare dirt
-          playBlockSound(B.GRASS, 'break', gx, gy, gz);
-          e.regrowing = true;
-          e.woolGrow = 0;
-          e.state = 'idle';
-          e.wanderT = 1.2;                     // pause to chew
-        }
+    if (!(e.woolLeft >= 0)) e.woolLeft = SHEEP_WOOL_S;   // a save from before 0.8324 starts the clock
+    e.woolLeft = Math.max(0, e.woolLeft - dt);
+    if (e.chewT > 0) e.chewT -= dt;
+    e.grazeCd -= dt;
+    if (e.grazeCd <= 0) {
+      e.grazeCd = SHEEP_GRAZE_CD;
+      const gx = Math.floor(e.x), gy = Math.floor(e.y - 0.02), gz = Math.floor(e.z);
+      if (e.onGround && _plainGrass(getBlock(gx, gy, gz)) && Math.random() < SHEEP_GRAZE_CHANCE) {
+        setBlock(gx, gy, gz, B.DIRT);          // eats the turf down to bare dirt
+        playBlockSound(B.GRASS, 'break', gx, gy, gz);
+        e.woolLeft = Math.max(0, e.woolLeft - SHEEP_GRAZE_CUT);
+        e.chewT = 1.2;                         // head down a moment to chew
+        e.state = 'idle';
+        e.wanderT = 1.2;
       }
     }
+    e.regrowing = true;
+    e.woolGrow = Math.max(0, Math.min(1, 1 - e.woolLeft / SHEEP_WOOL_S));
+    if (e.woolLeft <= 0) { e.woolly = true; e.regrowing = false; e.woolGrow = 1; }
   }
 
   /* ---- heading ---- */
@@ -2661,7 +2677,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
   const dipTo = horse ? ((e.state === 'idle' && !e.rider && e.fleeT <= 0 && e.onGround) ? 1 : 0)
               : cow ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.55 : 0)
               : pig ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.75 : 0)
-                    : ((!e.woolly && e.regrowing && e.woolGrow < 0.08) ? 0.9 : 0);
+                    : ((e.chewT > 0) ? 0.9 : 0);   // a sheep chewing what it just cropped (0.8324)
   e.headDip = (e.headDip || 0) + (dipTo - (e.headDip || 0)) * Math.min(1, dt * 3.5);
   if (horse) {
     /* The horse's "head" IS its neck pivot, so the dip swings the whole assembly down to the

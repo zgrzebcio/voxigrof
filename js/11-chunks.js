@@ -274,12 +274,15 @@ function dispatchMesh(worker, c) {
   const data = c.data.slice();              // copy: main thread keeps the authoritative data
   // pack glow (low nibble) + sky (high nibble) into one byte per cell for the mesher
   const glow = c.light, skyA = c.sky;
-  const light = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
+  /* 16 bits since 0.834: bit 8 says the block light is a cold (blue) one — the flood fill's LIGHT_COLD_BIT (08)
+     moved up past the sky nibble (LIGHT_COLD in 02) */
+  const light = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
+  const _pk = (g) => Math.min(15, g & LIGHT_LEVEL_MASK) | ((g & LIGHT_COLD_BIT) << 1);
   for (let i = 0; i < light.length; i++)
-    light[i] = (glow ? Math.min(15, glow[i]) : 0) | ((skyA ? skyA[i] : SKY_LEVEL) << 4);   // capped: 16+ turned black (0.8094)
+    light[i] = (glow ? _pk(glow[i]) : 0) | ((skyA ? skyA[i] : SKY_LEVEL) << 4);   // capped: 16+ turned black (0.8094)
   const packedEdge = (n, side) => {
-    const g = edgeSlice(n.light || ZERO_LIGHT, side, Uint8Array);
-    for (let i = 0; i < g.length; i++) if (g[i] > 15) g[i] = 15;   // same cap as above (0.8094)
+    const e = edgeSlice(n.light || ZERO_LIGHT, side, Uint8Array), g = new Uint16Array(e.length);
+    for (let i = 0; i < g.length; i++) g[i] = _pk(e[i]);           // same cap as above (0.8094)
     if (n.sky) {
       const s = edgeSlice(n.sky, side, Uint8Array);
       for (let i = 0; i < g.length; i++) g[i] |= s[i] << 4;
@@ -412,8 +415,14 @@ function finishChunkGen(c) {
   for (let i = 0; i < d.length; i++) {
     const v = d[i];
     if (!EMITTER_ID[v & 255]) continue;
-    if (blockLightOf(v) > 0) glowAdd(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15));
+    if (blockLightOf(v) > 0) {
+      glowAdd(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15));
+      // a torch or glow block seen for the first time starts burning (0.834, 56-torches.js)
+      if (!menuScene && typeof burnSeen === 'function') burnSeen(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v & 255);
+    }
   }
+  // its open water freezes as the season says, straight in the data before it meshes (0.8322, 51-seasons.js)
+  if (typeof iceDressChunk === 'function') iceDressChunk(c);
   /* A chunk arriving fresh needs seeding again — its edits were just re-applied, and if it landed
      while outside the simulation radius the relight below declines. Clearing the woken mark is
      what guarantees the sim-wake pass revisits it (and lights it) once the player is close. */
@@ -617,6 +626,11 @@ function setBlock(x, y, z, val) {
   const oldLit = blockLightOf(oldVal) > 0, newLit = blockLightOf(val) > 0;
   if (oldLit && !newLit) glowDel(x, y, z);
   if (newLit && !oldLit) glowAdd(x, y, z);
+  // heat appearing melts ice in its reach; ice placed beside heat melts (0.8321, 51-seasons.js)
+  if (newLit && !oldLit && typeof iceHeatPlaced === 'function') iceHeatPlaced(x, y, z, val);
+  if (newId === B.ICE && oldId !== B.ICE && typeof iceQueueIfHot === 'function') iceQueueIfHot(x, y, z);
+  // a torch or glow block placed starts burning; one taken away is forgotten (0.834, 56-torches.js)
+  if (typeof burnPlaced === 'function') burnPlaced(x, y, z, oldVal, val);
   // leveling ledger: remember cells the player placed into, forget them when they are cleared
   if (typeof notePlacedCell === 'function') notePlacedCell(x, y, z, newId);
   let edits = editStore.get(key(cx, cz));
@@ -718,10 +732,10 @@ function setBlock(x, y, z, val) {
   if (newId === B.AIR)
     for (const [dx, dz, tv] of [[1, 0, 1], [-1, 0, 2], [0, 1, 3], [0, -1, 4]]) {
       const nv = getBlock(x + dx, y, z + dz);
-      if ((nv & 255) !== B.TORCH || ((nv >> 8) & 7) !== tv) continue;
+      if (!PROPS[nv & 255]?.torch || ((nv >> 8) & 7) !== tv) continue;   // any torch (0.834)
       setBlock(x + dx, y, z + dz, B.AIR);
       if (!player.canFly)
-        for (const d of blockDrop(B.TORCH)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x + dx, y, z + dz);
+        for (const d of blockDrop(nv & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x + dx, y, z + dz);
     }
   /* A glow vine clings to the block behind it (0.765): take that block away and the vine comes down with
      it. Nothing harvested it, so it drops nothing. [dx, dz, the variant of a vine whose wall is this cell] */
@@ -737,7 +751,7 @@ function setBlock(x, y, z, val) {
   if (newId === B.AIR && y + 1 <= 199) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;
     // ...unless it is a WALL torch, whose support is the wall behind it, not the floor
-    const wallTorch = above === B.TORCH && ((aboveVal >> 8) & 7) !== 0;
+    const wallTorch = !!PROPS[above]?.torch && ((aboveVal >> 8) & 7) !== 0;
     // a cobweb needs no floor under it (0.766)
     if ((PROPS[above]?.model === 'cross' && !wallTorch && above !== B.COBWEB) || above === B.CACTUS) {   // cactus columns chain-break upward
       setBlock(x, y + 1, z, B.AIR);

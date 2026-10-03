@@ -153,6 +153,7 @@ function saveWorld(syncToLS = false) {
   const data = {
     savedAt: Date.now(),
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
+    burns: serializeBurns(),              // when each torch and glow block goes out (0.834, 56-torches.js)
     // mixed layer stacks (0.785): [chunk key, [[cell index, [block ids bottom to top]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
@@ -283,6 +284,7 @@ async function loadWorld(w) {
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
   restoreSeasons(data && data.seasons);                                // what autumn took, for spring (0.81)
+  restoreBurns(data && data.burns);                                    // lights burning out (0.834)
   restoreBloodMoon(data && data.bloodLast);                            // 0.8192
   restoreBenches(data && data.benches);                                   // crafting bench orders (0.76)
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
@@ -300,7 +302,7 @@ async function loadWorld(w) {
         registerDoor(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3,
                      ((v >> 8) & 4) !== 0, ((v >> 8) & DOOR_HINGE_R) !== 0);
       if ((v & 255) === B.BED && !((v >> 8) & 8))     // only the foot half owns a mesh
-        registerBed(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3);
+        registerBed(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, bedWoodOf((v >> 8) & 255));   // wood 0.8342
       if ((v & 255) === B.CHEST)
         registerChest(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3);
     }

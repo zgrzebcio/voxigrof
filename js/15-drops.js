@@ -85,7 +85,7 @@ function buildItemDropGeom(id, iconName) {
 function buildDropGeom(id, variant = 0) {
   if (id >= 256) return buildItemDropGeom(id);
   if (id === B.DOOR) return buildItemDropGeom(id, 'oak_door');   // no chunk-mesh model — sprite drop
-  if (id === B.BED)  return [{ node: bedItemNode() }];           // real mesh, not a flat sprite
+  if (id === B.BED)  return [{ node: bedItemNode(bedWoodOf(variant)) }];   // real mesh, not a flat sprite; in its wood (0.8342)
   // Chest has no chunk-mesh model, but unlike the door and bed it IS a full 3D shape — a flat
   // chest_front sprite in the hand looked like a painting. Hand it the real lid-and-body mesh
   // (the same one 05-icons.js renders) as a node the caller adds directly.
@@ -97,12 +97,12 @@ function buildDropGeom(id, variant = 0) {
   const data = new Uint32Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   data[CORE.idx(8, 64, 8)] = (id | (variant << 8)) >>> 0;
   const empty = () => new Uint32Array(16 * 200).buffer;
-  const lite = () => new Uint8Array(16 * 200).fill(0xF0).buffer;
+  const lite = () => new Uint16Array(16 * 200).fill(0xF0).buffer;
   // drops render fully sky-lit (high nibble 15) like icons, or they'd bake as cave-dark
-  const lightArr = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
+  const lightArr = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
   if (PROPS[id]?.light) {
     for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]])
-      lightArr[CORE.idx(d[0], d[1], d[2])] = 0xFF;
+      lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue (0.834)
   }
   const r = CORE.meshChunk(data.buffer, empty(), empty(), empty(), empty(),
                            lightArr.buffer, lite(), lite(), lite(), lite());
@@ -143,6 +143,7 @@ function _dropLightHook(_r, _s, _c, _g, material) {
   const x = Math.floor(g.position.x), y = Math.floor(g.position.y), z = Math.floor(g.position.z);
   let v = (getSkyWorld(x, y, z) << 4) | getLightWorld(x, y, z);
   if (g.userData.glow) v |= 15;                       // a dropped glowstone still reads as lit
+  if ((v & 15) && lightColdWorld(x, y, z)) v |= 256;  // in blue light, blue (0.834)
   u.value = v;
   material.uniformsNeedUpdate = true;                 // per draw: each drop sits in its own light
 }

@@ -26,7 +26,7 @@ const EQUIP_SLOTS = [
   { key: 'offhand',     label: 'Offhand',     col: 'r', accepts: 'offhand'    },   // shields (0.745)
 ];
 // blocks the OFFHAND slot takes besides shields (0.7451): carried, lit, and placed from there
-const OFFHAND_BLOCKS = new Set([B.TORCH]);
+const OFFHAND_BLOCKS = new Set([B.TORCH, B.CRYSTAL_TORCH, B.TORCH_UNLIT]);   // every torch (0.834)
 const EQUIP_INDEX = {};
 EQUIP_SLOTS.forEach((s, i) => { EQUIP_INDEX[s.key] = i; });
 
@@ -446,7 +446,12 @@ function buildEquipPanel() {
   const dep = typeof playerDepletionMul === 'function' ? playerDepletionMul() : 1;   // one line for every bar since 0.828
   const hazard = 1 - (typeof skillHazardMul === 'function' ? skillHazardMul() : 1);
   const hs = typeof playerHeatstrokeResist === 'function' ? playerHeatstrokeResist() : 0;
-  const sight = 1 - (typeof skillSightMul === 'function' ? skillSightMul() : 1);   // Clear Eyes (0.8291)
+  const sight = 1 - (typeof playerSightMul === 'function' ? playerSightMul() : 1);   // Clear Eyes (0.8291); vegetable sickness (0.8323)
+  const mine = typeof playerMiningSpeedMul === 'function' ? playerMiningSpeedMul() : 1;   // 0.8323
+  // 0.832: regen (Rapid regen, tiredness), how fast carried food spoils (Preserver, salt), how long effects last (Lingering)
+  const regen = typeof playerRegenMul === 'function' ? playerRegenMul() : 1;
+  const spoil = typeof playerSpoilMul === 'function' ? playerSpoilMul() : 1;
+  const effT = typeof playerEffectTimeMul === 'function' ? playerEffectTimeMul() : 1;
   let stats =
     row('defense', f1(pts)) +
     row('damage reduced', pct(red)) +
@@ -458,21 +463,23 @@ function buildEquipPanel() {
     row('heat resistance', pct(heat), tone(heat, 0)) +
     row('jump strength', pct(jmp), tone(jmp, 1)) +
     row('crafting speed', pct(cft), tone(cft, 1)) +
+    row('mining speed', pct(mine), tone(mine, 1)) +                          // 0.8323
     row('stats depletion', pct(dep), tone(dep, 1, false)) +                  // hunger and oxygen depletion until 0.828
+    row('regen', pct(regen), tone(regen, 1)) +                               // 0.832
     row('hazard reduction', pct(hazard), tone(hazard, 0)) +                   // 0.7911
     row('heatstroke resistance', pct(hs), tone(hs, 0)) +                      // the reserved line (0.825)
     row('visibility reduction', pct(sight), tone(sight, 0)) +                 // 0.8291
+    row('spoil speed', pct(spoil), tone(spoil, 1, false)) +                   // 0.832
+    row('effect duration', pct(effT), tone(effT, 1)) +                        // 0.832
     '<div class="stRow slotFree"><span>&mdash;</span><b></b></div>';          // an empty line kept for a stat to come (0.8291)
   // the stats get the room; effects are a short strip under them (0.7612)
   stats = '<div class="stGrid">' + _tagStatRows(stats) + '</div>';   // hoverable, with a tooltip each (0.7611)
   const eff = activeEffects();
   stats += '<div class="ctitle stTitle">Effects</div><div class="effList">' + (eff.length
-    ? eff.map((e, i) => {
-        // a set bonus lasts as long as the set is worn, so it shows an infinity sign, not a clock
-        const t = (e.time === Infinity) ? '&infin;' : e.time + 's';
-        // data-eff: its index in activeEffects(), read back by the tooltip (0.7611)
-        return `<div class="stRow eff${e.good === false ? ' bad' : ''}" data-eff="${i}"><span>${e.name}</span><b>${t}</b></div>`;
-      }).join('')
+    ? eff.map((e, i) =>
+        // data-eff: its index in activeEffects(), read back by the tooltip (0.7611); no time column since 0.8323 —
+        // the effect bar by the hotbar shows each one's time
+        `<div class="stRow eff${e.good === false ? ' bad' : ''}" data-eff="${i}"><span>${e.name}</span></div>`).join('')
     : '<div class="stRow none"><span>no active effects</span></div>') + '</div>';
   // belt row: only present while a belt is worn, sized by that belt's slot count
   const cap = beltCapacity();

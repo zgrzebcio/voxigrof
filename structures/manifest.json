@@ -10,7 +10,8 @@
   "desert_village_big_house.json",
   "desert_village_well.json",
   "dungeon_room.json",
-  "dungeon_cell.json"
+  "dungeon_cell.json",
+  "igloo.json"
  ],
  "groups": {
   "village": {

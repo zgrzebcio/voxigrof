@@ -78,12 +78,15 @@ function resetXP() { setXP(0); }
 const XP_BLOCK_DEFAULT = 1;
 const XP_FEED_FROM = 5;            // a block worth this much says so in the feed (0.8284)
 const XP_BLOCK = {};
+const XP_ORE_MUL = 2;              // 0.831
+const XP_GEM_ORE = 150;            // diamond and every gem ore (0.832)
 {
   const set = (id, n) => { XP_BLOCK[id] = n; };
-  set(B.COAL_ORE, 14); set(B.IRON_ORE, 22); set(B.COPPER_ORE, 18); set(B.TIN_ORE, 18);
-  set(B.GOLD_ORE, 35); set(B.DIAMOND_ORE, 70);
-  set(B.EMERALD_ORE, 60); set(B.RUBY_ORE, 60); set(B.SAPPHIRE_ORE, 60);   // gems (0.766)
-  set(B.TOPAZ_ORE, 60);                                                   // 0.769
+  const ore = (id, n) => set(id, n * XP_ORE_MUL);                          // every ore twice its old worth (0.831)
+  ore(B.COAL_ORE, 14); ore(B.IRON_ORE, 22); ore(B.COPPER_ORE, 18); ore(B.TIN_ORE, 18);
+  ore(B.GOLD_ORE, 35);
+  // diamond and the gems are one class since 0.832: 150 each (diamond 140, the gems 120 in 0.831)
+  for (const id of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]) set(id, XP_GEM_ORE);
   set(B.SULFUR_BLOCK, 8); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 12);
   // lightning's glassy sand is rare to come across (0.8281)
   set(B.GLASSY_SAND, 5); set(B.GLASSY_RED_SAND, 5); set(B.GLASSY_PINK_SAND, 5);
@@ -105,14 +108,17 @@ const XP_BLOCK = {};
   // chest is housekeeping, so it pays nothing. Crafting them still pays: each recipe's xpToGive (25-crafting.js).
   set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.BED, 0); set(B.HAY, 0);
 }
-/* A kill (0.791): a base for what the creature is, plus its level (1-50), so the stronger the thing you
-   bring down the more it teaches you. Animals 20, villagers 30, monsters 40. Replaced a flat 25. */
-const XP_KILL_BASE = { animal: 20, npc: 30, monster: 40 };
-const _XP_ANIMALS = new Set(['sheep', 'cow', 'pig', 'horse', 'fish']);   // fish 0.805
+/* A kill (0.831): XP_KILL_MIN to XP_KILL_MAX by how much health the creature has at most (entMaxHp, 28-entities.js),
+   from a cod's 20 to a horse's 150 — a zombie about 36, a villager 38 — plus XP_KILL_PER_LEVEL a level (1-50). Was
+   a base by kind (animals 20, villagers 30, monsters 40) plus the level since 0.791. */
+// ...a monster (a zombie, a skeleton: isNightMob) a flat XP_KILL_MONSTER plus the level (0.832)
+const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 150, XP_KILL_PER_LEVEL = 1, XP_KILL_MONSTER = 60;
 function mobKillXP(ent) {
-  const kind = ent && ent.kind;
-  const base = _XP_ANIMALS.has(kind) ? XP_KILL_BASE.animal : kind === 'npc' ? XP_KILL_BASE.npc : XP_KILL_BASE.monster;
-  return base + Math.max(0, (ent && ent.level) | 0);
+  if (!ent) return XP_KILL_MIN;
+  if (typeof isNightMob === 'function' && isNightMob(ent)) return XP_KILL_MONSTER + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
+  const hp = typeof entMaxHp === 'function' ? entMaxHp(ent) : XP_KILL_HP_LO;
+  const f = Math.max(0, Math.min(1, (hp - XP_KILL_HP_LO) / (XP_KILL_HP_HI - XP_KILL_HP_LO)));
+  return Math.round(XP_KILL_MIN + (XP_KILL_MAX - XP_KILL_MIN) * f) + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
 }
 const XP_HARVEST = 1;              // a bush pickup that actually yielded something
 /* ...and since 0.8281 one more for every berry, wheat, melon or cantaloupe slice, flint and stone pebble it hands you
@@ -129,7 +135,13 @@ const XP_WEATHER = 1, XP_WEATHER_S = 30;
    dismantling pays nothing), a sapling you planted growing into a tree, each biome the first time you set foot in
    it, the top and the bottom of the world once each, and a night outside: more than half of it under the open sky
    and alive at dawn (a blood moon instead pays XP_BLOOD_MOON). */
-const XP_TAME = 10, XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;
+const XP_TAME = 60, XP_TAME_PER_LEVEL = 2;   // 10 and 1 a level until 0.831
+const XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;
+/* A biome found (0.8324): the more you have found already, the more the next one pays — XP_BIOME for the first, rising
+   by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (55-biomes.js biomeAt names them: 9 kinds of
+   water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last (0.833). */
+const XP_BIOME_LAST = 1000, BIOME_COUNT = 27;   // 500 in 0.8324
+const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
 const XP_SAPLING = { [B.OAK_SAPLING]: 3, [B.BIRCH_SAPLING]: 4, [B.SPRUCE_SAPLING]: 5 };
 const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = 199, WORLD_BOTTOM_Y = 2;
 // XP for a player who may not be the seat running right now (a sapling they planted grew); paid on their next tick
@@ -158,10 +170,10 @@ const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p.
    and opening the thing. A table declares its own `xp: [min, max]` (supply crate = 4..10); one
    without the field falls back to this range. Paid once, on the first open, alongside the roll. */
 const XP_LOOT_DEFAULT = [3, 8];
-function awardLootXP(table) {
+function awardLootXP(table, mul = 1) {   // mul: the chest's multiplier (0.833, lootXpMul in 34)
   const r = table && Array.isArray(table.xp) ? table.xp : XP_LOOT_DEFAULT;
   const lo = Math.max(0, r[0] | 0), hi = Math.max(lo, r[1] | 0);
-  addXP(lo + Math.floor(Math.random() * (hi - lo + 1)), 'loot chest');
+  addXP((lo + Math.floor(Math.random() * (hi - lo + 1))) * mul, 'loot chest');
 }
 
 /* ---- the player-placed ledger ----

@@ -82,6 +82,7 @@ const SOUND_FILES = {
   thunder:         'Sound/Weather/thunder.ogg',
   thunderFar:      'Sound/Weather/thunder_distance.ogg',
   thunderLong:     'Sound/Weather/thunder_long.ogg',
+  rain:            'Sound/Weather/rain.ogg',      // looped while it rains (updateWeatherSound, 0.831)
   // fire (0.8191): the crackle of something burning, catching light, and being put out
   fire:            'Sound/Fire/fire.ogg',
   fireIgnite:      'Sound/Fire/ignite.ogg',
@@ -244,6 +245,76 @@ function updateMusic() {
   _bgm.volume = Math.min(1, musicGain());                    // follows the sliders live (0.804)
   if (wantMusic) { if (_bgm.paused) _bgm.play().catch(() => {}); }
   else if (!_bgm.paused) _bgm.pause();
+}
+
+/* ---- rain and snow (0.831) ----
+   A loop each, as loud as what falls where the players are (precipAt, 51-seasons.js; the loudest seat counts),
+   muffled to a third under a roof or in a cave, eased over WX_SOUND_EASE_S. Rain plays rain.ogg, louder the harder
+   it falls. Snow has no file, so it is made here with Web Audio: brown noise through a low-pass filter, a soft hush,
+   which a blizzard opens up into a gusting, howling wind. The audio context sleeps whenever nothing falls. */
+const RAIN_GAIN = 0.6, SNOW_GAIN = 0.35, BLIZZARD_GAIN = 1.1, WX_SOUND_EASE_S = 2.5, WX_ROOF_MUFFLE = 0.35;
+const _wxSnd = { rain: 0, snow: 0, bliz: 0, aim: [0, 0, 0], t: 0, ph: 0 };
+let _rainAudio = null, _wxCtx = null, _wxSnowGain = null, _wxSnowLP = null;
+// the snow's noise loop, built once on first need (after a gesture: browsers start no audio before one)
+function _wxSnowNode() {
+  if (_wxCtx) return true;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return false;
+  try {
+    const ctx = new AC(), sr = ctx.sampleRate, len = sr * 4, fade = Math.floor(sr * 0.5);
+    // brown noise, its last half second crossfaded into its start so the loop has no seam
+    const raw = new Float32Array(len + fade);
+    let last = 0;
+    for (let i = 0; i < raw.length; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; raw[i] = last * 3.5; }
+    const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = i < fade ? raw[i] * (i / fade) + raw[len + i] * (1 - i / fade) : raw[i];
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    _wxSnowLP = ctx.createBiquadFilter(); _wxSnowLP.type = 'lowpass'; _wxSnowLP.frequency.value = 400; _wxSnowLP.Q.value = 0.7;
+    _wxSnowGain = ctx.createGain(); _wxSnowGain.gain.value = 0;
+    src.connect(_wxSnowLP).connect(_wxSnowGain).connect(ctx.destination);
+    src.start();
+    _wxCtx = ctx;
+  } catch { _wxCtx = null; return false; }
+  return true;
+}
+function updateWeatherSound(dt) {
+  const s = _wxSnd;
+  s.t -= dt;
+  if (s.t <= 0) {                                    // looked at twice a second
+    s.t = 0.5;
+    let rain = 0, snow = 0, bliz = 0;
+    if (_soundReady && typeof precipAt === 'function' && typeof PLAYERS !== 'undefined' && !(typeof menuScene !== 'undefined' && menuScene))
+      for (const p of PLAYERS) {
+        if (!p.spawned || !p.pos) continue;
+        const ey = p.pos.y + (p.EYE || 1.62), pr = precipAt(p.pos.x, p.pos.z, ey);
+        const m = getSkyWorld(Math.floor(p.pos.x), Math.floor(ey), Math.floor(p.pos.z)) < 12 || p._eyeUnder ? WX_ROOF_MUFFLE : 1;
+        rain = Math.max(rain, pr.rain * m); snow = Math.max(snow, pr.snow * m); bliz = Math.max(bliz, pr.blizzard * m);
+      }
+    s.aim = [rain, snow, bliz];
+  }
+  const k = 1 - Math.exp(-dt / WX_SOUND_EASE_S);
+  s.rain += (s.aim[0] - s.rain) * k; s.snow += (s.aim[1] - s.snow) * k; s.bliz += (s.aim[2] - s.bliz) * k;
+  // rain: the file, looped
+  const rv = Math.min(1, RAIN_GAIN * Math.pow(Math.max(0, s.rain), 0.8) * sfxGain());
+  if (rv > 0.004) {
+    if (!_rainAudio) { _rainAudio = new Audio(SOUND_FILES.rain); _rainAudio.loop = true; _rainAudio.preload = 'auto'; }
+    _rainAudio.volume = rv;
+    if (_rainAudio.paused) _rainAudio.play().catch(() => {});
+  } else if (_rainAudio && !_rainAudio.paused) _rainAudio.pause();
+  // snow and blizzard: the noise, gusting
+  const sv = (SNOW_GAIN * s.snow + BLIZZARD_GAIN * s.bliz) * sfxGain();
+  if (sv > 0.004 && _wxSnowNode()) {
+    if (_wxCtx.state === 'suspended') _wxCtx.resume().catch(() => {});
+    s.ph += dt;
+    const gust = 0.8 + 0.2 * Math.sin(s.ph * 0.7) + 0.12 * Math.sin(s.ph * 1.9 + 1.3) + 0.08 * Math.sin(s.ph * 4.1);
+    const g = Math.min(1, sv * (1 + (gust - 0.8) * 1.5 * s.bliz)), now = _wxCtx.currentTime;
+    _wxSnowGain.gain.setTargetAtTime(g, now, 0.1);
+    _wxSnowLP.frequency.setTargetAtTime(320 + 200 * s.snow + 1500 * s.bliz * gust, now, 0.15);
+  } else if (_wxCtx) {
+    _wxSnowGain.gain.setTargetAtTime(0, _wxCtx.currentTime, 0.2);
+    if (sv <= 0.0005 && _wxCtx.state === 'running' && s.snow < 0.01 && s.bliz < 0.01) _wxCtx.suspend().catch(() => {});
+  }
 }
 
 /* unlock audio on the first gesture — browsers block playback until then */

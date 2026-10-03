@@ -23,6 +23,7 @@ const sharedUniforms = {
   uShadowOn:   { value: 0 },
   uLightColor: { value: new THREE.Color(1, 1, 1) },
   uGlowColor:  { value: new THREE.Color(1.0, 0.82, 0.45) },   // warm glowstone block-light tint
+  uColdGlowColor: { value: new THREE.Color(0.48, 0.74, 1.0) },  // a cold light's blue: crystal torch, glowcrystal, glow vine (0.834)
   uTime:       { value: 0 },
   uTileLayer:  { value: TILE_LAYER },          // tile -> texture-array layer: an animated tile's current frame (0.8093)
   // the wind where the player stands (0.81, 51-seasons.js): which way it blows, and its ground speed in km/h (0.812)
@@ -186,7 +187,7 @@ const FSH = /* glsl */`
   uniform vec3 uLightColor;
   uniform float uTintTile;
   uniform vec3 uTintColor;
-  uniform vec3 uGlowColor;
+  uniform vec3 uGlowColor, uColdGlowColor;
   uniform float uTime;
   uniform vec3 uWaterWarm, uWaterCold;              // water's warm and cold colour over its usual blue (0.8231)
   in float vClim;
@@ -233,8 +234,11 @@ const FSH = /* glsl */`
     // packed light byte: low nibble = flood-filled block light (glow), high nibble = sky light.
     // Sky scales the sun's contribution so caves go genuinely dark; glow is sun-independent
     // and still lights caves & night. Curves kept gentle so level-14 faces aren't blown out.
-    float skyN = floor(vBlock / 16.0 + 0.001);
-    float bl = (vBlock - skyN * 16.0) / 15.0;
+    // ...and over them bit 8 (256): that block light is a cold one, blue (0.834; a whole quad shares one value)
+    float coldL = step(255.5, vBlock);
+    float pk = vBlock - coldL * 256.0;
+    float skyN = floor(pk / 16.0 + 0.001);
+    float bl = (pk - skyN * 16.0) / 15.0;
     float sky = skyN / 15.0;
     // sun/moon shadows: soft PCF compare against the two depth maps. Without a map (shadows off, or past the
     // shadow window far from the player) the sky light stands in for it (0.8245; everything counted as lit
@@ -252,7 +256,7 @@ const FSH = /* glsl */`
     float skyF = 0.276 + 0.724 * sky * sky;
     // part-linear curve: light-source edges (low levels) stay visibly bright instead of
     // quadratic-fading to black; peak slightly above the old 1.15
-    vec3 block = uGlowColor * (bl * 0.45 + bl * bl * 0.85);
+    vec3 block = mix(uGlowColor, uColdGlowColor, coldL) * (bl * 0.45 + bl * bl * 0.85);
     // under a cloud the sky's light is less (0.815): a little for a white one, 75% for a dark one; caves never notice
     vec3 lit = tex.rgb * vShade * (uLightColor * (uAmbient + direct) * skyF * mix(1.0, cloudShade(vWp), sky) + block);
     // a light source's glowing pixels keep their own colour whatever the light around them (0.8094)

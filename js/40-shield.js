@@ -150,7 +150,7 @@ function _poseOffhandArm(dt) {
     } else {
       const passes = buildDropGeom(id);
       // a torch is fattened and turned so it reads as a stick, not a sliver (24-hands.js, 0.7523)
-      if (id === B.TORCH && typeof wrapHeldTorch === 'function') wrapHeldTorch(off.held, passes);
+      if (id < 256 && PROPS[id]?.torch && typeof wrapHeldTorch === 'function') wrapHeldTorch(off.held, passes);   // every torch (0.834)
       else for (const { p, geo, mat: mo, node } of passes)
         off.held.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
       off.held.scale.setScalar(OFF_ITEM.scale);

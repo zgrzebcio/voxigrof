@@ -152,7 +152,7 @@ const _esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&
 const ENT_INTERACT_REACH = 4.0, ENT_LABEL_REACH = ENT_INTERACT_REACH * 2;
 // the name is player-typed once tamed, so it is escaped before it goes into innerHTML
 const entityHead = (ent) =>
-  `${ent.gender || ''} <b>${_esc(ent.name)}</b> ${ent.level != null ? ent.level + ' lvl' : ''}`.trim();
+  `${ent.gender || ''} <b>${_esc(ent.name)}</b>${typeof entitySizeText === 'function' ? entitySizeText(ent) : ''} ${ent.level != null ? ent.level + ' lvl' : ''}`.trim();   // size 0.8324
 // the entity this player is looking at, within label reach and in plain sight, or null
 function _hoverEntity() {
   if (!playing || menuScene || invOpen || player.riding || player.dead) return null;
@@ -165,8 +165,38 @@ function _hoverEntity() {
    it like a player's name tag, only outlined instead of on a dark plate, so it never reads as another
    player. It replaces the crosshair label of 0.756, which fought the bush-pickup prompt for the same
    spot. One sprite per player, kept on the player object and moved to whatever that player looks at. */
+/* 0.8324: an animal's size follows its name ("F Cow 1.12x 12 lvl"), and a second, smaller line under it says what
+   it has for you: a cow's milk (ready, or how long until it is) and a sheep's wool (ready, or growing back). */
+const _ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse', 'fish']);
+const entitySizeText = (ent) => (_ANIMAL_KINDS.has(ent.kind) && ent.size > 0) ? ` ${(+ent.size).toFixed(2)}x` : '';
+const _mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+function entitySubText(ent) {
+  if (ent.kind === 'cow' && ent.gender === 'F') return ent.milkCd > 0 ? `milk in ${_mmss(ent.milkCd)}` : 'milk is ready';
+  if (ent.kind === 'sheep') return ent.woolly ? 'wool is ready' : `growing wool (${_mmss(ent.woolLeft || 0)})`;
+  return '';
+}
 const entityHeadText = (ent) =>
-  `${ent.gender ? ent.gender + ' ' : ''}${ent.name}${ent.level != null ? ' ' + ent.level + ' lvl' : ''}`;
+  `${ent.gender ? ent.gender + ' ' : ''}${ent.name}${entitySizeText(ent)}${ent.level != null ? ' ' + ent.level + ' lvl' : ''}`;
+// the outlined label over an entity, with its smaller second line when it has one (0.8324)
+const ENT_TAG_SUB_FONT = "600 32px 'Segoe UI', system-ui, sans-serif";
+function _entTagTexture(head, sub) {
+  if (!sub) return _nameTagTexture(head, false);
+  const pad = 14, fs = 44, fs2 = 32;
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.font = NAME_TAG_FONT; const w1 = probe.measureText(head).width;
+  probe.font = ENT_TAG_SUB_FONT; const w2 = probe.measureText(sub).width;
+  const c = document.createElement('canvas');
+  c.width = Math.max(8, Math.ceil(Math.max(w1, w2)) + pad * 2); c.height = fs + fs2 + pad * 2;
+  const g = c.getContext('2d');
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,0.8)';
+  const line = (text, font, y, col) => { g.font = font; g.strokeText(text, c.width / 2, y); g.fillStyle = col; g.fillText(text, c.width / 2, y); };
+  line(head, NAME_TAG_FONT, pad / 2 + fs / 2 + 1, '#ffffff');
+  line(sub, ENT_TAG_SUB_FONT, pad + fs + fs2 / 2 + 1, '#d8e8c8');
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  return { tex: t, aspect: c.width / c.height, lines: 2 };
+}
 function updateEntityHoverTag() {
   const ent = _hoverEntity();
   let s = player._hoverTag;
@@ -178,16 +208,17 @@ function updateEntityHoverTag() {
     scene.add(s);
     player._hoverTag = s;
   }
-  const text = entityHeadText(ent);
+  const head = entityHeadText(ent), sub = entitySubText(ent), text = head + '|' + sub;
   if (s.userData.text !== text) {
-    const { tex, aspect } = _nameTagTexture(text, false);
+    const { tex, aspect, lines } = _entTagTexture(head, sub);
     s.material.map?.dispose();
     s.material.map = tex;
     s.material.needsUpdate = true;
     s.userData.text = text;
-    s.scale.set(NAME_TAG_H * aspect, NAME_TAG_H, 1);
+    const h = lines === 2 ? NAME_TAG_H * 104 / 58 : NAME_TAG_H;   // the canvas is that much taller with two lines
+    s.scale.set(h * aspect, h, 1);
   }
-  s.position.set(ent.x, ent.y + entH(ent) + 0.35, ent.z);
+  s.position.set(ent.x, ent.y + entH(ent) + 0.35 + (s.scale.y - NAME_TAG_H) / 2, ent.z);   // a two-line tag sits higher (0.8324)
   s.visible = true;
 }
 function tameablePrompt() {
@@ -283,7 +314,7 @@ function finishTaming(e, tp) {
   if (typeof fxTamed === 'function') fxTamed(e.x, e.y + 1.2, e.z);   // hearts and sparkles (0.803)
   dismountRider(player, true);
   toast(`tamed the ${tp.label}!`);
-  addXP(XP_TAME + (e.level | 0), 'taming');                    // 10 and one a level (0.8283)
+  addXP(XP_TAME + XP_TAME_PER_LEVEL * (e.level | 0), 'taming');   // 60 and two a level (0.831; 10 and one since 0.8283)
   openNameDialog(e, tp);
 }
 

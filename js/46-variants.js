@@ -47,6 +47,10 @@ const BLOCK_VARIANTS = {
   // glassy sand is a block of its own, red and pink its looks (0.8263; each sand's look in 0.8261). Every one breaks into
   // glass shards (blockDrop, 50)
   [B.GLASSY_SAND]:    [{ id: B.GLASSY_RED_SAND, name: 'red' }, { id: B.GLASSY_PINK_SAND, name: 'pink' }],
+  // 0.833: ice and snow bricks; the snow-ice brick is on both bars (and breaks back into snow, below); the bone brick
+  [B.ICE]:            [{ id: B.ICE_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' }],
+  [B.SNOW]:           [{ id: B.SNOW_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' }],
+  [B.BONE_BLOCK]:     [{ id: B.BONE_BRICKS, name: 'brick' }],
 };
 // the default's own name in the tooltip's list of variants (0.8261, 20-inventory-ui.js); 'default' for the rest
 const VARIANT_DEFAULT_NAME = {};
@@ -61,6 +65,9 @@ for (const gem of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.T
 BLOCK_VARIANTS[B.FURNACE] = FURNACE_ROCKS.slice(1).map((name, i) => ({ id: B.FURNACE, name, bits: (i + 1) << V.FURNACE_ROCK_SHIFT }));
 BLOCK_VARIANTS[B.CRAFTING_BENCH] = BENCH_WOODS.slice(1).map((name, i) => ({ id: B.CRAFTING_BENCH, name, bits: (i + 1) << V.BENCH_WOOD_SHIFT }));
 BLOCK_VARIANTS[B.CHEST] = CHEST_WOODS.slice(1).map((name, i) => ({ id: B.CHEST, name, bits: (i + 1) << CHEST_WOOD_SHIFT }));
+// the bed's frame the same way, its wood in bits 4-5 (0.8342, BED_WOOD_SHIFT in 29-bed.js)
+BLOCK_VARIANTS[B.BED] = BED_WOODS.slice(1).map((name, i) => ({ id: B.BED, name, bits: (i + 1) << BED_WOOD_SHIFT }));
+VARIANT_DEFAULT_NAME[B.BED] = BED_WOODS[0];
 VARIANT_DEFAULT_NAME[B.FURNACE] = FURNACE_ROCKS[0];
 VARIANT_DEFAULT_NAME[B.CRAFTING_BENCH] = BENCH_WOODS[0];
 VARIANT_DEFAULT_NAME[B.CHEST] = CHEST_WOODS[0];
@@ -88,6 +95,7 @@ for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== 
 for (const [id, base] of [[B.DIAMOND_CLUSTER_STONE, B.DIAMOND_ORE], [B.EMERALD_CLUSTER_STONE, B.EMERALD_ORE], [B.RUBY_CLUSTER_STONE, B.RUBY_ORE],
                           [B.SAPPHIRE_CLUSTER_STONE, B.SAPPHIRE_ORE], [B.TOPAZ_CLUSTER_STONE, B.TOPAZ_ORE]]) _VARIANT_BASE[id] = base;
 _VARIANT_BASE[B.CRACKED_STONE_BRICK] = B.STONE;   // off the bar since 0.8091; a placed one still breaks into stone
+_VARIANT_BASE[B.SNOW_ICE_BRICKS] = B.SNOW;        // on both the ice and the snow bar: broken, it is snow (0.833)
 const variantBaseOf = (blockId) => _VARIANT_BASE[blockId] ?? null;
 // every look takes its default's shapes (0.8263, VARIANT_FAMILIES in 02): say so at boot if a look is missing there
 for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k

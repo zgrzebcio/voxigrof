@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.829';     // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.8342';    // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)

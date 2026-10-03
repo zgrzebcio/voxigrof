@@ -396,16 +396,18 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull)]);
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
     // what else it fills (0.82, FOOD_NUTRITION in 54-stats-effects.js)
-    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein']])
+    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein'], ['energy', 'energy']])   // energy 0.832
       if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst (0.827)
     if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
     /* How long this food has left before one of it spoils, against how long it keeps from fresh
        (0.7891). A recipe icon has no instance behind it, so it shows the full shelf life. */
     const maxF = typeof spoilMax === 'function' ? spoilMax(id) : 0;
-    // in real seconds: Preserver stretches both (0.7911)
+    /* the food's own clock (0.8321): it counts down at the spoil speed, so salt and Preserver make the seconds go
+       visibly slower (it was shown in real seconds, which always ticked one a second) */
     const rate = typeof spoilRate === 'function' ? spoilRate() : 1;
-    if (maxF) rows.push(['spoils in', `${_tipTime((fresh != null ? fresh : maxF) / rate)} / ${_tipTime(maxF / rate)}`]);
+    if (maxF) rows.push(['spoils in', `${_tipTime(fresh != null ? fresh : maxF)} / ${_tipTime(maxF)}`]);
+    if (maxF && Math.abs(rate - 1) > 0.005) rows.push(['spoil speed', Math.round(rate * 100) + '%']);
   }
   if (rows.length) {
     html += '<div class="tipStats">';

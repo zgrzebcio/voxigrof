@@ -29,8 +29,8 @@
 
 /* ======================================= vitals ======================================= */
 const VITAL_K = 5;                                   // health and food were out of 20 until 0.82
-const MAX_HP = 100, MAX_FOOD = 100, MAX_THIRST = 100, MAX_STAMINA = 100, MAX_ENERGY = 100,
-      MAX_NUTRIENT = 100, MAX_AIR = 100;
+const MAX_HP = 100, MAX_FOOD = 100, MAX_THIRST = 100, MAX_STAMINA = 200, MAX_ENERGY = 100,   // stamina and oxygen 200 (0.831)
+      MAX_NUTRIENT = 100, MAX_AIR = 200;
 const MAX_OVER = 50;                                 // every over-stat's ceiling
 const MAX_SATURATION = MAX_OVER;                     // food's over-stat, under its old name
 const OVER_DRAIN_MUL = 3;                            // an over-stat drains 3x as fast as its bar would
@@ -63,30 +63,65 @@ const HUNGRY_WARN = 40, THIRSTY_WARN = 40;  // the feed warns once as a bar drop
 const THIRST_IDLE_PER_S       = 1 / 12;     // 20 min from full (30 in 0.82)
 const THIRST_REGEN_COST_PER_S = 0.6;
 // stamina
-const STAMINA_SPRINT_PER_S = 7;             // a full bar sprints about 14 s
+const STAMINA_SPRINT_PER_S = 7;             // a full bar sprints about 23 s (x1.25 of 200, 0.831; 14 s before)
 const STAMINA_JUMP         = 4.25;          // a jump; 60% of it out of a sprint, which carries you (5 until 0.8291)
 // swimming (0.8291), off the bottom: up (a jump in the water) a lot, swimming along a little, treading water a trickle
 const STAMINA_SWIM_UP_PER_S = 10, STAMINA_SWIM_PER_S = 1.5, STAMINA_TREAD_PER_S = 0.5;
 const STAMINA_CLIMB_PER_S  = 15;            // hands on a bare wall (12-player.js)
 const STAMINA_REGEN_PER_S  = 12;
+/* 0.831: the bar is 200, and everything that spends it spends a quarter more (sprint, jumps, climbing, swimming, a
+   sandstorm). Mining costs a little too: about 1 point every 200 frames at 60 fps (MINING_STAMINA_PER_S). */
+const STAMINA_USE_MUL = 1.25, MINING_STAMINA_PER_S = 0.3;
 const STAMINA_REST_WAIT    = 3;             // seconds after the last use before it starts coming back (1 until 0.826)
 const STAMINA_REST_WAIT_TIRED = 5;          // ...and when that use left you exhausted (0.826)
 const STAMINA_SNEAK_MUL    = 1.2;           // sneaking gets it back 20% faster
 const STAMINA_BACK         = 20;            // run dry, you are tired until it is back to this
-const STAMINA_FOOD_COST = 0.03, STAMINA_THIRST_COST = 0.06;   // per point regained: a full bar is 3 food, 6 thirst (4 until 0.829)
-/* 0.829: regen speeds up the longer you rest (x1 to x2 over STAMINA_RAMP_S) and the more is missing
-   (x1.4 from empty easing to x0.6 near full). Oxygen ramps the same way over AIR_RAMP_S. */
-const STAMINA_RAMP_S = 6, REGEN_RAMP_MAX = 2;
-const STAMINA_EMPTY_MUL = 1.4, STAMINA_FULL_MUL = 0.6;
-const AIR_RAMP_S = 4;
-// energy: 50 min from full, two and a half days without sleep (DAY_LEN is 20 min); sleep fills it (0.821)
-const ENERGY_IDLE_PER_S  = 1 / 30;
-const ENERGY_PER_STAMINA = 0.04;            // per point of stamina used
-const ENERGY_PER_HP      = 0.1;             // per point of health lost
-// fruit, vegetables, protein: 35 min from full (40 in 0.82); nothing uses them yet
-const NUTRIENT_PER_S = 1 / 21;
-// oxygen: 15 s of breath; drowning gets worse with each hit (0.7573)
-const AIR_DRAIN_S = 15, AIR_WARN = 30;
+const STAMINA_FOOD_COST = 0.03, STAMINA_THIRST_COST = 0.06;   // per point regained: a full bar (200 since 0.831) is 6 food, 12 thirst (thirst 0.04 until 0.829)
+/* 0.829: regen speeds up the longer you rest and the more is missing. 0.8321: after RAMP_DELAY seconds of it, it
+   ramps over the next STAMINA_RAMP_S to STAMINA_RAMP_MAX (+50%); oxygen over AIR_RAMP_S to AIR_RAMP_MAX (+100%).
+   What is missing adds up to 40% more from empty, easing to none when full (it slowed to 60% near full until 0.8321).
+   A stamina ramp only starts over when stamina is spent, not when you are merely off the ground a moment. */
+const REGEN_RAMP_DELAY = 2;
+const STAMINA_RAMP_S = 6, STAMINA_RAMP_MAX = 1.5;
+const STAMINA_EMPTY_MUL = 1.4, STAMINA_FULL_MUL = 1;
+const AIR_RAMP_S = 4, AIR_RAMP_MAX = 2;
+const regenRamp = (t, span, max) => 1 + (max - 1) * Math.max(0, Math.min(1, (t - REGEN_RAMP_DELAY) / span));
+// energy: 75 min from full (50 until 0.831), almost four days without sleep (DAY_LEN is 20 min); sleep fills it (0.821)
+const ENERGY_IDLE_PER_S  = 1 / 45;
+const ENERGY_PER_STAMINA = 0.025;           // per point of stamina used (0.04 until 0.831)
+const ENERGY_PER_HP      = 0.07;            // per point of health lost (0.1 until 0.831)
+/* TIRED (0.832): at TIRED_AT energy or less (20%) you are tired, the more so the emptier it gets (tiredness 0..1, from
+   20 down to 0): regen up to TIRED_REGEN less (health, and energy from food), every bar's depletion up to
+   TIRED_DEPLETION more, and you move up to TIRED_SLOW slower. A night in bed fills energy whatever the regen. */
+const TIRED_AT = 20, TIRED_REGEN = 0.7, TIRED_DEPLETION = 0.4, TIRED_SLOW = 0.25;   // regen 0.9 until 0.8323
+const tiredness = (p = player) => (!p || p.canFly || p.dead) ? 0
+  : Math.max(0, Math.min(1, (TIRED_AT - (p.energy ?? MAX_ENERGY)) / TIRED_AT));
+// fruit, vegetables, protein: 70 min from full (35 until 0.8323, 40 in 0.82)
+const NUTRIENT_PER_S = 1 / 42;
+/* SICKNESS (0.8323): protein or fruit at SICK_AT (20) or less makes you sick, the more so the emptier (0..1 from 20 down
+   to 0). Each: regen up to 20% less, every bar's depletion up to 10% more, move speed up to 5% less, and at 0 a health
+   every 5 s (SICK_HP_PER_S). Protein's also takes up to 30% attack speed and 10 strength; fruit's drains thirst up to
+   30% faster and takes up to 30% crafting speed. Vegetables have one defined (sight and mining speed up to 25% less)
+   but it is off (VEG_SICK_ON): there is too little vegetable food yet. */
+const SICK_AT = 20, SICK_REGEN = 0.2, SICK_DEPLETION = 0.1, SICK_SLOW = 0.05, SICK_HP_PER_S = 0.2;
+const SICK_PROTEIN_ATK = 0.3, SICK_PROTEIN_STR = 10, SICK_FRUIT_THIRST = 0.3, SICK_FRUIT_CRAFT = 0.3;
+const VEG_SICK_ON = false, SICK_VEG_SIGHT = 0.25, SICK_VEG_MINING = 0.25;
+const sickness = (key, p = player) => (!p || p.canFly || p.dead || (key === 'veg' && !VEG_SICK_ON)) ? 0
+  : Math.max(0, Math.min(1, (SICK_AT - (p[key] ?? MAX_NUTRIENT)) / SICK_AT));
+const _sickAll = (p = player) => sickness('protein', p) + sickness('fruit', p) + sickness('veg', p);
+/* WET (0.8323; how it builds since 0.8324). Rain, falling snow or water first soak you from 0 to 100% (p._wetP: water
+   in 5 s, rain at WET_RAIN_PCT a second by how hard it falls, snow half that); only then does staying in it add to how
+   long you stay wet, up to WET_MAX seconds (WET_MIN at least). Out of it, that time runs down first (a second a second,
+   faster near heat or with a warm body: _dryBoost), and then the % dries off at WET_DRY_PCT a second the same way.
+   Everything wet does scales with the %: up to 5% less jump strength, 20% shorter effects, 50% less cold resistance.
+   Kept in a save (vit.wet, vit.wp). */
+const WET_MIN = 5, WET_MAX = 300, WET_WATER_PER_S = 10, WET_RAIN_PER_S = 3, WET_SNOW_PER_S = 1.5;
+const WET_WATER_PCT = 0.2, WET_RAIN_PCT = 0.05, WET_SNOW_PCT = 0.025, WET_DRY_PCT = 0.02;   // per second, 0..1 (0.8324)
+const WET_JUMP = 0.05, WET_EFFECT_TIME = 0.2, WET_COLD_RES = 0.5;
+const playerWet = (p = player) => !!p && !p.canFly && (p._wetP || 0) > 0;
+const wetness = (p = player) => (!p || p.canFly) ? 0 : Math.max(0, Math.min(1, p._wetP || 0));   // 0..1, scales the effects (0.8324)
+// oxygen: 24 s of breath (0.831: a 200 bar spent a quarter faster than the old 100 in 15 s); drowning gets worse with each hit (0.7573)
+const AIR_DRAIN_PER_S = 100 / 15 * 1.25, AIR_WARN = 40;
 const DROWN_DMG_BASE = 10, DROWN_DMG_STEP = 5;
 const AIR_REGEN_EMPTY = 30, AIR_REGEN_FULL = 6;   // points a second back when empty, easing to this near full
 
@@ -96,7 +131,7 @@ const AIR_REGEN_EMPTY = 30, AIR_REGEN_FULL = 6;   // points a second back when e
    Merged into the item's (or, for a grilled mushroom, the block's) props, so tooltips read it as well. */
 const FOOD_NUTRITION = {
   [ITEM.APPLE]:            { fruit: 25, thirst: 8 },
-  [ITEM.GOLDEN_APPLE]:     { fruit: 30, thirst: 5 },
+  [ITEM.GOLDEN_APPLE]:     { fruit: 30, thirst: 5, energy: 15 },   // energy 0.832
   [ITEM.MELON_SLICE]:      { fruit: 10, thirst: 15 },
   [ITEM.CANTALOUPE_SLICE]: { thirst: 12, fruit: 5, veg: 5 },    // a little of both (0.822)
   [ITEM.BERRIES]:          { fruit: 6, thirst: 5 },
@@ -129,7 +164,7 @@ const foodPropsOf = (id) => {
   const p = id >= 256 ? ITEM_PROPS[id] : PROPS[id];
   return p && p.food > 0 ? p : null;
 };
-const NUTRITION_KEYS = ['thirst', 'fruit', 'veg', 'protein'];
+const NUTRITION_KEYS = ['thirst', 'fruit', 'veg', 'protein', 'energy'];   // energy 0.832 (the golden apple)
 
 /* ---- bars and over-stats ---- */
 // adds to a bar; whatever does not fit spills into its over-stat
@@ -160,10 +195,15 @@ function fillVitals(p, over = true) {
   p.temp = null;                                     // found again from where they stand
   p.heatstroke = 0; p._sandFelt = 0; p._hsStep = 0;  // 0.825
   p._night = null;                                   // a death starts the night's count over (0.8283)
+  p._wetT = 0; p._wetP = 0;                         // dry again (0.8323; the % 0.8324)
 }
 // what a food does to the new bars (from updateEating, 22-main-loop.js)
 function eatNutrition(p, f) {
-  for (const k of NUTRITION_KEYS) if (f[k] > 0) gainStat(p, k, f[k]); else if (f[k] < 0) drainStat(p, k, -f[k]);   // white berries (0.827)
+  for (const k of NUTRITION_KEYS) {
+    // energy from food is a regen: the regen stat scales it (0.832)
+    const amt = k === 'energy' && f[k] > 0 ? f[k] * playerRegenMul() : f[k];
+    if (amt > 0) gainStat(p, k, amt); else if (amt < 0) drainStat(p, k, -amt);   // white berries (0.827)
+  }
 }
 /* What a white berry does (0.827): every BAD timed effect running (poison, nausea) loses `s` seconds; one that runs
    out goes. Not burning (0.8272; it did in 0.8271). */
@@ -175,10 +215,15 @@ function cleanseEffects(p, s) {
     if (EFFECT_DEFS[list[i].id]?.good === false && (list[i].left -= s) <= 0) list.splice(i, 1);
   if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
 }
-// a night in bed (29-bed.js): energy filled, the rest spilling into over-energy; nobody wakes up starving
+/* A night in bed (29-bed.js): energy filled, the rest spilling into over-energy, and a little health. 0.8321: the night
+   costs a little of the other bars (SLEEP_COST, over-stats first), never taking one under SLEEP_FLOOR — and no longer
+   tops food and thirst up to 30 for free. */
+const SLEEP_COST = { food: 10, thirst: 15, fruit: 4, veg: 4, protein: 4 }, SLEEP_FLOOR = 10;   // fruit, veg, protein halved (0.8323)
 function wakeRested(p) {
-  p.food = Math.max(p.food, 30);
-  p.thirst = Math.max(p.thirst ?? MAX_THIRST, 30);
+  for (const k in SLEEP_COST) {
+    const over = p[OVER_KEY[k]] || 0, room = Math.max(0, (p[k] ?? VITAL_MAX[k]) - SLEEP_FLOOR) + over / OVER_DRAIN_MUL;
+    drainStat(p, k, Math.min(SLEEP_COST[k], room));
+  }
   if (p.hp > 0) p.hp = Math.min(playerMaxHP(p), p.hp + 4 * VITAL_K);
   gainStat(p, 'energy', MAX_ENERGY);
 }
@@ -191,13 +236,17 @@ const playerTired = (p = player) => !p.canFly && !!p._tired;
    hp, food and saturation stay where saves always had them; the rest ride in `vit`, whose presence also says
    the three are out of 100. A save from before 0.82 has none, and its three are multiplied up. */
 function serializeVitals(p) {
-  const r = { air: +(p.air ?? MAX_AIR).toFixed(1), stamina: +(p.stamina ?? MAX_STAMINA).toFixed(1) };
+  const r = { air: +(p.air ?? MAX_AIR).toFixed(1), stamina: +(p.stamina ?? MAX_STAMINA).toFixed(1), s2: 1 };   // s2: out of 200 (0.831)
   for (const k in OVER_KEY) if (k !== 'food') {
     r[k] = +(p[k] ?? VITAL_MAX[k]).toFixed(2);
     r[OVER_KEY[k]] = +(p[OVER_KEY[k]] || 0).toFixed(2);
   }
   if (p.heatstroke > 0) r.hs = +p.heatstroke.toFixed(1);   // 0.825
   if (p._giveUpCd > 0) r.gu = Math.ceil(p._giveUpCd);      // the pause menu's Respawn cooldown (0.829)
+  if (p._wetT > 0) r.wet = Math.ceil(p._wetT);             // 0.8323
+  if (p._wetP > 0) r.wp = +p._wetP.toFixed(3);             // how soaked, 0..1 (0.8324)
+  const tb = typeof serializeHeldBurn === 'function' ? serializeHeldBurn(p) : null;
+  if (tb) r.tb = tb;                                        // the held torches' time left (0.834)
   return r;
 }
 function restoreVitals(p, rec) {
@@ -209,16 +258,21 @@ function restoreVitals(p, rec) {
   p.food = num(food) ? Math.min(MAX_FOOD, food * k) : MAX_FOOD;
   p.saturation = num(rec.saturation) ? Math.min(MAX_SATURATION, rec.saturation * k) : MAX_SATURATION;
   const o = v || {};
-  p.air = num(o.air) ? Math.min(MAX_AIR, o.air) : MAX_AIR;
-  p.stamina = num(o.stamina) ? Math.min(MAX_STAMINA, o.stamina) : MAX_STAMINA;
+  // stamina and oxygen are out of 200 since 0.831 (`s2` marks it): an older save's are doubled
+  const s2 = o.s2 ? 1 : 2;
+  p.air = num(o.air) ? Math.min(MAX_AIR, o.air * s2) : MAX_AIR;
+  p.stamina = num(o.stamina) ? Math.min(MAX_STAMINA, o.stamina * s2) : MAX_STAMINA;
   p._tired = false;
   for (const key in OVER_KEY) if (key !== 'food') {
-    p[key] = num(o[key]) ? Math.min(VITAL_MAX[key], o[key]) : VITAL_MAX[key];
+    p[key] = num(o[key]) ? Math.min(VITAL_MAX[key], o[key] * (key === 'stamina' ? s2 : 1)) : VITAL_MAX[key];
     p[OVER_KEY[key]] = num(o[OVER_KEY[key]]) ? Math.min(MAX_OVER, o[OVER_KEY[key]]) : 0;
   }
   p.temp = null;
   p.heatstroke = num(o.hs) ? Math.max(0, Math.min(99, o.hs)) : 0; p._sandFelt = 0; p._hsStep = 0;   // 0.825
   p._giveUpCd = num(o.gu) ? Math.max(0, Math.min(GIVE_UP_COOLDOWN_S, o.gu)) : 0; p._giveUp = false;   // 0.829
+  p._wetT = num(o.wet) ? Math.max(0, Math.min(WET_MAX, o.wet)) : 0;                                   // 0.8323
+  p._wetP = num(o.wp) ? Math.max(0, Math.min(1, o.wp)) : (p._wetT > 0 ? 1 : 0);                      // 0.8324
+  if (typeof restoreHeldBurn === 'function') restoreHeldBurn(p, o.tb);                                // 0.834
 }
 
 /* ---- the tick ----
@@ -264,6 +318,8 @@ function tickStats(dt) {
   if (p._wallClimbing) used += STAMINA_CLIMB_PER_S * dt * (typeof skillClimbMul === 'function' ? skillClimbMul() : 1);   // Climber (0.828)
   // a sandstorm wears you out, standing or walking (0.825)
   if (p._sandFelt > 0.05) used += (moving ? SAND_STAMINA_MOVING_PER_S : SAND_STAMINA_PER_S) * p._sandFelt * dt;
+  used *= STAMINA_USE_MUL;                         // a quarter more (0.831)
+  if (typeof mining !== 'undefined' && mining.active) used += MINING_STAMINA_PER_S * dt;   // mining (0.831)
   if (p.stamina == null) p.stamina = MAX_STAMINA;
   used *= dep;                                     // stats depletion (0.828)
   if (used > 0) {
@@ -276,11 +332,11 @@ function tickStats(dt) {
   } else {
     p._stamRestT = Math.max(0, (p._stamRestT || 0) - dt);
     const busy = (typeof mining !== 'undefined' && mining.active) || (!grounded && !inWater);
-    if (busy || p.stamina >= MAX_STAMINA) p._stamRegenT = 0;
+    if (p.stamina >= MAX_STAMINA) p._stamRegenT = 0;   // a hop or a step down only pauses the ramp (0.8321)
     if (!busy && p._stamRestT <= 0 && p.stamina < MAX_STAMINA) {
       const fed = p.food > 0 && p.thirst > 0;       // on an empty stomach or throat it still comes, at half
       p._stamRegenT = (p._stamRegenT || 0) + dt;    // rest ramp (0.829)
-      const ramp = 1 + (REGEN_RAMP_MAX - 1) * Math.min(1, p._stamRegenT / STAMINA_RAMP_S);
+      const ramp = regenRamp(p._stamRegenT, STAMINA_RAMP_S, STAMINA_RAMP_MAX);   // after 2 s, +50% over 6 s (0.8321)
       const left = Math.max(0, Math.min(1, p.stamina / MAX_STAMINA));
       const need = STAMINA_EMPTY_MUL + (STAMINA_FULL_MUL - STAMINA_EMPTY_MUL) * left;
       const rate = STAMINA_REGEN_PER_S * ramp * need * (p.sneaking ? STAMINA_SNEAK_MUL : 1) * (fed ? 1 : 0.5) * hsm.stamina;   // heatstroke (0.825)
@@ -293,17 +349,19 @@ function tickStats(dt) {
   _tickExhausted(p, dt);                            // 0.82501
 
   /* Health: heals above REGEN_FOOD_MIN food (twice as fast above REGEN_FAST_FOOD) and REGEN_THIRST_MIN thirst,
-     costing both; Rapid regen doubles it. Not while poisoned (0.797), and not for a few seconds after ANY hit
+     costing both; the regen stat scales it (0.832; Rapid regen doubled it). Not while poisoned (0.797), and not for a few seconds after ANY hit
      (0.7992) so a fight cannot be out-healed — five normally, two with Rapid regen running. */
   const poisoned = playerHasEffect('poisonDps');
   if (p._regenWaitT > 0) p._regenWaitT = Math.max(0, p._regenWaitT - dt);
   if (!poisoned && !(p._regenWaitT > 0) && p.hp < playerMaxHP() && p.food > REGEN_FOOD_MIN && p.thirst > REGEN_THIRST_MIN) {
-    const rate = REGEN_HP_PER_S * (p.food > REGEN_FAST_FOOD ? 2 : 1) * playerRegenMul();
+    const rm = playerRegenMul();
+    const rate = REGEN_HP_PER_S * (p.food > REGEN_FAST_FOOD ? 2 : 1) * rm;
     const before = p.hp;
     p.hp = Math.min(playerMaxHP(), p.hp + rate * dt);
     if (typeof fxHealTick === 'function') fxHealTick(p, p.hp - before);   // a green heart per 5 healed
-    foodCost += FOOD_REGEN_COST_PER_S * dt;
-    thirstCost += THIRST_REGEN_COST_PER_S * dt;
+    // the cost follows the regen (0.8323): a health healed costs the same, so slow healing no longer eats the bars
+    foodCost += FOOD_REGEN_COST_PER_S * dt * rm;
+    thirstCost += THIRST_REGEN_COST_PER_S * dt * rm;
   }
 
   /* the bars drain; nausea doubles food's (0.761); cold speeds food and protein, heat thirst and fruit (0.822; chilly,
@@ -317,7 +375,7 @@ function tickStats(dt) {
   // ...and heatstroke (0.825): thirst and fruit from 20%, food, vegetables and protein from 30%, energy from 50%
   // ...and every bar by the stats depletion (Slow Burner: 5% slower, 0.828)
   drainStat(p, 'food', foodCost * playerHungerMul() * cold * hsm.food * dep);
-  drainStat(p, 'thirst', thirstCost * hot * hsm.thirst * dep);
+  drainStat(p, 'thirst', thirstCost * hot * hsm.thirst * dep * (1 + SICK_FRUIT_THIRST * sickness('fruit', p)));   // fruit sickness (0.8323)
   drainStat(p, 'energy', ENERGY_IDLE_PER_S * dt * (1 + hsm.energy) * dep);
   drainStat(p, 'fruit', NUTRIENT_PER_S * dt * hot * hsm.thirst * dep);
   drainStat(p, 'veg', NUTRIENT_PER_S * dt * hsm.food * dep);
@@ -345,12 +403,90 @@ function tickStats(dt) {
       feedCrit(st.kind === 'cold' ? 'Freezing: losing health, find warmth' : 'Overheating: losing health, find shade or water');
     }
   } else { p._tempDmgAcc = 0; p._tempWarnT = 0; }
+  _tickSickHurt(p, dt);                              // protein or fruit at 0 (0.8323)
+  _tickWet(p, dt);                                   // soaked by rain, snow or water (0.8323)
 
   _tickOxygen(dt);
   _tickTemperature(dt);
+  // a lit torch in hand melts the ice within a block of you (0.8321, iceWarmHeld in 51), looked at twice a second
+  p._iceWarmT = (p._iceWarmT || 0) - dt;
+  if (p._iceWarmT <= 0) {
+    p._iceWarmT = 0.5;
+    const held = [HOTBAR[hotbarSel]?.id, typeof offhandItemId === 'function' ? offhandItemId() : null];
+    if (held.includes(B.TORCH) && !(typeof torchDoused === 'function' && torchDoused(p)) && typeof iceWarmHeld === 'function')
+      iceWarmHeld(Math.floor(p.pos.x), Math.floor(p.pos.y), Math.floor(p.pos.z));
+  }
+  if (typeof tickHeldBurn === 'function') tickHeldBurn(p, dt);   // a held torch burns down (0.834, 56-torches.js)
 }
 
-/* Oxygen. Eyes under water drain it over AIR_DRAIN_S (5% slower with Slow Burner); at 0 you drown, each hit
+// protein or fruit run dry (0.8323): a slow loss of health, SICK_HP_PER_S for each, shown as hits like poison
+function _tickSickHurt(p, dt) {
+  if (p.canFly || p.dead) return;
+  let n = 0;
+  for (const k of ['protein', 'fruit']) if ((p[k] ?? MAX_NUTRIENT) <= 0) n++;
+  if (!n) { p._sickDmgAcc = 0; return; }
+  const before = p.hp;
+  p.hp = Math.max(0, p.hp - SICK_HP_PER_S * n * dt);
+  p._dmgCause = 'wasted away';
+  p._sickDmgAcc = (p._sickDmgAcc || 0) + (before - p.hp);
+  if (p._sickDmgAcc >= 0.5 * VITAL_K) {
+    if (typeof hurtFlash === 'function') hurtFlash(p._sickDmgAcc / VITAL_K);
+    p._sickDmgAcc = 0;
+  }
+}
+/* How much faster than a second a second you dry (0.8323), on top of the 1: a torch within 2 blocks or in hand +0.1,
+   fire within 3 +10, lava within 3 +20, a lit furnace within 2 +5, a desert +5, burning +10, and a warm body
+   +1 for every 5°C over 15. */
+const DRY_TORCH = 0.1, DRY_FIRE = 10, DRY_LAVA = 20, DRY_FURNACE = 5, DRY_DESERT = 5, DRY_BURNING = 10, DRY_PER_DEG = 0.2;
+function _dryBoost(p) {
+  const x = Math.floor(p.pos.x), y = Math.floor(p.pos.y), z = Math.floor(p.pos.z);
+  let torch = 0, fire = 0, lava = 0, furnace = 0;
+  for (let dy = -1; dy <= 2; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+    const v = getBlock(x + dx, y + dy, z + dz), id = v & 255, near = Math.max(Math.abs(dx), Math.abs(dz)) <= 2;
+    if (id === B.TORCH && near) torch = DRY_TORCH;
+    else if (id === B.FIRE) fire = DRY_FIRE;
+    else if (id === B.LAVA) lava = DRY_LAVA;
+    else if (id === B.FURNACE && near && blockLightOf(v) > 0) furnace = DRY_FURNACE;
+  }
+  const held = [HOTBAR[hotbarSel]?.id, typeof offhandItemId === 'function' ? offhandItemId() : null];
+  if (held.includes(B.TORCH) && !(typeof torchDoused === 'function' && torchDoused(p))) torch = DRY_TORCH;
+  const c = mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : null;
+  return torch + fire + lava + furnace + DRY_DESERT * Math.min(1, c ? c.hot : 0) + (p.fireT > 0 ? DRY_BURNING : 0)
+       + Math.max(0, ((typeof p.temp === 'number' ? p.temp : 20) - 15) * DRY_PER_DEG);
+}
+// soaked by rain or falling snow on an open head, or by water; dried by time and heat (0.8323)
+function _tickWet(p, dt) {
+  if (p.canFly || p.dead) { p._wetT = 0; p._wetP = 0; return; }
+  p._wetSampleT = (p._wetSampleT || 0) - dt;
+  if (p._wetSampleT <= 0) {                          // looked at twice a second
+    p._wetSampleT = 0.5;
+    const ey = p.pos.y + (p.EYE || 1.62);
+    const open = getSkyWorld(Math.floor(p.pos.x), Math.floor(ey), Math.floor(p.pos.z)) >= 15;
+    const pr = open && typeof precipAt === 'function' ? precipAt(p.pos.x, p.pos.z, ey) : null;
+    p._wetRain = pr ? WET_RAIN_PER_S * pr.rain + WET_SNOW_PER_S * pr.snow : 0;
+    p._wetRainPct = pr ? WET_RAIN_PCT * pr.rain + WET_SNOW_PCT * pr.snow : 0;   // 0.8324
+    p._dryBoostV = (p._wetP || 0) > 0 ? _dryBoost(p) : 0;
+  }
+  const water = !!p._inWater;
+  const soak = (p._wetRain || 0) + (water ? WET_WATER_PER_S : 0);
+  const soakPct = (p._wetRainPct || 0) + (water ? WET_WATER_PCT : 0);
+  const pct = p._wetP || 0, dry = 1 + (p._dryBoostV || 0);
+  if (soakPct > 0.001) {
+    if (pct < 1) {                                   // first the soaking, to 100% (0.8324)
+      p._wetP = Math.min(1, pct + soakPct * dt);
+      if (p._wetP >= 1) p._wetT = Math.max(p._wetT || 0, WET_MIN);
+    } else p._wetT = Math.min(WET_MAX, Math.max(WET_MIN, (p._wetT || 0) + soak * dt));   // ...then the time
+  } else if ((p._wetT || 0) > 0) p._wetT = Math.max(0, p._wetT - dt * dry);   // out of it: the time first...
+  else if (pct > 0) p._wetP = Math.max(0, pct - WET_DRY_PCT * dt * dry);      // ...then the % dries off
+}
+/* MINING SPEED (0.8323), a stat: how fast you break blocks, 100% to start; effects and gear may carry `miningSpeed`,
+   vegetable sickness takes up to 25% (off for now). Never under 0. */
+const playerMiningSpeedMul = () => Math.max(0, 1 + _effectSum('miningSpeed') + (typeof _equipSum === 'function' ? _equipSum('miningSpeed') : 0)
+  - SICK_VEG_MINING * sickness('veg'));
+// how strongly fog and sand cloud your sight: Clear Eyes 30% less (0.828), vegetable sickness up to 25% more (0.8323, off)
+const playerSightMul = () => (typeof skillSightMul === 'function' ? skillSightMul() : 1) * (1 + SICK_VEG_SIGHT * sickness('veg'));
+
+/* Oxygen. Eyes under water drain it at AIR_DRAIN_PER_S (5% slower with Slow Burner); at 0 you drown, each hit
    harder than the last (0.7573) until you are out. Out of the water it comes back fast when empty, easing off
    as it fills. The clocks are ON THE PLAYER (0.734): this runs once per seat. */
 function _tickOxygen(dt) {
@@ -359,7 +495,7 @@ function _tickOxygen(dt) {
   p._eyeUnder = eyeUnder;
   if (eyeUnder && !p.flying) {
     p._airRegenT = 0;                               // 0.829
-    p.air = Math.max(0, p.air - dt * (MAX_AIR / AIR_DRAIN_S) * playerAirMul());
+    p.air = Math.max(0, p.air - dt * AIR_DRAIN_PER_S * playerAirMul());
     // low-oxygen warning (0.756): once per dive
     if (p.air < AIR_WARN && !p._warnAir && !p.canFly) {
       p._warnAir = true;
@@ -377,10 +513,11 @@ function _tickOxygen(dt) {
     }
   } else {
     const k = p.air / MAX_AIR;
-    // ...and faster still the longer you breathe, x1 to x2 over AIR_RAMP_S (0.829)
+    // ...and faster still the longer you breathe: after 2 s, up to x2 over AIR_RAMP_S (0.829; the wait 0.8321)
     p._airRegenT = p.air < MAX_AIR ? (p._airRegenT || 0) + dt : 0;
-    const ramp = 1 + (REGEN_RAMP_MAX - 1) * Math.min(1, p._airRegenT / AIR_RAMP_S);
-    p.air = Math.min(MAX_AIR, p.air + dt * ramp * (AIR_REGEN_EMPTY + (AIR_REGEN_FULL - AIR_REGEN_EMPTY) * k));
+    const ramp = regenRamp(p._airRegenT, AIR_RAMP_S, AIR_RAMP_MAX);
+    // ...and by the regen stat (0.8321): Rapid regen, tiredness
+    p.air = Math.min(MAX_AIR, p.air + dt * ramp * playerRegenMul(p) * (AIR_REGEN_EMPTY + (AIR_REGEN_FULL - AIR_REGEN_EMPTY) * k));
     p._drownHits = 0;
     if (p.air >= AIR_WARN) p._warnAir = false;
     p._drownT = 0;
@@ -394,18 +531,23 @@ function _tickOxygen(dt) {
    furnaces nearby. The body follows it over TEMP_EASE_S. The HUD shows -40..80; nothing else reads it yet. */
 const TEMP_SAMPLE_S = 0.5, TEMP_EASE_S = 10, TEMP_EASE_WATER_S = 4;
 const TEMP_MEAN = 11, TEMP_SWING = 13;             // about -2 in mid January, 24 in mid July
+const SNOW_BIOME_MEAN = -10, SNOW_BIOME_SWING = 4, SNOWFALL_CHILL = 4;   // 0.8323 (airTempAt)
 const TEMP_PEAK_DAY = 6.5 * MONTH_DAYS;            // mid July, in days from 1 January
 const TEMP_SNOW = -16, TEMP_HOT = 14;              // deep inside a snow biome, a desert
 const TEMP_DAY_AMP = 5;                            // the day's swing either way; a desert doubles it by day
 const TEMP_DESERT_NIGHT = 3.5;                     // ...and its night falls 4.5x as far: dry air loses its heat (0.8245)
 const TEMP_LAPSE_FROM = 110, TEMP_LAPSE = 0.12;    // colder by this a block above that height
-const TEMP_CAVE = 12;
-const TEMP_WEATHER = { clear: 0, sunny: 2, cloudy: -1, windy: -1, rainy: -3, darky: -2, storm: -5, foggy: -1.5 };
+/* A cave's air (0.831; a flat 12°C before): cold near the surface, TEMP_CAVE, and a little warmer the deeper under
+   the ground you are, TEMP_CAVE_DEEP_PER a block past TEMP_CAVE_DEEP_FROM, up to TEMP_CAVE_DEEP_MAX more. */
+const TEMP_CAVE = 4, TEMP_CAVE_DEEP_FROM = 16, TEMP_CAVE_DEEP_PER = 0.1, TEMP_CAVE_DEEP_MAX = 10;
+const caveTemp = (depth) => TEMP_CAVE + Math.min(TEMP_CAVE_DEEP_MAX, Math.max(0, depth - TEMP_CAVE_DEEP_FROM) * TEMP_CAVE_DEEP_PER);
+const TEMP_WEATHER = { clear: 0, sunny: 2, cloudy: -1, windy: -1, rainy: -3, darky: -2, storm: -5, foggy: -1.5, blizzard: -12 };   // blizzard 0.83
 const TEMP_WATER = -6, TEMP_ON_FIRE = 25;
 // heat right beside a source, fading with distance, summed over HEAT_R blocks around you
 const HEAT_OF = new Float32Array(256);
 HEAT_OF[B.LAVA] = 30; HEAT_OF[B.FIRE] = 20; HEAT_OF[B.TORCH] = 3;
 HEAT_OF[B.GLOWSTONE] = 2; HEAT_OF[B.GLOWCRYSTAL_BLOCK] = -2;   // a little warm, the blue crystal a little cold (0.8245)
+HEAT_OF[B.GLOW_VINE] = -1.5; HEAT_OF[B.CRYSTAL_TORCH] = -1;      // the blue crystal's cold in a vine and a torch too (0.834)
 const FURNACE_HEAT = 12, HEAT_R = 3, HEAT_MAX = 60;
 function _heatNear(x, y, z) {
   let heat = 0;
@@ -438,10 +580,20 @@ const TEMP_BARE_MIN = 5.5;
 function airTempAt(x, y, z, open = 1) {
   const d = gameDate(), dayFrac = worldTime - Math.floor(worldTime);
   const doy = d.month * MONTH_DAYS + d.day - 1 + dayFrac;
-  let t = TEMP_MEAN + TEMP_SWING * Math.cos(2 * Math.PI * (doy - TEMP_PEAK_DAY) / (12 * MONTH_DAYS));
+  const yearCos = Math.cos(2 * Math.PI * (doy - TEMP_PEAK_DAY) / (12 * MONTH_DAYS));
+  let t = TEMP_MEAN + TEMP_SWING * yearCos;
   const c = mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : { snow: 0, hot: 0, h: y };
   t += c.air != null ? c.air : TEMP_SNOW * c.snow + TEMP_HOT * c.hot;   // a ladder world: its level's air (0.8232, 55-biomes.js)
+  /* SNOW BIOMES (0.8323): about -10°C the year round (SNOW_BIOME_MEAN, swinging SNOW_BIOME_SWING either way with the
+     seasons; it reached 13°C on a summer noon before), deep snow 4°C colder; blended in by how snowy the place is (a
+     ladder level from cold plains to snow). Falling snow takes up to SNOWFALL_CHILL more, below. */
+  const snowy = c.air != null ? Math.max(0, Math.min(1, (-c.air - 7) / 9)) : Math.min(1, c.snow || 0);
+  if (snowy > 0) {
+    const snowT = SNOW_BIOME_MEAN + SNOW_BIOME_SWING * yearCos + (c.air != null ? Math.min(0, c.air + 16) * 0.5 : 0);
+    t += (snowT - t) * snowy;
+  }
   const w = weatherAt(x + 0.5, z + 0.5, y);
+  if (typeof precipAt === 'function') t -= SNOWFALL_CHILL * precipAt(x + 0.5, z + 0.5, y).snow * open;   // 0.8323
   const overcast = !(w.type === 'clear' || w.type === 'sunny' || w.type === 'windy');
   const hour = (6 + dayFrac * 24) % 24;
   /* A desert's night is cold (0.8245): about 0°C in spring, 15°C in July, -10°C in January at the coldest hour
@@ -460,7 +612,7 @@ function ambientTemp(p) {
   const a = airTempAt(x, y, z, open), c = a.c;
   let t = a.t;
   const deep = Math.max(0, Math.min(1, (c.h - y - 2) / 12)) * (1 - open);
-  t += (TEMP_CAVE - t) * deep;
+  t += (caveTemp(c.h - y) - t) * deep;           // colder near the top, a little warmer deep down (0.831)
   if (p._inWater) t += TEMP_WATER;
   t += Math.min(HEAT_MAX, _heatNear(x, Math.floor(p.pos.y), z) + _heldHeat(p));
   if (p.fireT > 0) t += TEMP_ON_FIRE;
@@ -647,7 +799,8 @@ function _tickFeats(p, dt) {
   const f = p._feats || (p._feats = restoreFeats(null));
   const pay = (text, xp) => { addXP(xp); if (typeof feedFeat === 'function') feedFeat(text, xp); };
   const b = mainGen && mainGen.biomeAt ? mainGen.biomeAt(Math.floor(p.pos.x), Math.floor(p.pos.z)) : '';
-  if (b && !f.biomes.has(b)) { f.biomes.add(b); pay('Discovered ' + b, XP_BIOME); }
+  // each new one pays more than the last (0.8324, biomeXP in 35): by how many were found before it
+  if (b && !f.biomes.has(b)) { const xp = biomeXP(f.biomes.size); f.biomes.add(b); pay(`Discovered ${b} (${f.biomes.size}/${BIOME_COUNT})`, xp); }
   if (!f.top && p.pos.y >= WORLD_TOP_Y) { f.top = true; pay('Reached the top of the world', XP_WORLD_EDGE); }
   if (!f.bottom && p.pos.y <= WORLD_BOTTOM_Y) { f.bottom = true; pay('Reached the bottom of the world', XP_WORLD_EDGE); }
 }
@@ -754,13 +907,15 @@ function vitalModifiers(key) {
   if (key === 'hp') {
     if (hasSkill('thickSkin')) out.push(['Thick Skin', `+${THICK_SKIN_HP} health, 10% less damage`]);
     const rm = playerRegenMul();
-    if (rm !== 1) out.push(['effects', `heals ${rm}x as fast`]);
+    if (Math.abs(rm - 1) > 0.005) out.push(['regen', `heals at ${Math.round(rm * 100)}%`]);   // the regen stat (0.832)
     if (playerHasEffect('poisonDps')) out.push(['Poison', 'no healing, loses health']);
     if (st && st.dps > 0) out.push([stName, `-${st.dps.toFixed(1)} a second`]);
     if (hsm.dps > 0) out.push(['Heatstroke', `-${hsm.dps.toFixed(1)} a second`]);
     if (p._exhaustT >= EXHAUST_HURT_AFTER) out.push(['Exhausted', `-${EXHAUST_HURT_DPS} a second`]);
   }
-  if (_VITAL_DRAINS.has(key) && dep !== 1) out.push([hasSkill('slowBurner') ? 'Slow Burner' : 'stats depletion', way(dep)]);
+  if (_VITAL_DRAINS.has(key) && Math.abs(dep - 1) > 0.005)
+    out.push([hasSkill('slowBurner') && !tiredness(p) ? 'Slow Burner' : 'stats depletion', way(dep)]);   // tired counts in it (0.832)
+  if (key === 'energy' && tiredness(p) > 0) out.push(['Tired', `at ${TIRED_AT} or less: regen, drain and speed suffer`]);   // 0.832
   if (key === 'food' && playerHungerMul() !== 1) out.push(['Nausea', `drains ${playerHungerMul()}x as fast`]);
   if (st && st.mul > 1.005) {
     const cold = stressIsCold(st);
@@ -772,9 +927,9 @@ function vitalModifiers(key) {
   if (key === 'stamina') {
     if (hasSkill('climber')) out.push(['Climber', 'climbing uses 30% less']);
     if (hsm.stamina < 1) out.push(['Heatstroke', `comes back ${pct(hsm.stamina)} slower`]);
-    if (p._sandFelt > 0.05) out.push(['Sandstorm', `-${((p._movingH > 0.001 ? SAND_STAMINA_MOVING_PER_S : SAND_STAMINA_PER_S) * p._sandFelt).toFixed(1)} a second`]);
+    if (p._sandFelt > 0.05) out.push(['Sandstorm', `-${((p._movingH > 0.001 ? SAND_STAMINA_MOVING_PER_S : SAND_STAMINA_PER_S) * p._sandFelt * STAMINA_USE_MUL).toFixed(1)} a second`]);
     if (p._inWater && !onGround() && !p.flying)                  // 0.8291
-      out.push(['Swimming', `-${p._swimUp ? STAMINA_SWIM_UP_PER_S : p._movingH > 0.001 ? STAMINA_SWIM_PER_S : STAMINA_TREAD_PER_S} a second, no rest`]);
+      out.push(['Swimming', `-${+((p._swimUp ? STAMINA_SWIM_UP_PER_S : p._movingH > 0.001 ? STAMINA_SWIM_PER_S : STAMINA_TREAD_PER_S) * STAMINA_USE_MUL).toFixed(2)} a second, no rest`]);
     if (playerTired(p)) out.push(['Exhausted', `until back to ${STAMINA_BACK}`]);
   }
   return out;
@@ -782,7 +937,7 @@ function vitalModifiers(key) {
 
 /* ===================================== stat getters ===================================== */
 // flat bonus damage added on top of the held weapon (iron gloves = +0.75)
-function playerStrength() { return _equipSum('strength'); }
+function playerStrength() { return _equipSum('strength') - SICK_PROTEIN_STR * sickness('protein'); }   // protein sickness (0.8323)
 // 0..1 fraction of incoming knockback cancelled (iron set = 0.20)
 /* Toughness (0.7612): knockback resistance as a stat. 0% by default, 100% means you are never knocked
    back. Gear adds a `toughness` field (0.10 = +10%); the iron set bonus adds 20%. */
@@ -802,25 +957,29 @@ const playerMoveSpeedMul = () => {
   const b = armorSetBonus();
   return Math.max(0.25, 1 + _equipSum('moveSpeed') + (b && b.moveSpeed ? b.moveSpeed : 0)
                           + _effectSum('moveSpeed')     // food effects (0.761)
-                          - exhaustedSlow());            // out of stamina (0.82501)
+                          - exhaustedSlow()              // out of stamina (0.82501)
+                          - TIRED_SLOW * tiredness()     // low on energy (0.832)
+                          - SICK_SLOW * (sickness('protein') + sickness('fruit')));   // sick (0.8323)
 };
 function playerMoveSpeedPct() { return Math.round(playerMoveSpeedMul() * 100); }
 /* Jump strength (0.756): a multiplier on jump HEIGHT. No gear grants it yet, but it has its own stat line
    and the jump already reads it, so an item only needs a `jumpStrength` field (0.10 = +10%). */
-const playerJumpMul = () => Math.max(0.25, 1 + _equipSum('jumpStrength'));
+const playerJumpMul = () => Math.max(0.25, 1 + _equipSum('jumpStrength') - WET_JUMP * wetness());   // wet, by how soaked (0.8323; 0.8324)
 function playerJumpPct() { return Math.round(playerJumpMul() * 100); }
 /* Crafting speed (0.76): 1 = 100%, the rate every recipe's timeToCraft is written for; 2 crafts twice as
    fast; 0 means you cannot craft at all. Gear adds a `craftSpeed` field (0.25 = +25%). Never negative. */
 const playerCraftSpeedMul = () => Math.max(0, 1 + _equipSum('craftSpeed') + _effectSum('craftSpeed')
-  + ((typeof hasSkill === 'function' && hasSkill('nimble')) ? 0.1 : 0));   // Nimble Fingers (0.79)   // + food effects (0.761)
+  + ((typeof hasSkill === 'function' && hasSkill('nimble')) ? 0.1 : 0)   // Nimble Fingers (0.79)   // + food effects (0.761)
+  - SICK_FRUIT_CRAFT * sickness('fruit'));                                // fruit sickness (0.8323)
 function playerCraftSpeedPct() { return Math.round(playerCraftSpeedMul() * 100); }
 // multiplier on swing rate — >1 swings faster, so it DIVIDES the cooldown
-const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed'));
+const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed') - SICK_PROTEIN_ATK * sickness('protein'));   // protein sickness (0.8323)
 /* Environmental resistances (0.7295). No item grants either yet and nothing reads them for damage
    — they are stat lines the panel reserves, so the gear that will carry them has somewhere to
    show up. Summed as a fraction (0.15 = 15% resisted) and clamped to 100%. */
 // gear plus Weathered's 10% (0.79): the one total both the stat panel and anything that reads it use
-const _resSum = (field) => _equipSum(field) + ((typeof hasSkill === 'function' && hasSkill('weathered')) ? 0.1 : 0);
+const _resSum = (field) => _equipSum(field) + ((typeof hasSkill === 'function' && hasSkill('weathered')) ? 0.1 : 0)
+  - (field === 'coldResist' ? WET_COLD_RES * wetness() : 0);   // wet: up to half the cold resistance gone (0.8323; by % 0.8324)
 const _resPct = (field) => Math.round(Math.min(1, Math.max(-1, _resSum(field))) * 100);
 function playerColdResist() { return _resPct('coldResist'); }
 function playerHeatResist() { return _resPct('heatResist'); }
@@ -833,7 +992,7 @@ const STAT_TIPS = {
   'move speed':      'How fast you walk. Heavy armor slows you down; some food effects speed you up.',
   'strength':        'Bonus damage added to every hit you land.',
   'attack speed':    'How quickly you can swing again. Above 100% the wait between swings is shorter.',
-  'cold resistance': 'How much of the cold you shrug off: you cool down more slowly in cold air, and it takes its share off the faster food and protein drain of being chilly or cold, and off the health the cold costs. Below 0% the cold bites harder.',
+  'cold resistance': 'How much of the cold you shrug off: you cool down more slowly in cold air, and it takes its share off the faster food and protein drain of being chilly or cold, and off the health the cold costs. Below 0% the cold bites harder. Being wet takes 50% off it.',
   'heatstroke resistance': 'How much slower heatstroke builds in hot sun: 25% for a hat (bandana or leather cap, which also lets you get 5°C hotter before it starts), 40% for the full cloth set.',
   'heat resistance': 'How much of the heat you shrug off: you heat up more slowly in hot air, and it takes its share off the faster thirst and fruit drain of being warm or hot, and off the health the heat costs. Below 0% the heat bites harder.',
   'jump strength':   'How high you jump. Standing in snow lowers it.',
@@ -843,6 +1002,10 @@ const STAT_TIPS = {
   'oxygen depletion': 'How fast your breath runs out under water. 95% means it lasts a little longer.',
   'stats depletion': 'How fast every bar drains: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein. Slow Burner makes it 95%.',   // 0.828
   'hazard reduction': 'How much less damage falls, lava and cactus do to you.',
+  'regen':           'How fast your health heals and your breath comes back, and how much energy and healing food gives you. Rapid regen adds 50%; being tired (energy 20 or less) takes up to 70% off, protein or fruit sickness up to 20% each. Never under 0%.',   // 0.832; oxygen 0.8321; 0.8323
+  'mining speed':    'How fast you break blocks with any tool or your hand. Vegetable sickness will take up to 25% off.',   // 0.8323
+  'spoil speed':     'How fast the food you carry spoils. Preserver takes 10% off, salt in use 25% (both: 65%). Lower is better.',   // 0.832; salt 25% since 0.8321
+  'effect duration': 'How long the good effects of food and potions last, Rapid regen too. Lingering makes it 125%; being wet takes 20% off. Bad effects keep their own length.',   // 0.832
   'visibility reduction': 'How much weaker everything that clouds or shakes your sight is: fog, a sandstorm, murky water, heatstroke\'s blur, nausea\'s sway and the jolt of a hit. Clear Eyes gives 30%.',   // 0.8291
 };
 const _tipTitle = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -880,8 +1043,8 @@ function activeEffects() {
    than stacking a second copy. */
 const EFFECT_DEFS = {
   // `icon`: what the effect bar beside the hotbar shows for it (0.797) — an emoji until each has a sprite
-  rapidRegen:   { name: 'Rapid regen',   time: 20, good: true, regenMul: 2, icon: '💖',              // golden apple; 8s until 0.7992
-                  desc: 'Health regenerates twice as fast, and food heals twice as much.' },
+  rapidRegen:   { name: 'Rapid regen',   time: 20, good: true, regen: 0.5, icon: '💖',              // golden apple; 8s until 0.7992
+                  desc: 'Regen +50%: health heals half as fast again, and food heals and gives energy half as much again.' },   // +50% since 0.832 (x2 before)
   // cooked pumpkin pie (0.761): +20% crafting speed and +5% move speed
   spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05, icon: '🌶️',
                   desc: 'Crafting speed +20% and move speed +5%.' },
@@ -903,6 +1066,14 @@ const EFFECT_DEFS = {
   heatstroke:   { name: 'Heatstroke', good: false, icon: '😵', lasts: 'Builds in hot sun. Goes down in shade or at night, faster under a roof, fastest in water' },
   sandstorm:    { name: 'Sandstorm',  good: false, icon: '🌪️', lasts: 'Lasts while the storm reaches you: a roof or a cave stops it' },
   exhausted:    { name: 'Exhausted', good: false, icon: '😫', lasts: `Lasts until your stamina is back to ${STAMINA_BACK}` },   // 0.82501
+  tired:        { name: 'Tired', good: false, icon: '🥱', lasts: `Lasts while your energy is ${TIRED_AT}% or less: sleep in a bed` },   // 0.832
+  // running low on a food group (0.8323): shown with how much is left
+  proteinSick:  { name: 'Protein sickness', good: false, icon: '🍖', lasts: `Lasts while your protein is ${SICK_AT} or less: eat meat or fish`, hurts: 'wasted away' },
+  fruitSick:    { name: 'Fruit sickness',   good: false, icon: '🍎', lasts: `Lasts while your fruit is ${SICK_AT} or less: eat fruit or berries`, hurts: 'wasted away' },
+  vegSick:      { name: 'Vegetable sickness', good: false, icon: '🥕', lasts: `Lasts while your vegetables are ${SICK_AT} or less` },
+  wet:          { name: 'Wet', good: false, icon: '💧', lasts: 'Dries a second a second; faster near a fire, lava, a torch, in a desert or warm' },   // 0.8323
+  // salt among your food (0.832): shown with how long the salt in use keeps it
+  salted:       { name: 'Salted', good: true, icon: '🧂', lasts: 'Lasts while the salt in use lasts; the next salt you carry goes in when it runs out' },
   /* what you are doing (0.8243): shown while it lasts, like the temperature (stateEffects) */
   sneaking:     { name: 'Sneaking', good: true, icon: '🐾', lasts: 'Lasts while you sneak',
                   desc: "You do not step off an edge, and your stamina comes back 20% faster." },
@@ -922,6 +1093,31 @@ function stateEffects(p = player) {
           (playerSandResist() ? ` ${Math.round(playerSandResist() * 100)}% resisted.` : '') });
   if (playerTired(p)) out.push({ id: 'exhausted', desc: `You move ${Math.round(exhaustedSlow(p) * 100)}% slower and cannot sprint, jump or climb.` +
     (p._exhaustT >= EXHAUST_HURT_AFTER ? ` You lose ${EXHAUST_HURT_DPS} health a second.` : ` After ${EXHAUST_HURT_AFTER} s of it you lose health too.`) });   // 0.82501
+  // low on energy (0.832)
+  const tr = tiredness(p);
+  if (tr > 0) out.push({ id: 'tired', label: Math.round(p.energy) + '', desc: `Regen ${Math.round(TIRED_REGEN * tr * 100)}% slower, ` +
+    `every bar drains ${Math.round(TIRED_DEPLETION * tr * 100)}% faster and you move ${Math.round(TIRED_SLOW * tr * 100)}% slower.` });
+  // low on a food group (0.8323): protein, fruit (vegetables when switched on)
+  const sickLine = (k, name) => {
+    const f = sickness(k, p);
+    return `${name}: regen ${Math.round(SICK_REGEN * f * 100)}% less, every bar drains ${Math.round(SICK_DEPLETION * f * 100)}% faster, ` +
+           `you move ${Math.round(SICK_SLOW * f * 100)}% slower` + ((p[k] ?? 1) <= 0 ? `, and you lose ${SICK_HP_PER_S} health a second` : '');
+  };
+  if (sickness('protein', p) > 0) out.push({ id: 'proteinSick', label: Math.round(p.protein) + '',
+    desc: sickLine('protein', 'Low protein') + `; attack speed ${Math.round(SICK_PROTEIN_ATK * sickness('protein', p) * 100)}% less and ${Math.round(SICK_PROTEIN_STR * sickness('protein', p))} strength less.` });
+  if (sickness('fruit', p) > 0) out.push({ id: 'fruitSick', label: Math.round(p.fruit) + '',
+    desc: sickLine('fruit', 'Low fruit') + `; thirst drains ${Math.round(SICK_FRUIT_THIRST * sickness('fruit', p) * 100)}% faster and crafting is ${Math.round(SICK_FRUIT_CRAFT * sickness('fruit', p) * 100)}% slower.` });
+  if (sickness('veg', p) > 0) out.push({ id: 'vegSick', label: Math.round(p.veg) + '',
+    desc: `Low vegetables: fog and sand cloud your sight ${Math.round(SICK_VEG_SIGHT * sickness('veg', p) * 100)}% more, and you mine ${Math.round(SICK_VEG_MINING * sickness('veg', p) * 100)}% slower.` });
+  // wet (0.8323): its time left
+  // ...its time once soaked through, else how soaked it is (0.8324)
+  if (playerWet(p)) { const w = wetness(p); out.push({ id: 'wet',
+    label: p._wetT > 0 ? (p._wetT >= 60 ? Math.ceil(p._wetT / 60) + 'm' : Math.ceil(p._wetT) + 's') : Math.round(w * 100) + '%',
+    desc: `Soaked ${Math.round(w * 100)}%` + (p._wetT > 0 ? ` for ${Math.ceil(p._wetT)} s more` : '') + `: jump strength ${(WET_JUMP * w * 100).toFixed(1)}% less, ` +
+          `effects last ${Math.round(WET_EFFECT_TIME * w * 100)}% shorter, cold resistance ${Math.round(WET_COLD_RES * w * 100)}% less.` }); }
+  // the salt keeping your food (0.832, 44-spoil.js): its time left, minutes past one
+  if (p._saltT > 0) out.push({ id: 'salted', label: p._saltT >= 60 ? Math.ceil(p._saltT / 60) + 'm' : Math.ceil(p._saltT) + 's',
+    desc: `Food you carry spoils ${Math.round(SALT_SLOW * 100)}% slower while it lasts (${Math.ceil(p._saltT / 60)} min).` });
   if (p.sneaking) out.push({ id: 'sneaking' });
   if (p._wallClimbing) out.push({ id: 'climbing' });
   return out;
@@ -969,16 +1165,25 @@ const playerHungerMul = () => (player.effects || []).reduce((m, e) => m * (EFFEC
    fruit, vegetables, protein. Slow Burner takes 5% off; gear may carry a depletion field later (-0.05 = 5% slower). */
 const SLOW_BURNER_MUL = 0.95;
 const playerDepletionMul = () => Math.max(0.25, ((typeof hasSkill === 'function' && hasSkill('slowBurner')) ? SLOW_BURNER_MUL : 1)
-  + (typeof _equipSum === 'function' ? _equipSum('depletion') : 0));
+  + (typeof _equipSum === 'function' ? _equipSum('depletion') : 0)) * (1 + TIRED_DEPLETION * tiredness())   // tired (0.832)
+  * (1 + SICK_DEPLETION * (sickness('protein') + sickness('fruit')));   // sick (0.8323)
 // how fast your breath runs out under water: 5% slower with Slow Burner (0.7911)
 const playerAirMul = () => playerDepletionMul();   // the stats depletion since 0.828
-// multiplier on health regen, and on the instant heal of a food eaten while the effect runs
-const playerRegenMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT_DEFS[e.id]?.regenMul || 1), 1);
+/* REGEN (0.832), a stat: how fast health heals and how much energy food gives, and the instant heal of a food eaten
+   while it runs. 100%, plus each running effect's `regen` (Rapid regen +50%; it doubled until 0.832), times what
+   tiredness leaves (up to 90% less). */
+const playerRegenMul = (p = player) => Math.max(0, 1 + (p.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.regen || 0), 0)
+                                     - SICK_REGEN * (sickness('protein', p) + sickness('fruit', p)))   // sick (0.8323)
+                                     * (1 - TIRED_REGEN * tiredness(p));                                // never under 0 (0.8323)
+/* EFFECT DURATION (0.832), a stat: how long a food's or a potion's GOOD effect lasts, 125% with Lingering (0.79),
+   Rapid regen included. Bad ones (poison, nausea) keep their own length since 0.8321. */
+const playerEffectTimeMul = () => Math.max(0, 1 + ((typeof hasSkill === 'function' && hasSkill('lingering')) ? 0.25 : 0)
+  - WET_EFFECT_TIME * wetness());   // wet: up to 20% less, by how soaked (0.8323; 0.8324)
 function addPlayerEffect(id, time) {   // time: a food's own length for it (foodEffectTime, 0.8291), else the effect's
   const d = EFFECT_DEFS[id];
   if (!d) return;
   const list = player.effects || (player.effects = []);
-  const t = (time || d.time) *((typeof hasSkill === 'function' && hasSkill('lingering')) ? 1.25 : 1);   // Lingering (0.79)
+  const t = (time || d.time) * (d.good ? playerEffectTimeMul() : 1);   // Lingering (0.79): good effects only (0.8321)
   const e = list.find(x => x.id === id);
   if (e) e.left = t; else list.push({ id, left: t });
   if (d.announce && typeof feedWarn === 'function') feedWarn(d.announce);   // a bad one says so as it lands (0.7947)

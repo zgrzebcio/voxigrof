@@ -91,6 +91,16 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
   if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash (0.8191)
   if (blockId === B.FIRE) return [];
+  if (blockId === B.ICE) return [];                                                // breaks into water (0.8321)
+  /* Torches (0.834): a lit fire torch comes off unlit, a crystal one keeps its crystal half the time, so breaking and
+     placing again never buys a fresh light; an unlit one is a burnt stick, a stick back one time in four. */
+  if (blockId === B.TORCH) return [{ id: B.TORCH_UNLIT, count: 1 }];
+  if (blockId === B.CRYSTAL_TORCH) return [{ id: Math.random() < 0.5 ? B.CRYSTAL_TORCH : B.TORCH_UNLIT, count: 1 }];
+  if (blockId === B.TORCH_UNLIT) return Math.random() < 0.25 ? [{ id: ITEM.STICK, count: 1 }] : [];
+  // a lit glow block gives back half of the five it took (2 or 3); a spent one nothing (0.834)
+  if (blockId === B.GLOWSTONE) return [{ id: ITEM.GLOW_DUST, count: 2 + (Math.random() < 0.5 ? 1 : 0) }];
+  if (blockId === B.GLOWCRYSTAL_BLOCK) return [{ id: ITEM.GLOW_CRYSTAL, count: 2 + (Math.random() < 0.5 ? 1 : 0) }];
+  if (blockId === B.GLOWSTONE_SPENT || blockId === B.GLOWCRYSTAL_SPENT) return [];
   // a flower comes apart into fiber, never the flower (0.826; its dye, picked with shears, comes with the paint update)
   if (FLOWER_BLOCKS.has(blockId)) return _drop(ITEM.FIBER, rollLoot(LOOT.flower));
   /* Glassy sand, and its red and pink looks (variants since 0.8263), always break into glass shards: ahead of the

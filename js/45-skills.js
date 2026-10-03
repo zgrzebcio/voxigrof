@@ -84,7 +84,7 @@ const SKILLS = [
   { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 1, req: [],
     desc: 'Food you carry spoils 10% slower' },                        // 0.7911
   { id: 'lingering',   cat: 'husbandry', name: 'Lingering',      cost: 1, req: ['preserver'],   // after Preserver since 0.7911
-    desc: 'Food and potion effects last 25% longer' },
+    desc: 'Good food and potion effects last 25% longer' },   // good ones only (0.8321)
   { id: 'gentleHand',  cat: 'husbandry', name: 'Gentle Hand',    cost: 2, req: ['butcher'],
     desc: 'Taming horses and other tameable animals is 10% faster' },
   { id: 'saddler',     cat: 'husbandry', name: 'Saddler',        cost: 2, req: ['gentleHand'],

@@ -94,9 +94,9 @@ const CREATIVE_ORDER = [
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
-  B.GRAVEL, B.CLAY, B.SNOW, B.BEDROCK,
+  B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
-  B.GLASS, B.GLOWSTONE, B.WOOL,
+  B.GLASS, B.GLOWSTONE, B.GLOWSTONE_SPENT, B.WOOL,   // spent 0.834
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
   B.COAL_ORE, B.IRON_ORE, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
   B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE,
@@ -104,10 +104,11 @@ const CREATIVE_ORDER = [
   B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.TIN_BLOCK, B.COPPER_BLOCK,
   B.DIAMOND_BLOCK, B.EMERALD_BLOCK, B.RUBY_BLOCK, B.SAPPHIRE_BLOCK, B.TOPAZ_BLOCK,
   B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK,
-  B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.OBSIDIAN,
+  B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.GLOWCRYSTAL_SPENT, B.OBSIDIAN,
   B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
   B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
   B.MELON, B.PUMPKIN, B.CARVED_PUMPKIN, B.JACK_O_LANTERN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091, carved 0.824
+  B.CRYSTAL_TORCH, B.TORCH_UNLIT,                                                                // 0.834
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
   B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
@@ -754,6 +755,8 @@ function _doPlace() {
   if (!hit) return;
   // shears carve a pumpkin, a torch lights a carved one (0.824)
   if (tryCarvePumpkin(hit)) { handPlaceSwing = true; return; }
+  // flint or a glow crystal lights an unlit torch (0.834, 56-torches.js)
+  if (tryLightTorch(hit)) { handPlaceSwing = true; return; }
   // survival: right-clicking a crafting bench opens the advanced recipe list instead of placing
   // a bench with an order on it opens on a TAP instead, so holding the button can cancel the order (0.76)
   // ...and a mortar and pestle works the same way with its own list (0.771)
@@ -894,7 +897,7 @@ function _doPlace() {
   // billboards (torch, mushrooms, any cross model): any face works, but the target cell
   // must sit on a solid block (matches the support-break rule in setBlock)
   // ...except a torch clicked onto the SIDE of a solid block, which hangs on that wall (0.7451)
-  const torchWall = id === B.TORCH && hit.ny === 0 && !!(hit.nx || hit.nz) && !ontoPlant
+  const torchWall = !!PROPS[id].torch && hit.ny === 0 && !!(hit.nx || hit.nz) && !ontoPlant
                  && isSolid(hit.x, hit.y, hit.z);
   // ...and a cobweb, which can be strung anywhere: floor, wall or ceiling (0.766)
   if (!torchWall && id !== B.COBWEB && (PROPS[id].topOnly || PROPS[id].model === 'cross') && !isSolid(px, py - 1, pz)) return;
@@ -997,7 +1000,8 @@ function _doPlace() {
   }
   // bed: needs two free cells on solid ground, lays foot + head and spawns the mesh
   if (id === B.BED) {
-    if (!tryPlaceBed(px, py, pz)) return;
+    // its frame's wood from the variant bar (0.8342)
+    if (!tryPlaceBed(px, py, pz, typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(slotId(slot)) : 0)) return;
     handPlaceSwing = true;
     spendHeld("placed");
     return;

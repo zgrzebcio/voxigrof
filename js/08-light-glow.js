@@ -8,13 +8,24 @@
    crossing chunk borders via getBlock/getLightWorld, and marks touched chunks dirty to re-mesh.
    ================================================================================================ */
 function chunkLightArr(c) { return c.light || (c.light = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z)); }
+/* Light COLOUR (0.834): a cell's byte is its level (bits 0-4, up to the 20 of a glow dust block) and LIGHT_COLD_BIT when
+   that level came from a cold source (`coldLight` in PROPS: crystal torch, glowcrystal block, glow vine). The flood
+   carries it, the brightest light wins a cell and its colour with it; the mesh packing (11) hands it to the shader. */
+const LIGHT_LEVEL_MASK = 31, LIGHT_COLD_BIT = 0x80;
+const lightColdOf = (val) => (PROPS[val & 255]?.coldLight ? LIGHT_COLD_BIT : 0);
 function getLightWorld(x, y, z) {
   if (y < 0 || y > 199) return 0;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.light) return 0;
   /* A light brighter than 15 (the glowcrystal block's 18) reaches further, but every reader works in 0..15: capped
      here, since 16-18 used to spill into the sky nibble and come out BLACK next to the light (0.8094). */
-  return Math.min(15, c.light[(x & 15) + ((z & 15) << 4) + (y << 8)]);
+  return Math.min(15, c.light[(x & 15) + ((z & 15) << 4) + (y << 8)] & LIGHT_LEVEL_MASK);
+}
+// is the block light at (x, y, z) a cold (blue) one? (0.834)
+function lightColdWorld(x, y, z) {
+  if (y < 0 || y > 199) return false;
+  const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
+  return !!(c && c.light && (c.light[(x & 15) + ((z & 15) << 4) + (y << 8)] & LIGHT_COLD_BIT));
 }
 function setLightWorld(x, y, z, val) {
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
@@ -43,6 +54,11 @@ function blockLightOf(val) {
 }
 // per-position emission: read the block's own light level (torch 10, glowstone 14, furnace 5...)
 const glowLevelAt = (gx, gy, gz) => blockLightOf(getBlock(gx, gy, gz)) || GLOW_LEVEL;
+// a placed emitter as a flood source, [x, y, z, level, colour bit] (the colour 0.834)
+const glowSrcAt = (gx, gy, gz) => {
+  const v = getBlock(gx, gy, gz);
+  return [gx, gy, gz, blockLightOf(v) || GLOW_LEVEL, lightColdOf(v)];
+};
 
 /* Virtual held-light sources — one slot per split-screen player (0.72), each null or
    [x, y, z, level]. Every consumer treats them exactly like placed emitters; the only reason they
@@ -74,14 +90,15 @@ function propagateLight(gx, gy, gz, level = GLOW_LEVEL) {
 /* Every source in ONE flood (0.8196). Relighting beside a lava lake meant thousands of sources, and flooding them
    one by one visited the same cells thousands of times: one relight took 300 ms. Here each source seeds a bucket
    by level, the buckets are worked from the brightest down, and a cell is only ever lit at its highest level, so
-   each cell is expanded once however many sources reach it. `srcs`: [[x, y, z, level], ...]. */
+   each cell is expanded once however many sources reach it. `srcs`: [[x, y, z, level, colour bit], ...]. The colour
+   (0.834, LIGHT_COLD_BIT) rides along with each cell, so a cell takes the colour of the brightest light reaching it. */
 function propagateLightMany(srcs) {
   if (!srcs.length) return;
-  const B = [];                          // B[lv]: flat x,y,z of cells whose light leaves them at lv
+  const B = [];                          // B[lv]: flat x,y,z,colour of cells whose light leaves them at lv
   let top = 0;
   for (const s of srcs) {
     const lv = s[3] + 1;                 // seed one above so neighbours get the source's level
-    (B[lv] || (B[lv] = [])).push(s[0], s[1], s[2]);
+    (B[lv] || (B[lv] = [])).push(s[0], s[1], s[2], s[4] || 0);
     if (lv > top) top = lv;
   }
   let ccx = 1e9, ccz = 1e9, cData = null, cLight = null;   // cached chunk arrays
@@ -89,8 +106,8 @@ function propagateLightMany(srcs) {
     const q = B[lv];
     if (!q) continue;
     const nl = lv - 1;
-    for (let h = 0; h < q.length; h += 3) {
-      const x = q[h], y = q[h + 1], z = q[h + 2];
+    for (let h = 0; h < q.length; h += 4) {
+      const x = q[h], y = q[h + 1], z = q[h + 2], cb = q[h + 3];
       for (const d of LIGHT_DIRS) {
         const nx = x + d[0], ny = y + d[1], nz = z + d[2];
         if (ny < 0 || ny > 199) continue;
@@ -104,10 +121,10 @@ function propagateLightMany(srcs) {
         if (!cData) continue;             // unloaded: relightForChunk handles it on load
         const i = (nx & 15) + ((nz & 15) << 4) + (ny << 8);
         if (CORE.opaqueVal(cData[i])) continue;       // by value: chiseled shapes let light through (0.783)
-        if (cLight[i] >= nl) continue;
-        cLight[i] = nl;
+        if ((cLight[i] & LIGHT_LEVEL_MASK) >= nl) continue;
+        cLight[i] = nl | cb;
         const out = nl - CORE.lightDim(cData[i]);     // passes on less out of a shaped cell (0.819)
-        if (out >= 2) (B[out] || (B[out] = [])).push(nx, ny, nz);
+        if (out >= 2) (B[out] || (B[out] = [])).push(nx, ny, nz, cb);
       }
     }
     B[lv] = null;
@@ -137,7 +154,7 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   forEachGlowNear(cxm, czm, 2 * R + ext, (gx, gy, gz) => {
     if (gx < bx0 - 2 * R || gx > bx1 + 2 * R || gy < by0 - 2 * R || gy > by1 + 2 * R || gz < bz0 - 2 * R || gz > bz1 + 2 * R) return;
     if (!_lightSrcActive(gx, gz)) return;
-    near.push([gx, gy, gz, glowLevelAt(gx, gy, gz)]);
+    near.push(glowSrcAt(gx, gy, gz));
   });
   for (const g of _plyGlows) {
     if (!g) continue;
@@ -156,9 +173,10 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
 
 // Update one player's virtual held-light source (`slot` is the split-screen player index).
 // Call when that player moves a block or changes held item. level=0 clears their light.
-function updatePlayerLight(slot, nx, ny, nz, level) {
+// cold (0.834): a cold light in the hand (the crystal torch) lights blue
+function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   const old = _plyGlows[slot];
-  const now = level > 0 ? [nx, ny, nz, level] : null;
+  const now = level > 0 ? [nx, ny, nz, level, cold ? LIGHT_COLD_BIT : 0] : null;
   _plyGlows[slot] = now;
   if (!old && !now) return;
 
@@ -173,7 +191,7 @@ function updatePlayerLight(slot, nx, ny, nz, level) {
   forEachGlowNear(cx, cz, 2 * R, (gx, gy, gz) => {
     if (Math.abs(gx-cx)>2*R || Math.abs(gy-cy)>2*R || Math.abs(gz-cz)>2*R) return;
     if (!_lightSrcActive(gx, gz)) return;
-    sources.push([gx,gy,gz,glowLevelAt(gx,gy,gz)]);
+    sources.push(glowSrcAt(gx, gy, gz));
   });
   _plyGlowSources(sources);
 
@@ -200,13 +218,13 @@ function relightForChunk(cx, cz) {
   forEachGlowNear(cx * 16 + 8, cz * 16 + 8, LIGHT_REACH + 8, (gx, gy, gz) => {
     if (!_lightSrcActive(gx, gz)) return;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= LIGHT_REACH && dz <= LIGHT_REACH) srcs.push([gx, gy, gz, glowLevelAt(gx, gy, gz)]);
+    if (dx <= LIGHT_REACH && dz <= LIGHT_REACH) srcs.push(glowSrcAt(gx, gy, gz));
   });
   for (const g of _plyGlows) {
     if (!g) continue;
     const [gx, gy, gz, lv] = g;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= lv && dz <= lv) srcs.push([gx, gy, gz, lv]);
+    if (dx <= lv && dz <= lv) srcs.push(g);                 // with its colour (0.834)
   }
   propagateLightMany(srcs);
 }

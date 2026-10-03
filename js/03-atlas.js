@@ -171,7 +171,10 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      // 0.827: every berry bush's six stages (T 326-355)
                      ,...BERRY_COLORS.flatMap(c => [0, 1, 2, 3, 4, 5].map(s => `berry_${c}_stage${s}`))
                      // 0.829: sugar cane's stages 0-4 and its column pieces (T 356-363)
-                     ,...CANE_PIECES.map(p => 'sugar_cane_' + p)];
+                     ,...CANE_PIECES.map(p => 'sugar_cane_' + p)
+                     ,'ice'                                                   // 0.8321 (T 364)
+                     ,'ice_bricks', 'snow_bricks', 'snow_ice_bricks', 'bone_block_side', 'bone_block_top', 'bone_bricks'   // 0.833 (T 365-370)
+                     ,'torch_fire', 'torch_unlit', 'torch_crystal', 'glowstone_spent', 'glowcrystal_spent'];   // 0.834 (T 371-375)
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -241,7 +244,7 @@ function loadImage(name, url) {
    but the atlas cache short-circuits that loop, so from the second boot onward nothing fetched
    them, `new THREE.Texture(undefined)` produced a blank map, and those meshes rendered BLACK. */
 const MESH_TEXTURES = ['oak_door',
-                       'bed_top', 'bed_long', 'bed_end', 'bed_leg', 'bed_down',
+                       'bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow',      // 0.8342
                        ...Object.keys(TEXTURES).filter(n => n.startsWith('chest_')),   // wood, metal, double halves (0.809)
                        'wool', 'oak_planks', 'birch_planks', 'spruce_planks'];         // planks: a chest's wood colour (0.809)
 // name -> url for everything in this group; MESH_TEXTURES resolve through TEXTURES like block art
@@ -393,7 +396,7 @@ const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2 };
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
-  if (id === B.TORCH || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;
+  if (p.torch || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;   // every torch (0.834)
   const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER ? 3 : 1;
   for (const t of [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || [])])   // cane pieces 0.829
     if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
@@ -571,6 +574,24 @@ async function buildAtlas() {
   };
   IMAGES.grass_warm = shifted(IMAGES.grass, 'saturate(0.7) hue-rotate(-16deg) brightness(1.12)');
   IMAGES.grass_cold = shifted(IMAGES.grass, 'saturate(0.9) hue-rotate(18deg) brightness(0.8)');
+  /* A burnt-out glow block (0.834) is its own picture in grey and darker: no art of its own. Pixel by pixel, so it
+     works where a canvas filter does not. */
+  const greyed = (src) => {
+    if (!src) return src;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g2 = c.getContext('2d', { willReadFrequently: true });
+    g2.imageSmoothingEnabled = false;
+    g2.drawImage(src, 0, 0);
+    const im = g2.getImageData(0, 0, c.width, c.height), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const l = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) * 0.55;
+      d[i] = d[i + 1] = d[i + 2] = l;
+    }
+    g2.putImageData(im, 0, 0);
+    return c;
+  };
+  IMAGES.glowstone_spent = greyed(IMAGES.glowstone);
+  IMAGES.glowcrystal_spent = greyed(IMAGES.glowcrystal);
 
   /* tall_grass.png ships grayscale, so it reads as white in the world. Tint it on the source image, where
      one multiply and one alpha restore do it. The oak leaves are grey art too since 0.809, and the birch

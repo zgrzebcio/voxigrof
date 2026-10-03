@@ -358,7 +358,7 @@ function updateVitals(dt) {
       damageArmorDurability(lost / VITAL_K);   // wear follows how hard the hit was (0.756), in the old points
       statsOnHit(player, dmgBase - player.hp);  // a hit costs energy too (0.82)
       // ...and healing waits (0.7992): Rapid regen shortens the wait rather than ignoring it
-      const wait = playerHasEffect('regenMul') ? REGEN_HIT_WAIT_FAST : REGEN_HIT_WAIT;
+      const wait = playerHasEffect('regen') ? REGEN_HIT_WAIT_FAST : REGEN_HIT_WAIT;   // `regen` since 0.832 (regenMul)
       player._regenWaitT = Math.max(player._regenWaitT || 0, wait);
       // red hearts for the hit — one per 5 health lost, hidden in your own first-person view (0.8)
       if (typeof fxHearts === 'function')
@@ -629,8 +629,12 @@ function showDeathScreen(cause) {
   deathEl.style.display = 'flex';
   if (player === PLAYERS[0] && document.pointerLockElement) document.exitPointerLock();
 }
+/* Back from a death (0.8324): health, stamina and oxygen full, every other bar — food, thirst, energy, fruit,
+   vegetables, protein — at 75% (0.833; half before), and no over-stats. Only here: a new world and a first spawn still start full. */
+const RESPAWN_BAR_SHARE = 0.75,   /* 75% since 0.833 (half until): a bar and its over-stat run to 150 */ RESPAWN_FULL = new Set(['stamina']);
 function respawnPlayer() {
-  fillVitals(player);                            // every bar full, over-stats too but thirst's (0.821)
+  fillVitals(player, false);                     // every bar full, no over-stats...
+  for (const k in OVER_KEY) if (!RESPAWN_FULL.has(k)) player[k] = VITAL_MAX[k] * RESPAWN_BAR_SHARE;   // ...then the half
   player._hpLast = player.hp;                    // a respawn is not a heal — don't diff across it
   player.effects = [];
   if (player.sleepingAt) leaveBed(player);     // never respawn still flagged as in a bed
