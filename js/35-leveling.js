@@ -140,10 +140,10 @@ const XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD
 /* A biome found (0.8324): the more you have found already, the more the next one pays — XP_BIOME for the first, rising
    by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (55-biomes.js biomeAt names them: 9 kinds of
    water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last (0.833). */
-const XP_BIOME_LAST = 1000, BIOME_COUNT = 27;   // 500 in 0.8324
+const XP_BIOME_LAST = 1000, BIOME_COUNT = 33;   // 500 in 0.8324; 28 with the Ice Spikes (0.835), 29 the Snowy Hills (0.8351); 33 the plains' and forests' Hills (0.835491)
 const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
 const XP_SAPLING = { [B.OAK_SAPLING]: 3, [B.BIRCH_SAPLING]: 4, [B.SPRUCE_SAPLING]: 5 };
-const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = 199, WORLD_BOTTOM_Y = 2;
+const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = WORLD_TOP, WORLD_BOTTOM_Y = 2;
 // XP for a player who may not be the seat running right now (a sapling they planted grew); paid on their next tick
 function grantXP(p, n, why) {
   if (!p || !(n > 0)) return;

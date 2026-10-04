@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.8342';    // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.835492';     // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
@@ -41,7 +41,8 @@ const GAME_VERSION = '0.8342';    // 0.8342: bed in four tinted part sheets   //
 // 0.8091: mushroom models, trees moved, sand sides, adobe, glass looks, salt, cantaloupe
 // 0.809: texture array, furnace/bench/chest variants, dolomite
 // earlier bumps: 0.808: 128px art, moved furnace/bench/chest   // 0.807: stripped log files renamed   // 0.804: the blinking TNT's own top   // 0.801: the furnace's open top   // 0.7943 brick textures; 0.7945/0.7946 gem clusters; 0.7947 yellow berries: cached art must go
-const CHUNK_X = 16, CHUNK_Y = 200, CHUNK_Z = 16;
+const CHUNK_X = 16, CHUNK_Y = 250, CHUNK_Z = 16;   // 250 tall since 0.8354 (200 before; CY in 02 must match)
+const WORLD_TOP = CHUNK_Y - 1;            // the highest y a block can be at (0.8354)
 const WATER_Y = 99;                       // top water surface fills up to this y
 const DEFAULT_VIEW_DIST = 10;             // in chunks (radius)
 let   viewDist = clampi(parseInt(localStorage.getItem('vg_dist')) || DEFAULT_VIEW_DIST, 8, 32);

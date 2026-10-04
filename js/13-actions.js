@@ -94,7 +94,7 @@ const CREATIVE_ORDER = [
   B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
   B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
   B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
-  B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833
+  B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.PACKED_ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833; packed ice 0.835
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
   B.GLASS, B.GLOWSTONE, B.GLOWSTONE_SPENT, B.WOOL,   // spent 0.834
   // every ore together, the gem clusters right after the metals, then the blocks they press into (0.7945)
@@ -915,7 +915,7 @@ function _doPlace() {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;                  // a planter works too (0.7842)
   }
-  // sugar cane: on top of an existing cane (stack up to 5), OR on sand/grass/dirt with an
+  // sugar cane: on top of an existing cane (stack up to 5), OR on sand (any)/grass/dirt/gravel (0.8356) with an
   // adjacent water block at the same y as the ground. Reject otherwise.
   if (id === B.SUGAR_CANE) {
     const below = getBlock(px, py - 1, pz) & 255;
@@ -926,7 +926,8 @@ function _doPlace() {
       while (baseY > 0 && (getBlock(px, baseY - 1, pz) & 255) === B.SUGAR_CANE) baseY--;
       if (py - baseY >= 5) return;                                       // already 5 tall
     } else {
-      if (below !== B.SAND && below !== B.RED_SAND && below !== B.PINK_SAND && below !== B.GRASS && below !== B.DIRT) return;
+      if (below !== B.SAND && below !== B.RED_SAND && below !== B.PINK_SAND && below !== B.GRASS && below !== B.DIRT
+          && below !== B.GRAVEL) return;
       // must have water at ground level in any of 4 side neighbors of the block BELOW
       let nearWater = false;
       for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {

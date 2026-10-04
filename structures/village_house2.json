@@ -1121,5 +1121,6 @@
   "minY": 60,
   "maxY": 150
  },
- "format": 2
+ "format": 2,
+ "lift": 1
 }

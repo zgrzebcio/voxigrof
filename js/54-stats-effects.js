@@ -789,7 +789,7 @@ function _tickNightXP(p, dt) {
   addXP(xp);
   if (typeof feedFeat === 'function') feedFeat(n.blood ? 'Lived through the blood moon outside' : 'Lived through the night outside', xp);
 }
-/* Found once and for all (0.8283): each biome the first time you stand in it, the top of the world (y 199) and its
+/* Found once and for all (0.8283): each biome the first time you stand in it, the top of the world (WORLD_TOP, y 249 since 0.8354) and its
    bottom (y 2), looked at once a second. */
 function _tickFeats(p, dt) {
   if (p.dead || !p.spawned) return;

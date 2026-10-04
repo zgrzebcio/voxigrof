@@ -249,12 +249,12 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain8273:';   // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
+const TERRAIN_KEY = 'terrain8354:';   // 0.8354 the world 250 tall (a cached 200-tall buffer must never be read)     // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
-const ZERO_LIGHT = new Uint8Array(16 * 16 * 200);   // stand-in for un-lit neighbours
+const ZERO_LIGHT = new Uint8Array(16 * 16 * CHUNK_Y);   // stand-in for un-lit neighbours
 function edgeSlice(d, side, Ctor) {
-  const s = new Ctor(16 * 200);
-  for (let y = 0; y < 200; y++) {
+  const s = new Ctor(16 * CHUNK_Y);
+  for (let y = 0; y < CHUNK_Y; y++) {
     const yo = y << 8, so = y << 4;
     for (let i = 0; i < 16; i++) {
       if (side === 0) s[i + so] = d[15 + (i << 4) + yo];        // west nb: x=15 plane [z,y]
@@ -551,6 +551,7 @@ function applyOneMesh(m) {
       geo.setAttribute('shade',    new THREE.BufferAttribute(p.shade, 1, true));
       geo.setAttribute('blockLight', new THREE.BufferAttribute(p.lite, 1, false));
       geo.setAttribute('clim',     new THREE.BufferAttribute(p.clim, 1, true));   // grass and water climate colour (0.8231)
+      if (p.dark) geo.setAttribute('dark', new THREE.BufferAttribute(p.dark, 1, true));   // a water surface's depth shade (0.835492)
       geo.setIndex(new THREE.BufferAttribute(p.index, 1));
       geo.boundingSphere = sphere.clone();                  // manual: skip costly compute
       const mesh = new THREE.Mesh(geo, MATERIALS[i]);
@@ -569,7 +570,7 @@ function applyOneMesh(m) {
 
 /* ---------------------------------- world block access ---------------------------------- */
 function getBlock(x, y, z) {
-  if (y < 0 || y > 199) return 0;
+  if (y < 0 || y > WORLD_TOP) return 0;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.data) return 0;
   return c.data[(x & 15) + ((z & 15) << 4) + (y << 8)];
@@ -610,7 +611,7 @@ let editRushing = false;   // true while a player edit runs: marks its re-meshes
 // set by 34-structures.js around bulk stamping; see the lighting note inside setBlock
 let structBulkLight = false;
 function setBlock(x, y, z, val) {
-  if (y < 0 || y > 199) return;
+  if (y < 0 || y > WORLD_TOP) return;
   const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
   const c = getChunk(cx, cz);
   if (!c || !c.data) return;
@@ -717,7 +718,7 @@ function setBlock(x, y, z, val) {
      they stand on drops the whole thing. Each block's own break hook then takes its other half,
      so only the cell directly above has to be handled here. Guarded on the new block not being
      solid, otherwise swapping dirt for stone under a door would demolish it. */
-  if (!CORE.solidVal(val) && y + 1 <= 199) {
+  if (!CORE.solidVal(val) && y + 1 <= WORLD_TOP) {
     const upVal = getBlock(x, y + 1, z), upId = upVal & 255;
     const isDoorBottom = upId === B.DOOR && !((upVal >> 8) & 8);
     if (isDoorBottom || upId === B.BED) {
@@ -748,7 +749,7 @@ function setBlock(x, y, z, val) {
       if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
     }
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
-  if (newId === B.AIR && y + 1 <= 199) {
+  if (newId === B.AIR && y + 1 <= WORLD_TOP) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;
     // ...unless it is a WALL torch, whose support is the wall behind it, not the floor
     const wallTorch = !!PROPS[above]?.torch && ((aboveVal >> 8) & 7) !== 0;
@@ -796,7 +797,7 @@ function setBlock(x, y, z, val) {
       if (!player.canFly) spawnDrop(item, x + dx, y + dy, z + dz);
     }
   // gravity: clear below a gravity block → it falls; gravity block placed above air → also falls
-  if (newId === B.AIR && y + 1 <= 199) scheduleFall(x, y + 1, z);
+  if (newId === B.AIR && y + 1 <= WORLD_TOP) scheduleFall(x, y + 1, z);
   // a stack of snow, leaves, sand, gravel or fiber falls too (0.785)
   // ...and a stack that comes to rest on a stack with room for it pours down into it (0.8263: ash from a burnt tree,
   // or any stack stepping down, stopped a cell short and stood on top as a stack of its own)
@@ -826,7 +827,7 @@ function layerIdsAt(x, y, z, v = getBlock(x, y, z)) {
 }
 // write a whole stack, bottom to top. Nothing left is air; one block all the way needs no list.
 function setLayerStack(x, y, z, ids) {
-  if (y < 0 || y > 199) return;
+  if (y < 0 || y > WORLD_TOP) return;
   ids = ids.slice(0, LAYER_MAX);
   if (!ids.length) { setBlock(x, y, z, B.AIR); return; }
   const mixed = ids.some(b => b !== ids[0]);

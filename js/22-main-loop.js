@@ -17,7 +17,7 @@ const _fallsUnderGravity = (v) => {
   return LOOSE_LAYER_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';        // a whole sand, gravel or fiber block
 };
 function scheduleFall(x, y, z) {
-  if (y < 1 || y > 199) return;
+  if (y < 1 || y > WORLD_TOP) return;
   const val = getBlock(x, y, z);
   if (!_fallsUnderGravity(val)) return;
   // billboards don't hold up a falling block — they get crushed, so they count as empty here
@@ -91,7 +91,7 @@ function _landBlocks(list) {
   _litEdits(list, () => {
     for (const [x, y0, z, val] of list) {
       let y = y0;
-      for (let k = 0; k < 4 && y < 199 && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
+      for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
       if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
         if (!player.canFly) for (const d of blockDrop(val & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
         continue;
@@ -196,7 +196,7 @@ function processFalling(dt) {
    that could plausibly move is handed to the right queue; normal per-cell scheduling takes over
    from there.
 
-   PERFORMANCE. The scan is 51 200 cells per chunk, far too much for one frame, so it is a
+   PERFORMANCE. The scan is 64 000 cells (250 tall since 0.8354) per chunk, far too much for one frame, so it is a
    RESUMABLE CURSOR: `_wake` holds the chunk and the y-layer reached, and each frame spends a
    fixed cell budget wherever it left off. Three things keep the per-cell cost near zero:
      - the id is classified by one Uint8Array lookup, so stone/dirt/air reject immediately;
@@ -282,12 +282,12 @@ function _scanWakeSlice(budget) {
   const c = getChunk(w.cx, w.cz);
   if (!c || c.data !== d) { _wake = null; return budget; }
   const openAt = (lx, y, lz) => {
-    if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 0 && y < 200)
+    if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 0 && y < CHUNK_Y)
       return _fallOpen(d[lx + (lz << 4) + (y << 8)] & 255);
     return _fallOpen(getBlock(wx0 + lx, y, wz0 + lz) & 255);
   };
   let used = 0;
-  while (w.y < 200 && used < budget) {
+  while (w.y < CHUNK_Y && used < budget) {
     const base = w.y << 8;
     for (let i = 0; i < 256; i++) {
       const raw = d[base + i], id = raw & 255;
@@ -305,7 +305,7 @@ function _scanWakeSlice(budget) {
     used += 256;
     w.y++;
   }
-  if (w.y >= 200) {
+  if (w.y >= CHUNK_Y) {
     /* Chunk fully scanned: every emitter in it is registered, so pour block light in now. This is
        the step that lights a structure's torches — chunk load already tried, but at the time the
        chunk was outside the simulation radius and relightForChunk correctly declined.
@@ -979,7 +979,7 @@ function explodeAt(cx, cy, cz, R) {
         const d = Math.sqrt(d2);
         if (R - d < 0.9 && Math.random() < 0.55) continue;
         const x = cx + dx, y = cy + dy, z = cz + dz;
-        if (y < 0 || y > 199) continue;
+        if (y < 0 || y > WORLD_TOP) continue;
         const val = getBlock(x, y, z);
         const id = val & 255;
         if (id === B.AIR || id === B.BEDROCK || id === B.WATER || id === B.LAVA) continue;
@@ -1033,7 +1033,7 @@ function armSapling(x, y, z, type) {
                                        owner: typeof player !== 'undefined' ? player : null });
 }
 function _putSoft(x, y, z, id) {
-  if (y < 0 || y > 199) return;
+  if (y < 0 || y > WORLD_TOP) return;
   const cur = getBlock(x, y, z) & 255;
   if (_isLeaf(cur) || cur === B.AIR) setBlock(x, y, z, id);
 }

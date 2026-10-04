@@ -3146,5 +3146,6 @@
   "maxY": 150
  },
  "format": 2,
- "weight": 0.3
+ "weight": 0.3,
+ "lift": 1
 }

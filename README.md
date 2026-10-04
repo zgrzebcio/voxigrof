@@ -11,6 +11,39 @@ square. Every door opens onto a gravel path 2-3 wide that winds round the buildi
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
 ones, grass paths, and no loose sand drifted over the yards.
 
+**Ice Spikes and polar bears (0.835).** New worlds have an Ice Spikes biome in the snow: a floor of snow and packed ice
+with spikes of packed ice standing out of it, a few of them huge, and icebergs in the snow's seas. Packed ice is only
+mined, and never melts. Polar bears live on the snow's shores, its sea ice and the Ice Spikes, 2-5 together: 250
+health, and they hunt you within 16 blocks at three quarters of your sprint, 40 damage a bite; a hit only makes them
+angrier. Get 30 blocks away and they give up and walk back. They drop leather and fat.
+Since 0.8351 the snow's lakes and rivers (and a little past its edge) stay frozen, its sea is ice with open water in it,
+and newer worlds have Snowy Hills and some big, high icebergs.
+Worlds made since 0.8353 have oceans three times as big (and a third as many), and rivers that flow: each rises from a
+spring inland as a brook, widens on its way downhill, passes through any lake it fills, and runs into the sea; one with no
+way out ends in a lake.
+The world is 250 blocks tall since 0.8354 (200 before): you can build up to y 249, and new worlds have higher land and
+mountains reaching toward y 240.
+Shores (0.8356, new worlds): about half the coast is a sand beach of ragged width, most of the rest turf right down to the
+water, some gravel, and here and there a rocky coast standing up out of the sea; a snowy beach lies under a layer of snow.
+Sugar cane grows by the water on sand of any colour, grass, dirt and gravel (and can be planted on them), a fifth more often.
+New worlds since 0.83547 have small and medium hills, steep crags and cliffs with bare stone on their faces, more rocky
+coasts, sea beaches up to 10 wide with their sand or gravel running on under the shallow water, and no tiny puddles.
+New worlds since 0.83548: rivers and lakes lie at their own height (lakes in the hills and mountains, rivers stepping down
+to the sea with small falls), uneven lake and river beds, smoother hills in some places and long ones in others, and
+underground rooms, tunnels, cave mouths on hill sides, stone arches and overhanging cliffs.
+New worlds since 0.835481: every river runs out of a lake and down into another lake or the sea in gentle 1-block steps,
+lakes come bigger and longer, shores and banks are gentler and the sea gets deeper sooner off the shore. Water steps no
+longer show gaps, and deep rivers and lakes are less dark (all worlds).
+0.83549: river water visibly flows downstream and falls flow down (all worlds). New worlds also have broad flat-topped
+mountains, valleys through the mountains with lakes and rivers in them, real waterfalls where a river drops, and new
+spruce forms (giants, small ones, and ones with a heavy crown).
+0.835491: water darkens smoothly with depth, waterfalls stay light and roll over their edge, steep rivers and falls flow
+faster, and rivers and lakes take a stronger warm or cold colour (all worlds). Polar bears are very rare; gourds and wild
+wheat a fifth commoner. New worlds: waters at different heights are kept apart by ridges (no more walls of water), gentler
+lake shores, half the plains (with twice the trees), a few oaks high on the mountains, and 'Hills' biomes (Plains Hills,
+Forest Hills...) where hills rise; Mountains start at 150.
+0.835492: ripples run downhill on rivers, and the water surface no longer shows bright greenish lines.
+
 **Igloos (0.833)** stand now and then in the snow (not the cold plains): a snow-brick dome with a furnace, a crafting
 bench, a hay bale, a crystal torch and a chest of cold-country things (ice, snowballs, fish, berries, bread, paper, clay, copper nuggets...).
 **Loot chests** always hold at least 3 different things, and pay twice their XP (a desert village's three times, an igloo's

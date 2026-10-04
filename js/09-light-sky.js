@@ -12,10 +12,10 @@ const SKY_LEVEL = 15;
    crushed shallow shore water; the surface's own sense of depth now comes from the mesher
    darkening the top face by how much water is under it, so this only has to handle what's
    BELOW the surface and can be much gentler. */
-const WATER_ABSORB = 3;
+const WATER_ABSORB = 2;   // 3 before 0.835481: a river or lake bed shows a few blocks deeper
 function chunkSkyArr(c) { return c.sky || (c.sky = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z)); }
 function getSkyWorld(x, y, z) {
-  if (y > 199) return SKY_LEVEL;
+  if (y > WORLD_TOP) return SKY_LEVEL;
   if (y < 0) return 0;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.sky) return 0;
@@ -34,7 +34,7 @@ function propagateSky(q, touched) {
     for (let k = 0; k < 6; k++) {
       const d = LIGHT_DIRS[k];
       const nx = x + d[0], ny = y + d[1], nz = z + d[2];
-      if (ny < 0 || ny > 199) continue;
+      if (ny < 0 || ny > WORLD_TOP) continue;
       const kx = nx >> 4, kz = nz >> 4;                // floor for whole numbers, negatives too
       if (kx !== ccx || kz !== ccz) {
         ccx = kx; ccz = kz;
@@ -59,7 +59,7 @@ function propagateSky(q, touched) {
 // column scan: first opaque block from the top (matches worker data layout)
 function skyColumnTop(data, lx, lz) {
   const li = lx + (lz << 4);
-  for (let y = 199; y >= 0; y--) if (CORE.opaqueVal(data[li + (y << 8)])) return y;
+  for (let y = WORLD_TOP; y >= 0; y--) if (CORE.opaqueVal(data[li + (y << 8)])) return y;
   return -1;
 }
 // freshly generated chunk: seed open-sky columns, then spread into relief/caves and pull
@@ -76,7 +76,7 @@ function seedSkyForChunk(c) {
       // descend from open sky; each water block absorbs WATER_ABSORB levels, so deep water
       // columns go dark and the seabed under them is barely lit (surface stays bright)
       let lv = SKY_LEVEL;
-      for (let y = 199; y >= top + 1; y--) {
+      for (let y = WORLD_TOP; y >= top + 1; y--) {
         const i = li + (y << 8);
         sky[i] = lv;
         if ((data[i] & 255) === B.WATER) lv = Math.max(0, lv - WATER_ABSORB);
@@ -93,11 +93,11 @@ function seedSkyForChunk(c) {
       let hi = top;
       for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nx = lx + dx, nz = lz + dz;
-        hi = Math.max(hi, (nx < 0 || nx > 15 || nz < 0 || nz > 15) ? 199 : tops[nx + nz * 16]);
+        hi = Math.max(hi, (nx < 0 || nx > 15 || nz < 0 || nz > 15) ? WORLD_TOP : tops[nx + nz * 16]);
       }
       // seed with the STORED (water-attenuated) value, not raw 15 — otherwise border
       // columns re-flood deep water with full daylight and erase the depth darkness
-      for (let y = top + 1, yMax = Math.min(199, hi); y <= yMax; y++) {
+      for (let y = top + 1, yMax = Math.min(WORLD_TOP, hi); y <= yMax; y++) {
         const ci = lx + (lz << 4) + (y << 8), v = sky[ci] - CORE.lightDim(data[ci]);
         if (v > 1) q.push(wx0 + lx, y, wz0 + lz, v);
       }
@@ -108,7 +108,7 @@ function seedSkyForChunk(c) {
     if (!n || !n.sky) continue;
     const side = dx === -1 ? 0 : dx === 1 ? 1 : dz === -1 ? 2 : 3;
     const plane = edgeSlice(n.sky, side, Uint8Array);
-    for (let y = 0; y < 200; y++)
+    for (let y = 0; y < CHUNK_Y; y++)
       for (let i = 0; i < 16; i++) {
         const v = plane[i + (y << 4)];
         if (v <= 1) continue;
@@ -144,7 +144,7 @@ function reskyAround(x, y, z, x2 = x, z2 = z) {
       let changed = false;
       // same water attenuation as seedSkyForChunk
       let lv = SKY_LEVEL;
-      for (let yy = 199; yy >= 0; yy--) {
+      for (let yy = WORLD_TOP; yy >= 0; yy--) {
         const i = li + (yy << 8);
         let v = 0;
         if (yy > top) { v = lv; lv = Math.max(0, lv - ((c.data[i] & 255) === B.WATER ? WATER_ABSORB : CORE.lightDim(c.data[i]))); }
@@ -165,13 +165,13 @@ function reskyAround(x, y, z, x2 = x, z2 = z) {
           ? -1 : tops[(nx - x0) + (nz - z0) * W];
         hi = Math.max(hi, nt === -2 ? -1 : nt);
       }
-      for (let yy = top + 1, yMax = Math.min(199, hi); yy <= yMax; yy++) {
+      for (let yy = top + 1, yMax = Math.min(WORLD_TOP, hi); yy <= yMax; yy++) {
         const v = getSkyWorld(xx, yy, zz) - CORE.lightDim(getBlock(xx, yy, zz));   // stored, water-attenuated value, less what it holds back
         if (v > 1) q.push(xx, yy, zz, v);
       }
       const onWall = xx === x0 || xx === x1 || zz === z0 || zz === z1;
       if (onWall)
-        for (let yy = 0; yy <= Math.min(199, top === -1 ? 199 : top + 1); yy++) {
+        for (let yy = 0; yy <= Math.min(WORLD_TOP, top === -1 ? WORLD_TOP : top + 1); yy++) {
           const ox = xx === x0 ? xx - 1 : xx === x1 ? xx + 1 : xx;
           const oz = zz === z0 ? zz - 1 : zz === z1 ? zz + 1 : zz;
           const v = getSkyWorld(ox, yy, oz) - CORE.lightDim(getBlock(ox, yy, oz));

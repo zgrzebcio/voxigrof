@@ -174,7 +174,9 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,...CANE_PIECES.map(p => 'sugar_cane_' + p)
                      ,'ice'                                                   // 0.8321 (T 364)
                      ,'ice_bricks', 'snow_bricks', 'snow_ice_bricks', 'bone_block_side', 'bone_block_top', 'bone_bricks'   // 0.833 (T 365-370)
-                     ,'torch_fire', 'torch_unlit', 'torch_crystal', 'glowstone_spent', 'glowcrystal_spent'];   // 0.834 (T 371-375)
+                     ,'torch_fire', 'torch_unlit', 'torch_crystal', 'glowstone_spent', 'glowcrystal_spent'   // 0.834 (T 371-375)
+                     ,'packed_ice'                                            // 0.835 (T 376)
+                     ,'water_flow_fast', 'water_fall'];                       // 0.835491 (T 377-378): the flow art, faster
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -327,7 +329,7 @@ let ATLAS_LAYERS = ATLAS_TILES.length;
 for (const [name, a] of Object.entries(ANIMATED_TILES)) {
   const tile = ATLAS_TILES.indexOf(name);
   if (tile < 0) continue;
-  ATLAS_ANIM.push({ tile, name, first: ATLAS_LAYERS, frames: a.frames, ms: a.ms });
+  ATLAS_ANIM.push({ tile, name, first: ATLAS_LAYERS, frames: a.frames, ms: a.ms, reverse: !!a.reverse });
   ATLAS_LAYERS += a.frames - 1;
 }
 // ...and after them each glowing tile's mask, one layer each (0.8094; EMISSIVE_TILES in 01)
@@ -406,7 +408,8 @@ for (const n of ['grass', 'tallgrass_bottom', 'tallgrass_top'])
   if (SWAY_TILES[n]) SWAY_TILES[n + '_warm'] = SWAY_TILES[n + '_cold'] = SWAY_TILES[n];
 /* The water's colours (0.8231): the art is grey, drawn in the usual blue below; the shader moves it toward the cold
    or the warm one by the mesh's climate value (04-materials.js). */
-const WATER_TINT = { base: [58, 128, 214], cold: [34, 76, 170], warm: [66, 184, 212] };
+const WATER_TINT = { base: [58, 128, 214], cold: [30, 66, 158], warm: [70, 194, 196] };   // cold deeper, warm greener (0.835491)
+const WATER_ART_CONTRAST = 0.3;   // how much of the water art's light-and-dark pattern is kept (0.835492; all of it before)
 const TILE_LAYER = (() => {
   const N = ATLAS_TILES.length, d = new Float32Array(N * 4 * 2);
   // fourth channel (0.8193): an animated tile's NEXT frame's layer plus how far towards it it is (0..1), else -1
@@ -419,7 +422,9 @@ const TILE_LAYER = (() => {
     const i = ATLAS_TILES.indexOf(n), w = ATLAS_TILES.indexOf(n + '_warm'), c = ATLAS_TILES.indexOf(n + '_cold');
     if (i >= 0 && w >= 0 && c >= 0) { d[R1 + i * 4] = 1; d[R1 + i * 4 + 1] = w; d[R1 + i * 4 + 2] = c; }
   }
-  for (const n of ['water', 'water_flow']) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4] = 2; }
+  for (const n of ['water', 'water_flow', 'water_flow_fast', 'water_fall']) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4] = 2; }
+  // row 1's fourth channel (0.835492): a river's top, whose ripples run downstream (04): 1 at the flow's pace, 2 faster
+  for (const [n, v] of [['water_flow', 1], ['water_flow_fast', 2]]) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4 + 3] = v; }
   const t = new THREE.DataTexture(d, N, 2, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.needsUpdate = true;
@@ -432,9 +437,10 @@ function updateTileAnimation(nowMs) {
   const d = TILE_LAYER.image.data;
   const layerOf = (a, f) => (f === 0 ? a.tile : a.first + f - 1);
   for (const a of ATLAS_ANIM) {
-    const t = nowMs / a.ms, f = Math.floor(t) % a.frames;
+    // `reverse` (0.83549): the frames played backwards, so the flow art runs DOWN a face instead of up it
+    const t = nowMs / a.ms, k = Math.floor(t) % a.frames, f = a.reverse ? a.frames - 1 - k : k;
     d[a.tile * 4] = layerOf(a, f);
-    d[a.tile * 4 + 3] = layerOf(a, (f + 1) % a.frames) + Math.min(0.999, t - Math.floor(t));
+    d[a.tile * 4 + 3] = layerOf(a, a.reverse ? (f + a.frames - 1) % a.frames : (f + 1) % a.frames) + Math.min(0.999, t - Math.floor(t));
   }
   if (ATLAS_ANIM.length) TILE_LAYER.needsUpdate = true;
 }
@@ -624,7 +630,7 @@ async function buildAtlas() {
   cvs.width = cvs.height = S;
   const ctx = cvs.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingEnabled = false;
-  const isWater = (n) => n === 'water' || n === 'water_flow';
+  const isWater = (n) => n === 'water' || n === 'water_flow' || n === 'water_flow_fast' || n === 'water_fall';
   const drawLayer = (layer, name, img) => {
     ctx.clearRect(0, 0, S, S);
     // per-block alpha baked into the atlas: leaves translucent but mostly opaque (the water art has its own since 0.8231)
@@ -650,8 +656,17 @@ async function buildAtlas() {
     const px2 = ctx.getImageData(0, 0, S, S).data, base = layer * LAYER;
     // the grey water art (0.8231) multiplied into its usual blue, pixel by pixel so its own alpha stays as drawn
     if (isWater(name)) {
+      /* its pale ripple lines (that the climate tint turned greenish) pressed to WATER_ART_CONTRAST of their strength
+         round the layer's mean, so the water reads as water, not as a pattern of lines (0.835492) */
+      let sum = 0, cnt = 0;
+      for (let i = 0; i < px2.length; i += 4) if (px2[i + 3] > 0) { sum += px2[i] + px2[i + 1] + px2[i + 2]; cnt += 3; }
+      const mean = cnt ? sum / cnt : 0;
       const [wr, wg, wb] = WATER_TINT.base.map(v => v / 255);
-      for (let i = 0; i < px2.length; i += 4) { px2[i] *= wr; px2[i + 1] *= wg; px2[i + 2] *= wb; }
+      for (let i = 0; i < px2.length; i += 4) {
+        px2[i]     = (mean + (px2[i]     - mean) * WATER_ART_CONTRAST) * wr;
+        px2[i + 1] = (mean + (px2[i + 1] - mean) * WATER_ART_CONTRAST) * wg;
+        px2[i + 2] = (mean + (px2[i + 2] - mean) * WATER_ART_CONTRAST) * wb;
+      }
     }
     for (let y = 0; y < S; y++) data.set(px2.subarray(y * ROW, y * ROW + ROW), base + (S - 1 - y) * ROW);
   };

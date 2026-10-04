@@ -136,6 +136,8 @@ function VOXEL_CORE() {
   Object.assign(T, { ICE_BRICKS:365, SNOW_BRICKS:366, SNOW_ICE_BRICKS:367, BONE_BLOCK_SIDE:368, BONE_BLOCK_TOP:369, BONE_BRICKS:370 });   // 0.833
   // 0.834: the three torches at 128px, and the spent glow blocks (grey copies built at atlas build, 03)
   Object.assign(T, { TORCH_FIRE:371, TORCH_UNLIT:372, TORCH_CRYSTAL:373, GLOWSTONE_SPENT:374, GLOWCRYSTAL_SPENT:375 });
+  T.PACKED_ICE = 376;                                                                  // 0.835
+  Object.assign(T, { WATER_FLOW_FAST:377, WATER_FALL:378 });                          // 0.835491: the flow art run faster, for steep water and falls
   /* Ice that froze from water (0.833) carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -146,7 +148,7 @@ function VOXEL_CORE() {
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
   const TINTED = new Uint8Array(1024);
-  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW]) TINTED[t] = 1;
+  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL]) TINTED[t] = 1;
   // the climate sampler (climAt, 55-biomes.js): the worker sets it from its world's generator; icons have none
   let _climAt = null;
   const setTintSampler = (fn) => { _climAt = fn || null; };                                                       // 0.804                                                  // 0.801                                                 // 0.7947
@@ -224,6 +226,7 @@ function VOXEL_CORE() {
               ICE_BRICKS:204, SNOW_BRICKS:205, SNOW_ICE_BRICKS:206, BONE_BLOCK:207, BONE_BRICKS:208,
               // 0.834: the burnt-out torch, the cold crystal torch, and the two glow blocks gone dark
               TORCH_UNLIT:209, CRYSTAL_TORCH:210, GLOWSTONE_SPENT:211, GLOWCRYSTAL_SPENT:212,
+              PACKED_ICE:213,                                                          // 0.835: the ice spikes' ice
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -308,6 +311,9 @@ function VOXEL_CORE() {
      but a desert's; breaking it leaves water and drops nothing, and heat melts it (51-seasons.js). */
   PROPS[B.ICE]     = { name:'Ice',        solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.5, type:'glass', faces:Array(6).fill(T.ICE),
                        desc: 'Breaks into water. Melts within 1 block of a torch, 3 of a lit furnace, 5 of fire, 9 of lava' };
+  // packed ice (0.835): the ice spikes' and icebergs' ice, pressed hard over the years. Solid, it never melts; mined only
+  PROPS[B.PACKED_ICE] = { name:'Packed ice', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.5, type:'glass',
+                          faces:Array(6).fill(T.PACKED_ICE), desc: 'Ice pressed hard over the years: it never melts' };
   // the bone block (0.833): pressed from ten bones; a pillar that turns to the face it is put on, its brick a look of it
   PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2, type:'stone',
                           pillar: true, rot: 'all',
@@ -1236,7 +1242,7 @@ function VOXEL_CORE() {
                    boxesOf:hollowBoxes, desc:'Fill it with dirt, grass or sand to plant in it' };
     PROPS[bid].boxes = hollowBoxes(bid);
   }
-  const CX = 16, CY = 200, CZ = 16;
+  const CX = 16, CY = 250, CZ = 16;
   /* Flat ("superflat") worlds: a 25-block slab — 1 bedrock, 19 stone, 4 dirt, 1 grass — with a
      matching low water level so lakes and ponds still carve into it. Everything else about the
      world (biome = Plains, trees, surface plants) works exactly as it does at normal altitude. */
@@ -1309,6 +1315,8 @@ function VOXEL_CORE() {
     const PINK_BEACHES = biomeRev >= 4;               // 0.822: warm beaches run pink in places
     const TALL_SPRUCE = biomeRev >= 6;                // 0.8231: spruce forest trees on a bare stem
     const LADDER = biomeRev >= 7;                     // 0.8232: the climate ladder (55-biomes.js)
+    const SPIKES = biomeRev >= 9;                     // 0.835: the Ice Spikes biome and the snow's icebergs
+    const BIG_BERGS = biomeRev >= 10;                 // 0.8351: about a third of the icebergs big and high
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
     const seedInt = seedFn();
@@ -1331,7 +1339,11 @@ function VOXEL_CORE() {
     biome's name (biomeAt) and the sub-biome masks — live in 55-biomes.js since 0.823 (BIOME_CORE, shipped into the
     worker beside this core). */
     const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
-    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, climAt } = bio;
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE } = bio;
+    /* rev 14 (0.83547): the wet grid's margin grows to 10 for beaches up to 10 wide; a pond under POND_MIN cells is
+       filled. A pond with a column in the chunk's 2-block margin cannot reach the grid's edge in under 9 cells, so
+       every chunk that sees it sees it whole and judges it alike. */
+    const WM = HILLS ? 10 : 8, WG = 16 + 2 * WM, POND_MIN = 9;
 
     // deterministic per-column hash in [0,1) — used for tree placement
     function hash2(x, z) {
@@ -1370,6 +1382,65 @@ function VOXEL_CORE() {
       return sum / norm;
     }
 
+    /* Rooms and cave mouths (0.83548, biomeRev 15; carved in genChunk): one candidate per cell, a pure function of the
+       cell, kept for the generator's life so the neighbouring chunks asking again cost nothing. A room: in most
+       ROOM_CELL squares, 4-14 across (a hall to 26 now and then) at any depth under the crust. A mouth: the steepest
+       drop (5+ over 8 blocks) at five points of a MOUTH_CELL square, the tunnel's start at its foot, heading in. */
+    const ROOM_CELL = 24, MOUTH_CELL = 40, _rooms = new Map(), _mouths = new Map();
+    function roomOf(gx, gz) {
+      const k = gx + ',' + gz;
+      if (_rooms.has(k)) return _rooms.get(k);
+      let rm = null;
+      if (hash2(gx * 7151 + 13, gz * 6007 - 29) < 0.8) {
+        const x = (gx + 0.15 + 0.7 * hash2(gx * 31 + 7, gz * 17 + 3)) * ROOM_CELL, z = (gz + 0.15 + 0.7 * hash2(gx * 13 - 5, gz * 37 + 11)) * ROOM_CELL;
+        const hall = hash2(gx * 97 + 1, gz * 89 - 1) < 0.07;
+        const r = hall ? 9 + 4 * hash2(gx * 3 + 41, gz * 5 - 43) : 2 + 5 * hash2(gx * 11 + 61, gz * 7 - 59);
+        const ry = r * (hall ? 0.6 : 0.8), ti = terrainInfo(x, z);
+        const top = ti.h - (ti.h < ti.wl ? 11 : 8) - ry, lo = 6 + ry;
+        if (top > lo) rm = { x, z, r, ry, y: lo + (top - lo) * Math.pow(hash2(gx * 23 + 9, gz * 29 - 9), 1.4) };
+      }
+      _rooms.set(k, rm);
+      return rm;
+    }
+    function mouthOf(gx, gz) {
+      const k = gx + ',' + gz;
+      if (_mouths.has(k)) return _mouths.get(k);
+      let m = null;
+      const roll = hash2(gx * 5113 + 77, gz * 4271 - 91);
+      if (roll < 0.6) {
+        const cx0 = (gx + 0.5) * MOUTH_CELL, cz0 = (gz + 0.5) * MOUTH_CELL;
+        let best = 4, pick = null;
+        for (const [ox, oz] of [[0, 0], [-11, -7], [11, -7], [-7, 11], [7, 11]]) {
+          const px = cx0 + ox, pz = cz0 + oz, c = terrainInfo(px, pz);
+          if (c.h < c.wl + 3 || c.h <= WATER_LEVEL + 3) continue;
+          for (let a = 0; a < 8; a++) {
+            const ax = Math.cos(a * Math.PI / 4), az = Math.sin(a * Math.PI / 4), t = terrainInfo(px + ax * 8, pz + az * 8);
+            const g = t.h, drop = c.h - g;
+            if (drop > best && g > WATER_LEVEL && g >= t.wl) { best = drop; pick = [px + ax * 8, pz + az * 8, g, Math.atan2(-az, -ax)]; }   // its foot on dry ground
+          }
+        }
+        if (pick) {
+          /* the way in, step by step [x, y, z, roof]: open (roof 0) wherever its top comes within 3 of the ground, so it
+             breaks out of the face (and an arch out of the far side, where it ends), 2 blocks of roof inside */
+          const arch = roll < 0.18, rad = arch ? 2.2 + 1.2 * hash2(gx * 29 + 2, gz * 31 - 2) : 1.6 + 0.9 * hash2(gx * 37 + 2, gz * 41 - 2);
+          const len = (arch ? 22 : 14) + 22 * hash2(gx * 17 + 1, gz * 19 - 1), fall = arch ? 0 : 0.12 + 0.2 * hash2(gx * 53 + 2, gz * 59 - 2);
+          let ang = pick[3] + (hash2(gx * 43 + 2, gz * 47 - 2) - 0.5) * 0.6, x = pick[0], z = pick[1], y = pick[2] + rad - 0.3, inside = false;
+          const path = [];
+          for (let s = 0, n = 0; s < len; s += 0.8, n++) {
+            x += Math.cos(ang) * 0.8; z += Math.sin(ang) * 0.8; y -= fall * 0.8;
+            ang += (hash2(gx * 7 + n, gz * 11 - n) - 0.5) * 0.1;
+            const g = terrainInfo(x, z).h;
+            if (g >= y + rad + 3) inside = true;
+            else if (inside && g < y - rad) break;                                        // out the far side
+            path.push([x, y, z, g >= y + rad + 3 ? 2 : 0]);
+          }
+          if (inside) m = { x: pick[0], z: pick[1], low: pick[2], arch, rad, path };
+        }
+      }
+      _mouths.set(k, m);
+      return m;
+    }
+
     /* Generate one chunk of voxels. Column layout (top -> bottom):
        air/water | 1 grass (sand near water) | 5 dirt (or sand) | stone | 2 bedrock.
        Trees are stamped from a 2-block margin so canopies cross chunk borders seamlessly
@@ -1386,18 +1457,35 @@ function VOXEL_CORE() {
       const TAIGA = new Uint8Array(400);                       // spruce forest / cold plains (0.823)
       const TREE = new Float32Array(400);                      // tree density factor (0 in plains/desert)
       const LVL = new Float32Array(400);                       // climate level, -3 deep snow .. 3 red sand (0.8233, CLIMATE_LADDER)
+      const SPK = new Uint8Array(400);                         // the Ice Spikes biome (0.835)
+      const CLF = new Float32Array(400);                       // a rocky coast, 0..1 (0.8356, cliffAt in 55)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
       // ocean 4..8 blocks, river/lake 2..4. WW cells: 0 dry, 1 ocean, 2 river/lake.
-      const WW = new Uint8Array(1024);
-      for (let gz = 0; gz < 32; gz++)
-        for (let gx = 0; gx < 32; gx++) {
-          const ti = terrainInfo(cx * 16 + gx - 8, cz * 16 + gz - 8);
+      // (WG x WG with a WM margin since 0.83547: 32 and 8 before rev 14)
+      const WW = new Uint8Array(WG * WG);
+      /* each column's top water y (0.83548, rev 15: a river or lake up in the land has its own; the sea's is WATER_LEVEL),
+         on the grid (WLG) and the 20x20 (WLV); HIWET: some of it stands above the sea's */
+      const WLG = new Int16Array(WG * WG), WLV = new Int16Array(400), FDV = new Uint8Array(400);   // FDV: a river's way, 1-8 (0.83549)
+      const FFV = new Uint8Array(400);                                                                // FFV: it runs fast (0.835491)
+      const HG = new Int16Array(WG * WG), RVG = new Uint8Array(WG * WG), FDG = new Uint8Array(WG * WG);   // the grid's ground, a river's water and way (0.83549)
+      let HIWET = false, HIWL = WATER_LEVEL;
+      for (let gz = 0; gz < WG; gz++)
+        for (let gx = 0; gx < WG; gx++) {
+          const ti = terrainInfo(cx * 16 + gx - WM, cz * 16 + gz - WM);
           let ww = 0;
-          if (ti.h < WATER_LEVEL) ww = (ti.rT > 0.3 || ti.lk > 0.3) ? 2 : 1;
-          WW[gx + gz * 32] = ww;
-          if (gx >= 6 && gx <= 25 && gz >= 6 && gz <= 25) {
-            const i = (gx - 6) + (gz - 6) * 20;
+          if (ti.h < ti.wl) ww = (ti.rT > 0.3 || ti.lk > 0.3) ? 2 : 1;
+          WW[gx + gz * WG] = ww;
+          WLG[gx + gz * WG] = ti.wl;
+          HG[gx + gz * WG] = ti.h;
+          RVG[gx + gz * WG] = ww && ti.rT > ti.lk ? 1 : 0;
+          FDG[gx + gz * WG] = ti.fd || 0;
+          if (ww && ti.wl > WATER_LEVEL) { HIWET = true; HIWL = Math.max(HIWL, ti.wl); }
+          if (gx >= WM - 2 && gx <= WM + 17 && gz >= WM - 2 && gz <= WM + 17) {
+            const i = (gx - WM + 2) + (gz - WM + 2) * 20;
             H[i] = ti.h;
+            WLV[i] = ti.wl;
+            FDV[i] = ti.fd || 0;
+            FFV[i] = ti.ff ? 1 : 0;
             DES[i] = ti.fDesert > 0.5 ? 1 : 0;
             RED[i] = ti.fRed > 0.5 ? 1 : 0;
             ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
@@ -1407,8 +1495,98 @@ function VOXEL_CORE() {
             TAIGA[i] = ti.fTaiga > 0.5 ? 1 : 0;
             TREE[i] = 1 - ti.fPlains;
             LVL[i] = ti.lvl;
+            SPK[i] = SPIKES && ti.fSnow > 0.5 && ti.h <= 132 && iceSpikesAt(cx * 16 + gx - WM, cz * 16 + gz - WM) ? 1 : 0;
+            CLF[i] = ti.cliff || 0;
           }
         }
+      // no puddles (0.83547, rev 14): a pond the grid sees whole, under POND_MIN cells (8-connected), is dry land at the water's level
+      if (HILLS) {
+        const seen = new Uint8Array(WG * WG), stack = [], cells = [];
+        for (let s = 0; s < WG * WG; s++) {
+          if (!WW[s] || seen[s]) continue;
+          seen[s] = 1; stack.push(s); cells.length = 0;
+          let edge = false;
+          while (stack.length) {
+            const c = stack.pop(), gx = c % WG, gz = (c / WG) | 0;
+            cells.push(c);
+            if (gx === 0 || gz === 0 || gx === WG - 1 || gz === WG - 1) edge = true;
+            for (let dz = -1; dz <= 1; dz++)
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = gx + dx, nz = gz + dz;
+                if (nx < 0 || nz < 0 || nx >= WG || nz >= WG) continue;
+                const n = nx + nz * WG;
+                if (WW[n] && !seen[n]) { seen[n] = 1; stack.push(n); }
+              }
+          }
+          if (edge || cells.length >= POND_MIN) continue;
+          for (const c of cells) {
+            WW[c] = 0;
+            const hx = c % WG - WM + 2, hz = ((c / WG) | 0) - WM + 2;
+            if (hx >= 0 && hx < 20 && hz >= 0 && hz < 20) H[hx + hz * 20] = WLG[c];
+          }
+        }
+      }
+      /* no slivers (0.83549, rev 17): a patch of water at one level (4-connected, under POND_MIN cells, seen whole) that
+         stands over lower water beside it - the edge of one lake poking past another's - takes the lower water's level,
+         and where its ground stands at or over that, is dry. Judged alike by every chunk, as the ponds are. */
+      if (FALLS) {
+        const seen = new Uint8Array(WG * WG), stack = [], cells = [];
+        for (let s = 0; s < WG * WG; s++) {
+          if (!WW[s] || seen[s]) continue;
+          const lv = WLG[s];
+          seen[s] = 1; stack.push(s); cells.length = 0;
+          let edge = false, low = lv;
+          while (stack.length) {
+            const c = stack.pop(), gx = c % WG, gz = (c / WG) | 0;
+            cells.push(c);
+            if (gx === 0 || gz === 0 || gx === WG - 1 || gz === WG - 1) edge = true;
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              const nx = gx + dx, nz = gz + dz;
+              if (nx < 0 || nz < 0 || nx >= WG || nz >= WG) continue;
+              const n = nx + nz * WG;
+              if (!WW[n]) continue;
+              if (WLG[n] === lv) { if (!seen[n]) { seen[n] = 1; stack.push(n); } }
+              else if (WLG[n] < low) low = WLG[n];
+            }
+          }
+          if (edge || cells.length >= POND_MIN || low >= lv) continue;
+          for (const c of cells) {
+            WLG[c] = low;
+            const hx = c % WG - WM + 2, hz = ((c / WG) | 0) - WM + 2, inH = hx >= 0 && hx < 20 && hz >= 0 && hz < 20;
+            if (inH) WLV[hx + hz * 20] = low;
+            if (HG[c] >= low) {
+              /* rev 18 (0.835491): cut down into the lower water instead of left a dry knob (which the containment then
+                 raised into a pillar between a fall's sheets); rev 17 left it dry */
+              if (DIVIDE) { HG[c] = low - 1; if (inH) H[hx + hz * 20] = low - 1; }
+              else WW[c] = 0;
+            }
+          }
+        }
+        /* where a lake's water meets lower water (two lakes, or a lake and the sea, met at their edges) a bar of its shore
+           holds it back, its ground raised to the lake's top; a river does the same where water 2+ under it lies at its
+           side (another river's lake it runs by): only straight down its way does a river fall (the curtains at the end) */
+        const bar = [];
+        for (let s = 0; s < WG * WG; s++) {
+          if (!WW[s]) continue;
+          const gx = s % WG, gz = (s / WG) | 0, fd = RVG[s] ? FDG[s] : 0;
+          const fa = (fd - 1) * Math.PI / 4, fx = fd ? Math.cos(fa) : 0, fz = fd ? Math.sin(fa) : 0;
+          for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nx = gx + dx, nz = gz + dz;
+            if (nx < 0 || nz < 0 || nx >= WG || nz >= WG) continue;
+            const n = nx + nz * WG;
+            if (!WW[n] || WLG[n] >= WLG[s]) continue;
+            // rev 18 (0.835491): the divides keep apart waters that are not kin, so only a lake meeting the sea needs a bar;
+            // a river falls whichever way its lip runs
+            if (DIVIDE) { if (!RVG[s] && WLG[n] === WATER_LEVEL && !RVG[n]) { bar.push(s); break; } continue; }
+            if (!RVG[s] || (WLG[n] <= WLG[s] - 2 && dx * fx + dz * fz < 0.4)) { bar.push(s); break; }
+          }
+        }
+        for (const s of bar) {
+          WW[s] = 0; HG[s] = WLG[s];
+          const hx = s % WG - WM + 2, hz = ((s / WG) | 0) - WM + 2;
+          if (hx >= 0 && hx < 20 && hz >= 0 && hz < 20) H[hx + hz * 20] = WLV[hx + hz * 20];
+        }
+      }
 
       for (let z = 0; z < CZ; z++) {
         for (let x = 0; x < CX; x++) {
@@ -1424,17 +1602,29 @@ function VOXEL_CORE() {
           // wet column is closer than that water type's beach width. Ocean beaches vary 4..8,
           // river/lake beaches 2..4, both from a low-freq noise so widths change by region.
           let nearWater = false;
-          if (h <= WATER_LEVEL + 3 && h >= WATER_LEVEL) {
-            const gxw = x + 8, gzw = z + 8;
-            let hitType = 0, minD2 = 9999;
-            for (let dz = -8; dz <= 8; dz++)
-              for (let dx = -8; dx <= 8; dx++) {
-                const t = WW[(gxw + dx) + (gzw + dz) * 32];
+          /* Shores (0.8356, rev 13): the coast's kind (shoreKindAt in 55: 0 turf to the water, 1 sand, 2 gravel), a rocky
+             one where the cliffs rise (`rock`: stone from the water a few blocks in, up the cliff's face), and beaches a
+             ragged 1-6 wide (shoreWidth). */
+          let shore = 1, rock = false;
+          const wl = WLV[gi];                                   // this column's top water y (0.83548)
+          const shoreTop = SHORES && CLF[gi] > 0.45 ? WATER_LEVEL + (HILLS ? 22 : 16) : WATER_LEVEL + 3;
+          // a dry column by the sea's level, or (rev 15) anywhere when this chunk has water up in the land
+          if (h >= wl && h >= WATER_LEVEL && (h <= shoreTop || HIWET && h <= HIWL + 3)) {
+            const gxw = x + WM, gzw = z + WM;
+            let hitType = 0, minD2 = 9999, hitWl = WATER_LEVEL;
+            for (let dz = -WM; dz <= WM; dz++)
+              for (let dx = -WM; dx <= WM; dx++) {
+                const t = WW[(gxw + dx) + (gzw + dz) * WG];
                 if (!t) continue;
                 const d2 = dx * dx + dz * dz;
-                if (d2 < minD2) { minD2 = d2; hitType = t; }
+                if (d2 < minD2) { minD2 = d2; hitType = t; hitWl = WLG[(gxw + dx) + (gzw + dz) * WG]; }
               }
-            if (hitType) {
+            if (hitType && SHORES) {
+              const dist = Math.sqrt(minD2), w = shoreWidth(wx, wz, hitType);
+              // the cliff and the ledge at its foot (no wider for the wider beaches, 0.83547)
+              if (hitType === 1 && CLF[gi] > 0.45 && hitWl === WATER_LEVEL) rock = h <= shoreTop && dist < (HILLS ? Math.min(w, 5) : w) + 2;
+              else if (h <= hitWl + 3 && h >= hitWl && dist < w) { nearWater = true; shore = shoreKindAt(wx, wz); }
+            } else if (hitType) {
               const bn = (fbm(wx * 0.007 + 217.3, wz * 0.007 - 803.7, 2) + 1) * 0.5;
               const width = hitType === 1 ? 2 + bn * 2 : bn * 0.4;
               const dist  = Math.sqrt(minD2);
@@ -1442,18 +1632,56 @@ function VOXEL_CORE() {
               if (dist < width + dither) nearWater = true;
             }
           }
-          if (ROCK[gi]) {
+          /* Rev 14 (0.83547): under the shallow water by a beach its sand or gravel runs on (`under`, a shoreKindAt kind, or
+             3 a rocky coast's stone; -1 none, 0 a turf shore keeps the sea floor's patches); and a steep face is bare stone,
+             a drop of 4 to a side (3 now and then), the water's top counting as the floor. */
+          let under = -1, steep = false;
+          if (HILLS && h < wl && h >= wl - (UPLAND ? 6 : 4)) {
+            const gxw = x + WM, gzw = z + WM;
+            let land = false;
+            for (let dz = -5; dz <= 5 && !land; dz++)
+              for (let dx = -5; dx <= 5; dx++)
+                if (dx * dx + dz * dz <= 25 && !WW[(gxw + dx) + (gzw + dz) * WG]) { land = true; break; }
+            if (land) under = CLF[gi] > 0.45 && wl === WATER_LEVEL ? 3 : shoreKindAt(wx, wz);
+          } else if (HILLS && h > wl + 1) {
+            let low = 1e4;
+            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) low = Math.min(low, Math.max(H[n], WLV[n]));
+            /* rev 15 (0.83548): some hills keep their turf, bare only where a drop is 6 or more (`firm` low) */
+            const firm = UPLAND ? fbm(wx * 0.0032 + 2129.7, wz * 0.0032 - 4471.3, 2) : 1;
+            const need = firm < -0.08 ? 6 : 4;
+            steep = h - low >= need || (h - low === need - 1 && hash2(wx * 7 + 1291, wz * 5 - 733) < 0.5);
+          }
+          if (ROCK[gi] || rock) {
             topB = underB = B.STONE;
-          } else if (h < WATER_LEVEL || (h <= WATER_LEVEL + 3 && nearWater) || DES[gi] === 1) {
-            const submerged = h < WATER_LEVEL - 1;
-            const clay       = submerged && fbm(wx * 0.045 - 205.1, wz * 0.045 + 733.7, 2) > 0.55;  // reduced clay
-            const oceanDirt  = submerged && !clay && fbm(wx * 0.02 + 911.3, wz * 0.02 + 417.9, 2) > 0.12;  // more/larger dirt
-            const oceanGravel = submerged && !clay && !oceanDirt && fbm(wx * 0.025 + 531.7, wz * 0.025 - 644.3, 2) > 0.35;
+          } else if (h < wl || (nearWater && shore !== 0) || DES[gi] === 1) {
+            const submerged = h < wl - 1;
+            /* a beach's own floor: no clay, dirt or gravel patches. Rev 15 (0.83548): the beach's own block only just under
+               the top (all of the first row, about half the second, a few of the third, by a patchy noise), then the shore
+               water's floor, more dirt and gravel than sand */
+            let beachy = under > 0, mixed = submerged;
+            const shoreMix = UPLAND && under >= 0;
+            if (shoreMix) {
+              const dep = wl - 1 - h, dth = (fbm(wx * 0.11 + 77.1, wz * 0.11 - 31.7, 2) + 1) * 0.5;
+              beachy = under > 0 && (dep === 0 || (dep === 1 && dth < 0.55) || (dep === 2 && dth < 0.2));
+              mixed = !beachy;
+            }
+            const clay       = mixed && !beachy && fbm(wx * 0.045 - 205.1, wz * 0.045 + 733.7, 2) > 0.55;  // reduced clay
+            const oceanDirt  = mixed && !beachy && !clay && fbm(wx * 0.02 + 911.3, wz * 0.02 + 417.9, 2) > (shoreMix ? -0.1 : 0.12);  // more/larger dirt
+            const oceanGravel = mixed && !beachy && !clay && !oceanDirt && fbm(wx * 0.025 + 531.7, wz * 0.025 - 644.3, 2) > (shoreMix ? 0.05 : 0.35);
             topB = underB = clay ? B.CLAY : oceanDirt ? B.DIRT : oceanGravel ? B.GRAVEL
                           : RED[gi] ? B.RED_SAND
                           /* a warm beach (0.822): near a desert but not in one, at and just under the waterline, in patches */
-                          : (PINK_BEACHES && !DES[gi] && WARM[gi] > 0.2 && h >= WATER_LEVEL - 2
+                          : (PINK_BEACHES && !DES[gi] && WARM[gi] > 0.2 && h >= wl - 2
                              && fbm(wx * 0.03 + 71.3, wz * 0.03 - 455.1, 2) > 0.1) ? B.PINK_SAND : B.SAND;   // -0.1 before 0.8233: about half as much
+            if (shore === 2 && !submerged && !DES[gi]) topB = underB = B.GRAVEL;   // a gravel beach (0.8356)
+            if (beachy && under === 2) topB = underB = B.GRAVEL;
+            else if (beachy && under === 3) topB = underB = B.STONE;
+          } else if (steep) {
+            topB = underB = B.STONE; snowCap = !!SNO[gi];        // in the snow it still takes its cover
+          } else if (SPK[gi]) {
+            // the Ice Spikes (0.835): a floor of snow blocks with sheets of packed ice in it, no carpet, no grass
+            topB = fbm(wx * 0.06 + 1717.1, wz * 0.06 - 2929.3, 2) > 0.3 ? B.PACKED_ICE : B.SNOW;
+            underB = B.DIRT;
           } else if (SNO[gi]) {
             topB = B.GRASS | (V.GRASS_SNOWY << 8);  // snowy sides; a snow block caps it below
             underB = B.DIRT; snowCap = true;
@@ -1476,7 +1704,13 @@ function VOXEL_CORE() {
           for (let y = dirtFrom; y < h; y++) data[idx(x, y, z)] = underB;
           if (h >= 2) data[idx(x, h, z)] = topB;
           }
-          if (snowCap && h + 1 <= 199) {
+          // a snowy beach, gravel or rock shore lies under one layer of snow (0.8356): the snow's own cover stops at them
+          if (SHORES && SNO[gi] && !snowCap && h >= wl && h + 1 <= CY - 1) {
+            const t = topB & 255;
+            if (t === B.SAND || t === B.GRAVEL || t === B.STONE || t === B.PINK_SAND || t === B.RED_SAND)
+              data[idx(x, h + 1, z)] = layerVal(B.SNOW, 1);
+          }
+          if (snowCap && h + 1 <= CY - 1) {
             // Pattern-driven snow cover:
             //  - biome edge (non-SNO neighbor): thin 1-layer carpet, keeps a crisp biome seam
             //  - steep terrain (neighbour Δh ≥ 2): thick 4-5 layer carpet, reads like a snow drift
@@ -1513,7 +1747,9 @@ function VOXEL_CORE() {
               }
             }
           }
-          for (let y = h + 1; y <= WATER_LEVEL; y++) data[idx(x, y, z)] = B.WATER;
+          for (let y = h + 1; y <= wl; y++) data[idx(x, y, z)] = B.WATER;
+          // the top runs the river's way (variant bits 3-6, 0.83549), bit 7 fast down a steep stretch (0.835491)
+          if (FDV[gi] && h < wl) data[idx(x, wl, z)] = B.WATER | (FDV[gi] << 11) | (FFV[gi] << 15);
         }
       }
 
@@ -1556,7 +1792,7 @@ function VOXEL_CORE() {
             const ly = inBest
               ? bestLo  + ((hash3(cx * 13 + ai + oi, 41, cz * 11 + ai) * (bestHi  - bestLo  + 1)) | 0)
               : rangeLo + ((hash3(cx * 19 + ai + oi, 37, cz * 17 + ai) * (rangeHi - rangeLo + 1)) | 0);
-            if (ly < rangeLo || ly > rangeHi || ly < 2 || ly > 198) continue;
+            if (ly < rangeLo || ly > rangeHi || ly < 2 || ly > CY - 2) continue;
             if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
             const count = minN + ((hash3(cx + ai, ly + oi, cz + ai) * (maxN - minN + 1)) | 0);
             // LCG seeded from position for deterministic vein shape
@@ -1567,7 +1803,7 @@ function VOXEL_CORE() {
             while (front.length && placed < count) {
               const fi = (nlcg() * front.length) | 0;
               const [bx, by, bz] = front.splice(fi, 1)[0];
-              if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > 198) continue;
+              if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
               if ((data[idx(bx, by, bz)] & 255) !== B.STONE) continue;
               data[idx(bx, by, bz)] = oreId;
               placed++;
@@ -1586,7 +1822,7 @@ function VOXEL_CORE() {
           const gi = (lx + 2) + (lz + 2) * 20;
           if (H[gi] <= 82) continue;                             // only in mountain columns
           const ly = H[gi] - 4 - ((hash3(cx + 500 + ai, 29, cz + 500 + ai) * 16) | 0);
-          if (ly < 2 || ly > 198) continue;
+          if (ly < 2 || ly > CY - 2) continue;
           if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
           const count = 20 + ((hash3(cx + ai + 500, ly, cz + ai + 500) * 30) | 0);
           let lcg = (Math.imul(cx * 37 + lx + 500, 374761393) ^ Math.imul(ly * 7 + ai, 668265263) ^ (cz * 41 + lz)) | 0;
@@ -1596,7 +1832,7 @@ function VOXEL_CORE() {
           while (front.length && placed < count) {
             const fi = (nlcg() * front.length) | 0;
             const [bx, by, bz] = front.splice(fi, 1)[0];
-            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > 198) continue;
+            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
             if ((data[idx(bx, by, bz)] & 255) !== B.STONE) continue;
             data[idx(bx, by, bz)] = B.GRAVEL;
             placed++;
@@ -1608,7 +1844,7 @@ function VOXEL_CORE() {
           const lx = (hash3(cx * 47 + 600 + ai,       11, cz * 43 + 600 + ai    ) * 16) | 0;
           const lz = (hash3(cx * 53 + 600 + ai * 3,   17, cz * 59 + 600 + ai    ) * 16) | 0;
           const ly = 12 + ((hash3(cx + 600 + ai, 23, cz + 600 + ai) * 48) | 0);
-          if (ly < 2 || ly > 198) continue;
+          if (ly < 2 || ly > CY - 2) continue;
           if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
           const count = 10 + ((hash3(cx + ai + 600, ly, cz + ai + 600) * 20) | 0);
           let lcg = (Math.imul(cx * 37 + lx + 600, 374761393) ^ Math.imul(ly * 7 + ai, 668265263) ^ (cz * 41 + lz)) | 0;
@@ -1618,7 +1854,7 @@ function VOXEL_CORE() {
           while (front.length && placed < count) {
             const fi = (nlcg() * front.length) | 0;
             const [bx, by, bz] = front.splice(fi, 1)[0];
-            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > 198) continue;
+            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
             if ((data[idx(bx, by, bz)] & 255) !== B.STONE) continue;
             data[idx(bx, by, bz)] = B.GRAVEL;
             placed++;
@@ -1632,7 +1868,7 @@ function VOXEL_CORE() {
           const gi = (lx + 2) + (lz + 2) * 20;
           if (H[gi] <= 65) continue;                             // only above beach level
           const ly = H[gi] - 3 - ((hash3(cx + 700 + ai, 43, cz + 700 + ai) * 10) | 0);
-          if (ly < 2 || ly > 198) continue;
+          if (ly < 2 || ly > CY - 2) continue;
           if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
           const count = 5 + ((hash3(cx + ai + 700, ly, cz + ai + 700) * 12) | 0);
           let lcg = (Math.imul(cx * 37 + lx + 700, 374761393) ^ Math.imul(ly * 7 + ai, 668265263) ^ (cz * 41 + lz)) | 0;
@@ -1642,7 +1878,7 @@ function VOXEL_CORE() {
           while (front.length && placed < count) {
             const fi = (nlcg() * front.length) | 0;
             const [bx, by, bz] = front.splice(fi, 1)[0];
-            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > 198) continue;
+            if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
             if ((data[idx(bx, by, bz)] & 255) !== B.STONE) continue;
             data[idx(bx, by, bz)] = B.GRAVEL;
             placed++;
@@ -1651,6 +1887,15 @@ function VOXEL_CORE() {
         }
       }
 
+      /* may a cave cut this cell (0.835481, rev 16)? Not in the crust under water (9), nor beside a water cell, which it
+         would open: water does not flow, so it would stand hanging over the hole. Older worlds cut as they did. */
+      const keepsWater = (lx, gy, lz) => {
+        if (!RIV2) return true;
+        const gi = (lx + 2) + (lz + 2) * 20;
+        if (H[gi] < WLV[gi] && gy > H[gi] - 9) return false;
+        for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && gy > H[n] && gy <= WLV[n]) return false;
+        return true;
+      };
       /* ---- caves: two 3D-noise bands intersect into winding tunnels ("spaghetti"), plus
          large low-altitude "cheese" caverns. A solid crust stays under the surface (6 land /
          9 underwater) so caves only reach daylight through the entrance shafts below. */
@@ -1659,7 +1904,7 @@ function VOXEL_CORE() {
           const gi = (x + 2) + (z + 2) * 20;
           const h = H[gi];
           const wx = cx * 16 + x, wz = cz * 16 + z;
-          const capY = h - (h < WATER_LEVEL ? 9 : 6);
+          const capY = h - (h < WLV[gi] ? 9 : 6);                  // its own water (0.83548)
           // long-tunnel region gate (2D, per-column): ~40% of areas also grow long sweeping
           // tunnels from a separate LOW-frequency band pair (long wavelength = long tunnels)
           const longTun = fbm(wx * 0.003 + 4040, wz * 0.003 - 2020, 2) > 0.12;
@@ -1671,14 +1916,14 @@ function VOXEL_CORE() {
             const n1 = fbm3(wx * 0.055, y * 0.075, wz * 0.055, 2);
             if (Math.abs(n1) <= w) {                          // spaghetti band
               const n2 = fbm3(wx * 0.055 + 133.7, y * 0.075 - 71.3, wz * 0.055 + 291.1, 2);
-              if (Math.abs(n2) <= w) { data[idx(x, y, z)] = B.AIR; continue; }
+              if (Math.abs(n2) <= w && keepsWater(x, y, z)) { data[idx(x, y, z)] = B.AIR; continue; }
             }
             if (!longTun) continue;                           // long tunnels only in gated regions
             const lw = w * 0.85;                              // a touch narrower so they read as tunnels
             const t1 = fbm3(wx * 0.018 + 512, y * 0.05 - 88, wz * 0.018 + 707, 2);
             if (Math.abs(t1) > lw) continue;                  // early out before the 2nd band
             const t2 = fbm3(wx * 0.018 - 333, y * 0.05 + 219, wz * 0.018 - 141, 2);
-            if (Math.abs(t2) <= lw) data[idx(x, y, z)] = B.AIR;
+            if (Math.abs(t2) <= lw && keepsWater(x, y, z)) data[idx(x, y, z)] = B.AIR;
           }
           // cheese caverns deep down (big rooms, stone only). Some regions widen into GRAND
           // caverns — taller, lower carve threshold — held up by full stone pillars and
@@ -1716,10 +1961,11 @@ function VOXEL_CORE() {
           const jx = ecx * 16 + 3 + (((roll * 4241) | 0) % 10);   // jittered start inside the cell
           const jz = ecz * 16 + 3 + (((roll * 6553) | 0) % 10);
           const ti = terrainInfo(jx, jz);
-          const under = ti.h < WATER_LEVEL;                       // column has water above it
+          const under = ti.h < ti.wl;                             // column has water above it (its own level, 0.83548)
           const isMtn = !under && ti.h > 126;
           const landChance = isMtn ? 0.14 : 0.05;
           if (roll > (under ? 0.005 : landChance)) continue;
+          if (under && RIV2) continue;                            // rev 16 (0.835481): none under water, it left the water hanging over the shaft
           const depth = 14 + (((roll * 88007) | 0) % 12) + (isMtn ? 6 : 0);
           const targetY = Math.max(8, ti.h - depth);
           let px = jx + 0.5, pz = jz + 0.5;
@@ -1730,9 +1976,9 @@ function VOXEL_CORE() {
           const style = ((roll * 7919) | 0) % 6;
           const clearCell = (gx, gy, gz) => {                    // shared carve helper (local coords)
             const lx = gx - cx * 16, lz = gz - cz * 16;
-            if (lx < 0 || lx > 15 || lz < 0 || lz > 15 || gy < 3 || gy > 199) return;
+            if (lx < 0 || lx > 15 || lz < 0 || lz > 15 || gy < 3 || gy > CY - 1) return;
             const ii = idx(lx, gy, lz), bid = data[ii] & 255;
-            if (bid !== B.WATER && bid !== B.BEDROCK) data[ii] = B.AIR;
+            if (bid !== B.WATER && bid !== B.BEDROCK && keepsWater(lx, gy, lz)) data[ii] = B.AIR;
           };
           let startY = ti.h + 1;
           if (style === 4 && !under) {                           // grotto: dome carved into the surface
@@ -1779,14 +2025,108 @@ function VOXEL_CORE() {
                 if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
                 for (let dy = 0; dy >= -1; dy--) {                // 2-tall passage
                   const yy = y + dy;
-                  if (yy < 3 || yy > 199) continue;
+                  if (yy < 3 || yy > CY - 1) continue;
                   const ii = idx(lx, yy, lz);
                   const bid = data[ii] & 255;
-                  if (bid !== B.WATER && bid !== B.BEDROCK) data[ii] = B.AIR;
+                  if (bid !== B.WATER && bid !== B.BEDROCK && keepsWater(lx, yy, lz)) data[ii] = B.AIR;
                 }
               }
           }
         }
+
+      /* ---- rooms, tunnels, cave mouths, arches and overhangs (0.83548, biomeRev 15) ----
+         Rooms: round caves 4-14 across (now and then a hall up to 26), one in most ROOM_CELL squares at any depth under
+         the crust, each joined to its east and south neighbours' by a winding tunnel. Mouths: from the foot of a slope
+         (a drop of 6+ over 7 blocks) a tunnel runs into the hill, falling as it goes; arches run level, and come out the
+         far side of a hill narrow enough. Both keep 2 blocks of roof, so they open only on the face. Overhangs: along
+         some cliffs the face is cut back under its lip, one or two columns deep. All pure functions of the world
+         position, so every chunk carves its part alike. */
+      if (UPLAND) {
+        const X0 = cx * 16, Z0 = cz * 16;
+        // clear a cell of this chunk; roof: blocks kept under the ground there (-1: the crust, 9 under water, 6 on land)
+        const dig = (gx, gy, gz, roof) => {
+          const lx = gx - X0, lz = gz - Z0;
+          if (lx < 0 || lx > 15 || lz < 0 || lz > 15 || gy < 3 || gy > CY - 2) return;
+          const gi = (lx + 2) + (lz + 2) * 20;
+          if (gy > H[gi] - (H[gi] < WLV[gi] ? 9 : roof < 0 ? 6 : roof)) return;   // under water always the full crust
+          for (const n of [gi - 1, gi + 1, gi - 20, gi + 20])                     // never opens a water cell's side
+            if (H[n] < WLV[n] && gy > H[n] && gy <= WLV[n]) return;
+          const i = idx(lx, gy, lz), b = data[i] & 255;
+          if (b === B.WATER || b === B.LAVA || b === B.BEDROCK || b === B.ICE) return;
+          data[i] = B.AIR;
+        };
+        // an upright ellipsoid of radius r (a little taller than wide above its middle)
+        const blob = (px, py, pz, r, roof) => {
+          if (px + r + 1 < X0 || px - r - 1 > X0 + 15 || pz + r + 1 < Z0 || pz - r - 1 > Z0 + 15) return;
+          const ri = Math.ceil(r);
+          for (let oy = -ri; oy <= ri + 1; oy++)
+            for (let oz = -ri; oz <= ri; oz++)
+              for (let ox = -ri; ox <= ri; ox++) {
+                const ey = oy > 0 ? oy / (r * 1.15) : oy / r;
+                if ((ox * ox + oz * oz) / (r * r) + ey * ey <= 1) dig(Math.floor(px) + ox, Math.floor(py) + oy, Math.floor(pz) + oz, roof);
+              }
+        };
+        const RC = ROOM_CELL;
+        const tube = (a, b, seed) => {
+          const vx = b.x - a.x, vz = b.z - a.z, vy = b.y - a.y, Lh = Math.hypot(vx, vz);
+          if (Lh < 1 || Math.abs(vy) > Lh * 0.9) return;                         // too steep to walk: no tunnel
+          if (Math.max(a.x, b.x) + 10 < X0 || Math.min(a.x, b.x) - 10 > X0 + 15 || Math.max(a.z, b.z) + 10 < Z0 || Math.min(a.z, b.z) - 10 > Z0 + 15) return;
+          const nx = -vz / Lh, nz = vx / Lh, L = Math.hypot(Lh, vy);
+          const amp = 2 + 5 * hash2(seed, 77), ph = hash2(seed, 91) * 6.283, waves = 1 + ((hash2(seed, 13) * 2) | 0);
+          const rad = 1.3 + 0.9 * hash2(seed, 55);
+          for (let s = 0; s <= L; s += 0.8) {
+            const t = s / L, env = Math.sin(t * Math.PI), off = Math.sin(t * Math.PI * waves + ph) * amp * env;
+            blob(a.x + vx * t + nx * off, a.y + vy * t + Math.sin(t * Math.PI * 2 + ph) * 2 * env, a.z + vz * t + nz * off, rad, -1);
+          }
+        };
+        for (let gz = Math.floor((Z0 - 10) / RC) - 2; gz <= Math.floor((Z0 + 25) / RC); gz++)
+          for (let gx = Math.floor((X0 - 10) / RC) - 2; gx <= Math.floor((X0 + 25) / RC); gx++) {
+            const rm = roomOf(gx, gz);
+            if (!rm) continue;
+            const R = rm.r * 1.2 + 1;
+            if (rm.x + R >= X0 && rm.x - R <= X0 + 15 && rm.z + R >= Z0 && rm.z - R <= Z0 + 15)
+              for (let gz2 = Math.floor(rm.z - R); gz2 <= rm.z + R; gz2++)
+                for (let gx2 = Math.floor(rm.x - R); gx2 <= rm.x + R; gx2++) {
+                  if (gx2 < X0 || gx2 > X0 + 15 || gz2 < Z0 || gz2 > Z0 + 15) continue;
+                  const dx = (gx2 + 0.5 - rm.x) / rm.r, dz = (gz2 + 0.5 - rm.z) / rm.r, d2 = dx * dx + dz * dz;
+                  if (d2 > 1.44) continue;
+                  for (let gy = Math.floor(rm.y - rm.ry * 0.7); gy <= rm.y + rm.ry * 1.25; gy++) {
+                    const dy = (gy + 0.5 - rm.y) / rm.ry;
+                    if (dy < -0.62) continue;                                     // a flat floor
+                    const wob = 1 + 0.2 * vnoise3(gx2 * 0.22, gy * 0.22, gz2 * 0.22);
+                    if (d2 + dy * dy <= wob * wob) dig(gx2, gy, gz2, -1);
+                  }
+                }
+            if (hash2(gx * 61 + 5, gz * 67 - 5) < 0.7) { const e = roomOf(gx + 1, gz); if (e) tube(rm, e, gx * 73 + gz * 79 + 1); }
+            if (hash2(gx * 71 - 5, gz * 59 + 5) < 0.7) { const s = roomOf(gx, gz + 1); if (s) tube(rm, s, gx * 83 - gz * 89 + 2); }
+          }
+        // cave mouths and arches, from the foot of a slope into the hill
+        const MC = MOUTH_CELL, REACH = 56;
+        for (let gz = Math.floor((Z0 - REACH) / MC); gz <= Math.floor((Z0 + 15 + REACH) / MC); gz++)
+          for (let gx = Math.floor((X0 - REACH) / MC); gx <= Math.floor((X0 + 15 + REACH) / MC); gx++) {
+            const m = mouthOf(gx, gz);
+            if (!m || m.x + REACH < X0 || m.x - REACH > X0 + 15 || m.z + REACH < Z0 || m.z - REACH > Z0 + 15) continue;
+            for (const [x, y, z, roof] of m.path) blob(x, y, z, m.rad, roof);
+          }
+        // overhangs: along some cliffs (a drop of 6+ to a side) the face is cut back under its lip, two columns deep in places
+        for (let z = 0; z < 16; z++)
+          for (let x = 0; x < 16; x++) {
+            const gi = (x + 2) + (z + 2) * 20, h = H[gi];
+            if (h < WLV[gi] || DES[gi]) continue;
+            const wx = X0 + x, wz = Z0 + z;
+            if (fbm(wx * 0.05 + 3713.1, wz * 0.05 - 1291.7, 2) < 0.05) continue;
+            for (const d of [1, -1, 20, -20]) {
+              let low = Math.max(H[gi + d], WLV[gi + d]), depth = 1;
+              if (h - low < 6 && H[gi + d] >= h - 1) { low = Math.max(H[gi + 2 * d], WLV[gi + 2 * d]); depth = 2; }
+              if (h - low < 6) continue;
+              const k = Math.min(h - low - 3, 2 + ((hash2(wx * 3 + d, wz * 5 - d) * 3) | 0)) - (depth - 1);
+              for (let y = low + 1; y <= low + k; y++) {
+                const i = idx(x, y, z), b = data[i] & 255;
+                if (b !== B.WATER && b !== B.LAVA && b !== B.BEDROCK && b !== B.ICE) data[i] = B.AIR;
+              }
+            }
+          }
+      }
 
       // ---- cave lava pools (pool-seeded grid, bowl-shaped multi-y crater) ----
       // 22×22 cells, 22% chance each, radius up to ~6 blocks. Per-cell pool y is deterministic;
@@ -1849,7 +2189,7 @@ function VOXEL_CORE() {
           for (const [dx, dz] of OFF) {
             const ti = terrainInfo(gcx * PCELL + dx, gcz * PCELL + dz);
             if (Math.abs(ti.h - rimY) > 3) { ok = false; break; }        // hilly / mountainous
-            if (ti.h <= WATER_LEVEL + 3) { ok = false; break; }          // beach / ocean nearby
+            if (ti.h <= ti.wl + 3) { ok = false; break; }               // beach / ocean / a lake up in the land nearby
           }
           poolOkCache.set(k, ok);
           return ok;
@@ -1865,18 +2205,18 @@ function VOXEL_CORE() {
           const chance = isSnowC ? 0.0002 : isDesertC ? 0.01 : 0.002;
           if (hash2(gcx * 41 + 7001, gcz * 43 + 7101) > chance) continue;
           const rimY = ci.h;
-          if (rimY <= WATER_LEVEL + 3) continue;                         // no ocean/beach altitude
+          if (rimY <= WATER_LEVEL + 3 || rimY <= ci.wl + 3) continue;    // no ocean/beach altitude, no lake up in the land
           if (rimY > 110) continue;                                      // no hills/mountains
           if (!poolOk(gcx, gcz, rimY)) continue;                         // reject if not flat / near water
           const t = 1 - d2 / PR2;
           const bowlDepth = Math.max(0, Math.floor(3 * t * t));
           const y0 = rimY - bowlDepth, y1 = rimY;
           for (let y = y0; y <= y1; y++) {
-            if (y < 2 || y > 199) continue;
+            if (y < 2 || y > CY - 1) continue;
             const cur = data[idx(x, y, z)] & 255;
             if (cur !== B.WATER && cur !== B.BEDROCK) data[idx(x, y, z)] = B.LAVA;
           }
-          if (rimY + 1 <= 199) {
+          if (rimY + 1 <= CY - 1) {
             const above = data[idx(x, rimY + 1, z)] & 255;
             if (above !== B.WATER && above !== B.AIR) data[idx(x, rimY + 1, z)] = B.AIR;
           }
@@ -1884,7 +2224,7 @@ function VOXEL_CORE() {
         // rim: any side-neighbour of a lava cell that is air, grass, sand, red sand or dirt gets
         // replaced with stone — pool never touches grass or sand.
         const rimReplace = new Set([B.AIR, B.GRASS, B.SAND, B.RED_SAND, B.DIRT]);
-        for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) for (let y = 60; y < 199; y++) {
+        for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) for (let y = 60; y < CY - 1; y++) {
           if ((data[idx(x, y, z)] & 255) !== B.LAVA) continue;
           for (const [ndx, ndz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
             const nx = x + ndx, nz = z + ndz;
@@ -1964,10 +2304,10 @@ function VOXEL_CORE() {
         //   * no lava or water in any of 6 neighbors (never touches liquids)
         // After the block is placed, try to grow a tip into the adjacent air on the exposed face.
         const inBounds = (nx, ny, nz) =>
-          nx >= 0 && nx <= 15 && nz >= 0 && nz <= 15 && ny >= 0 && ny <= 199;
+          nx >= 0 && nx <= 15 && nz >= 0 && nz <= 15 && ny >= 0 && ny <= CY - 1;
         const idAt = (nx, ny, nz) => inBounds(nx, ny, nz) ? (data[idx(nx, ny, nz)] & 255) : -1;
         const placeSulfur = (bx, by, bz, tipHash) => {
-          if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > 197) return;
+          if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 3) return;
           if ((data[idx(bx, by, bz)] & 255) !== B.STONE) return;
           const airTop = idAt(bx, by + 1, bz) === B.AIR;
           const airBot = idAt(bx, by - 1, bz) === B.AIR;
@@ -2036,12 +2376,12 @@ function VOXEL_CORE() {
         ];
         const CLUSTER_TRY_CHANCE = 0.05;
         const rockAt = (x, y, z) => {
-          if (x < 0 || x > 15 || z < 0 || z > 15 || y < 1 || y > 198) return false;
+          if (x < 0 || x > 15 || z < 0 || z > 15 || y < 1 || y > CY - 2) return false;
           const p = PROPS[data[idx(x, y, z)] & 255];
           return !!p && !!p.opaque && p.type === 'stone';
         };
         const underRoof = (x, y, z) => {
-          for (let yy = y + 1; yy < 200; yy++) if (PROPS[data[idx(x, yy, z)] & 255]?.opaque) return true;
+          for (let yy = y + 1; yy < CY; yy++) if (PROPS[data[idx(x, yy, z)] & 255]?.opaque) return true;
           return false;
         };
         for (let gi = 0; gi < GEMS.length; gi++) {
@@ -2057,7 +2397,7 @@ function VOXEL_CORE() {
                                : rangeLo + ((hash3(cx * 17 + s, 13, cz * 19 + s) * (rangeHi - rangeLo + 1)) | 0);
             for (let k = 0; k <= 24; k++) {
               const ly = ly0 + ((k & 1) ? -((k + 1) >> 1) : (k >> 1));   // 0, -1, +1, -2, +2 ...
-              if (ly < 2 || ly > 197 || ly < rangeLo - 4 || ly > rangeHi + 4) continue;
+              if (ly < 2 || ly > CY - 3 || ly < rangeLo - 4 || ly > rangeHi + 4) continue;
               if (data[idx(lx, ly, lz)] !== B.AIR) continue;
               const opts = [];
               for (let o = 0; o < 6; o++) {
@@ -2082,7 +2422,7 @@ function VOXEL_CORE() {
 
       // trees — evaluated over the margin so neighbours get the overlapping leaves
       const put = (x, y, z, id, force) => {
-        if (x < 0 || x > 15 || z < 0 || z > 15 || y < 2 || y > 199) return;
+        if (x < 0 || x > 15 || z < 0 || z > 15 || y < 2 || y > CY - 1) return;
         const i = idx(x, y, z);
         if (force || data[i] === B.AIR) data[i] = id;
       };
@@ -2102,7 +2442,10 @@ function VOXEL_CORE() {
           // only cover chunk+2 margin, but our widened tree loop reaches further.
           const ti = terrainInfo(wx, wz);
           const h = ti.h;
-          if (h <= WATER_LEVEL + 1 || h > 146 || ti.fDesert > 0.5) continue;
+          if (h <= WATER_LEVEL + 1 || h < ti.wl + 1 || h > (DIVIDE ? 199 : 146) || ti.fDesert > 0.5) continue;   // none in a lake up in the land (0.83548)
+          // rev 18 (0.835491): over 146, up to 199, a few small oaks on the mountains (none in their snow)
+          const highOak = DIVIDE && h > 146;
+          if (highOak && ti.fSnow > 0.5) continue;
           // no trees on or hanging over canyon lines — conservative buffer covering every canyon
           // type (crack/wide/long) so canopies always clear the rim
           if (fbm(wx * 0.0015 + 555, wz * 0.0015 - 333, 2) > 0.28 &&
@@ -2113,6 +2456,7 @@ function VOXEL_CORE() {
           // snow: trees only inside the Snow Forest sub-biome mask; plain Snow stays treeless
           const isSnow = ti.fSnow > 0.5;
           if (isSnow && (ti.fDeepSnow > 0.5 || !snowForestAt(wx, wz))) continue;   // deep snow is treeless (0.8232)
+          if (isSnow && iceSpikesAt(wx, wz)) continue;                                // ...and so are the ice spikes (0.835)
           /* 0.823 (biomeRev 5, 55-biomes.js): the spruce forest's chilly band grows spruce, and so do the cold plains,
              sparsely; a deep forest stands about twice as thick, with more of the big oaks and taller trees */
           const isTaiga = ti.fTaiga > 0.5, coldPlains = isPlains && isTaiga;
@@ -2122,18 +2466,20 @@ function VOXEL_CORE() {
           // birch: dedicated "Birch Forest" regions (dense) + 1% scattered birches in ordinary
           // forests. Never in snow biomes, never the big/mega form.
           const birchRegion = !isPlains && !isSnow && !isTaiga && birchAt(wx, wz);
-          const isBirch = birchRegion || (!isPlains && !isSnow && !isTaiga && hash2(gcx * 211 + 5, gcz * 197 + 3) < 0.005);   // 1% before 0.8233
+          const isBirch = !highOak && (birchRegion || (!isPlains && !isSnow && !isTaiga && hash2(gcx * 211 + 5, gcz * 197 + 3) < 0.005));   // 1% before 0.8233
           /* spruce is the cold biomes' tree, bar the odd oak (0.8233): 1 in 100 in the spruce forest and cold plains, 1 in 200
              in a deep one, 1 in 2000 in a snow forest. No spruce scattering into temperate forest. */
           const oakOdd = (isSnow || isTaiga) && hash2(gcx * 313 + 17, gcz * 271 + 29) < (isSnow ? 0.0005 : isDeep ? 0.005 : 0.01);
-          const isSpruce = !isBirch && !oakOdd && (isSnow || isTaiga);
+          const isSpruce = !highOak && !isBirch && !oakOdd && (isSnow || isTaiga);
           // plains/meadow: flat 0.1% chance. forest/other: original density-scaled odds. birch forest: dense.
           // flat worlds are entirely Plains, and plains odds (0.1%) would leave a testbed with
           // almost no trees at all — lift it enough that a few are always in sight
           /* Roughly halved across the board. Canopies are far bigger than they used to be —
              wider oaks, tall spruce cones — so the old per-cell odds packed the forest into a
              solid roof with no gaps or light between trunks. */
-          let baseProb = isPlains ? (FLAT ? 0.02 : coldPlains ? 0.004 : 0.0007) : (forestNoise ? 0.26 : 0.04) * treeF;
+          // twice the plains' trees in rev 18 (0.835491)
+          let baseProb = isPlains ? (FLAT ? 0.02 : (coldPlains ? 0.004 : 0.0007) * (DIVIDE ? 2 : 1)) : (forestNoise ? 0.26 : 0.04) * treeF;
+          if (highOak) baseProb = 0.02;
           if (birchRegion) baseProb = Math.max(baseProb, 0.24);
           if (isDeep) baseProb = Math.min(0.6, baseProb * 2 + 0.12);
           if (r > baseProb) continue;
@@ -2146,7 +2492,7 @@ function VOXEL_CORE() {
           // big-tree roll (independent hash). plains: 50% of the 1%. others: ~3%.
           const rBig = hash2(gcx * 131 + 7, gcz * 173 + 19);
           const bigProb = isPlains || isDeep ? 0.3 : 0.03;
-          const isBig = rBig < bigProb && !isBirch && !isTaiga;   // birch never grows the big form, nor a taiga spruce
+          const isBig = rBig < bigProb && !isBirch && !isTaiga && !highOak;   // birch never grows the big form, nor a taiga spruce, nor a mountain oak
 
           if (isBig) {
             // procedural big tree: tall trunk, 3-5 branches with leaf clusters, wide top canopy
@@ -2240,13 +2586,27 @@ function VOXEL_CORE() {
           if (isSpruce) {
             /* In the spruce forest (0.8231) a tree stands on a bare stem 4..8 high before its needles start, that much
                taller, and the stem keeps the stump's width up to them. Snow forest and cold plains spruces as before. */
-            const bare = TALL_SPRUCE && isTaiga && !isPlains ? 4 + ((hash2(gcx * 29 + 11, gcz * 61 + 5) * 5) | 0) : 0;
-            const sh = 14 + ((hash2(gcx * 53 + 3, gcz * 97 + 7) * 7) | 0) + (isDeep ? 5 : 0) + bare;   // 14..20 tall, 19..25 deep (0.823)
+            /* Forms (0.83549, rev 17): in the spruce forest the usual tree stands 3 lower, and some are GIANTS (8%: 9-10 taller,
+               a skirt two wider, a stump flaring past its cell), some SMALL (20%: 8-11 tall) and some CROWNED (15%: a heavy
+               top, only thin tufts below it). The cold plains and snow forest keep theirs, bar a rare giant (2%) or crown (3%). */
+            const inForest = isTaiga && !isPlains;
+            const sRoll = FALLS ? hash2(gcx * 73 + 19, gcz * 89 - 13) : 0.5;
+            const giant = FALLS && sRoll < (inForest ? 0.08 : 0.02);
+            const crown = FALLS && !giant && sRoll < (inForest ? 0.23 : 0.05);
+            const small = FALLS && !giant && !crown && sRoll > (inForest ? 0.8 : 0.9);
+            let bare = TALL_SPRUCE && inForest ? 4 + ((hash2(gcx * 29 + 11, gcz * 61 + 5) * 5) | 0) : 0;
+            if (small) bare = Math.min(bare, 2);
+            let sh = 14 + ((hash2(gcx * 53 + 3, gcz * 97 + 7) * 7) | 0) + (isDeep ? 5 : 0) + bare;   // 14..20 tall, 19..25 deep (0.823)
+            if (FALLS && inForest) sh -= 3;
+            if (giant) sh += 9 + ((hash2(gcx * 7 + 3, gcz * 13 - 3) * 2) | 0);
+            else if (small) sh = 8 + ((hash2(gcx * 53 + 3, gcz * 97 + 7) * 4) | 0) + bare;
+            else if (crown) sh += 2;
             put(tx, h, tz, B.DIRT, true);
             /* The trunk narrows the whole way up rather than stepping from stump to a constant
                width — a real conifer is a spike, and by the crown it is barely thicker than a
-               branch. 30 units at the base down to 14 at the tip; the narrowing starts where the needles do. */
-            const SPR_STUMP = 30, SPR_TIP = 14, taperY = h + 1 + bare;
+               branch. 30 units at the base down to 14 at the tip; the narrowing starts where the needles do.
+               A giant's stump flares to 38 (wider than its cell) and narrows from the ground (0.83549); a small one 24. */
+            const SPR_STUMP = giant ? 38 : small ? 24 : 30, SPR_TIP = giant ? 16 : 14, taperY = giant ? h + 1 : h + 1 + bare;
             for (let y = h + 1; y <= h + sh; y++) {
               const t = Math.max(0, y - taperY) / Math.max(1, h + sh - taperY);
               const w = Math.round(SPR_STUMP - (SPR_STUMP - SPR_TIP) * t);
@@ -2258,11 +2618,20 @@ function VOXEL_CORE() {
                step for the layered look, and the rim thins out as it climbs so the silhouette
                reads dense at the bottom and wispy at the top. */
             const base = h + 2 + bare, topY = h + sh, span = Math.max(1, topY - base);
+            // a crowned tree's heavy top: the upper 45% of it, and only tufts below (0.83549)
+            const crownFrom = crown ? base + Math.floor(span * 0.55) : base;
             for (let ly = base; ly <= topY; ly++) {
               const t = (ly - base) / span;                                        // 0 low .. 1 high
-              let rad = Math.max(1, Math.round((isDeep ? 5 : 4) - 3.2 * t));   // a wider skirt in a deep forest (0.823)
+              if (ly < crownFrom) {
+                if (((ly - base) % 3) !== 0) continue;                              // a tuft every third layer
+                for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+                  if (hash2(wx + ox * 43 + ly, wz + oz * 59 - ly) < 0.6) put(tx + ox, ly, tz + oz, LEAF, false);
+                continue;
+              }
+              const tc = crown ? (ly - crownFrom) / Math.max(1, topY - crownFrom) : t;
+              let rad = Math.max(1, Math.round((giant ? 6 : small ? 3 : crown ? 4.5 : isDeep ? 5 : 4) + (giant && isDeep ? 1 : 0) - (giant ? 5 : small ? 2.2 : 3.2) * tc));   // a wider skirt in a deep forest (0.823)
               if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
-              const rimKeep = 0.85 - 0.5 * t;                                      // thinner rim up top
+              const rimKeep = crown ? 0.95 - 0.4 * tc : 0.85 - 0.5 * t;           // thinner rim up top; a crown dense
               for (let oz = -rad; oz <= rad; oz++)
                 for (let ox = -rad; ox <= rad; ox++) {
                   const d = Math.abs(ox) + Math.abs(oz);
@@ -2426,7 +2795,7 @@ function VOXEL_CORE() {
       for (let z = 0; z < CZ; z++)
         for (let x = 0; x < CX; x++) {
           const gi2 = (x + 2) + (z + 2) * 20, hh = H[gi2];
-          if (hh < 1 || hh > 198) continue;
+          if (hh < 1 || hh > CY - 2) continue;
           const gv = data[idx(x, hh, z)];
           if ((gv & 255) !== B.GRASS || ((gv >> 8) & 255) !== V.GRASS_SNOWY) continue;
           // a snow block or a stack of snow layers (layers are the snow block's own id since 0.785)
@@ -2484,7 +2853,7 @@ function VOXEL_CORE() {
             if ((topBk === B.GRASS || topBk === B.DIRT) &&
                 (data[idx(x, h + 1, z)] & 255) === B.AIR) {
               let hasLeaves = false;
-              for (let dy = 2; dy <= 5 && h + dy < 200; dy++) {
+              for (let dy = 2; dy <= 5 && h + dy < CY; dy++) {
                 if ((data[idx(x, h + dy, z)] & 255) === B.LEAVES) { hasLeaves = true; break; }
               }
               if (hasLeaves && hash3(cx * 1279 + x, h + 5000, cz * 1031 + z) < 0.000175)   // halved in 0.799, again 0.819
@@ -2591,9 +2960,10 @@ function VOXEL_CORE() {
           }
         }
       };
-      gourdPatch(2200, B.PUMPKIN,    -1, [0.012, 0.006], 2, 6, 3);
-      gourdPatch(1100, B.MELON,       1, [0.012, 0.006], 2, 4, 2);
-      gourdPatch(3300, B.CANTALOUPE,  0, [0.003, 0.001], 1, 2, 2);
+      // a fifth more of each since 0.835491
+      gourdPatch(2200, B.PUMPKIN,    -1, [0.0144, 0.0072], 2, 6, 3);
+      gourdPatch(1100, B.MELON,       1, [0.0144, 0.0072], 2, 4, 2);
+      gourdPatch(3300, B.CANTALOUPE,  0, [0.0036, 0.0012], 1, 2, 2);
 
       /* ---- salt crust (0.8091): a thin white skin on beach sand at the water's edge, in patches ---- */
       for (let z = 0; z < CZ; z++)
@@ -2605,7 +2975,8 @@ function VOXEL_CORE() {
           const wx = cx * 16 + x, wz = cz * 16 + z;
           if (fbm(wx * 0.06 + 4100, wz * 0.06 - 4100, 2) < 0.1) continue;          // patches, not a ribbon round every shore
           // a quarter more beside the sea than a lake or a river (0.8233): WW 1 is ocean
-          const sea = WW[(x + 9) + (z + 8) * 32] === 1 || WW[(x + 7) + (z + 8) * 32] === 1 || WW[(x + 8) + (z + 9) * 32] === 1 || WW[(x + 8) + (z + 7) * 32] === 1;
+          const wi = (x + WM) + (z + WM) * WG;
+          const sea = WW[wi + 1] === 1 || WW[wi - 1] === 1 || WW[wi + WG] === 1 || WW[wi - WG] === 1;
           if (hash3(cx * 1319 + x, h + 8100, cz * 1321 + z) < 0.0275 * (sea ? 1.25 : 1)) data[idx(x, h + 1, z)] = layerVal(B.SALT_CRUST, 1, false);   // one layer (0.8097); a quarter of 0.11 since 0.8193
         }
 
@@ -2615,16 +2986,16 @@ function VOXEL_CORE() {
         const mx = (hash3(cx * 61 + 4400 + ai,     29, cz * 67 + 4400 + ai) * 16) | 0;
         const mz = (hash3(cx * 71 + 4400 + ai * 3, 31, cz * 73 + 4400 + ai) * 16) | 0;
         const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
-        if (h < 100 || h > 198 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || Math.round(LVL[gi]) !== 0) continue;
+        if (h < 100 || h > CY - 2 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || Math.round(LVL[gi]) !== 0) continue;
         const meadow = fbm((cx * 16 + mx) * 0.006 + 6006, (cz * 16 + mz) * 0.006 - 3003, 2) > 0.32;
-        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.12 : 0.024)) continue;   // twice as many patches since 0.826 (0.06, 0.012)
+        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.144 : 0.0288)) continue;   // twice as many patches since 0.826 (0.06, 0.012), a fifth more since 0.835491
         const want = 4 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 4) | 0);
         for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
           const lx = mx + (((hash3(cx * 43 + ai + k * 7 + 4400,  71, cz * 47 + ai + k * 5) * 5) | 0) - 2);
           const lz = mz + (((hash3(cx * 53 + ai + k * 11 + 4400, 73, cz * 59 + ai + k * 3) * 5) | 0) - 2);
           if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
           const lh = H[(lx + 2) + (lz + 2) * 20];
-          if (lh < 100 || lh > 198) continue;
+          if (lh < 100 || lh > CY - 2) continue;
           if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS || (data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
           // in any stage (0.826; always ripe before): variant 0 ripe, 1..6 growing (updateWheatGrow, 51-seasons.js; 1..7 until 0.8273)
           data[idx(lx, lh + 1, lz)] = B.WHEAT | ((((hash3(cx * 37 + lx + 4500, lh, cz * 41 + lz + 4500) * 7) | 0) % 7) << 8);
@@ -2640,7 +3011,7 @@ function VOXEL_CORE() {
         for (let lx = 0; lx < CX; lx++) {
           const gi = (lx + 2) + (lz + 2) * 20;
           const h = H[gi];
-          if (h < 99 || h > 198 || SNO[gi]) continue;
+          if (h < 99 || h > CY - 2 || SNO[gi]) continue;
           if ((data[idx(lx, h, lz)] & 255) !== B.GRASS) continue;
           if ((data[idx(lx, h + 1, lz)] & 255) !== B.AIR) continue;
           if (hash3(cx * 73 + lx + 8100, 43, cz * 67 + lz + 8100) >= 0.002) continue;    // 0.2%
@@ -2652,7 +3023,7 @@ function VOXEL_CORE() {
         for (let lx = 0; lx < CX; lx++) {
           const gi = (lx + 2) + (lz + 2) * 20;
           const h = H[gi];
-          if (h < 99 || h > 198 || SNO[gi]) continue;
+          if (h < 99 || h > CY - 2 || SNO[gi]) continue;
           const top = data[idx(lx, h, lz)] & 255;
           if (top !== B.GRASS && top !== B.DIRT && top !== B.STONE && top !== B.GRAVEL) continue;
           if ((data[idx(lx, h + 1, lz)] & 255) !== B.AIR) continue;
@@ -2666,7 +3037,7 @@ function VOXEL_CORE() {
         for (let lx = 0; lx < CX; lx++) {
           const gi = (lx + 2) + (lz + 2) * 20;
           const h = H[gi];
-          if (h < 99 || h > 198 || DES[gi] || SNO[gi]) continue;                       // y100..200; none in desert/snow
+          if (h < 99 || h > CY - 2 || DES[gi] || SNO[gi]) continue;                       // y100..200; none in desert/snow
           if ((data[idx(lx, h, lz)] & 255) !== B.GRASS) continue;
           if ((data[idx(lx, h + 1, lz)] & 255) !== B.AIR) continue;
           const isPlains = TREE[gi] < 0.5;
@@ -2696,7 +3067,7 @@ function VOXEL_CORE() {
                (dark) forest. Each is a weight, so a mixed place grows a mix. */
             const ti = terrainInfo(wx, wz);
             let wet = false;
-            for (let dz = -3; dz <= 3 && !wet; dz++) for (let dx = -3; dx <= 3; dx++) if (WW[(lx + 8 + dx) + (lz + 8 + dz) * 32]) { wet = true; break; }
+            for (let dz = -3; dz <= 3 && !wet; dz++) for (let dx = -3; dx <= 3; dx++) if (WW[(lx + WM + dx) + (lz + WM + dz) * WG]) { wet = true; break; }
             const high = Math.min(1, Math.max(0, (h - 120) / 40));
             const W = [[B.REDBERRY_BUSH, 0.3 + 2 * high], [B.BLUEBERRY_BUSH, wet ? 3 : 0.08],
                        [B.BLACKBERRY_BUSH, TAIGA[gi] || ti.fTaiga > 0.5 ? 3 : 0.12],
@@ -2722,7 +3093,7 @@ function VOXEL_CORE() {
         for (let x = 0; x < CX; x++) {
           const gi = (x + 2) + (z + 2) * 20;
           const h = H[gi];
-          if (h <= WATER_LEVEL || h > 141) continue;             // skip oceans and high peaks
+          if (h <= WATER_LEVEL || h > 141 || HIWET) continue;   // skip oceans and high peaks; no cut by water up in the land (0.83548)
           const wx = cx * 16 + x, wz = cz * 16 + z;
           const isDesert = DES[gi] === 1;
           const rg = fbm(wx * 0.0015 + 555, wz * 0.0015 - 333, 2);
@@ -2749,7 +3120,7 @@ function VOXEL_CORE() {
           const watered = !isDesert &&
             hash2(Math.floor(wx / 128) * 7 + 13, Math.floor(wz / 128) * 11 - 7) < 0.2;
           const wFill = 90;                                      // water surface inside wet canyons
-          for (let y = Math.min(h + 8, 199); y >= floorY; y--) { // +8 clears trunks/leaves above the cut
+          for (let y = Math.min(h + 8, CY - 1); y >= floorY; y--) { // +8 clears trunks/leaves above the cut
             const i = idx(x, y, z);
             if ((data[i] & 255) === B.BEDROCK) break;
             data[i] = (watered && y <= wFill) ? B.WATER : B.AIR;
@@ -2783,12 +3154,12 @@ function VOXEL_CORE() {
           const CAC_BASE = 26, CAC_TIP = 20;                   // 60 -> 48 units
           const n = 3 + ((hash3(wx, 8888, wz) * 4) | 0);       // 3..6 tall
           const putCac = (cx2, cy2, cz2, axis, w) => {
-            if (cx2 < 0 || cx2 > 15 || cz2 < 0 || cz2 > 15 || cy2 < 2 || cy2 > 198) return;
+            if (cx2 < 0 || cx2 > 15 || cz2 < 0 || cz2 > 15 || cy2 < 2 || cy2 > CY - 2) return;
             const i2 = idx(cx2, cy2, cz2);
             if ((data[i2] & 255) !== B.AIR) return;
             data[i2] = B.CACTUS | ((axis | cw(w)) << 8);
           };
-          for (let k = 1; k <= n && h + k < 199; k++) {
+          for (let k = 1; k <= n && h + k < CY - 1; k++) {
             const t = (k - 1) / Math.max(1, n - 1);
             putCac(x, h + k, z, 0, Math.round(CAC_BASE - (CAC_BASE - CAC_TIP) * t));
           }
@@ -2797,7 +3168,7 @@ function VOXEL_CORE() {
              from halfway down made them read as a shrub. */
           const FLOWER_CHANCE = 0.05;
           const capFlower = (fx, fy, fz, salt) => {
-            if (fy >= 199 || (data[idx(fx, fy, fz)] & 255) !== B.AIR) return;
+            if (fy >= CY - 1 || (data[idx(fx, fy, fz)] & 255) !== B.AIR) return;
             if (fx < 0 || fx > 15 || fz < 0 || fz > 15) return;
             if (hash3(wx + salt, 3141 + salt, wz - salt) >= FLOWER_CHANCE) return;
             data[idx(fx, fy, fz)] = B.PINCUSHION;
@@ -2835,7 +3206,8 @@ function VOXEL_CORE() {
         if (h !== WATER_LEVEL + 1) continue;                            // must be exactly at shore
         if (!DES[gi] && LVL[gi] < 0.5) continue;                        // warm or hot land only (0.8233)
         const top = data[idx(x, h, z)] & 255;
-        if (top !== B.SAND && top !== B.GRASS && top !== B.DIRT && top !== B.RED_SAND && top !== B.PINK_SAND) continue;   // pink 0.822
+        if (top !== B.SAND && top !== B.GRASS && top !== B.DIRT && top !== B.RED_SAND && top !== B.PINK_SAND
+            && top !== B.GRAVEL) continue;   // pink 0.822; gravel 0.8356 (the gravel beaches)
         if ((data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
         // water adjacent at exactly y = WATER_LEVEL (shoreline)
         let waterAdj = false;
@@ -2845,10 +3217,10 @@ function VOXEL_CORE() {
           if ((data[idx(nx, WATER_LEVEL, nz)] & 255) === B.WATER) { waterAdj = true; break; }
         }
         if (!waterAdj) continue;
-        const isBeach = (top === B.SAND || top === B.RED_SAND || top === B.PINK_SAND);
+        const isBeach = (top === B.SAND || top === B.RED_SAND || top === B.PINK_SAND || top === B.GRAVEL);
         /* The old chance per cell (beach 0.85%, bank 0.25%) x 1.3, spread over a seed and about 5.6 more cells round it
-           (8 neighbours x 70%), so the seed chance is that over 6.6. */
-        const s = (isBeach ? 0.85 : 0.25) * 0.01 * 1.3 / 6.6;
+           (8 neighbours x 70%), so the seed chance is that over 6.6. A fifth more since 0.8356 (x 1.2). */
+        const s = (isBeach ? 0.85 : 0.25) * 0.01 * 1.3 * 1.2 / 6.6;
         const wx = cx * 16 + x, wz = cz * 16 + z;
         let grow = caneSeed(wx, wz, s);
         if (!grow && hash3(wx * 7 + 919, 4343, wz * 5 - 717) < 0.7)
@@ -2858,7 +3230,7 @@ function VOXEL_CORE() {
         const tall = 1 + Math.floor(hash3(wx, 9191, wz) * 3);           // 1..3
         // Start cane at h (replacing the top sand) so the base cell sits at water-surface elevation
         // and the plant reads as growing from the shoreline instead of on a raised ledge.
-        for (let k = 0; k < tall && h + k < 199; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
+        for (let k = 0; k < tall && h + k < CY - 1; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
       }
 
       /* ---- saplings: very sparse spawn on grass in tree-rich (forest) zones. Almost all oak;
@@ -2886,7 +3258,7 @@ function VOXEL_CORE() {
       for (let z = 0; z < CZ; z++)
         for (let x = 0; x < CX; x++) {
           const gi = (x + 2) + (z + 2) * 20, h = H[gi];
-          if (h <= WATER_LEVEL || h > 197 || (data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
+          if (h <= WATER_LEVEL || h > CY - 3 || (data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
           const top = data[idx(x, h, z)] & 255, wx = cx * 16 + x, wz = cz * 16 + z;
           if ((top === B.SAND || top === B.RED_SAND) && DES[gi]) {
             const dune = fbm(wx * 0.035 + 811.3, wz * 0.035 - 377.9, 2) + (hash2(wx * 13 + 71, wz * 7 - 19) - 0.5) * 0.06;
@@ -2929,6 +3301,141 @@ function VOXEL_CORE() {
           if (!held) data[i] = B.AIR;
         }
       }
+      /* ---- ice spikes (0.835, biomeRev 9) ----
+         Pillars of packed ice standing out of the Ice Spikes biome, about one in fifteen of them huge, and small icebergs in
+         the open sea of the snow. A spike is a pure function of its grid cell, so every chunk it reaches draws its own part
+         of it and it crosses chunk borders whole, as the trees do. Each is a stack of discs narrowing to a point; a land
+         one is sunk in the ground with its foot filled down to the slope, an iceberg runs from the bed as a column to the
+         waterline and tapers above it. */
+      if (SPIKES && !FLAT) {
+        const SR = 7, SG = 6;                                  // the widest foot (from the centre), one candidate per SG x SG cell
+        const x0 = cx * 16, z0 = cz * 16;
+        for (let gcz = Math.floor((z0 - SR) / SG); gcz <= Math.floor((z0 + 15 + SR) / SG); gcz++)
+          for (let gcx = Math.floor((x0 - SR) / SG); gcx <= Math.floor((x0 + 15 + SR) / SG); gcx++) {
+            const r = hash2(gcx * 7 + 401, gcz * 11 - 977);
+            const wx = gcx * SG + (((r * 4999) | 0) % SG), wz = gcz * SG + (((r * 6007) | 0) % SG);
+            if (wx < x0 - SR || wx > x0 + 15 + SR || wz < z0 - SR || wz > z0 + 15 + SR) continue;
+            const ti = terrainInfo(wx, wz);
+            if (ti.fSnow <= 0.5) continue;
+            const r2 = hash2(gcx * 13 + 7, gcz * 17 + 3), r3 = hash2(gcx * 19 - 5, gcz * 23 + 11);
+            let base, top, from, rad, land = false;
+            if (ti.h >= WATER_LEVEL && ti.h <= 132 && iceSpikesAt(wx, wz)) {
+              if (r > 0.45) continue;                          // a spike in a little under half the cells
+              land = true;
+              const huge = r2 < 0.07;
+              rad = huge ? 2.6 + r3 * 1.4 : 0.9 + r3 * 1.3;
+              base = from = ti.h - 2;                          // its foot set in the ground
+              top = ti.h + (huge ? 22 + ((r3 * 23) | 0) : 4 + ((r2 * 11) | 0));
+            } else if (ti.h < WATER_LEVEL - 2 && !(ti.rT > 0.3 || ti.lk > 0.3)) {
+              if (r > 0.035) continue;                         // the sea: an iceberg now and then
+              const big = BIG_BERGS && r2 < 0.3;               // 0.8351: about a third of them big, and high
+              rad = big ? 3.2 + r3 * 2.4 : 1.4 + r3 * 2.2;
+              base = ti.h; from = WATER_LEVEL;                 // a column from the bed, tapering above the water
+              top = WATER_LEVEL + (big ? 10 + ((r2 / 0.3 * 15) | 0) : 3 + ((r2 * 8) | 0));
+            } else continue;
+            top = Math.min(CY - 2, top);
+            for (let y = base; y <= top; y++) {
+              const t = y <= from ? 0 : (y - from) / Math.max(1, top - from);
+              const rr = Math.max(0.3, rad * Math.pow(1 - t, 0.9));
+              const ri = Math.ceil(rr);
+              for (let dz = -ri; dz <= ri; dz++)
+                for (let dx = -ri; dx <= ri; dx++) {
+                  if (dx * dx + dz * dz > rr * rr + 0.3) continue;
+                  const lx = wx + dx - x0, lz = wz + dz - z0;
+                  if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
+                  data[idx(lx, y, lz)] = B.PACKED_ICE;
+                  // the foot of a land spike reaches down to the ground on a slope, so no disc floats
+                  if (land && y === base) {
+                    for (let d = 1; d <= 6 && y - d > 1; d++) {
+                      const below = data[idx(lx, y - d, lz)];
+                      if (below !== 0 && solidVal(below)) break;
+                      data[idx(lx, y - d, lz)] = B.PACKED_ICE;
+                    }
+                  }
+                }
+            }
+          }
+      }
+      /* waterfalls (0.83549, rev 17): where water stands 2+ over the water beside it (a river's fall, a lake's outlet, a
+         river reaching the sea off a cliff), the falling water hangs down the face as a sheet in the lower column, from
+         its surface up to the higher one, its top running the upper water's way */
+      if (FALLS) {
+        // a column's curtain top (its own water's if none): the highest water 2+ over it beside it
+        const curtainTop = (gi) => {
+          let top = WLV[gi];
+          if (H[gi] >= top) return -1;
+          for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && WLV[n] >= WLV[gi] + 2 && WLV[n] > top) top = WLV[n];
+          return top > WLV[gi] ? top : -1;
+        };
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const gi = (x + 2) + (z + 2) * 20, wl = WLV[gi], wet = H[gi] < wl;
+            const top = wet ? curtainTop(gi) : -1;
+            if (top >= 0) {
+              let fd = 0;
+              for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && WLV[n] === top) fd = FDV[n];
+              for (let y = wl + 1; y <= top && y <= CY - 2; y++) {
+                const i = idx(x, y, z);
+                if ((data[i] & 255) === B.AIR) data[i] = y === top && fd ? B.WATER | (fd << 11) | (1 << 15) : B.WATER;   // a fall's lip runs fast
+              }
+            }
+            /* beside a falling sheet: dry ground rises in rock to its top, so the fall runs in a notch, not out over a
+               bank; and any cave beside it (under dry ground or under water), dug before the sheet hung, is filled so it
+               never shows the sheet's side. Dry ground lower than any water beside it (where two rivers' levels meet,
+               the bank going with the lower) is raised in its own top block to hold that water in. */
+            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) {
+              const nt = curtainTop(n);
+              if (nt >= 0) {
+                // beside a sheet: an open cell over lower water stays open (the fall's face); over ground, or in a cave, rock
+                for (let y = WLV[n] + 1; y <= nt && y <= CY - 2; y++) {
+                  const i = idx(x, y, z), b = data[i] & 255;
+                  if (b !== B.AIR && b !== B.SNOW) continue;
+                  let yy = y - 1;
+                  while (yy > 1 && (data[idx(x, yy, z)] & 255) === B.AIR) yy--;
+                  if ((data[idx(x, yy, z)] & 255) !== B.WATER) data[i] = B.STONE;
+                }
+              } else if (!wet && H[n] < WLV[n] && WLV[n] > H[gi]) {
+                const fill = WLV[n] - H[gi] > 2 ? B.STONE : data[idx(x, H[gi], z)] & 255;   // a tall rise is rock
+                for (let y = H[gi] + 1; y <= WLV[n] && y <= CY - 2; y++) {
+                  const i = idx(x, y, z), b = data[i] & 255;
+                  if (b === B.AIR || b === B.SNOW) data[i] = fill;
+                }
+              }
+            }
+          }
+      }
+      /* the last word on leaks (0.835491, rev 18): water beside open air whose column stands on dry ground below (not on
+         lower water, which is a fall's open face) gets that air filled with the ground's top block, upward, so no water
+         ever stands open over a ledge however the passes above left it. Inside this chunk, from what is really there. */
+      if (DIVIDE)
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const gi = (x + 2) + (z + 2) * 20;
+            for (let y = Math.max(2, Math.min(H[gi], WLV[gi]) + 1); y <= CY - 2; y++) {
+              if ((data[idx(x, y, z)] & 255) !== B.WATER) { if (y > WLV[gi] + 60) break; continue; }
+              for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const nx = x + dx, nz = z + dz;
+                if (nx < 0 || nx > 15 || nz < 0 || nz > 15 || (data[idx(nx, y, nz)] & 255) !== B.AIR) continue;
+                let yy = y - 1;
+                while (yy > 1 && (data[idx(nx, yy, nz)] & 255) === B.AIR) yy--;
+                const below = data[idx(nx, yy, nz)] & 255;
+                if (below === B.WATER || below === B.ICE) continue;
+                const fill = PROPS[below] && PROPS[below].opaque && y - yy <= 2 ? below : B.STONE;   // a tall rise is rock
+                for (let fy = yy + 1; fy <= y; fy++) data[idx(nx, fy, nz)] = fill;
+              }
+            }
+          }
+      /* water up in the land stays water (0.83548): anything a later pass set in it (a plant, a pebble, a log) goes */
+      if (HIWET)
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const gi = (x + 2) + (z + 2) * 20, wl = WLV[gi];
+            if (wl <= WATER_LEVEL || H[gi] >= wl) continue;
+            for (let y = H[gi] + 1; y <= wl; y++) {
+              const b = data[idx(x, y, z)] & 255;
+              if (b !== B.WATER && b !== B.ICE && b !== B.PACKED_ICE) data[idx(x, y, z)] = B.WATER;
+            }
+          }
       return data.buffer;
     }
 
@@ -2937,7 +3444,8 @@ function VOXEL_CORE() {
     const climateAt = (x, z) => {
       const t = terrainInfo(x, z);
       // air: on the climate ladder (0.8232) the level's own warmth or cold in degrees (CLIMATE_LADDER), else null
-      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), red: t.fRed || 0, h: t.h, air: t.air };   // red: the sandstorm's colour (0.825)
+      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), red: t.fRed || 0, h: t.h, air: t.air,   // red: the sandstorm's colour (0.825)
+               inland: Math.max(t.rT || 0, t.lk || 0) > 0.3 };   // a river or a lake, not the sea (0.8351, the ice)
     };
     return { genChunk, heightAt, biomeAt, climateAt, climAt };
   }
@@ -2966,8 +3474,8 @@ function VOXEL_CORE() {
   //          dir:      +Y        -Y        +X        -X        +Z        -Z
   const DIR_FACE  = [    2,        3,        0,        1,        4,        5   ]; // faces[] index
   const DIR_SHADE = [   255,      140,      178,      178,      216,      216  ]; // baked light
-  const mask = new Int32Array(16 * 200);      // reused across sweeps (max plane size)
-  const maskL = new Uint16Array(16 * 200);    // parallel mask of per-face block-light level (with its colour bit, 0.834)
+  const mask = new Int32Array(16 * CY);      // reused across sweeps (max plane size)
+  const maskL = new Uint16Array(16 * CY);    // parallel mask of per-face block-light level (with its colour bit, 0.834)
   /* Light COLOUR (0.834): a packed light is block light (bits 0-3) | sky light (4-7) | LIGHT_COLD (bit 8), set where the
      brightest block light reaching the cell is a cold one (crystal torch, glowcrystal block, glow vine). The shader (04)
      tints that light blue. Two lights joined per nibble keep the colour of the brighter block light. */
@@ -3005,7 +3513,7 @@ function VOXEL_CORE() {
   }
   function lodDownsample(data, light) {
     const out = new Uint32Array(data.length), lout = new Uint16Array(light.length);
-    for (let y0 = 0; y0 < 200; y0 += 2)
+    for (let y0 = 0; y0 < CY; y0 += 2)
       for (let z0 = 0; z0 < 16; z0 += 2)
         for (let x0 = 0; x0 < 16; x0 += 2) {
           let best = 0, rank = 0, glo = 0, sky = 0, cold = 0;
@@ -3030,10 +3538,10 @@ function VOXEL_CORE() {
         }
     return [out, lout];
   }
-  // a neighbour's border light (16 x 200, [i + y*16]) evened out in 2x2 groups to match
+  // a neighbour's border light (16 x CY, [i + y*16]) evened out in 2x2 groups to match
   function lodEdgeLight(s) {
     const o = new Uint16Array(s.length);
-    for (let y = 0; y < 200; y += 2)
+    for (let y = 0; y < CY; y += 2)
       for (let i = 0; i < 16; i += 2) {
         let glo = 0, sky = 0, cold = 0;
         for (const k of [i + y * 16, i + 1 + y * 16, i + (y + 1) * 16, i + 1 + (y + 1) * 16]) {
@@ -3081,7 +3589,7 @@ function VOXEL_CORE() {
     // neighbour-aware voxel read (y out of world: below = stone so bottom faces cull, above = air)
     function gb(x, y, z) {
       if (y < 0) return B.STONE;
-      if (y > 199) return 0;
+      if (y > CY - 1) return 0;
       if (x < 0)  return sxn[z + y * 16];
       if (x > 15) return sxp[z + y * 16];
       if (z < 0)  return szn[x + y * 16];
@@ -3091,7 +3599,7 @@ function VOXEL_CORE() {
     // neighbour-aware light read (a face's light = light of the transparent cell it faces).
     // Byte is PACKED: low nibble = block light (glow), high nibble = sky light; bit 8 its colour (LIGHT_COLD, 0.834).
     function gl(x, y, z) {
-      if (y > 199) return 0xF0;               // open sky above the world
+      if (y > CY - 1) return 0xF0;               // open sky above the world
       if (y < 0) return 0;
       if (x < 0)  return lxn[z + y * 16];
       if (x > 15) return lxp[z + y * 16];
@@ -3101,7 +3609,7 @@ function VOXEL_CORE() {
     }
     // the sky light a cell really has, not evened out (the dark-cave test of a far chunk, 0.8092)
     function skyReal(x, y, z) {
-      if (y > 199) return 15;
+      if (y > CY - 1) return 15;
       if (y < 0) return 0;
       const v = x < 0 ? L0.lxn[z + y * 16] : x > 15 ? L0.lxp[z + y * 16] : z < 0 ? L0.lzn[x + y * 16]
               : z > 15 ? L0.lzp[x + y * 16] : L0.light[x + (z << 4) + (y << 8)];
@@ -3110,8 +3618,9 @@ function VOXEL_CORE() {
 
     // one growable buffer set per render pass
     // 0 opaque, 1 cutout (leaves, plants), 2 water, 3 lava, 4 see-through (glass, 0.8263)
-    const passes = [null, null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], index: [], v: 0 }));
-    let minY = 200, maxY = 0;
+    // dark (0.835492): a water surface's depth shade per corner, 0..255; only quadW writes it, padded with 0 to the vertex
+    const passes = [null, null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], dark: [], index: [], v: 0 }));
+    let minY = CY, maxY = 0;
     function pushClim(g, tile, c0, c1, c2, c3) {
       if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
       else g.clim.push(0, 0, 0, 0);
@@ -3150,12 +3659,12 @@ function VOXEL_CORE() {
     const CFG = [
       { d: 1, s: +1, ua: 0, va: 2, us: 16, vs: 16  },   // +Y
       { d: 1, s: -1, ua: 0, va: 2, us: 16, vs: 16  },   // -Y
-      { d: 0, s: +1, ua: 2, va: 1, us: 16, vs: 200 },   // +X
-      { d: 0, s: -1, ua: 2, va: 1, us: 16, vs: 200 },   // -X
-      { d: 2, s: +1, ua: 0, va: 1, us: 16, vs: 200 },   // +Z
-      { d: 2, s: -1, ua: 0, va: 1, us: 16, vs: 200 },   // -Z
+      { d: 0, s: +1, ua: 2, va: 1, us: 16, vs: CY },   // +X
+      { d: 0, s: -1, ua: 2, va: 1, us: 16, vs: CY },   // -X
+      { d: 2, s: +1, ua: 0, va: 1, us: 16, vs: CY },   // +Z
+      { d: 2, s: -1, ua: 0, va: 1, us: 16, vs: CY },   // -Z
     ];
-    const dims = [16, 200, 16];
+    const dims = [16, CY, 16];
     const pos = [0, 0, 0], npos = [0, 0, 0];
 
     // highest non-air layer in this chunk — everything above is open sky with no faces, so the
@@ -3385,7 +3894,7 @@ function VOXEL_CORE() {
           // ...on top of a chimney of walls when one stands on it (0.827)
           if (vid === B.FURNACE && !lod) {
             const k = chimneyHeight(gb, x, y, z);
-            if (y + 1 + k < 200 && !opaqueVal(gb(x, y + 1 + k, z))) emitChimney(x, y + 1 + k, z, FURNACE_T[furnaceRockOf((val >> 8) & 255)]);
+            if (y + 1 + k < CY && !opaqueVal(gb(x, y + 1 + k, z))) emitChimney(x, y + 1 + k, z, FURNACE_T[furnaceRockOf((val >> 8) & 255)]);
           }
           // a far chunk leaves out the small models: pebbles, gourds, salt, vines, the mortar, clusters (0.8092)
           if (lod) { const md = PROPS[vid].model; if (md === 'carpet' || md === 'wall' || md === 'voxel' || md === 'cluster') continue; }
@@ -3511,7 +4020,7 @@ function VOXEL_CORE() {
       quad(1,[x+1,y,z+1],[x,y,z],[x,y+1,z],[x+1,y+1,z+1], [0,0],[1,0],[1,1],[0,1],tile,sh,lite);
       quad(1,[x+1,y+1,z+1],[x,y+1,z],[x,y,z],[x+1,y,z+1], [0,1],[1,1],[1,0],[0,0],tile,sh,lite);
     }
-    for (let y = 1; y < Math.min(199, yCap); y++)
+    for (let y = 1; y < Math.min(CY - 1, yCap); y++)
       for (let z = 0; z < 16; z++)
         for (let x = 0; x < 16; x++) {
           const val = data[x + (z << 4) + (y << 8)];
@@ -3653,13 +4162,71 @@ function VOXEL_CORE() {
         }
 
     // ---- per-block water: level-based top height, no greedy merge ----
-    // variant byte = level: 0 = source (full), 1-7 = flowing ((8-level)/8 height)
+    // variant byte = level: 0 = source (full), 1-7 = flowing ((8-level)/8 height); bits 3-6 a river's way, 7 it runs fast
+    /* Depth shading (0.835491): a surface darkens smoothly with the still water under it, 0.72 x (1 - e^(-depth/6)) of its
+       sky light (about a quarter at 3 deep, half at 7, two thirds by 20), worked out at each CORNER from the cells round it
+       so the colour fades across the surface instead of in squares. A falling sheet (water with air beside it) is no
+       depth: a waterfall and its lip stay light. Depths are kept per column for this mesh. */
+    const WATER_DEPTH_MAX = 20, _wDepth = new Map();
+    const _wDark = (d) => 0.72 * (1 - Math.exp(-d / 6));
+    const _airLike = (v) => { const id = v & 255; return id !== B.WATER && !(P[id] && P[id].opaque); };
+    function _waterDepth(cx2, y, cz2) {
+      const k = cx2 + ',' + y + ',' + cz2;
+      let d = _wDepth.get(k);
+      if (d !== undefined) return d;
+      // a column the mesher cannot see (diagonal to a chunk corner, 0.835493) has no surface to count
+      if ((cx2 < 0 || cx2 > 15) && (cz2 < 0 || cz2 > 15)) d = -1;
+      else if ((gb(cx2, y, cz2) & 255) !== B.WATER || (gb(cx2, y + 1, cz2) & 255) === B.WATER) d = -1;
+      else {
+        d = 0;
+        while (d < WATER_DEPTH_MAX && (gb(cx2, y - 1 - d, cz2) & 255) === B.WATER) {
+          const yy = y - 1 - d;
+          if (_airLike(gb(cx2 + 1, yy, cz2)) || _airLike(gb(cx2 - 1, yy, cz2)) || _airLike(gb(cx2, yy, cz2 + 1)) || _airLike(gb(cx2, yy, cz2 - 1))) { d = Math.min(d, 1); break; }
+          d++;
+        }
+        // the surface cell itself beside air: a fall's lip, as light as the sheet under it
+        if (_airLike(gb(cx2 + 1, y, cz2)) || _airLike(gb(cx2 - 1, y, cz2)) || _airLike(gb(cx2, y, cz2 + 1)) || _airLike(gb(cx2, y, cz2 - 1))) d = Math.min(d, 1);
+      }
+      _wDepth.set(k, d);
+      return d;
+    }
+    /* A fall's lip (0.835491): a surface corner next to a cell the water would spill into (air over no solid ground, at
+       its own height) sinks to LIP_H, so the top rolls down over the edge instead of ending square. Worked out from the
+       four cells round the corner, so every surface sharing it agrees. */
+    const LIP_H = 0.3;
+    /* The mesher sees its neighbours only as the four one-cell strips along its sides (gb), never the cells diagonal to its
+       corners: read there, gb returns some other cell. So (0.835493) a cell off both axes counts as unseen, and a corner
+       on a chunk's corner never sinks at all - the four chunks sharing it each see a different three of its cells, and
+       one sinking it while another did not opened a slit in the water at every chunk corner. */
+    const _seen = (cx2, cz2) => !((cx2 < 0 || cx2 > 15) && (cz2 < 0 || cz2 > 15));
+    const _spillCell = (cx2, y, cz2) => _seen(cx2, cz2) && _airLike(gb(cx2, y, cz2)) && !(P[gb(cx2, y - 1, cz2) & 255] && P[gb(cx2, y - 1, cz2) & 255].opaque);
+    const _lipCorner = (vx, y, vz) => !((vx === 0 || vx === 16) && (vz === 0 || vz === 16)) &&
+      (_spillCell(vx - 1, y, vz - 1) || _spillCell(vx, y, vz - 1) || _spillCell(vx - 1, y, vz) || _spillCell(vx, y, vz));
+    function quadW(pass, c0, c1, c2, c3, u0, u1, u2, u3, tile, s0, s1, s2, s3, l0, l1, l2, l3, d0 = 0, d1 = 0, d2 = 0, d3 = 0) {
+      const g = passes[pass], base = g.v;
+      while (g.dark.length < base) g.dark.push(0);
+      g.dark.push(d0, d1, d2, d3);
+      g.pos.push(c0[0], c0[1], c0[2], c1[0], c1[1], c1[2], c2[0], c2[1], c2[2], c3[0], c3[1], c3[2]);
+      g.uv.push(u0[0], u0[1], u1[0], u1[1], u2[0], u2[1], u3[0], u3[1]);
+      g.tile.push(tile, tile, tile, tile);
+      g.shade.push(s0, s1, s2, s3);
+      g.lite.push(l0, l1, l2, l3);
+      pushClim(g, tile, c0, c1, c2, c3);
+      g.index.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      g.v += 4;
+      const lo = Math.min(c0[1], c1[1], c2[1], c3[1]), hi = Math.max(c0[1], c1[1], c2[1], c3[1]);
+      if (lo < minY) minY = lo;
+      if (hi > maxY) maxY = hi;
+    }
     function emitWater(x, y, z, val) {
       const level = (val >> 8) & 7;
       const frac  = (8 - level) / 9;          // source≈0.889, level7≈0.111
       const x0 = x, x1 = x + 1, y0 = y, z0 = z, z1 = z + 1;
-      // still frames on a calm top, the flow animation on the sides and on anything running (0.8093)
-      const tile = T.WATER, flow = T.WATER_FLOW, topTile = level === 0 ? tile : flow;
+      /* still frames on a calm top, the flow animation on anything running (0.8093). Speeds (0.835491): a river's top
+         runs at the flow speed, a steep stretch's (bit 7) and a lip's faster (WATER_FLOW_FAST), and every side face - a
+         fall, a step - fastest of all (WATER_FALL). */
+      const fdir = (val >> 11) & 15, fastBit = (val >> 15) & 1;
+      const tile = T.WATER, flow = T.WATER_FLOW, fall = T.WATER_FALL, topTile = level === 0 ? tile : flow;
       /* Water light needs two corrections that plain neighbour-sampling gets wrong.
 
          SIDE faces read the light of the cell they face. Against a shore that cell is sand —
@@ -3672,16 +4239,17 @@ function VOXEL_CORE() {
          the water is — so a 40-block ocean lit identically to a puddle. The surface is now
          darkened by how much water sits UNDER it, which is what actually reads as depth. */
       const maxLite = litMax;                 // with the light's colour (0.834)
-      const DEPTH_MAX = 7;                    // past this the surface stops getting darker
-      function topLite() {
-        let d = 0;
-        while (d < DEPTH_MAX && (gb(x, y - 1 - d, z) & 255) === B.WATER) d++;
-        const above = gl(x, y + 1, z);
-        // scale rather than subtract: at night the sky nibble is already low and a flat -7
-        // would clamp every deep surface to pitch black
-        const sky = Math.round(((above >> 4) & 15) * (1 - 0.62 * (d / DEPTH_MAX)));
-        return (sky << 4) | (above & (15 | LIGHT_COLD));
-      }
+      const above = gl(x, y + 1, z);
+      // scale rather than subtract: at night the sky nibble is already low and a flat -7 would clamp every deep surface to pitch black
+      /* 0.835492: the light byte stays one value for the whole face (it is unpacked bit by bit, so blending it between
+         corners drew false glow lines); the depth goes in the face's dark per corner instead (04 VSH_WATER) */
+      const topLite = () => above;
+      // a corner's depth shade 0..255: the mean depth of the surfaces round it (this cell's own if it is the only one)
+      const cornerDark = (vx, vz) => {
+        let s = 0, n = 0;
+        for (const [ax, az] of [[vx - 1, vz - 1], [vx, vz - 1], [vx - 1, vz], [vx, vz]]) { const d = _waterDepth(ax, y, az); if (d >= 0) { s += d; n++; } }
+        return Math.round(_wDark(Math.max(0, n ? s / n : _waterDepth(x, y, z))) * 255);
+      };
       /* A surface source uses topLite() for its whole ring — top quad and all four side quads —
          so the depth shading stays continuous around the waterline instead of the top face
          reading dark over deep water while the side faces beside it read bright. Submerged and
@@ -3691,51 +4259,56 @@ function VOXEL_CORE() {
       const surfLite = (level === 0 && openTop) ? topLite() : null;
       const sideLite = (nx, ny, nz) =>
         surfLite !== null ? surfLite : maxLite(gl(nx, ny, nz), gl(x, y, z));
-      // top: shade 255=source (waves), 240=flowing (no waves)
-      if (openTop)
-        quad(2, [x0,y+frac,z0],[x0,y+frac,z1],[x1,y+frac,z1],[x1,y+frac,z0], [0,0],[0,1],[1,1],[1,0], topTile, level === 0 ? 255 : 240, surfLite !== null ? surfLite : topLite());
+      // the top's four corners [x0z0, x0z1, x1z1, x1z0]: a lip's sink below the full height (only on an open surface)
+      const lip = openTop ? [_lipCorner(x0, y, z0), _lipCorner(x0, y, z1), _lipCorner(x1, y, z1), _lipCorner(x1, y, z0)] : [false, false, false, false];
+      const anyLip = lip[0] || lip[1] || lip[2] || lip[3];
+      const hc = lip.map(l => openTop ? (l ? LIP_H : frac) : 1);
+      if (openTop) {
+        // top: shade 255 = a waving corner, 240 = still (flowing water, and a lip's sunk corners)
+        const sv = hc.map((h, i) => level === 0 && !lip[i] ? 255 : 240);
+        const lt = topLite(), dv = [cornerDark(x0, z0), cornerDark(x0, z1), cornerDark(x1, z1), cornerDark(x1, z0)];
+        let uv = [[0, 0], [0, 1], [1, 1], [1, 0]], tt = topTile;
+        if (fdir >= 1 && fdir <= 8) {
+          /* a river's top (0.83549): variant bits 3-6 hold its way (1-8, an eighth turn each from +x, set by the generator);
+             it wears the flowing texture turned so the art runs downstream, as it runs down a fall's face */
+          const a = (fdir - 1) * Math.PI / 4, fx = Math.cos(a), fz = Math.sin(a);
+          const uvAt = (px, pz) => [0.5 - (px - 0.5) * fz + (pz - 0.5) * fx, 0.5 - ((px - 0.5) * fx + (pz - 0.5) * fz)];
+          uv = [uvAt(0, 0), uvAt(0, 1), uvAt(1, 1), uvAt(1, 0)];
+          tt = fastBit || anyLip ? T.WATER_FLOW_FAST : flow;
+        } else if (anyLip) tt = T.WATER_FLOW_FAST;
+        quadW(2, [x0,y+hc[0],z0],[x0,y+hc[1],z1],[x1,y+hc[2],z1],[x1,y+hc[3],z0], uv[0], uv[1], uv[2], uv[3], tt, sv[0], sv[1], sv[2], sv[3], lt, lt, lt, lt, dv[0], dv[1], dv[2], dv[3]);
+      }
       // bottom: only if below is not water/opaque
       const belowId = gb(x, y - 1, z) & 255;
       if (belowId !== B.WATER && !(P[belowId] && P[belowId].opaque))
         quad(2, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,0],[1,0],[1,1],[0,1], tile, 140, sideLite(x, y - 1, z));
-      // shade 253 marks "waving surface vertex" → only source blocks wave; flowing stays static
-      const topS = level === 0 ? 253 : 0;    // 0 = fall through to base shade below
-      // +X: vertex order [BL,TL,TR,BR] → top=v1,v2
-      const bxpRaw = gb(x + 1, y, z); const bxpId = bxpRaw & 255;
-      if (bxpId !== B.WATER) {
-        if (!(P[bxpId] && P[bxpId].opaque))
-          quadV(2, [x1,y0,z0],[x1,y+frac,z0],[x1,y+frac,z1],[x1,y0,z1], [1,0],[1,frac],[0,frac],[0,0], flow, 178,topS||178,topS||178,178, sideLite(x + 1, y, z));
-      } else { const nf = (8 - ((bxpRaw >> 8) & 7)) / 9;
-        if (frac > nf + 0.01)
-          quadV(2, [x1,y+nf,z0],[x1,y+frac,z0],[x1,y+frac,z1],[x1,y+nf,z1], [1,nf],[1,frac],[0,frac],[0,nf], flow, 178,topS||178,topS||178,178, sideLite(x + 1, y, z));
-      }
-      // -X: vertex order [BL,BR,TR,TL] → top=v2,v3
-      const bxnRaw = gb(x - 1, y, z); const bxnId = bxnRaw & 255;
-      if (bxnId !== B.WATER) {
-        if (!(P[bxnId] && P[bxnId].opaque))
-          quadV(2, [x0,y0,z0],[x0,y0,z1],[x0,y+frac,z1],[x0,y+frac,z0], [0,0],[1,0],[1,frac],[0,frac], flow, 178,178,topS||178,topS||178, sideLite(x - 1, y, z));
-      } else { const nf = (8 - ((bxnRaw >> 8) & 7)) / 9;
-        if (frac > nf + 0.01)
-          quadV(2, [x0,y+nf,z0],[x0,y+nf,z1],[x0,y+frac,z1],[x0,y+frac,z0], [0,nf],[1,nf],[1,frac],[0,frac], flow, 178,178,topS||178,topS||178, sideLite(x - 1, y, z));
-      }
-      // +Z: vertex order [BL,BR,TR,TL] → top=v2,v3
-      const bzpRaw = gb(x, y, z + 1); const bzpId = bzpRaw & 255;
-      if (bzpId !== B.WATER) {
-        if (!(P[bzpId] && P[bzpId].opaque))
-          quadV(2, [x0,y0,z1],[x1,y0,z1],[x1,y+frac,z1],[x0,y+frac,z1], [0,0],[1,0],[1,frac],[0,frac], flow, 216,216,topS||216,topS||216, sideLite(x, y, z + 1));
-      } else { const nf = (8 - ((bzpRaw >> 8) & 7)) / 9;
-        if (frac > nf + 0.01)
-          quadV(2, [x0,y+nf,z1],[x1,y+nf,z1],[x1,y+frac,z1],[x0,y+frac,z1], [0,nf],[1,nf],[1,frac],[0,frac], flow, 216,216,topS||216,topS||216, sideLite(x, y, z + 1));
-      }
-      // -Z: vertex order [BL,TL,TR,BR] → top=v1,v2
-      const bznRaw = gb(x, y, z - 1); const bznId = bznRaw & 255;
-      if (bznId !== B.WATER) {
-        if (!(P[bznId] && P[bznId].opaque))
-          quadV(2, [x0,y0,z0],[x0,y+frac,z0],[x1,y+frac,z0],[x1,y0,z0], [1,0],[1,frac],[0,frac],[0,0], flow, 216,topS||216,topS||216,216, sideLite(x, y, z - 1));
-      } else { const nf = (8 - ((bznRaw >> 8) & 7)) / 9;
-        if (frac > nf + 0.01)
-          quadV(2, [x0,y+nf,z0],[x0,y+frac,z0],[x1,y+frac,z0],[x1,y+nf,z0], [1,nf],[1,frac],[0,frac],[0,nf], flow, 216,topS||216,topS||216,216, sideLite(x, y, z - 1));
-      }
+      /* shade 253 marks "waving surface vertex" → only an open source surface waves; flowing stays static.
+         Steps (0.835481): a cell with water over it stands its full height (1, its side faces up to the cell above's,
+         not stopping short at 8/9 and leaving a slit), and only an open surface waves its sides' top edge. Where a side
+         rises from a lower open surface beside it, its foot waves with that surface (`footS`), so the fall's face stays
+         joined to the water it runs into. A side's top follows the corners (a lip's sunk ones, 0.835491). */
+      const topS = (i) => level === 0 && openTop && !lip[i] ? 253 : 0;    // 0 = fall through to base shade below
+      // how high the water stands in a neighbour cell (1 under more water), and whether its top waves
+      const nH = (raw, nx, nz) => (gb(nx, y + 1, nz) & 255) === B.WATER ? 1 : (8 - ((raw >> 8) & 7)) / 9;
+      const nWave = (raw, nx, nz) => ((raw >> 8) & 7) === 0 && (gb(nx, y + 1, nz) & 255) !== B.WATER ? 253 : 0;
+      /* one side: corners a (bottom-left to top-left) and b in the vertex order the old faces used; ca/cb index hc */
+      const side = (nRaw, nx, nz, ca, cb, P0, P1, ua, ub, base) => {
+        const nId = nRaw & 255;
+        const ha = hc[ca], hb = hc[cb];
+        let fa = 0, fb = 0, footS = 0;
+        if (nId === B.WATER) {
+          const nf = nH(nRaw, nx, nz);
+          if (Math.max(ha, hb) <= nf + 0.01) return;
+          fa = Math.min(nf, ha); fb = Math.min(nf, hb); footS = nWave(nRaw, nx, nz);
+        } else if (P[nId] && P[nId].opaque) return;
+        const lt = sideLite(nx, y, nz);
+        quadV(2, [P0[0], y + fa, P0[1]], [P0[0], y + ha, P0[1]], [P1[0], y + hb, P1[1]], [P1[0], y + fb, P1[1]],
+              [ua, fa], [ua, ha], [ub, hb], [ub, fb], fall, footS || base, topS(ca) || base, topS(cb) || base, footS || base, lt);
+      };
+      side(gb(x + 1, y, z), x + 1, z, 3, 2, [x1, z0], [x1, z1], 1, 0, 178);   // +X
+      side(gb(x - 1, y, z), x - 1, z, 1, 0, [x0, z1], [x0, z0], 1, 0, 178);   // -X
+      side(gb(x, y, z + 1), x, z + 1, 2, 1, [x1, z1], [x0, z1], 1, 0, 216);   // +Z
+      side(gb(x, y, z - 1), x, z - 1, 0, 3, [x0, z0], [x1, z0], 1, 0, 216);   // -Z
     }
     // ---- per-block lava: same as water (pass 3, opaque, slower waves) ----
     function emitLava(x, y, z, val) {
@@ -3801,6 +4374,7 @@ function VOXEL_CORE() {
       shade: new Uint8Array(g.shade),
       lite:  new Uint16Array(g.lite),        // bit 8 the light's colour (0.834)
       clim:  new Int8Array(g.clim),          // the climate colour, -127 cold .. 127 warm (0.8231)
+      dark:  g.dark.length ? (() => { const a = new Uint8Array(g.v); a.set(g.dark.slice(0, g.v)); return a; })() : null,   // 0.835492
       index: new Uint32Array(g.index),
     }));
     return { passes: out, minY: Math.min(minY, maxY), maxY: Math.max(maxY, 2) };
@@ -3832,7 +4406,7 @@ function WORKER_MAIN() {
         const r = CORE.meshChunk(m.data, m.sxn, m.sxp, m.szn, m.szp, m.light, m.lxn, m.lxp, m.lzn, m.lzp, m.layers, m.lod | 0,
                                  m.cx * 16, m.cz * 16);   // lod 0.8092; world origin for per-place sizes (0.819)
         const transfers = [];
-        for (const p of r.passes) if (p) transfers.push(p.pos.buffer, p.uv.buffer, p.tile.buffer, p.shade.buffer, p.lite.buffer, p.clim.buffer, p.index.buffer);
+        for (const p of r.passes) if (p) { transfers.push(p.pos.buffer, p.uv.buffer, p.tile.buffer, p.shade.buffer, p.lite.buffer, p.clim.buffer, p.index.buffer); if (p.dark) transfers.push(p.dark.buffer); }
         self.postMessage({ type: 'mesh', cx: m.cx, cz: m.cz, rev: m.rev, passes: r.passes, minY: r.minY, maxY: r.maxY }, transfers);
       }
     } catch (err) {
@@ -4235,7 +4809,7 @@ function mineDropAllowed(heldId, blockId) {
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
   shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
-  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK, B.ICE, B.BONE_BLOCK,   // ice 0.8321; bone 0.833
+  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK, B.ICE, B.BONE_BLOCK, B.PACKED_ICE,   // ice 0.8321; bone 0.833; packed 0.835
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,

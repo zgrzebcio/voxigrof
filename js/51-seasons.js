@@ -385,7 +385,7 @@ const _WXG_SAND = new Set([B.SAND, B.RED_SAND, B.PINK_SAND]);
 let _wxgT = 0;
 // the top cell of a column near height y0, if open to the sky: its y, else null
 function _openTop(x, z, y0) {
-  for (let y = Math.min(198, y0 + 24), lo = Math.max(1, y0 - 24); y >= lo; y--) {
+  for (let y = Math.min(WORLD_TOP - 1, y0 + 24), lo = Math.max(1, y0 - 24); y >= lo; y--) {
     if (!getBlock(x, y, z)) continue;
     return getSkyWorld(x, y + 1, z) >= 15 ? y : null;
   }
@@ -393,7 +393,7 @@ function _openTop(x, z, y0) {
 }
 function _laySnow(x, y, z, v, ids, max) {
   if (ids) { if (ids.length < Math.min(max, LAYER_MAX - 1)) setLayerStack(x, y, z, [...ids, B.SNOW]); return; }
-  if (y >= 198 || !CORE.solidVal(v) || CORE.shapeOfVal(v) || !PROPS[v & 255]?.opaque) return;   // whole, solid, opaque tops only
+  if (y >= WORLD_TOP - 1 || !CORE.solidVal(v) || CORE.shapeOfVal(v) || !PROPS[v & 255]?.opaque) return;   // whole, solid, opaque tops only
   if (!getBlock(x, y + 1, z)) setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1));
 }
 function _laySalt(x, y, z, v, ids) {
@@ -462,11 +462,11 @@ function _snowlineChunk(c) {
   const line0 = snowlineY(wx0 + 8, wz0 + 8) - 4;              // nothing in this chunk can be near it: skip fast
   for (let col = c._snowCol || 0; col < 256; col++) {
     const lx = col & 15, lz = col >> 4, li = lx + (lz << 4);
-    let y = 199;
+    let y = WORLD_TOP;
     while (y > line0 && !data[li + (y << 8)]) y--;
     if (y <= line0) continue;
     const top = data[li + (y << 8)], x = wx0 + lx, z = wz0 + lz, line = snowlineY(x, z);
-    if (y < line || y >= 199) continue;
+    if (y < line || y >= WORLD_TOP) continue;
     // on bare, solid, open ground only: not on leaves, snow already there, sand, or a plant
     const tid = top & 255;
     if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || tid === B.PINK_SAND) continue;
@@ -506,7 +506,7 @@ function seasonDressChunk(c) {
   // the snowline, as _snowlineChunk lays it, and the grass under it snowy
   for (let col = 0; col < 256; col++) {
     const li = (col & 15) + ((col >> 4) << 4), x = wx0 + (col & 15), z = wz0 + (col >> 4), line = snowlineY(x, z);
-    let y = 198;
+    let y = WORLD_TOP - 1;
     while (y > line && !data[li + (y << 8)]) y--;
     if (y < line) continue;
     const top = data[li + (y << 8)], tid = top & 255;
@@ -766,7 +766,7 @@ function _shroomAutumn(c) {
     if (Math.random() >= SHROOM_AUTUMN_CHANCE || _seasonOps >= SEASON_OPS_PER_FRAME) continue;
     const lx = (Math.random() * 16) | 0, lz = (Math.random() * 16) | 0;
     // down from the sky past air and the canopy to the first ground
-    for (let y = 198; y > 1; y--) {
+    for (let y = WORLD_TOP - 1; y > 1; y--) {
       const i = lx + (lz << 4) + (y << 8), id = c.data[i] & 255;
       if (id === B.AIR || !CORE.solidVal(c.data[i]) || PROPS[id]?.type === 'wood' || id === B.LEAVES
           || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES) continue;
@@ -817,7 +817,7 @@ const _caneLife = () => (CANE_STEP_LIFE + Math.random() * CANE_STEP_JITTER) * _d
 function queueCaneGrow(x, y, z) { caneGrow.set(x + ',' + y + ',' + z, _caneLife()); }
 // can this grown cane put a shoot on top: the column's top, under CANE_MAX_H, air above, water beside its foot
 function _caneCanRise(x, y, z) {
-  if (y + 1 >= 199 || (getBlock(x, y + 1, z) & 255) !== B.AIR) return false;
+  if (y + 1 >= WORLD_TOP || (getBlock(x, y + 1, z) & 255) !== B.AIR) return false;
   let foot = y;
   while (foot > 1 && (getBlock(x, foot - 1, z) & 255) === B.SUGAR_CANE) foot--;
   if (y - foot + 1 >= CANE_MAX_H) return false;
@@ -881,7 +881,7 @@ const _iceKey = (x, y, z) => x + ',' + y + ',' + z;
 let _ibCx = 1e9, _ibCz = 1e9, _ibData = null;
 const _iceBlkReset = () => { _ibCx = _ibCz = 1e9; _ibData = null; };
 function _iceBlk(x, y, z) {
-  if (y < 0 || y > 199) return 0;
+  if (y < 0 || y > WORLD_TOP) return 0;
   const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
   if (cx !== _ibCx || cz !== _ibCz) { const c = getChunk(cx, cz); _ibCx = cx; _ibCz = cz; _ibData = c && c.data; }
   return _ibData ? _ibData[(x & 15) + ((z & 15) << 4) + (y << 8)] : 0;
@@ -942,26 +942,57 @@ function updateIceMelt(dt) {
   }
   _iceHeld.clear();
 }
-// a column's kind for ice, read once per 8x8 blocks and kept: 1 a snow biome, 2 a desert, 0 the rest
-const _iceKinds = new Map();
-function _iceKindAt(x, z) {
-  const k = (x >> 3) + ',' + (z >> 3);
+/* A column's kind for ice: 1 the snow's land, lakes, rivers and shallows, 3 the snow's open sea, 2 a desert, 0 the rest.
+   By the CLIMATE since 0.8351, not the biome's name: the water of the snow is named River, Lake, Ocean or Ice Spikes,
+   so it never froze. ICE_SNOW_FROM reaches a little past the snow's edge.
+   Smooth since 0.8352: one climate per 8x8 blocks made the ice end in straight lines along that grid. The climate is
+   now read at the corners of the 8-block lattice (kept in _iceKinds) and eased between them for each column, the edge
+   itself wanders by ICE_EDGE_WOBBLE on a smooth noise, and sea or shallows is the column's own water depth. */
+const ICE_SNOW_FROM = 0.3, ICE_EDGE_WOBBLE = 0.12, ICE_SEA_DEPTH = 4;
+const _iceKinds = new Map();                 // "gx,gz" of a lattice corner -> [snow, hot, inland 0/1]
+function _iceLat(gx, gz) {
+  const k = gx + ',' + gz;
   let v = _iceKinds.get(k);
   if (v === undefined) {
-    const b = typeof mainGen !== 'undefined' && mainGen ? mainGen.biomeAt((x & ~7) + 4, (z & ~7) + 4) : '';
-    v = /Snow/.test(b) ? 1 : /Desert|Red Sand/.test(b) ? 2 : 0;
+    const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climateAt ? mainGen.climateAt(gx * 8, gz * 8) : null;
+    v = c ? [c.snow || 0, c.hot || 0, c.inland ? 1 : 0] : [0, 0, 0];
     if (_iceKinds.size > 65536) _iceKinds.clear();
     _iceKinds.set(k, v);
   }
   return v;
 }
-// should open water at (x, y, z) be ice now? a snow biome's always; elsewhere but a desert, a share more each day of
-// winter's first third
+// a smooth value noise in 0..1 on a `cell`-block lattice (the sea's holes, the ice's edge)
+function _iceNoise(x, z, cell, salt) {
+  const gx = Math.floor(x / cell), gz = Math.floor(z / cell), fx = x / cell - gx, fz = z / cell - gz;
+  const h = (a, b) => sHash(a, 0, b, salt);
+  return (h(gx, gz) * (1 - fx) + h(gx + 1, gz) * fx) * (1 - fz) + (h(gx, gz + 1) * (1 - fx) + h(gx + 1, gz + 1) * fx) * fz;
+}
+// `depth`: how deep the water is under this column's top (4 = deep enough to be the open sea)
+function _iceKindAt(x, z, depth = 1) {
+  const gx = Math.floor(x / 8), gz = Math.floor(z / 8), fx = (x - gx * 8) / 8, fz = (z - gz * 8) / 8;
+  const a = _iceLat(gx, gz), b = _iceLat(gx + 1, gz), c = _iceLat(gx, gz + 1), d = _iceLat(gx + 1, gz + 1);
+  const mix = (k) => (a[k] * (1 - fx) + b[k] * fx) * (1 - fz) + (c[k] * (1 - fx) + d[k] * fx) * fz;
+  if (mix(1) > 0.5) return 2;
+  if (mix(0) <= ICE_SNOW_FROM + (_iceNoise(x, z, 7, 78) - 0.5) * ICE_EDGE_WOBBLE) return 0;
+  return depth >= ICE_SEA_DEPTH && mix(2) < 0.5 ? 3 : 1;
+}
+// how deep the water is from cell index i down (the top cell counts: it is water, or ice that was), up to ICE_SEA_DEPTH
+function _iceDepth(data, i) {
+  let n = 1;
+  for (let j = i - 256; n < ICE_SEA_DEPTH && j >= 0 && (data[j] & 255) === B.WATER; j -= 256) n++;
+  return n;
+}
+/* The snow's sea is ice with open water in it (0.8351): ICE_HOLES of it left open, in blobs of a few blocks — a smooth
+   value noise on an ICE_HOLE_CELL lattice — where a seal could come up, and where the polar bears hunt. */
+const ICE_HOLES = 0.28, ICE_HOLE_CELL = 5;
+const _iceHole = (x, z) => _iceNoise(x, z, ICE_HOLE_CELL, 77) < ICE_HOLES;
+// should open water at (x, y, z) be ice now? the snow's always (its sea bar the holes); elsewhere but a desert, a share
+// more each day of winter's first third
 const _iceFreezes = (x, y, z, kind, d, season) =>
-  kind === 1 || (kind === 0 && season === 3 && sHash(x, y, z, 40 + d.year * 16) < d.progress * 3);
+  kind === 1 || (kind === 3 && !_iceHole(x, z)) || (kind === 0 && season === 3 && sHash(x, y, z, 40 + d.year * 16) < d.progress * 3);
 // the top non-air cell of a chunk column (open sky above it), as its data index, or -1
 function _iceTop(data, li) {
-  let y = 198;
+  let y = WORLD_TOP - 1;
   while (y > 1 && !data[li + (y << 8)]) y--;
   return y > 1 ? li + (y << 8) : -1;
 }
@@ -972,13 +1003,21 @@ function iceDressChunk(c) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
   const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16, heat = _heatAround(c.cx, c.cz);
+  let edges = 0;                                                  // which borders it froze along: -X 1, +X 2, -Z 4, +Z 8
   for (let col = 0; col < 256; col++) {
     const lx = col & 15, lz = col >> 4, i = _iceTop(data, lx + (lz << 4));
     if (i < 0 || (data[i] & 255) !== B.WATER) continue;
     const x = wx0 + lx, z = wz0 + lz, y = i >> 8;
-    if (!_iceFreezes(x, y, z, _iceKindAt(x, z), d, season) || (heat && iceHeatNear(x, y, z))) continue;
+    if (!_iceFreezes(x, y, z, _iceKindAt(x, z, _iceDepth(data, i)), d, season) || (heat && iceHeatNear(x, y, z))) continue;
     data[i] = B.ICE | (ICE_FROM_WATER << 8);                     // ice that was water (0.833)
+    edges |= (lx === 0 ? 1 : 0) | (lx === 15 ? 2 : 0) | (lz === 0 ? 4 : 0) | (lz === 15 ? 8 : 0);
   }
+  /* A neighbour that meshed while this chunk was still water drew its ice's sides against that water, and kept them once
+     it froze: a line of see-through faces along every chunk border on a frozen sea (0.8352). It meshes again. */
+  if (edges & 1) markDirty(getChunk(c.cx - 1, c.cz));
+  if (edges & 2) markDirty(getChunk(c.cx + 1, c.cz));
+  if (edges & 4) markDirty(getChunk(c.cx, c.cz - 1));
+  if (edges & 8) markDirty(getChunk(c.cx, c.cz + 1));
 }
 function _iceChunk(c) {
   const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
@@ -989,7 +1028,7 @@ function _iceChunk(c) {
     if (i < 0) continue;
     const id = data[i] & 255;
     if (id !== B.WATER && id !== B.ICE) continue;
-    const x = wx0 + lx, z = wz0 + lz, y = i >> 8, kind = _iceKindAt(x, z);
+    const x = wx0 + lx, z = wz0 + lz, y = i >> 8, kind = _iceKindAt(x, z, _iceDepth(data, i));
     if (id === B.WATER) {
       if (!_iceFreezes(x, y, z, kind, d, season) || (heat && iceHeatNear(x, y, z))) continue;
       if (_seasonOps >= SEASON_OPS_PER_FRAME) return;
@@ -997,7 +1036,7 @@ function _iceChunk(c) {
       _iceSetting = true; setBlock(x, y, z, B.ICE | (ICE_FROM_WATER << 8)); _iceSetting = false;   // from water (0.833)
     } else if (heat && iceHeatNear(x, y, z)) {
       _queueIce(x, y, z);                                          // heat beside it from before a reload: it melts
-    } else if (kind !== 1 && season !== 3 && day && ((data[i] >> 8) & 255) === ICE_FROM_WATER) {   // only ice that was water (0.833)
+    } else if (kind !== 1 && kind !== 3 && season !== 3 && day && ((data[i] >> 8) & 255) === ICE_FROM_WATER) {   // only ice that was water (0.833); the snow's sea ice stays (0.8351)
       // out of winter, by day: seasonal ice melts, a share more each day of spring's first third (at once later on)
       if (season === 0 && sHash(x, y, z, 41 + d.year * 16) >= d.progress * 3) continue;
       if (_seasonOps >= SEASON_OPS_PER_FRAME) return;

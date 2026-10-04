@@ -47,6 +47,8 @@ const LOOT = {
   fish:        [[1, 1]],                                  // always exactly one
   leather:     [[1, 0.7], [1, 0.4]],                      // cow, horse
   fat:         [[1, 0.5], [1, 0.15]],
+  bearLeather: [[1, 1], [1, 0.6], [1, 0.3]],              // a polar bear's thick hide, 1-3 (0.835)
+  bearFat:     [[1, 1], [1, 0.8], [1, 0.5], [1, 0.2]],    // ...and all that fat, 1-4
   woolString:  [[1, 0.7], [1, 0.2]],                      // a woolly sheep killed
   shearWool:   [[1, 1], [1, 0.6], [1, 0.25]],             // shearing
   // monsters

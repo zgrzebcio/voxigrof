@@ -408,7 +408,7 @@ const FX = {
 let _fxCx = 1e9, _fxCz = 1e9, _fxData = null;
 const _fxBlockReset = () => { _fxCx = _fxCz = 1e9; _fxData = null; };
 function _fxBlock(x, y, z) {
-  if (y < 0 || y > 199) return 0;
+  if (y < 0 || y > WORLD_TOP) return 0;
   const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
   if (cx !== _fxCx || cz !== _fxCz) { const c = getChunk(cx, cz); _fxCx = cx; _fxCz = cz; _fxData = c && c.data; }
   return _fxData ? _fxData[(x & 15) + ((z & 15) << 4) + (y << 8)] : 0;
@@ -721,8 +721,9 @@ const FX_FEET = {
   boot:  { cell: FXS.BOOT, w: 0.17, l: 0.3,  spread: 0.12, stride: 0.75 },
   hoof:  { cell: FXS.HOOF, w: 0.22, l: 0.17, spread: 0.17, stride: 0.62 },
   small: { cell: FXS.HOOF, w: 0.14, l: 0.11, spread: 0.1,  stride: 0.45 },
+  paw:   { cell: FXS.HOOF, w: 0.27, l: 0.25, spread: 0.24, stride: 0.85 },   // a polar bear's big round prints (0.835)
 };
-const FX_FOOT_OF = { cow: 'hoof', horse: 'hoof', sheep: 'small', pig: 'small' };   // everything else walks in boots
+const FX_FOOT_OF = { cow: 'hoof', horse: 'hoof', sheep: 'small', pig: 'small', polar_bear: 'paw' };   // everything else walks in boots
 // the grounds that take a print: [r, g, b, alpha] of the print on it
 const FX_SOFT = {
   [B.SAND]: [0.6, 0.5, 0.34, 0.42], [B.RED_SAND]: [0.52, 0.26, 0.15, 0.42], [B.PINK_SAND]: [0.62, 0.42, 0.42, 0.42], [B.SNOW]: [0.6, 0.67, 0.8, 0.55],

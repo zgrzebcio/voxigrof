@@ -506,6 +506,67 @@ function buildPig(bodyHex = PIG_COATS.pink.body, spotHex = PIG_COATS.pink.spot) 
   return { root, head, body, ears: [earL, earR], legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
 }
 
+/* ================================ polar bear (0.835) ================================
+   The first animal that hunts you. It walks the grazer's legs (_updateGrazer) but never flees: anyone in survival
+   within POLAR_BEAR_SEES is chased at a sprint and bitten, and a hit only makes it angrier. Long and low, the head
+   carried forward on a long neck. It lives on the shores of the snow and in the Ice Spikes, in groups of 2-5.
+   Sheet textures/Entity/polar_bear.png, 128x128, regions in 64-space units painted at 2x:
+     body 11w x 10h x 20d at (0, 0)    neck 6x6x6 at (0, 31)    skull 7x7x6 at (25, 31)    snout 4x3x4 at (0, 44)
+     leg  5w x 8h x 5d    at (17, 44)  ear  2x2x1 at (38, 44)   tail  3x3x2 at (45, 44)                           */
+const POLAR_BEAR_HP = 250;
+const POLAR_BEAR_SPEED = 1.2;            // a quarter slower since 0.8351 (1.6)
+const POLAR_BEAR_CHASE_SPEED = 6.7;      // three quarters of a sprinting player (5.6 x 1.6, 22-main-loop.js; 8.9 in 0.835)
+const POLAR_BEAR_DMG = 40, POLAR_BEAR_ATTACK_CD = 1.2;
+const POLAR_BEAR_SEES = 16;              // a player this near is hunted (24 in 0.835)
+const POLAR_BEAR_GIVES_UP = 30;          // ...and let go past this, hit or not, to walk back to where it was (0.8351)
+const POLAR_BEAR_AGGRO_TIME = 20;        // seconds a hit keeps it on you from further than it sees, up to POLAR_BEAR_GIVES_UP
+const POLAR_BEAR_SCALE = 1.15;           // a bear is bigger than the box units it is built from
+const _polarBearTex = _nearestTex('textures/Entity/polar_bear.png');
+function _bearLeg(mat) {
+  const g = new THREE.Group();
+  const m = _part(mat, 5, 8, 5, 17, 44);
+  m.position.y = -4 * PX;                       // pivots at the hip
+  g.add(m);
+  return g;
+}
+function buildPolarBear() {
+  const root = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ map: _polarBearTex, transparent: true, alphaTest: 0.5 });
+  const body = _part(mat, 11, 10, 20, 0, 0);
+  body.position.set(0, 12 * PX, 0);              // its belly a unit down over the tops of the legs
+  // the head rides a pivot at the front of the shoulders: neck, skull, snout and ears dip and lunge together
+  const head = new THREE.Group();
+  head.position.set(0, 13 * PX, 9 * PX);
+  const neck = _part(mat, 6, 6, 6, 0, 31);   neck.position.set(0, 0, 3 * PX);
+  const skull = _part(mat, 7, 7, 6, 25, 31); skull.position.set(0, -0.5 * PX, 8 * PX);
+  const snout = _part(mat, 4, 3, 4, 0, 44);  snout.position.set(0, -2 * PX, 13 * PX);
+  const earL = _part(mat, 2, 2, 1, 38, 44);  earL.position.set( 2.5 * PX, 3.5 * PX, 7 * PX);
+  const earR = _part(mat, 2, 2, 1, 38, 44);  earR.position.set(-2.5 * PX, 3.5 * PX, 7 * PX);
+  head.add(neck, skull, snout, earL, earR);
+  const tail = _part(mat, 3, 3, 2, 45, 44);  tail.position.set(0, 14 * PX, -10.5 * PX);
+  const legFL = _bearLeg(mat); legFL.position.set(-3 * PX, 8 * PX,  7 * PX);
+  const legFR = _bearLeg(mat); legFR.position.set( 3 * PX, 8 * PX,  7 * PX);
+  const legBL = _bearLeg(mat); legBL.position.set(-3 * PX, 8 * PX, -7 * PX);
+  const legBR = _bearLeg(mat); legBR.position.set( 3 * PX, 8 * PX, -7 * PX);
+  root.add(body, head, tail, legFL, legFR, legBL, legBR);
+  return { root, head, body, tail, legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
+}
+/* One blow on a player (0.835, the polar bear's bite): a raised shield facing it stops it, and the player is shoved back
+   less by what their armour resists — the same as a humanoid monster's swing in updateEntities. */
+function _mobStrikePlayer(e, tp, dmg, pdx, pdz, dist) {
+  const blocked = typeof shieldBlock === 'function' && shieldBlock(tp, e.x, e.z, dmg);
+  if (!blocked) {
+    tp.hp -= dmg;                                // out of 100 on both sides since 0.823
+    tp._dmgCause = `was slain by a ${e.name}`;
+  }
+  const m = dist || 1, kick = playerKick(tp);
+  const kbMul = 1 - (typeof playerKnockbackResist === 'function' ? withPlayer(tp, playerKnockbackResist) : 0);
+  const kbShield = blocked ? SHIELD_KNOCK_MUL : 1;
+  kick.x = pdx / m * PLY_KNOCK * kbMul * kbShield;
+  kick.z = pdz / m * PLY_KNOCK * kbMul * kbShield;
+  if (!blocked && !tp.flying && Math.abs(tp.vy) < 0.5) tp.vy = PLY_KNOCK_HOP * kbMul;
+}
+
 /* ================================ fish (0.805) ================================
    Four species living in water: cod < salmon < pike < catfish, by size and health. Passive — a hit
    sends one darting away — and each drops one of its own raw fish. They have a level like every
@@ -1109,7 +1170,7 @@ function spawnHorse(x, y, z, opts = {}) {
 }
 
 // one grazer is a sheep, a cow or a horse: they all run through _updateGrazer, and all bolt when hit
-const isGrazer = (e) => e.kind === 'sheep' || e.kind === 'cow' || e.kind === 'pig' || e.kind === 'horse';
+const isGrazer = (e) => e.kind === 'sheep' || e.kind === 'cow' || e.kind === 'pig' || e.kind === 'horse' || e.kind === 'polar_bear';   // a bear on the same legs, hunting (0.835)
 
 /* ---- zombies (0.715): the first genuinely HOSTILE mob ----
    They are not part of the permanent per-chunk population. A chunk rolls for zombies every time
@@ -1331,6 +1392,31 @@ function spawnPig(x, y, z, opts = {}) {
     inventory: [],
     kind: 'pig',
     name: 'Pig',
+    gender: _rollGender(opts.gender), level: _rollLevel(opts.level),
+  };
+  ENTITIES.push(ent);
+  return ent;
+}
+
+// a polar bear (0.835): a size, a gender and a level rolled like every animal's
+function spawnPolarBear(x, y, z, opts = {}) {
+  const size = _animalSize(opts);
+  const m = buildPolarBear();
+  m.root.scale.setScalar(POLAR_BEAR_SCALE * size);
+  m.root.position.set(x, y, z);
+  scene.add(m.root);
+  const ent = {
+    model: m, x, y, z, vy: 0, yaw: Math.random() * Math.PI * 2,
+    hp: opts.hp != null ? opts.hp : POLAR_BEAR_HP, onGround: false,
+    state: 'wander', wanderT: 0, walk: 0, hurtT: 0,
+    fleeT: 0, jumpCd: 0, kx: 0, kz: 0, hazCd: 0, airT: ENT_AIR_MAX,
+    escapeT: 0, turnCd: 0, flailT: 0, aggroT: 0, atkCd: 0, atkAnimT: 0,
+    size,
+    hx: opts.hx != null ? opts.hx : x,
+    hz: opts.hz != null ? opts.hz : z,
+    inventory: [],
+    kind: 'polar_bear',
+    name: 'Polar bear',
     gender: _rollGender(opts.gender), level: _rollLevel(opts.level),
   };
   ENTITIES.push(ent);
@@ -1590,7 +1676,7 @@ function clearEntities() {
    restores the default afterwards. Everything outside that loop sees the plain humanoid box. */
 /* 0.7442 re-sized with the breed scales: sheep x0.85, cow x1.15, horse x1.2 in HEIGHT only — its
    radius stays 0.45 so an ordinary-sized horse still fits a one-wide gap (0.54 would not). */
-const ENT_BOX = { sheep: [0.345, 1.265], cow: [0.46, 1.72], horse: [0.45, 2.28] };
+const ENT_BOX = { sheep: [0.345, 1.265], cow: [0.46, 1.72], horse: [0.45, 2.28], polar_bear: [0.5, 1.15] };   // polar bear 0.835
 // a fish (0.805): a short squat column round its middle, scaled by its species and its own size
 const entR = (e) => e.kind === 'fish' ? 0.3 * fishLen(e) : (ENT_BOX[e.kind] ? ENT_BOX[e.kind][0] : ENT_R) * (e.size || 1);
 const entH = (e) => e.kind === 'fish' ? 0.42 * fishLen(e) : (ENT_BOX[e.kind] ? ENT_BOX[e.kind][1] : ENT_H) * (e.size || 1);
@@ -1691,7 +1777,7 @@ function _entFallDamage(e, i, wasGround, inWater) {
   return true;
 }
 
-const ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse']);
+const ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse', 'polar_bear']);   // polar bear 0.835
 function _entDropLoot(ent, byPlayer = false) {
   const bx = Math.floor(ent.x), by = Math.floor(ent.y + 0.5), bz = Math.floor(ent.z);
   /* Every count rolls from LOOT (50-loottable.js, 0.806). Butcher (0.79; a chance since 0.806): an animal
@@ -1717,6 +1803,11 @@ function _entDropLoot(ent, byPlayer = false) {
   if (ent.kind === 'pig') {
     first(ITEM.PORK, LOOT.meat);
     pop(ITEM.FAT, rollLoot(LOOT.fat));
+    return;
+  }
+  if (ent.kind === 'polar_bear') {             // a thick hide and a lot of fat (0.835)
+    first(ITEM.LEATHER, LOOT.bearLeather);
+    pop(ITEM.FAT, rollLoot(LOOT.bearFat));
     return;
   }
   if (ent.kind === 'fish') {                   // one of its own, raw (0.805) — always one, no skill adds to it
@@ -1853,6 +1944,7 @@ function damageEntityByMob(ent, dmg, by) {
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;
   if (isFish(ent)) ent.fleeT = FISH_FLEE_TIME;                  // 0.805
+  else if (ent.kind === 'polar_bear') { /* a bear stands its ground (0.835) */ }
   else if (isGrazer(ent)) ent.fleeT = ent.kind === 'cow' ? COW_FLEE_TIME : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
   else if (by && by !== ent && by.hp > 0 &&
            ((_isMonster(ent) && by.kind === 'npc') || (ent.kind === 'npc' && _isMonster(by)))) {
@@ -1883,10 +1975,17 @@ function damageEntity(ent, dmg) {
   ent.flailT = ENT_FLAIL_TIME;                   // limbs thrash on impact even while standing
   // Grazers are passive: they bolt rather than retaliate. So are fish (0.805)
   if (isGrazer(ent) || isFish(ent)) {
-    if (!player.canFly) ent.fleeT = isFish(ent) ? FISH_FLEE_TIME : ent.kind === 'cow' ? COW_FLEE_TIME
+    // a polar bear does not bolt: the hit sets it on you, however far you run (0.835)
+    if (ent.kind === 'polar_bear') {
+      if (!player.canFly) {
+        if (ent.state !== 'chase' && ent.state !== 'return') { ent.retX = ent.x; ent.retZ = ent.z; }   // where it goes back to (0.8351)
+        ent.aggroT = POLAR_BEAR_AGGRO_TIME; ent.state = 'chase';
+      }
+    }
+    else if (!player.canFly) ent.fleeT = isFish(ent) ? FISH_FLEE_TIME : ent.kind === 'cow' ? COW_FLEE_TIME
                                   : ent.kind === 'pig' ? PIG_FLEE_TIME : SHEEP_FLEE_TIME;
     if (ent.hp <= 0) {
-      if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind)); }   // killed by the player
+      if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind.replace('_', ' '))); }   // killed by the player
       const i = ENTITIES.indexOf(ent);
       if (i >= 0) _removeEntity(i);
       return true;
@@ -1900,7 +1999,7 @@ function damageEntity(ent, dmg) {
     ent.state = 'chase';
   }
   if (ent.hp <= 0) {
-    if (!player.canFly) { _entDropLoot(ent); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind)); }
+    if (!player.canFly) { _entDropLoot(ent); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind.replace('_', ' '))); }
     const i = ENTITIES.indexOf(ent);
     if (i >= 0) _removeEntity(i);
     return true;
@@ -2161,6 +2260,17 @@ function restoreEntities(list) {
       if (typeof yaw === 'number') p.yaw = yaw;
       continue;
     }
+    if (kind === 'polar_bear') {               // 0.835
+      const d = (extra && typeof extra === 'object') ? extra : {};
+      const b = spawnPolarBear(x, y, z, {
+        hp: typeof hp === 'number' && hp > 0 ? hp : POLAR_BEAR_HP,
+        size: d.sz, gender: d.g, level: d.lv,
+        hx: typeof hx === 'number' ? hx : x,
+        hz: typeof hz === 'number' ? hz : z,
+      });
+      if (typeof yaw === 'number') b.yaw = yaw;
+      continue;
+    }
     if (kind === 'fish') {                     // 0.805
       const d = (extra && typeof extra === 'object') ? extra : {};
       const fsh = spawnFish(x, y, z, {
@@ -2288,7 +2398,8 @@ function _findChunkSpot(cx, cz, biomes, wet = 0) {
 function _biomeWeight(biomes, name) {
   if (biomes[name] != null) return biomes[name];
   const base = /^Deep (Snow|.*Ocean)/.test(name) ? name : name.replace(/^Deep /, '');
-  return biomes[base] || 0;
+  if (biomes[base] != null) return biomes[base];
+  return biomes[base.replace(/^((?:Birch |Spruce )?Forest|Plains) Hills$/, '$1')] || 0;   // a forest's or the plains' hills (0.835491)
 }
 // open water at about the spot's height within r blocks (a pond, a lake, a river), sampled on a grid
 function _waterNear(x, y, z, r) {
@@ -2318,6 +2429,31 @@ function trySpawnEntitiesInChunk(cx, cz) {
   _rollHerd(cx, cz, 'pig',   PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
   _rollHerd(cx, cz, 'horse', HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
   _rollFish(cx, cz);                                                   // 0.805
+  _rollPolarBears(cx, cz);                                             // 0.835
+}
+/* Polar bears (0.835): 2-5 together, on the shores of the snow and anywhere in the Ice Spikes. The spot must be in the
+   snow's climate (climateAt), and outside the Ice Spikes have water within POLAR_BEAR_SHORE: a beach, a frozen bay.
+   Unlike the grazers' herds they stand on snow, ice or sand, not only on grass. Out on the snow's sea ice too, round
+   its open water (0.8351, 51-seasons.js _iceHole). */
+const POLAR_BEAR_CHUNK_CHANCE = 0.00075, POLAR_BEAR_GROUP_MIN = 2, POLAR_BEAR_GROUP_MAX = 5, POLAR_BEAR_SHORE = 10;   // chance 0.015 before 0.835491: 95% rarer
+const POLAR_BEAR_BIOMES = { 'Ice Spikes': 1, 'Beach': 1, 'Snow': 1, 'Deep Snow': 1, 'Snow Forest': 0.3,
+                            'Cold Ocean': 0.8, 'Ocean': 0.8, 'Deep Cold Ocean': 0.5, 'Deep Ocean': 0.5 };   // the sea ice (0.8351)
+function _rollPolarBears(cx, cz) {
+  if (Math.random() >= POLAR_BEAR_CHUNK_CHANCE) return;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const s = _findChunkSpot(cx, cz, POLAR_BEAR_BIOMES);
+    if (!s) return;
+    const bx = Math.floor(s.x), bz = Math.floor(s.z);
+    if (!((mainGen.climateAt(bx, bz).snow || 0) > 0.5)) continue;
+    if (mainGen.biomeAt(bx, bz) !== 'Ice Spikes' && !_waterNear(bx, s.y - 1, bz, POLAR_BEAR_SHORE)) continue;
+    if (_otherHerdNear(s.x, s.z, 'polar_bear')) return;
+    for (let n = _ri(POLAR_BEAR_GROUP_MIN, POLAR_BEAR_GROUP_MAX); n > 0; n--) {
+      const sx = s.x + (Math.random() * 5 - 2.5), sz = s.z + (Math.random() * 5 - 2.5);
+      const ok = !_entBlocked(sx, s.y, sz) && !_entHazard(sx, s.y, sz) && _entSpawnRoom(sx, s.y, sz);
+      spawnPolarBear(ok ? sx : s.x, s.y, ok ? sz : s.z);
+    }
+    return;
+  }
 }
 /* Fish (0.805): a small school of one species in water at least FISH_MIN_DEPTH deep, somewhere between
    the bed and a block under the surface. A catfish keeps to the bottom, and only where it is deep. */
@@ -2328,7 +2464,7 @@ function _rollFish(cx, cz) {
     const x = cx * 16 + Math.floor(Math.random() * 16), z = cz * 16 + Math.floor(Math.random() * 16);
     const bed = surfaceY(x, z);
     let top = bed;
-    while (top < 199 && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
+    while (top < WORLD_TOP && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
     const depth = top - bed;
     if (depth < FISH_MIN_DEPTH) continue;
     const species = _rollFishSpecies(depth >= 3);
@@ -2481,12 +2617,13 @@ function _separateBodies(dt) {
    after being hit. The fleece half is sheep-only: a shorn sheep periodically tries to eat the
    grass block under it, which converts the grass to dirt and starts the wool growing back,
    animated by scaling the fleece boxes. A cow simply skips that whole section. */
-function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
+function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
   const cow = e.kind === 'cow';
   const horse = e.kind === 'horse';
   const pig = e.kind === 'pig';                 // 0.789
+  const bear = e.kind === 'polar_bear';         // 0.835: the grazer's legs, a hunter's head
   const walkSpeed = horse ? HORSE_WALK_SPEED * horseSpeedStat(e)
-                          : cow ? COW_SPEED : pig ? PIG_SPEED : SHEEP_SPEED;
+                          : bear ? POLAR_BEAR_SPEED : cow ? COW_SPEED : pig ? PIG_SPEED : SHEEP_SPEED;
   const fleeSpeed = (horse ? HORSE_FLEE_SPEED * horseSpeedStat(e)
                            : cow ? COW_FLEE_SPEED : pig ? PIG_FLEE_SPEED : SHEEP_FLEE_SPEED) * FLEE_SPEED_MUL;
   if (e.flailT > 0) e.flailT -= dt;
@@ -2494,6 +2631,24 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
   if (e.fleeT > 0) e.fleeT -= dt;
 
   const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
+
+  /* ---- a polar bear hunts (0.835): a player in survival within POLAR_BEAR_SEES (or who hit it, from up to
+     POLAR_BEAR_GIVES_UP), till they are POLAR_BEAR_GIVES_UP away, dead, or flying in creative. Then it walks back to
+     where the chase began ('return', retX/retZ, 0.8351) and takes up its day there. ---- */
+  const hunting = bear && !!tp && !tp.canFly && !tp.dead;
+  if (bear) {
+    if (e.aggroT > 0) e.aggroT -= dt;
+    if (e.atkAnimT > 0) e.atkAnimT -= dt;
+    const inReach = hunting && Math.abs(tp.pos.y - e.y) < 10
+                 && (distXZ <= POLAR_BEAR_SEES || (e.aggroT > 0 && distXZ <= POLAR_BEAR_GIVES_UP));
+    if (inReach) {
+      if (e.state !== 'chase' && e.state !== 'return') { e.retX = e.x; e.retZ = e.z; }   // where it was
+      e.state = 'chase';
+    } else if (e.state === 'chase' && (!hunting || distXZ > POLAR_BEAR_GIVES_UP)) {
+      e.aggroT = 0;
+      e.state = e.retX != null ? 'return' : 'wander';
+    }
+  }
 
   /* ---- fleece (0.8324): back on its own SHEEP_WOOL_S after shearing, growing all the while; every patch of grass it
      eats takes SHEEP_GRAZE_CUT off. Until 0.8324 it had to eat once and then grew back in 10 s. ---- */
@@ -2550,6 +2705,23 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
         e.vy = ENT_JUMP * 0.9; e.onGround = false; e.jumpCd = 0.5;   // the buck
       }
     }
+  } else if (hunting && e.state === 'chase') {
+    // straight at them at a sprint, swimming too (a polar bear swims well), and a bite in reach (0.835)
+    e.yaw = Math.atan2(pdx, pdz);
+    moveSpeed = POLAR_BEAR_CHASE_SPEED * (inWater ? 0.5 : 1);
+    if (distXZ < entAttackRange(e, tp) && Math.abs(tp.pos.y - e.y) < 2 && e.atkCd <= 0) {
+      e.atkCd = POLAR_BEAR_ATTACK_CD;
+      e.atkAnimT = ENT_ATK_ANIM;                 // the head lunges with the bite
+      moveSpeed = 0;
+      _mobStrikePlayer(e, tp, POLAR_BEAR_DMG, pdx, pdz, distXZ);
+      playSound('hit', { gain: 0.7, rate: 0.75, pos: { x: tp.pos.x, y: tp.pos.y + 1, z: tp.pos.z } });
+    }
+  } else if (bear && e.state === 'return') {
+    // let go: back at a steady walk to where the chase began, then its day goes on from there (0.8351)
+    const rdx = e.retX - e.x, rdz = e.retZ - e.z;
+    e.retT = (e.retT || 0) + dt;                 // a way back it cannot find is given up after a while
+    if (rdx * rdx + rdz * rdz < 4 || e.retT > 45) { e.state = 'idle'; e.wanderT = 2 + Math.random() * 3; e.retX = e.retZ = null; e.retT = 0; }
+    else { e.yaw = Math.atan2(rdx, rdz); moveSpeed = walkSpeed * 1.5; }
   } else if (inWater) {
     e.escapeT -= dt;
     if (e.escapeT <= 0) { e.escapeT = 0.8; e.yaw += 1.2; }
@@ -2581,7 +2753,9 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
   if (moveSpeed > 0 && !stunned) {
     moveSpeed *= boxDragMul(e.x, e.y, e.z, _boxR, _boxH);   // leaves/litter -40%, snow -70%
     const sx = Math.sin(e.yaw) * moveSpeed * dt, sz = Math.cos(e.yaw) * moveSpeed * dt;
-    const bad = (nx, nz) => _entBlocked(nx, e.y, nz) || (!inWater && _entHazard(nx, e.y, nz));
+    // a hunting bear goes where you go: off a bank into the sea, down a drop (0.835)
+    const reckless = hunting && e.state === 'chase';
+    const bad = (nx, nz) => _entBlocked(nx, e.y, nz) || (!inWater && !reckless && _entHazard(nx, e.y, nz));
     let blocked = false;
     if (!bad(e.x + sx, e.z)) { e.x += sx; moved += Math.abs(sx); } else blocked = true;
     if (!bad(e.x, e.z + sz)) { e.z += sz; moved += Math.abs(sz); } else blocked = true;
@@ -2674,11 +2848,14 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i) {
      roughly half the time the dip is EASED on the entity rather than snapped — the sheep's is a
      brief one-off, a cow's would otherwise flick up and down all day. */
   // a pig roots with its snout down, so it idles nose-to-the-ground harder than a cow crops grass
-  const dipTo = horse ? ((e.state === 'idle' && !e.rider && e.fleeT <= 0 && e.onGround) ? 1 : 0)
+  /* a bear (0.835): nose down sniffing when idle, head up on the hunt, and a lunge down and forward with each bite */
+  const dipTo = bear ? (e.atkAnimT > 0 ? 0.7 : e.state === 'chase' ? -0.15 : e.state === 'idle' ? 0.35 : 0.1)
+              : horse ? ((e.state === 'idle' && !e.rider && e.fleeT <= 0 && e.onGround) ? 1 : 0)
               : cow ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.55 : 0)
               : pig ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.75 : 0)
                     : ((e.chewT > 0) ? 0.9 : 0);   // a sheep chewing what it just cropped (0.8324)
-  e.headDip = (e.headDip || 0) + (dipTo - (e.headDip || 0)) * Math.min(1, dt * 3.5);
+  e.headDip = (e.headDip || 0) + (dipTo - (e.headDip || 0)) * Math.min(1, dt * (bear && e.atkAnimT > 0 ? 14 : 3.5));   // a bite snaps
+  if (bear && m.tail) m.tail.rotation.y = Math.sin(e.walk * 0.7) * 0.15;   // 0.835
   if (horse) {
     /* The horse's "head" IS its neck pivot, so the dip swings the whole assembly down to the
        grass from its carried-high resting angle rather than just nodding the skull. */
@@ -2956,7 +3133,7 @@ function updateEntities(dt) {
     if (e.hurtT > 0) e.hurtT -= dt;
     if (e.atkCd > 0) e.atkCd -= dt;
     if (e.jumpCd > 0) e.jumpCd -= dt;
-    if (isGrazer(e)) { _updateGrazer(e, dt, pdx, pdz, distXZ, i); continue; }
+    if (isGrazer(e)) { _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp); continue; }   // tp: whom a bear hunts (0.835)
     if (isFish(e)) { _updateFish(e, dt, tp, i); continue; }   // 0.805
     /* ---- night mobs: claw out of the ground, hunt on sight, burn at dawn ---- */
     if (isNightMob(e)) {

@@ -14,7 +14,7 @@ function chunkLightArr(c) { return c.light || (c.light = new Uint8Array(CHUNK_X 
 const LIGHT_LEVEL_MASK = 31, LIGHT_COLD_BIT = 0x80;
 const lightColdOf = (val) => (PROPS[val & 255]?.coldLight ? LIGHT_COLD_BIT : 0);
 function getLightWorld(x, y, z) {
-  if (y < 0 || y > 199) return 0;
+  if (y < 0 || y > WORLD_TOP) return 0;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.light) return 0;
   /* A light brighter than 15 (the glowcrystal block's 18) reaches further, but every reader works in 0..15: capped
@@ -23,7 +23,7 @@ function getLightWorld(x, y, z) {
 }
 // is the block light at (x, y, z) a cold (blue) one? (0.834)
 function lightColdWorld(x, y, z) {
-  if (y < 0 || y > 199) return false;
+  if (y < 0 || y > WORLD_TOP) return false;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   return !!(c && c.light && (c.light[(x & 15) + ((z & 15) << 4) + (y << 8)] & LIGHT_COLD_BIT));
 }
@@ -110,7 +110,7 @@ function propagateLightMany(srcs) {
       const x = q[h], y = q[h + 1], z = q[h + 2], cb = q[h + 3];
       for (const d of LIGHT_DIRS) {
         const nx = x + d[0], ny = y + d[1], nz = z + d[2];
-        if (ny < 0 || ny > 199) continue;
+        if (ny < 0 || ny > WORLD_TOP) continue;
         const kx = Math.floor(nx / 16), kz = Math.floor(nz / 16);
         if (kx !== ccx || kz !== ccz) {
           ccx = kx; ccz = kz;
@@ -162,7 +162,7 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   }
   let x0 = bx0 - R, x1 = bx1 + R, y0 = by0 - R, y1 = by1 + R, z0 = bz0 - R, z1 = bz1 + R;
   for (const g of near) { x0 = Math.min(x0, g[0]-R); x1 = Math.max(x1, g[0]+R); y0 = Math.min(y0, g[1]-R); y1 = Math.max(y1, g[1]+R); z0 = Math.min(z0, g[2]-R); z1 = Math.max(z1, g[2]+R); }
-  y0 = Math.max(0, y0); y1 = Math.min(199, y1);
+  y0 = Math.max(0, y0); y1 = Math.min(WORLD_TOP, y1);
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(near);                // all of them in one flood (0.8196)
   for (let ccz = Math.floor(z0/16); ccz <= Math.floor(z1/16); ccz++)
@@ -199,7 +199,7 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   let x0=cx-R, x1=cx+R, y0=cy-R, y1=cy+R, z0=cz-R, z1=cz+R;
   if (!skipOld && old) { x0=Math.min(x0,old[0]-R); x1=Math.max(x1,old[0]+R); y0=Math.min(y0,old[1]-R); y1=Math.max(y1,old[1]+R); z0=Math.min(z0,old[2]-R); z1=Math.max(z1,old[2]+R); }
   for (const g of sources) { x0=Math.min(x0,g[0]-R); x1=Math.max(x1,g[0]+R); y0=Math.min(y0,g[1]-R); y1=Math.max(y1,g[1]+R); z0=Math.min(z0,g[2]-R); z1=Math.max(z1,g[2]+R); }
-  y0=Math.max(0,y0); y1=Math.min(199,y1);
+  y0=Math.max(0,y0); y1=Math.min(WORLD_TOP,y1);
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(sources);             // 0.8196
   for (let ccz=Math.floor(z0/16);ccz<=Math.floor(z1/16);ccz++)

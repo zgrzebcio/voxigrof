@@ -51,7 +51,7 @@ function resetWorld(seed, terrainType, biomeRev = 1) {
 
 // scan a column for the highest solid block (used by spawn + void teleport)
 function surfaceY(x, z) {
-  for (let y = 199; y >= 0; y--) {
+  for (let y = WORLD_TOP; y >= 0; y--) {
     const b = getBlock(x, y, z) & 255;
     if (b !== B.AIR && b !== B.WATER && b !== B.LAVA) return y;
   }

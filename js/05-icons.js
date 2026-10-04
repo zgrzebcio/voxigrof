@@ -152,8 +152,8 @@ function renderBlockIcon(id, variant) {
   // 1) mesh one lone block through the real chunk mesher
   const data = new Uint32Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   data[CORE.idx(8, 64, 8)] = (id | (variant << 8)) >>> 0;
-  const empty = () => new Uint32Array(16 * 200).buffer;
-  const lite = () => new Uint16Array(16 * 200).fill(0xF0).buffer;
+  const empty = () => new Uint32Array(16 * CHUNK_Y).buffer;
+  const lite = () => new Uint16Array(16 * CHUNK_Y).fill(0xF0).buffer;
   // icons render fully sky-lit (high nibble 15); if the block itself glows, brighten its own
   // faces too so the icon reads as "lit" (glowstone faces get glow level 15 in the icon mesh)
   const lightArr = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);

@@ -63,7 +63,7 @@ function _boltPath(x0, y0, z0, x1, y1, z1, steps, jag) {
   return pts;
 }
 function _spawnBolt(x, y, z) {
-  const top = Math.min(198, Math.max(y + 40, CLOUD_Y0));
+  const top = Math.min(WORLD_TOP - 1, Math.max(y + 40, CLOUD_Y0));
   const main = _boltPath(x + (Math.random() - 0.5) * 8, top, z + (Math.random() - 0.5) * 8, x, y, z, 14, 2.6);
   const group = new THREE.Group();
   group.add(new THREE.Mesh(_boltGeometry(main, BOLT_W), _boltMat));
@@ -137,7 +137,7 @@ function _updateEntityFire(dt) {
 /* ---------------------------------- a strike ---------------------------------- */
 // the highest thing in a column that lightning would hit (anything but air and small plants), or -1 if not loaded
 function _strikeTop(x, z) {
-  for (let y = 199; y > 0; y--) {
+  for (let y = WORLD_TOP; y > 0; y--) {
     const v = getBlock(x, y, z);
     if (!v || PROPS[v & 255]?.model === 'cross') continue;
     return y;

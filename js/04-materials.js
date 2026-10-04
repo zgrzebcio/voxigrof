@@ -82,7 +82,7 @@ const GLOW_LEVEL = 14;   // glowstone emission (light reaches this many blocks t
    drifts with the wind. How much of it is cloud comes from the weather under it: uCloudWx holds, per weather
    region, the noise level a cell must reach to be cloud (r), how dark the cloud is (g) and its cover (b).
    The same functions draw the clouds (52-clouds.js) and shade the ground beneath them (FSH below). */
-const CLOUD_Y0 = 175, CLOUD_H = 7, CLOUD_N = 256, CLOUD_WX_N = 8;   // 4 tall until 0.816
+const CLOUD_Y0 = 208, CLOUD_H = 7, CLOUD_N = 256, CLOUD_WX_N = 8;   // 4 tall until 0.816; y 208-215 since 0.83542 (175 before 0.83541), over the taller land
 const CLOUD_SHADE = 0.2;     // light a white cloud takes; a dark one takes 75%
 const CLOUD_GLSL = /* glsl */`
   uniform float uCloudOn;
@@ -226,8 +226,29 @@ const FSH = /* glsl */`
     if (abs(vClim) > 0.004) {
       vec4 tt = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 1), 0);
       float k = min(1.0, abs(vClim));
-      if (tt.r > 1.5) tex.rgb *= mix(vec3(1.0), vClim > 0.0 ? uWaterWarm : uWaterCold, k);
+      // water takes it about twice as strongly (0.835491): a cool plain's river is clearly colder, a warm one's cyan
+      if (tt.r > 1.5) tex.rgb *= mix(vec3(1.0), vClim > 0.0 ? uWaterWarm : uWaterCold, min(1.0, abs(vClim) * 1.8));
       else if (tt.r > 0.5) tex = mix(tex, texture(map, vec3(vUv, vClim > 0.0 ? tt.g : tt.b)), k);
+    }
+    /* A river's top (0.835492): ripples run downstream across it. Its UVs are turned so v falls downstream (02 emitWater),
+       so the way downstream in the world is against v's slope over the surface, worked out here from the screen-space
+       derivatives; the ripples' phase runs along that in world units, continuous from one block to the next. */
+    vec2 dpx = dFdx(vWp.xz), dpy = dFdy(vWp.xz);
+    float dvx = dFdx(vUv.y), dvy = dFdy(vUv.y);
+    float rflow = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 1), 0).a;
+    if (rflow > 0.5) {
+      float det = dpx.x * dpy.y - dpx.y * dpy.x;
+      if (abs(det) > 1e-12) {
+        vec2 g = vec2(dvx * dpy.y - dpx.y * dvy, dpx.x * dvy - dvx * dpy.x) / det;
+        if (dot(g, g) > 1e-8) {
+          vec2 f = -normalize(g);
+          float s = dot(vWp.xz, f), across = dot(vWp.xz, vec2(-f.y, f.x));
+          float sp = rflow > 1.5 ? 5.0 : 2.4;
+          float rip = sin(s * 1.5 - uTime * sp + sin(across * 0.6) * 0.9) * 0.6
+                    + sin(s * 2.9 - uTime * sp * 1.6 + across * 0.35) * 0.4;
+          tex.rgb *= 1.0 + 0.12 * rip;
+        }
+      }
     }
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
@@ -276,6 +297,9 @@ const VSH_WATER = /* glsl */`
   uniform mat4 uShadowMat;
   uniform float uTime, uTide, uWaveMul;
   in float clim;
+  /* a surface corner's depth shade, 0..1 (0.835492): it darkens the face through vShade, which blends smoothly across
+     the quad; carried in the light byte (0.835491) it was unpacked bit by bit and blending it drew false glow lines */
+  in float dark;
   out float vClim;
   out vec2 vUv;
   flat out float vTile;
@@ -285,7 +309,7 @@ const VSH_WATER = /* glsl */`
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade; vClim = clim;
+    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Waving surface vertices are marked with shade 253/255 by emitWater; every vertex of one

@@ -517,7 +517,7 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     const id = swap && swap[id0] != null ? swap[id0] : id0;
     if (!PROPS[id]) continue;                       // prefab references a block this build lacks
     const x = ox + dx, y = oy + dy, z = oz + dz;
-    if (y < 1 || y > 198) continue;
+    if (y < 1 || y > WORLD_TOP - 1) continue;
     setBlock(x, y, z, id | ((variant & 255) << 8));
     if (id === B.CHEST) registerChest(x, y, z, variant & 3);
     if (id === B.DOOR && !((variant >> 3) & 1))
@@ -672,6 +672,25 @@ function _blendIntoTerrain(prefab, ox, oy, oz, o = {}) {
         n++;
       }
       for (let d = n; d >= 1; d--) setBlock(x, oy - d, z, d === 1 ? (o.top ?? B.DIRT) : (o.deep ?? B.STONE));
+    }
+}
+
+/* A building set into the snow (0.8351, the igloo): blending carves the hillside out of its box and leaves bare dirt and
+   grass round it, the snow gone. In the snow's climate every column round the footprint, SNOW_BACK_R blocks out, whose
+   ground is dirt or grass gets a snow layer back (the snow hook in setBlock makes the grass under it snowy), and bare
+   dirt turns to that snowy grass first. Cells something else stands in are left alone. */
+const SNOW_BACK_R = 2;
+function _resnowAround(prefab, ox, oz) {
+  const [w, , l] = prefab.size || [1, 1, 1];
+  const c = mainGen && mainGen.climateAt ? mainGen.climateAt(ox + (w >> 1), oz + (l >> 1)) : null;
+  if (!c || !(c.snow > 0.5)) return;
+  for (let z = oz - SNOW_BACK_R; z < oz + l + SNOW_BACK_R; z++)
+    for (let x = ox - SNOW_BACK_R; x < ox + w + SNOW_BACK_R; x++) {
+      const y = structGroundY(x, z), v = getBlock(x, y, z), id = v & 255;
+      if ((id !== B.DIRT && id !== B.GRASS) || CORE.shapeOfVal(v) || y + 1 > WORLD_TOP) continue;
+      if (getBlock(x, y + 1, z) !== B.AIR) continue;            // a plant, a layer already, the building
+      if (id === B.DIRT) setBlock(x, y, z, B.GRASS | (V.GRASS_SNOWY << 8));
+      setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1 + (((x * 7 + z * 13) >>> 0) % 2)));
     }
 }
 
@@ -850,6 +869,9 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
     left -= j.step - before;
     if (j.step >= j.prefab.blocks.length) {
       applyStructureLoot(j.prefab, j.ox, j.oy, j.oz);
+      // ...and the snow it was set into closes back round it (0.8351, the igloo)
+      if (j.blend) _bulkWrite(j.ox - SNOW_BACK_R, j.oz - SNOW_BACK_R, w + 2 * SNOW_BACK_R, l + 2 * SNOW_BACK_R,
+                              () => _resnowAround(j.prefab, j.ox, j.oz));
       PLACE_QUEUE.splice(i--, 1);
     }
   }
@@ -987,6 +1009,7 @@ function _planVillage(g, cx, cz) {
        round it is carved away (from the layer above), lower is pillared up. */
     const door = !well && _prefabDoor(p);
     if (door) y = Math.max(fp.lo, Math.min(fp.hi, _planGround(bx + door.dx, bz + door.dz).y));
+    y += p.lift | 0;                                 // `lift` (0.8351): a prefab set this many blocks higher, its floor on the ground
     const t = { p, x: bx, z: bz, w, h, l, y, well, sunkHouse: !!door };
     taken.push(t);
     return t;
@@ -1223,7 +1246,7 @@ function _layPath(cells, block, from, budget, bridge = false) {
     // a bridge (0.8242): a plank on the water's top cell, level with the surface
     if (bridge) {
       let top = y;
-      while (top < 198 && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
+      while (top < WORLD_TOP - 1 && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
       if (top > y) { setBlock(x, top, z, block); continue; }
       if ((getBlock(x, y + 1, z) & 255) === B.LAVA) continue;    // no plank bridges over lava
     }
@@ -1445,7 +1468,7 @@ function trySpawnStructureInChunk(cx, cz) {
     if (mode === 'air') {
       /* Free-floating: the height band IS the placement, not a filter on the ground. Only the
          volume itself has to be clear, so an island never materialises inside a mountain. */
-      const lo = Math.max(2, Math.min(minY, maxY)), hi = Math.min(197 - h, Math.max(minY, maxY));
+      const lo = Math.max(2, Math.min(minY, maxY)), hi = Math.min(WORLD_TOP - 2 - h, Math.max(minY, maxY));
       if (hi < lo) continue;
       const ay = lo + Math.floor(_structHash(cx, cz, 131) * (hi - lo + 1));
       if (!_volumeClear(ax, ay, az, w, h, l)) continue;
@@ -1490,7 +1513,7 @@ function _volumeSolid(ax, ay, az, w, h, l, margin) {
     for (let dz = -margin; dz < l + margin; dz++)
       for (let dx = -margin; dx < w + margin; dx++) {
         const y = ay + dy;
-        if (y < 2 || y > 198) return false;
+        if (y < 2 || y > WORLD_TOP - 1) return false;
         const id = getBlock(ax + dx, y, az + dz) & 255;
         if (id === B.BEDROCK) return false;
         if (!PROPS[id]?.opaque) return false;              // air, water, lava, cave — all disqualify

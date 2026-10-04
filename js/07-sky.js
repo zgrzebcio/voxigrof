@@ -461,7 +461,7 @@ let _flareRaw = 0;
 // how much of the sun a block hides from here: 1 behind anything solid, a leaf takes a share
 function _sunBlocked(p, d) {
   let x = p.x, y = p.y, z = p.z, leaf = 0;
-  for (let i = 0; i < 128 && y < 200; i++) {
+  for (let i = 0; i < 128 && y < CHUNK_Y; i++) {
     x += d.x * 0.75; y += d.y * 0.75; z += d.z * 0.75;
     const v = getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
     if (!v) continue;

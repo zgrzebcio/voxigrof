@@ -167,7 +167,7 @@ function _hoverEntity() {
    spot. One sprite per player, kept on the player object and moved to whatever that player looks at. */
 /* 0.8324: an animal's size follows its name ("F Cow 1.12x 12 lvl"), and a second, smaller line under it says what
    it has for you: a cow's milk (ready, or how long until it is) and a sheep's wool (ready, or growing back). */
-const _ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse', 'fish']);
+const _ANIMAL_KINDS = new Set(['sheep', 'cow', 'pig', 'horse', 'fish', 'polar_bear']);   // polar bear 0.835
 const entitySizeText = (ent) => (_ANIMAL_KINDS.has(ent.kind) && ent.size > 0) ? ` ${(+ent.size).toFixed(2)}x` : '';
 const _mmss = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 function entitySubText(ent) {

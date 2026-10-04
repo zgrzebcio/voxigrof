@@ -22,6 +22,7 @@ const TEXTURES = {
   clay:             'textures/Blocks/Natures/clay.png',
   snow:             'textures/Blocks/Natures/Winter/snow.png',   // Winter folder since 0.8321
   ice:              'textures/Blocks/Natures/Winter/ice.png',    // 0.8321
+  packed_ice:       'textures/Blocks/Natures/Winter/packed_ice.png',   // 0.835
   // 0.833: ice and snow bricks, the snow-ice brick; the bone block and its brick
   ice_bricks:       'textures/Blocks/Decorations/Winter/ice_bricks.png',
   snow_bricks:      'textures/Blocks/Decorations/Winter/snow_bricks.png',
@@ -261,6 +262,9 @@ for (const k in COMPOSITE_TILES) delete TEXTURES[k];   // built, not fetched
    (03-atlas.js, 04-materials.js). Any tile can be animated by listing it here. */
 Object.assign(TEXTURES, {
   water_flow: 'textures/Blocks/Natures/fluids/water_flow.png',
+  // 0.835491: the same strip played faster, a steep river's top and a fall's face
+  water_flow_fast: 'textures/Blocks/Natures/fluids/water_flow.png',
+  water_fall:      'textures/Blocks/Natures/fluids/water_flow.png',
   lava_flow:  'textures/Blocks/Natures/fluids/lava_flow.png',
   // terracotta's brick look (0.8093; the old clay bricks block is terracotta now)
   terracotta_bricks: 'textures/Blocks/Decorations/Clay/terracotta_bricks.png',
@@ -268,9 +272,11 @@ Object.assign(TEXTURES, {
 // ms per frame: water a quarter of its old speed, lava a tenth (0.8191; 150 and 220 before)
 const ANIMATED_TILES = {
   water:      { frames: 16, ms: 600 },
-  water_flow: { frames: 16, ms: 600 },
+  water_flow: { frames: 16, ms: 600, reverse: true },   // its art runs up the strip: played backwards it falls (0.83549)
+  water_flow_fast: { frames: 16, ms: 200, reverse: true },   // three times as fast (0.835491)
+  water_fall:      { frames: 16, ms: 70, reverse: true },    // a fall's face, about nine times (0.835491)
   lava:       { frames: 16, ms: 2200 },
-  lava_flow:  { frames: 16, ms: 2200 },
+  lava_flow:  { frames: 16, ms: 2200, reverse: true },
 };
 /* ---- glowing parts (0.8094) ----
    A light source's glowing pixels draw at full brightness whatever the light around them. The mask is a
