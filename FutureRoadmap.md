@@ -102,8 +102,8 @@ legends: B = big update, M= medium update, S = small update
 100. S: ~~polar bear aggressive with new ice biomes~~  v0.835
 101. M: ~~update terrain with new hills, cliffs, lakes, rivers, tunnels, holes, shores, mountains, waterfalls, and high to 250~~, v0.835(1-9)
 102. S: ~~rim wood and trees with coldest deep snow~~ v0.836
-103. S: a lot bug fixed with new biome and make forest version, balance with mushroom and animal v0.837
-104. S: winter boss, xx1.15 xp boss boost and quest line news. v0.838
+103. S: ~~a lot bug fixed with new biome and make forest version, balance with mushroom and animal~~ v0.837
+104. S: ~~winter boss, xx1.15 xp boss boost and quest line news~~. v0.838
 105. M: desert biome update with palm tree with new plants. v0.84
 106. S: door shape, metal chest with keys v0.843
 107. S: hellhound spawning in desert obsidian updated, 0.845
