@@ -13,12 +13,13 @@
    An ingredient id may also be an ARRAY of interchangeable ids — a variant group. Any mix of
    them satisfies the requirement (4 oak + 5 birch planks crafts a bench), and the row's icon
    cycles through the group every CRAFT_VARIANT_MS so you can see what else is accepted. */
-const V_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, ];
-const V_LOG    = [B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG];
+const V_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS];   // rime 0.836
+const V_LOG    = [B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG];
 // a hollow log saws into planks like the log it was (0.7843)
 const V_OLOG   = [B.LOG, B.STRIPPED_LOG, B.HOLLOW_LOG];
 const V_BLOG   = [B.BIRCH_LOG, B.STRIPPED_BIRCH_LOG, B.HOLLOW_BIRCH_LOG];
 const V_SLOG   = [B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.HOLLOW_SPRUCE_LOG];
+const V_RLOG   = [B.RIME_LOG, B.STRIPPED_RIME_LOG, B.HOLLOW_RIME_LOG];         // 0.836
 const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE, B.DOLOMITE];   // dolomite 0.809          // anything that takes cobble takes stone too
 const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
 
@@ -187,6 +188,9 @@ RECIPES_ADVANCED.push(
   // the bone block (0.833): ten bones pressed into one, like the storage blocks, and back
   { in: [[ITEM.BONE, 10]],    out: [B.BONE_BLOCK, 1], timeToCraft: 2, xpToGive: 2 },
   { in: [[B.BONE_BLOCK, 1]],  out: [ITEM.BONE, 10],   timeToCraft: 1, xpToGive: 1 },
+  /* rime planks (0.836): appended so saved recipe indices hold; `basic` shows it in the pocket list as well as at the
+     bench, like the other planks */
+  { in: [[V_RLOG, 1]],        out: [B.RIME_PLANKS, 3], timeToCraft: 1.5, xpToGive: 3, basic: true, after: B.SPRUCE_PLANKS },
 );
 // 0.831: every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
 const CRAFT_XP_MUL = 1.25;
@@ -207,12 +211,22 @@ const _isFlintTool = (r) => r.out[0] >= 256 && !!ITEM_PROPS[r.out[0]]?.tool && r
    ground at a mortar and pestle and nowhere else. It stays where it is in RECIPES_ADVANCED, so every
    recipe index a save holds still points at the same recipe; the lists are simply filtered. */
 // ...and since 0.772 a station can take a basic recipe too (sugar): it leaves the pocket list as well
+/* 0.836: a recipe appended to RECIPES_ADVANCED (for its saved index) with `basic` is listed with the basic ones, just
+   after the basic recipe making its `after` (rime planks after spruce planks) */
+const _basicRecipes = () => {
+  const out = RECIPES_BASIC.slice();
+  for (const r of RECIPES_ADVANCED) if (r.basic) {
+    const i = out.findIndex(b => b.out[0] === r.after);
+    out.splice(i >= 0 ? i + 1 : out.length, 0, r);
+  }
+  return out;
+};
 const craftRecipes = () =>
   (craftMode === 'mortar' ? [...RECIPES_BASIC, ...RECIPES_ADVANCED].filter(r => r.station === 'mortar')
    : craftMode === 'advanced'
-    ? [...RECIPES_BASIC.filter(r => !r.station && !_isFlintTool(r)), ...RECIPES_ADVANCED.filter(r => !r.station),
+    ? [..._basicRecipes().filter(r => !r.station && !_isFlintTool(r)), ...RECIPES_ADVANCED.filter(r => !r.station && !r.basic),
        ...RECIPES_BASIC.filter(r => !r.station && _isFlintTool(r))]
-    : RECIPES_BASIC.filter(r => !r.station)).filter(_recipeEnabled);
+    : _basicRecipes().filter(r => !r.station)).filter(_recipeEnabled);
 const idName = (id) => id >= 256 ? ITEM_PROPS[id].name : PROPS[id].name;
 
 // an ingredient entry is either a bare id or a variant group; normalise to a list
@@ -368,6 +382,19 @@ const craftQueue = () => player.craftQueue || (player.craftQueue = []);
 // read by the frame loop: a running queue slows you down and stops sprinting
 const playerIsCrafting = () => !player.canFly && !player.dead
   && !!(player.craftQueue && player.craftQueue.length) && craftSpeed() > 0;
+
+// seconds the whole queue still needs at today's crafting speed (0.83914: the Crafting effect's clock, 54)
+function craftQueueLeft() {
+  const q = player.craftQueue, spd = craftSpeed();
+  if (!q || !q.length || spd <= 0) return 0;
+  let s = 0;
+  for (const e of q) {
+    if (e.rep) { s += Math.max(0, repairTime(e.rep.id) - e.t); continue; }
+    const r = recipeAt(e.ri);
+    if (r) s += Math.max(0, r.timeToCraft * e.units.length - e.t);
+  }
+  return s / spd;
+}
 
 // n: a counted batch (Ctrl), that many at once (0.807)
 function queueCraft(r, all, n = 1) {
@@ -531,9 +558,8 @@ function dropCraftQueueAt(x, y, z) {
       spawnDrop(e.rep.id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
                 ITEM_PROPS[e.rep.id]?.durability ? 0 : null, e.rep.meta);
     for (const u of e.units)
-      for (const [id, c] of u)
-        for (let n = 0; n < c; n++)
-          spawnDrop(id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2);
+      for (const [id, c] of u)                       // one stack each (0.8385)
+        spawnDrop(id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2, null, null, 0, c);
   }
   player.craftQueue = [];
 }
@@ -841,8 +867,9 @@ function interruptBenchWork(needRelease = true) {
 // everything on a bench's order, made and unmade, dropped at that bench
 function _benchSpill(b, x, y, z) {
   const r = recipeAt(b.ri);
-  if (r) for (let n = 0; n < r.out[1] * b.done; n++) spawnDrop(r.out[0], x, y, z);
-  for (const u of b.units) for (const [id, c] of u) for (let n = 0; n < c; n++) spawnDrop(id, x, y, z);
+  // one stack each (0.8385)
+  if (r && b.done > 0) spawnDrop(r.out[0], x, y, z, null, undefined, null, null, 0, r.out[1] * b.done);
+  for (const u of b.units) for (const [id, c] of u) spawnDrop(id, x, y, z, null, undefined, null, null, 0, c);
 }
 function _benchClear(key) {
   const b = BENCHES.get(key);

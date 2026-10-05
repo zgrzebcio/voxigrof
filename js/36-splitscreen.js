@@ -375,7 +375,8 @@ function relayoutSplitScreen() {
        a 1080p screen lands near 0.87 instead of 0.5, and a tall narrow pane (vertical 2-player)
        gets more still, because it genuinely has the room. */
     const s = clampi(Math.min(r.w / HUD_FIT_W, r.h / HUD_FIT_H) * 100, 45, 100) / 100;
-    const pane = st.pane, inner = pane.firstElementChild;
+    // the HUD's scaled wrapper by its class: the camera filter's canvas sits first in the pane (0.8372)
+    const pane = st.pane, inner = pane.querySelector(':scope > .hudScale');
     pane.style.left = r.x + 'px';   pane.style.top    = r.y + 'px';
     pane.style.width = r.w + 'px';  pane.style.height = r.h + 'px';
     inner.style.width  = (r.w / s) + 'px';
@@ -757,6 +758,11 @@ function renderAllViews(dt) {
     // the seat's OWN material, so its stage is the one this viewport shows (0.734)
     if (crackMesh.material !== crackMat) crackMesh.material = crackMat;
     if (cr) { crackMesh.position.set(cr.px, cr.py, cr.pz); crackMesh.scale.set(cr.sx, cr.sy, cr.sz); }
+    // each seat's wand outline (0.8374) shows in its own view only
+    for (let j = 0; j < PSTATE.length; j++) {
+      const wp = PSTATE[j].player, L = wp && wp._wandLines;
+      if (L) L.visible = !menuScene && j === i && !!wp._wandShow;
+    }
     alignSkyTo(camera);                  // the dome is drawn around THIS eye
     applyEyeVolumeFog();                 // water / lava murk for THIS eye, restored per pass
     if (typeof showMiragesFor === 'function') showMiragesFor(st.player);   // heatstroke's mirages: this player's own (0.825)

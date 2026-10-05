@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voxiGrof</title>
+<!-- shared memory for the workers (0.8386): adds the isolation headers GitHub Pages cannot send; first visit reloads once -->
+<script src="coi-sw.js"></script>
 <link rel="stylesheet" href="css/style.css?v=0.8323">
 </head>
 <body>
@@ -16,7 +18,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.835493</div>
+<div id="version">alpha 0.83941</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="interact"></div>
@@ -136,6 +138,22 @@
                title="Months pass, leaves fall, winters stop growth and days grow longer and shorter. Off: it is always 1 July. Fixed at creation.">seasons
           <input id="newSeasonChk" type="checkbox" checked>
         </label>
+        <!-- 0.837: test switches, fixed at creation -->
+        <label class="crow" title="The sun goes down and nights come. Off: it is always noon. Fixed at creation.">day and night
+          <input id="newDayNightChk" type="checkbox" checked>
+        </label>
+        <label class="crow" title="Rain, snow, storms, blizzards, fog and sandstorms. Off: always a clear sky. Fixed at creation.">weather
+          <input id="newWeatherChk" type="checkbox" checked>
+        </label>
+        <label class="crow" title="The cloud layer and its shadows. Fixed at creation.">clouds
+          <input id="newCloudsChk" type="checkbox" checked>
+        </label>
+        <label class="crow" title="Sheep, cows, pigs, horses, fish and polar bears. Fixed at creation.">animals
+          <input id="newAnimalsChk" type="checkbox" checked>
+        </label>
+        <label class="crow" title="Zombies and skeletons at night. Fixed at creation.">monsters
+          <input id="newMonstersChk" type="checkbox" checked>
+        </label>
       </div>
       <div class="seedrow">
         <button id="createBtn">Create World</button>
@@ -232,6 +250,20 @@
           <option value="240">240</option>
         </select>
       </label>
+      <label title="Draws the world at fewer pixels and stretches it to the screen. Lower = faster on a weak graphics card or a hi-DPI / 4K screen, a little softer.">Render scale
+        <select id="scaleSel">
+          <option value="100">100%</option>
+          <option value="85">85%</option>
+          <option value="75">75%</option>
+          <option value="50">50%</option>
+        </select>
+      </label>
+      <label title="Fast draws every leaf block solid, its holes filled with a darker leaf colour: far fewer faces and much faster in forests. Fancy: see-through leaves that sway.">Leaves
+        <select id="leavesSel">
+          <option value="fancy">fancy</option>
+          <option value="fast">fast</option>
+        </select>
+      </label>
       <label title="Texture quality. Low halves the block atlas and turns off anisotropic filtering: faster on phones and weak GPUs. Auto picks for this device.">Texture quality
         <select id="texSel">
           <option value="auto">auto</option>
@@ -325,7 +357,9 @@ window.THREE = THREE;
 <script defer src="js/01-textures-data.js"></script>
 <!-- 0.823: the biomes core loads before the voxel core, whose makeGen calls into it -->
 <script defer src="js/55-biomes.js"></script>
+<script defer src="js/58-blocks.js"></script>   <!-- every block: ids, tiles, properties, shapes (0.8376); before 02, which takes them -->
 <script defer src="js/02-voxel-core.js"></script>
+<script defer src="js/59-items.js"></script>   <!-- every item: ITEM, ITEM_PROPS (0.8377); right after 02, whose B it reads -->
 <script defer src="js/03-atlas.js"></script>
 <script defer src="js/04-materials.js"></script>
 <script defer src="js/05-icons.js"></script>
@@ -375,6 +409,8 @@ window.THREE = THREE;
 <script defer src="js/53-storms.js"></script>
 <script defer src="js/54-stats-effects.js"></script>
 <script defer src="js/56-torches.js"></script>   <!-- torches and glow blocks burning out (0.834) -->
+<script defer src="js/57-camera-filter.js"></script>   <!-- rain, water, snow, lightning and fire on the lens (0.837) -->
+<script defer src="js/60-bosses.js"></script>   <!-- bosses: the Frozen King (0.839) -->
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

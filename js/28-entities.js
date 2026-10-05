@@ -1554,7 +1554,8 @@ function _mobTryPickup(e, baseDmg) {
     if (bonus > 0) e.dmg = baseDmg + bonus;
     setMobHeld(e, d.id);
     playSound('hit', { gain: 0.3, rate: 1.6, pos: { x: e.x, y: e.y + 1, z: e.z } });
-    removeDrop(i);
+    if ((d.count || 1) > 1) _dropSetCount(d, d.count - 1);   // one off a stack (0.8385)
+    else removeDrop(i);
     return;
   }
 }
@@ -1939,6 +1940,7 @@ const _fxEntHurt = (ent, dmg) => {
 };
 function damageEntityByMob(ent, dmg, by) {
   if (!ent || ent.hp <= 0 || ent._killedByMob) return false;
+  if (ent.boss) return false;                    // a boss is the players' fight (0.839)
   ent.hp -= dmg;
   _fxEntHurt(ent, dmg);
   ent.hurtT = 0.25;
@@ -1967,8 +1969,10 @@ function _mobHitsMob(att, foe, dmg, dx, dz, dist) {
 // what an archer aims at when its target is a creature: mobShoot reads a player's pos and eye height
 const _entAimTarget = (f) => ({ pos: { x: f.x, y: f.y, z: f.z }, EYE: 1.62 });
 
-function damageEntity(ent, dmg) {
+// `src` (0.839): where the blow or shot came from, {x, z}, for a boss's shield (60-bosses.js); the player when not given
+function damageEntity(ent, dmg, src = null) {
   if (ent._killedByMob) return false;          // already dead at another creature's hands (0.7912)
+  if (ent.boss && typeof bossTakeHit === 'function') return bossTakeHit(ent, dmg, src);
   ent.hp -= dmg;
   _fxEntHurt(ent, dmg);
   ent.hurtT = 0.25;
@@ -2115,6 +2119,8 @@ function projectileHitEntity(x, y, z) {
   return null;
 }
 function entitySnowballHit(ent, vx, vy, vz) {
+  // a boss's raised shield turns it away (0.839)
+  if (ent.boss && typeof bossDeflects === 'function' && bossDeflects(ent, ent.x - vx, ent.z - vz)) return;
   ent.hurtT = 0.25;                              // the white flash, so the hit reads
   ent.flailT = ENT_FLAIL_TIME;
   const m = Math.hypot(vx, vz) || 1;
@@ -2131,7 +2137,7 @@ function tryAttackEntity(ent) {
   const held = heldUseId();                  // a broken weapon hits like a fist (0.79)
   playSound('hit', { gain: 0.9, rate: 0.95 + Math.random() * 0.1, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
   _atkCooldown = attackCooldownFor(held);
-  const died = damageEntity(ent, attackDamageFor(held));
+  const died = damageEntity(ent, attackDamageFor(held), { x: player.pos.x, z: player.pos.z });
   // a torch swung at a creature sets it alight (0.8192): the same fire lightning starts (53-storms.js)
   if (!died && held === B.TORCH && !player.canFly) {
     if (!(ent.fireT > 0)) playSound('fireIgnite', { gain: 0.8, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
@@ -2169,6 +2175,7 @@ function serializeEntities() {
   const out = [];
   for (const e of ENTITIES) {
     if (isNightMob(e)) continue;      // night spawns: dawn is their despawn, never persisted
+    if (e.boss) continue;             // a boss is placed by its castle, never saved (0.839)
     out.push([
       +e.x.toFixed(2), +e.y.toFixed(2), +e.z.toFixed(2),
       +e.yaw.toFixed(3), Math.max(0, +e.hp.toFixed(1)),
@@ -2424,19 +2431,26 @@ function trySpawnEntitiesInChunk(cx, cz) {
       spawnEntity(ok ? sx : s.x, s.y, ok ? sz : s.z);
     }
   }
-  _rollHerd(cx, cz, 'sheep', SHEEP_CHUNK_CHANCE, SHEEP_BIOMES, SHEEP_FLOCK_MIN, SHEEP_FLOCK_MAX, spawnSheep);
-  _rollHerd(cx, cz, 'cow',   COW_CHUNK_CHANCE,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
-  _rollHerd(cx, cz, 'pig',   PIG_CHUNK_CHANCE,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
-  _rollHerd(cx, cz, 'horse', HORSE_CHUNK_CHANCE, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
+  if (!worldHasAnimals()) return;                                      // a world made without animals (0.837)
+  const m = ANIMAL_SPAWN_MUL;
+  _rollHerd(cx, cz, 'sheep', SHEEP_CHUNK_CHANCE * m, SHEEP_BIOMES, SHEEP_FLOCK_MIN, SHEEP_FLOCK_MAX, spawnSheep);
+  _rollHerd(cx, cz, 'cow',   COW_CHUNK_CHANCE * m,   COW_BIOMES,   COW_HERD_MIN,   COW_HERD_MAX,   spawnCow);
+  _rollHerd(cx, cz, 'pig',   PIG_CHUNK_CHANCE * m,   PIG_BIOMES,   PIG_HERD_MIN,   PIG_HERD_MAX,   spawnPig, PIG_WET);
+  _rollHerd(cx, cz, 'horse', HORSE_CHUNK_CHANCE * m, HORSE_BIOMES, HORSE_HERD_MIN, HORSE_HERD_MAX, spawnHorse);
   _rollFish(cx, cz);                                                   // 0.805
-  _rollPolarBears(cx, cz);                                             // 0.835
+  _rollPolarBears(cx, cz);                                             // 0.835 (not made more of in 0.837)
 }
+/* 0.837: every animal but the polar bear comes 30% more often; and a world can be made without animals or without
+   monsters (the create menu's checkboxes, saved as `animals` / `monsters`, missing = on) */
+const ANIMAL_SPAWN_MUL = 1.3;
+const worldHasAnimals = () => !(typeof currentWorld !== 'undefined' && currentWorld && currentWorld.animals === false);
+const worldHasMonsters = () => !(typeof currentWorld !== 'undefined' && currentWorld && currentWorld.monsters === false);
 /* Polar bears (0.835): 2-5 together, on the shores of the snow and anywhere in the Ice Spikes. The spot must be in the
    snow's climate (climateAt), and outside the Ice Spikes have water within POLAR_BEAR_SHORE: a beach, a frozen bay.
    Unlike the grazers' herds they stand on snow, ice or sand, not only on grass. Out on the snow's sea ice too, round
    its open water (0.8351, 51-seasons.js _iceHole). */
 const POLAR_BEAR_CHUNK_CHANCE = 0.00075, POLAR_BEAR_GROUP_MIN = 2, POLAR_BEAR_GROUP_MAX = 5, POLAR_BEAR_SHORE = 10;   // chance 0.015 before 0.835491: 95% rarer
-const POLAR_BEAR_BIOMES = { 'Ice Spikes': 1, 'Beach': 1, 'Snow': 1, 'Deep Snow': 1, 'Snow Forest': 0.3,
+const POLAR_BEAR_BIOMES = { 'Ice Spikes': 1, 'Beach': 1, 'Snow': 1, 'Deep Snow': 1, 'Coldest Deep Snow': 1, 'Coldest Deep Snow Forest': 0.5, 'Snow Forest': 0.3,   // coldest 0.836, its forest 0.837
                             'Cold Ocean': 0.8, 'Ocean': 0.8, 'Deep Cold Ocean': 0.5, 'Deep Ocean': 0.5 };   // the sea ice (0.8351)
 function _rollPolarBears(cx, cz) {
   if (Math.random() >= POLAR_BEAR_CHUNK_CHANCE) return;
@@ -2459,7 +2473,7 @@ function _rollPolarBears(cx, cz) {
    the bed and a block under the surface. A catfish keeps to the bottom, and only where it is deep. */
 const FISH_CHUNK_CHANCE = 0.06, FISH_SCHOOL_MIN = 1, FISH_SCHOOL_MAX = 3, FISH_MIN_DEPTH = 2;
 function _rollFish(cx, cz) {
-  if (Math.random() >= FISH_CHUNK_CHANCE) return;
+  if (Math.random() >= FISH_CHUNK_CHANCE * ANIMAL_SPAWN_MUL) return;
   for (let attempt = 0; attempt < 10; attempt++) {
     const x = cx * 16 + Math.floor(Math.random() * 16), z = cz * 16 + Math.floor(Math.random() * 16);
     const bed = surfaceY(x, z);
@@ -2508,6 +2522,7 @@ function _rollHerd(cx, cz, kind, chance, biomes, min, max, spawn, wet = 0) {
    chunk you walk away from is regenerated from the seed when you return. */
 function trySpawnNightMobsInChunk(cx, cz) {
   if (menuScene || !currentWorld || !anyPlayerSpawned()) return;
+  if (!worldHasMonsters()) return;                     // a world made without monsters (0.837)
   if (!isNightForMobs()) return;
   const nowS = performance.now() / 1000;
   if (nowS - _zombieSpawnT < ZOMBIE_SPAWN_GAP * (typeof isBloodMoon === 'function' && isBloodMoon() ? 0.5 : 1)) return;   // still inside the world-wide cooldown
@@ -3053,13 +3068,158 @@ function updateAttackCooldown(dt) {
   }
 }
 
-function updateEntities(dt) {
+/* ---- creatures in the fixed tick (0.838, MultithreadPlan.md part A3) ----
+   A creature's AI and body step SIM_HZ times a second (updateEntitiesTick, from simTick). Its model — the root and every
+   part under it: legs, arms, head, a held item — is posed by that step as before, and its pose (position, turn, scale
+   of each part) is kept after each tick. Each frame the model is drawn between its last two poses by how far the next
+   tick is (alpha), so it moves smoothly at any frame rate, a tick (1/20 s) behind. Before a tick the last pose is put
+   back, so anything that eases from the model's own state starts from where the tick left it. A horse with a rider
+   steps per frame instead (its rider's camera sits on it). */
+const ENT_LERP_N = 9;                                  // per part: position, rotation, scale
+function _entLerpNodes(e) {
+  const out = [];
+  e.model.root.traverse(o => { if (!o.userData || !o.userData.noLerp) out.push(o); });
+  return out;
+}
+function _entLerpRead(nodes) {
+  const a = new Float32Array(nodes.length * ENT_LERP_N);
+  nodes.forEach((o, k) => {
+    const j = k * ENT_LERP_N;
+    a[j] = o.position.x; a[j + 1] = o.position.y; a[j + 2] = o.position.z;
+    a[j + 3] = o.rotation.x; a[j + 4] = o.rotation.y; a[j + 5] = o.rotation.z;
+    a[j + 6] = o.scale.x; a[j + 7] = o.scale.y; a[j + 8] = o.scale.z;
+  });
+  return a;
+}
+// turns the short way round
+const _entLerpTurn = (a, b, t) => { let d = b - a; d -= Math.round(d / (Math.PI * 2)) * Math.PI * 2; return a + d * t; };
+function _entLerpWrite(nodes, a, b, t) {
+  // no closures made per part (0.83852): this runs for every creature in view every frame
+  for (let k = 0, j = 0; k < nodes.length; k++, j += ENT_LERP_N) {
+    const o = nodes[k];
+    o.position.set(a[j] + (b[j] - a[j]) * t, a[j + 1] + (b[j + 1] - a[j + 1]) * t, a[j + 2] + (b[j + 2] - a[j + 2]) * t);
+    o.rotation.set(_entLerpTurn(a[j + 3], b[j + 3], t), _entLerpTurn(a[j + 4], b[j + 4], t), _entLerpTurn(a[j + 5], b[j + 5], t));
+    o.scale.set(a[j + 6] + (b[j + 6] - a[j + 6]) * t, a[j + 7] + (b[j + 7] - a[j + 7]) * t, a[j + 8] + (b[j + 8] - a[j + 8]) * t);
+  }
+}
+// before a tick: the model as the last tick left it, and that pose kept as the one to draw from
+function _entLerpBegin(e) {
+  const s = e._lerp;
+  if (!s || !e.model) return;
+  if (s.nodes.length * ENT_LERP_N === s.cur.length) _entLerpWrite(s.nodes, s.cur, s.cur, 0);
+  s.prev = s.cur;
+}
+// after a tick: the pose it reached
+function _entLerpEnd(e) {
+  if (!e.model) return;
+  const nodes = _entLerpNodes(e), cur = _entLerpRead(nodes), s = e._lerp;
+  // a new creature, or one whose model changed shape (a held item came or went): no blend from the old pose
+  const prev = s && s.cur && s.cur.length === cur.length ? s.cur : cur;
+  e._lerp = { nodes, prev: s && s.prev && s.prev.length === cur.length ? s.prev : prev, cur };
+}
+/* Far creatures (0.83852, CREATURE_FAR_SLOW, MultithreadPlan C3). A calm creature (on the ground, not hunting, fleeing,
+   hurt, burning, knocked back or rising) more than ENT_FAR_R blocks from every player thinks every ENT_FAR_EVERY-th tick,
+   on its own beat (`_stg`), with the time it skipped as its dt. It is drawn between its last two steps over that many
+   ticks (`_lerpSpan`/`_lerpAge`), so it still walks smoothly. Anything else steps every tick; one that stops being calm
+   or comes near steps at once (the few skipped hundredths of a second are let go, so no long step is ever taken
+   mid-fall or mid-shove). */
+const ENT_FAR_R = 32, ENT_FAR_EVERY = 4;
+let _entTickN = 0;
+function _entCalm(e) {
+  return e.onGround && !e.vy && !isFish(e) && e.state !== 'chase' && e.state !== 'return'
+    && !(e.aggroT > 0) && !(e.fleeT > 0) && !(e.hurtT > 0) && !(e.fireT > 0) && !(e.burnT > 0) && !(e.riseT > 0)
+    && !e.kx && !e.kz;
+}
+function _entDue(e, dt) {
+  e._stepDt = dt; e._span = 1;
+  let far = false;
+  if (CREATURE_FAR_SLOW && _entCalm(e)) {
+    const tp = nearestPlayerTo(e.x, e.z), dx = tp.pos.x - e.x, dz = tp.pos.z - e.z;
+    far = dx * dx + dz * dz > ENT_FAR_R * ENT_FAR_R;
+  }
+  if (!far) { e._owed = 0; return true; }
+  if (e._stg == null) e._stg = (Math.random() * ENT_FAR_EVERY) | 0;
+  e._owed = (e._owed || 0) + dt;
+  if ((_entTickN + e._stg) % ENT_FAR_EVERY) return false;
+  e._stepDt = e._owed; e._span = Math.max(1, Math.round(e._owed / dt)); e._owed = 0;
+  return true;
+}
+const _entIsDue = (e) => !!e._due;
+function updateEntitiesTick(dt) {
   if (!playing || menuScene || !anyPlayerSpawned()) return;
-  _updatePlayerKick(dt);
-  updateNpcTorchLights();                              // villagers' torches light the ground (0.8242)
+  _entTickN++;
+  for (const e of ENTITIES) {
+    e._due = !e.rider && _entDue(e, dt);
+    if (e._due) _entLerpBegin(e);
+  }
+  updateEntities(dt, _entIsDue, false);
+  for (const e of ENTITIES) {
+    if (e.rider) continue;
+    // stepped (or new since the last tick): its pose kept; skipped: one tick further along its long blend
+    if (e._due || !e._lerp) { _entLerpEnd(e); e._lerpAge = 0; e._lerpSpan = e._due ? e._span : 1; }
+    else e._lerpAge = (e._lerpAge || 0) + 1;
+  }
+}
+/* Off screen (0.83852, C3): a creature outside every seat's view (a margin of ENT_VIEW_PAD blocks round its middle) is
+   not posed this frame; its pose is written again the frame it comes into view. With shadows on, one inside the shadow
+   distance is still posed, since its shadow can fall into view. */
+const ENT_VIEW_PAD = 3;
+const _entFrustums = [], _entPV = new THREE.Matrix4(), _entSphere = new THREE.Sphere(new THREE.Vector3(), ENT_VIEW_PAD);
+function _entViewFrustums() {
+  let n = 0;
+  for (let i = 0; i < PSTATE.length; i++) {
+    const cam = i === activePlayerSlot() ? camera : PSTATE[i].g && PSTATE[i].g.camera;
+    if (!cam) continue;
+    cam.updateMatrixWorld();
+    _entPV.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    (_entFrustums[n] || (_entFrustums[n] = new THREE.Frustum())).setFromProjectionMatrix(_entPV);
+    n++;
+  }
+  return n;
+}
+function _entInView(e, nf) {
+  if (!nf) return true;
+  _entSphere.center.set(e.x, e.y + 0.9, e.z);
+  for (let k = 0; k < nf; k++) if (_entFrustums[k].intersectsSphere(_entSphere)) return true;
+  if (shadowR > 0) {                                  // its shadow may still show
+    const tp = nearestPlayerTo(e.x, e.z), dx = tp.pos.x - e.x, dz = tp.pos.z - e.z;
+    if (dx * dx + dz * dz <= shadowR * shadowR) return true;
+  }
+  return false;
+}
+// each frame: the ridden horse steps (and the frame's own jobs), every other creature is drawn between its ticks
+function updateEntitiesFrame(dt, alpha) {
+  if (!playing || menuScene || !anyPlayerSpawned()) return;
+  updateEntities(dt, (e) => !!e.rider, true);
+  const t = Math.max(0, Math.min(1, alpha));
+  const nf = CREATURE_FAR_SLOW ? _entViewFrustums() : 0;
+  for (const e of ENTITIES) {
+    if (e.rider) { e._lerp = null; continue; }        // stepped this frame; a fresh pose once it is let go
+    const s = e._lerp;
+    if (!s || !e.model || !e.model.root.visible || s.nodes.length * ENT_LERP_N !== s.cur.length) continue;
+    if (!_entInView(e, nf)) continue;
+    // a far creature's step covers several ticks: drawn along it over as many (0.83852)
+    const span = e._lerpSpan || 1;
+    _entLerpWrite(s.nodes, s.prev, s.cur, span > 1 ? Math.min(1, ((e._lerpAge || 0) + t) / span) : t);
+  }
+}
+
+/* `pick` (0.838): only the creatures it says yes to; `frameJobs`: the player's knockback and the villagers' torch lights,
+   which follow the frame. With the fixed tick (SIM_FIXED) updateEntitiesTick steps every creature but a ridden horse and
+   updateEntitiesFrame the ridden one (its rider's camera rides on it) and draws the rest between their last two ticks. */
+function updateEntities(dtAll, pick = null, frameJobs = true) {
+  if (!playing || menuScene || !anyPlayerSpawned()) return;
+  if (frameJobs) {
+    _updatePlayerKick(dtAll);
+    updateNpcTorchLights();                            // villagers' torches light the ground (0.8242)
+  }
 
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];
+    if (pick && !pick(e)) continue;
+    // a far creature stepping every few ticks steps the time it skipped (0.83852, _entDue)
+    const dt = pick === _entIsDue && e._stepDt > 0 ? e._stepDt : dtAll;
+    if (e.boss) { if (typeof updateBoss === 'function') updateBoss(e, dt); continue; }   // a boss has its own mind (0.839, 60-bosses.js)
     _useBox(e);                                        // every collision test below uses ITS box
     if (e.y < -30) { _removeEntity(i); continue; }     // fell out of the world: genuinely gone
     if (e._killedByMob) { _removeEntity(i); continue; }   // killed by another creature: nothing drops (0.7912)
@@ -3494,6 +3654,6 @@ function updateEntities(dt) {
     }
     shadeHumanoid(m, e.x, e.y, e.z, e.hurtT > 0, e.burnT > 0);
   }
-  _separateBodies(dt);
+  _separateBodies(dtAll);
   _useBox(null);                // spawn checks and everything else outside the loop: humanoid box
 }

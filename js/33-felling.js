@@ -44,11 +44,13 @@ const STRIPPED_OF = {};
 STRIPPED_OF[B.LOG] = B.STRIPPED_LOG;
 STRIPPED_OF[B.BIRCH_LOG] = B.STRIPPED_BIRCH_LOG;
 STRIPPED_OF[B.SPRUCE_LOG] = B.STRIPPED_SPRUCE_LOG;
+STRIPPED_OF[B.RIME_LOG] = B.STRIPPED_RIME_LOG;                     // 0.836
 // stripped -> the live log it came from, so a felled tree can drop the normal variant
 const UNSTRIPPED_OF = {};
 UNSTRIPPED_OF[B.STRIPPED_LOG] = B.LOG;
 UNSTRIPPED_OF[B.STRIPPED_BIRCH_LOG] = B.BIRCH_LOG;
 UNSTRIPPED_OF[B.STRIPPED_SPRUCE_LOG] = B.SPRUCE_LOG;
+UNSTRIPPED_OF[B.STRIPPED_RIME_LOG] = B.RIME_LOG;
 /* leaves -> the block they settle as: since 0.785 litter is simply a layer of the leaf block itself, so this
    maps each leaf to its own id (and anything else to nothing). A broken litter layer yields what LEAVES
    yield (sticks, the rare apple, a sapling) — handled at the break site. */
@@ -56,6 +58,7 @@ const LITTER_OF = {};
 LITTER_OF[B.LEAVES] = B.LEAVES;
 LITTER_OF[B.BIRCH_LEAVES] = B.BIRCH_LEAVES;
 LITTER_OF[B.SPRUCE_LEAVES] = B.SPRUCE_LEAVES;
+LITTER_OF[B.RIME_LEAVES] = B.RIME_LEAVES;
 
 const isLiveLog     = (id) => STRIPPED_OF[id] !== undefined;
 const isStrippedLog = (id) => UNSTRIPPED_OF[id] !== undefined;
@@ -678,8 +681,9 @@ function updateFelling(dt) {
     if (job.survival) {
       const liveId = UNSTRIPPED_OF[job.kind] || job.kind;
       const stripId = STRIPPED_OF[job.kind] || job.kind;
-      for (let i = 0; i < job.normal; i++)   spawnDrop(liveId,  job.dropX, job.dropY, job.dropZ);
-      for (let i = 0; i < job.stripped; i++) spawnDrop(stripId, job.dropX, job.dropY, job.dropZ);
+      // one stack of each (0.8385)
+      if (job.normal > 0)   spawnDrop(liveId,  job.dropX, job.dropY, job.dropZ, null, undefined, null, null, 0, job.normal);
+      if (job.stripped > 0) spawnDrop(stripId, job.dropX, job.dropY, job.dropZ, null, undefined, null, null, 0, job.stripped);
     }
     FELL_JOBS.splice(j, 1);
   }

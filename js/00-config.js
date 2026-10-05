@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.835492';     // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.836';     // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
@@ -64,6 +64,46 @@ const DEFAULT_SIM_DIST = 6;
    places one still block, breaking beside water opens no flow, and nothing is queued (queueWaterAt / queueLavaAt,
    22-main-loop.js). True brings the old flow back. */
 const FLUID_FLOW = false;
+/* The fixed simulation tick (0.8378, MultithreadPlan.md part A1). The world's clockwork — the day clock, furnaces,
+   saplings, grass spreading and growing, berries, wheat, mushrooms, cane, the weather on the ground, ice melting,
+   lights burning out, leaf decay, snow melt, litter, fluids, TNT — steps SIM_HZ times a real second whatever the frame
+   rate (simTick, 22-main-loop.js), so it runs at the same speed at 15 fps or 144. The players (movement, vitals),
+   creatures, drops and everything drawn still step once a frame on the frame's time, now capped at FRAME_DT_MAX
+   (0.05 before: under 20 fps all of it ran in slow motion; now only under 10). A gap over SIM_MAX_FRAME (a hidden tab, a
+   long hitch) is dropped, not caught up: the world waits while you are away. SIM_FIXED false: all of it once a frame,
+   as before 0.8378. */
+const SIM_FIXED = true, SIM_HZ = 20, SIM_DT = 1 / SIM_HZ, SIM_MAX_FRAME = 0.5, SIM_MAX_STEPS = 10, FRAME_DT_MAX = 0.1;
+/* Work handed to the worker threads (MultithreadPlan.md part B). SEASON_WORKER_SCAN (0.8382): a chunk's hourly season
+   pass gets its list of cells worth a look from a worker instead of walking all of the chunk (51-seasons.js).
+   LIGHT_WORKER (0.8383): a new chunk's own sky light is worked out in the worker as it is made (09-light-sky.js). */
+const SEASON_WORKER_SCAN = true, LIGHT_WORKER = true;
+/* SAVE_WORKER (0.8384): an autosave hands the world to a worker of its own, which puts it in the same shape and writes
+   it to IndexedDB (16-worlds.js); the player's edits go across as flat number arrays, cheap to hand over. */
+const SAVE_WORKER = true;
+/* CHUNK_CACHE (0.83851, MultithreadPlan C2): getChunk remembers the chunks it found in a small table (11-chunks.js), so a
+   block, light or sky read no longer builds a "cx,cz" string and searches the chunk Map every time. */
+const CHUNK_CACHE = true;
+/* 0.83852 (MultithreadPlan C3, C6): CREATURE_FAR_SLOW: a calm creature over ENT_FAR_R blocks from every player thinks every
+   4th tick (28); MESH_REUSE: a remeshed chunk's new data is written into its old buffers when it fits (11). */
+const CREATURE_FAR_SLOW = true, MESH_REUSE = true;
+/* 0.8386 (MultithreadPlan C8-C10).
+   SHARED_MEMORY (C10): when the page is cross-origin isolated (coi-sw.js gives GitHub Pages and serve.ps1 the headers),
+   a chunk's cells, sky and block light live in SharedArrayBuffers: the workers read them where they are, nothing is
+   copied for a mesh job, a season scan or a light job. SHARED_OK says whether it is really on this time.
+   LIGHT_THREAD (C9, needs SHARED_OK): block light floods (an edit, a held torch, a chunk arriving near a light) run in a
+   light worker of their own (08), the main thread only gathers the sources and remeshes what changed.
+   FAR_REGIONS (C8): settled far chunks (level of detail 2) are drawn 4x4 to a mesh (11), far fewer draw calls. */
+const SHARED_MEMORY = true, LIGHT_THREAD = true, FAR_REGIONS = true;
+const SHARED_OK = SHARED_MEMORY && !!globalThis.crossOriginIsolated && typeof SharedArrayBuffer === 'function';
+// a new typed array, in shared memory when it is on
+function newSharedArr(Ctor, n) { return SHARED_OK ? new Ctor(new SharedArrayBuffer(n * Ctor.BYTES_PER_ELEMENT)) : new Ctor(n); }
+// the same cells moved into shared memory when it is on (one copy), else the array itself
+function shareArr(a) {
+  if (!SHARED_OK || !a || a.buffer instanceof SharedArrayBuffer) return a;
+  const s = newSharedArr(a.constructor, a.length);
+  s.set(a);
+  return s;
+}
 let   simRadius = clampi(parseInt(localStorage.getItem('vg_sim')) || DEFAULT_SIM_DIST,
                          SIM_DIST_MIN, SIM_DIST_MAX);
 /* Never larger than the render distance — simulating chunks that do not exist is meaningless,

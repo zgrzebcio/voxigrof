@@ -341,12 +341,12 @@ function updateSimWake() {
 const leavesDecayQueue = new Set();
 const DECAY_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 
-const _isLeaf = (id) => id === B.LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES;
+const _isLeaf = (id) => id === B.LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES || id === B.RIME_LEAVES;   // rime 0.836
 // a real leaf block, by value: leaf litter is the leaf block's own id with layers, and must never decay as canopy (0.785)
 const _isLeafVal = (v) => _isLeaf(v & 255) && !((v >> 8) & 255);
 // stripped logs count as support: a half-chopped tree must not shed its canopy while you work
 const _isLog  = (id) => id === B.LOG || id === B.BIRCH_LOG || id === B.SPRUCE_LOG ||
-                        id === B.STRIPPED_SPRUCE_LOG ||
+                        id === B.STRIPPED_SPRUCE_LOG || id === B.RIME_LOG || id === B.STRIPPED_RIME_LOG ||   // rime 0.836
                         id === B.STRIPPED_LOG || id === B.STRIPPED_BIRCH_LOG;
 function scheduleLeavesCheck(cx, cy, cz) {
   const R = 5;
@@ -1140,10 +1140,46 @@ var _hlId = undefined, _hlLevel = 0, _hlX = null, _hlY = null, _hlZ = null;
 var _hlRaw = 0;  // raw light value of current held item (exposed for arm glow in 24-hands.js)
 const _handSaveLC = new THREE.Color();  // reusable save slot for uLightColor during hand render
 
+/* F3 timings (0.83851, MultithreadPlan C1). While any seat shows the debug read-out, frame(), simTick and runWorldTick
+   time their parts with laps: `perfLap(name, t)` adds the time since t to `name` and returns now. F3 then shows the
+   main thread's ms per frame (average over a second, and the worst frame), and the 8 costliest parts. With F3 hidden a
+   lap is one compare. It is CPU time: the graphics card's own work shows in `render` only when the browser waits on it. */
+let _perfOn = false, _perfWinT = 0, _perfFrames = 0, _perfMax = 0, _perfLine = '';
+const _perfAcc = new Map();
+const perfNow = () => _perfOn ? performance.now() : 0;
+function perfLap(name, t0) {
+  if (!_perfOn) return 0;
+  const now = performance.now();
+  _perfAcc.set(name, (_perfAcc.get(name) || 0) + now - t0);
+  return now;
+}
+function _perfFrameStart(now) {
+  let on = false;
+  for (let i = 0; i < PSTATE.length && !on; i++) on = !debugHudHidden(i);
+  if (on !== _perfOn) { _perfOn = on; _perfAcc.clear(); _perfFrames = 0; _perfMax = 0; _perfWinT = now; _perfLine = ''; }
+  if (!on || now - _perfWinT < 1000 || !_perfFrames) return;
+  const f = _perfFrames, total = (_perfAcc.get('frame') || 0) / f;
+  const parts = [..._perfAcc].filter(([k]) => k !== 'frame').sort((a, b) => b[1] - a[1]).slice(0, 8);
+  _perfLine = `cpu ${total.toFixed(1)} ms/frame &middot; worst ${_perfMax.toFixed(0)} ms<br>` +
+    parts.map(([k, v]) => `${k} ${(v / f).toFixed(2)}`).join(' &middot; ');
+  _perfAcc.clear(); _perfFrames = 0; _perfMax = 0; _perfWinT = now;
+}
+function _perfFrameEnd(t0) {
+  if (!_perfOn) return;
+  const ms = performance.now() - t0;
+  _perfAcc.set('frame', (_perfAcc.get('frame') || 0) + ms);
+  if (ms > _perfMax) _perfMax = ms;
+  _perfFrames++;
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   if (fpsLimit > 0 && now - lastT < 1000 / fpsLimit - 2) return;   // fps cap: skip whole tick
-  const dt = Math.min(0.05, (now - lastT) / 1000);
+  _perfFrameStart(now);                     // F3 timings (0.83851)
+  const tFrame = perfNow();
+  const realDt = Math.max(0, (now - lastT) / 1000);
+  // a frame's own time: capped at FRAME_DT_MAX with the fixed tick (0.8378; 0.05 before, slow motion under 20 fps)
+  const dt = Math.min(SIM_FIXED ? FRAME_DT_MAX : 0.05, realDt);
   lastT = now;
   sharedUniforms.uTime.value += dt;
   updateTileAnimation(now);                 // water and lava step through their frames (0.8093)
@@ -1155,6 +1191,7 @@ function frame(now) {
      not the game is unpaused, because binding is done with the menu open. */
   pollInputCapture();
   updatePauseRespawn(dt);                   // the pause menu's hold-to-arm Respawn (0.829, 19-vitals.js)
+  let tp = perfLap('input+sound', tFrame);
   /* The title panorama is scenery, not a world (0.7144). Nothing in it is meant to change: no
      rot, no melt, no regrowth, no felling, no structures assembling, no leaves coming down. Each
      of these was individually harmless there — their queues are empty on a backdrop — but they
@@ -1162,16 +1199,34 @@ function frame(now) {
      than relying on each system to notice where it is. Boot spends its frames on the panorama. */
   // a world still joining is held the same way until its chunks are in (0.759)
   if (!menuScene && !worldJoining()) {
+    /* the fixed tick (0.8378, SIM_FIXED in 00-config): the world's clockwork steps SIM_DT at a time, as many times as
+       the real time since the last frame holds; a gap over SIM_MAX_FRAME is dropped (a hidden tab: the world waits) */
+    if (SIM_FIXED) {
+      _simAcc += Math.min(realDt, SIM_MAX_FRAME);
+      let n = 0;
+      useSlot(0);
+      while (_simAcc >= SIM_DT && n < SIM_MAX_STEPS) { simTick(SIM_DT); _simAcc -= SIM_DT; n++; }
+      if (n >= SIM_MAX_STEPS) _simAcc = Math.min(_simAcc, SIM_DT);
+      _simTicksLast = n;
+      tp = perfNow();                       // simTick timed its own parts
+    }
     updateFelling(dt);                      // felled trunks come apart a few cells per tick
-    updateLitterRot(dt);                    // fallen leaves rot off the forest floor
-    updateSnowMelt(dt);                     // snow outside a cold biome thins away a layer at a time
-    updateBerryGrow(dt);                    // picked berry bushes ripen again, one stage at a time
-    updateSeasons(dt);                      // leaves fall and come back, plants wither and return, wheat grows (0.81)
-    updateGrassGrow(dt);                    // bare grass slowly sprouts short grass, short grass grows tall
+    tp = perfLap('felling', tp);
+    if (!SIM_FIXED) {
+      updateLitterRot(dt);                  // fallen leaves rot off the forest floor
+      updateSnowMelt(dt);                   // snow outside a cold biome thins away a layer at a time
+      updateBerryGrow(dt);                  // picked berry bushes ripen again, one stage at a time
+      updateSeasons(dt);                    // leaves fall and come back, plants wither and return, wheat grows (0.81)
+      updateGrassGrow(dt);                  // bare grass slowly sprouts short grass, short grass grows tall
+    } else updateSeasonScan(dt);            // the seasons' chunk scans stay a frame's background work (0.8378)
+    tp = perfLap('season scan', tp);
     updateStructOutline();                  // drop the capture box if its block was broken
     processPlacementQueue();                // villages/dungeons assemble a few cells per frame
+    if (typeof updateBossLairs === 'function') updateBossLairs();   // the snow castles: found, placed, their kings (0.8393)
+    tp = perfLap('structures', tp);
     updateFallingLeaves(dt);                // canopy coming down after a tree was felled
     updateStorms(dt);                       // lightning, fire, hail, the aurora (0.819)
+    tp = perfLap('storms+leaves', tp);
   }
 
   // fps
@@ -1182,9 +1237,92 @@ function frame(now) {
      `useSlot` repoints `player`, `camera`, the hotbar, the arm rig and the HUD at one player, so
      everything inside tickPlayer is the same single-player code it always was. The WORLD is then
      stepped exactly once afterwards, never once per player. */
+  tp = perfNow();
   for (let i = 0; i < PSTATE.length; i++) { useSlot(i); tickPlayer(dt, now, i); }
   useSlot(0);
+  perfLap('players', tp);
   runWorldTick(dt, now);
+  _perfFrameEnd(tFrame);
+}
+
+/* THE FIXED TICK (0.8378, SIM_FIXED / SIM_HZ in 00-config, MultithreadPlan.md part A1): the world's clockwork, SIM_DT of
+   real time a step, the same at any frame rate. Called from frame() with player one's slot installed. What moves on
+   screen (creatures, drops, arrows, falling blocks, particles, doors), the players and the chunk streaming stay once a
+   frame; so do the budgeted background jobs (the seasons' chunk scans, felling, villages assembling). */
+let _simAcc = 0, _simTime = 0, _simTicksLast = 0;
+function simTick(dt) {
+  _simTime += dt;
+  let tp = perfNow();                       // F3 timings, summed over the frame's ticks (0.83851)
+  /* each player's bars and what they carry (part A2, 0.8379), in their own slot as tickPlayer does: hunger, thirst,
+     stamina, energy, nutrients, effects, oxygen, temperature, heatstroke, a held torch burning down (tickStats), and
+     food spoiling. `_statsLive` is set each frame by updateVitals: survival, spawned, the ground under them loaded.
+     What stays per frame: movement, eating and drinking (they follow the held button), hazards (fall, cactus, lava,
+     fire), the armor soak, dying, and the HUD. */
+  for (let i = 0; i < PSTATE.length; i++) {
+    useSlot(i);
+    if (player._statsLive) tickStats(dt);
+    if (typeof tickSpoilage === 'function') tickSpoilage(dt);
+  }
+  useSlot(0);
+  tp = perfLap('t:stats', tp);
+  updateLitterRot(dt);                      // fallen leaves rot off the forest floor
+  updateSnowMelt(dt);                       // snow outside a cold biome thins away a layer at a time
+  updateBerryGrow(dt);                      // picked berry bushes ripen again
+  tp = perfLap('t:rot+melt', tp);
+  updateSeasonGrowth(dt);                   // wheat, mushrooms, cane, the weather on the ground, ice, lights burning out
+  tp = perfLap('t:seasons', tp);
+  updateGrassGrow(dt);                      // bare grass sprouts short grass, short grass grows tall
+  if (!player.canFly) processLeavesDecay(dt);
+  tp = perfLap('t:grass+leaves', tp);
+  updateEntitiesTick(dt);                   // creatures' AI and bodies (part A3, 0.838; drawn between ticks per frame)
+  tp = perfLap('t:creatures', tp);
+  // dropped items, thrown things and arrows (0.8384), kept as poses and drawn between ticks (_tickPosesDraw)
+  if (!player.canFly) {
+    _tickPoses(DROPS, true); _tickPoses(PROJECTILES, true);
+    updateDrops(dt); updateProjectiles(dt);
+    _tickPoses(DROPS, false); _tickPoses(PROJECTILES, false);
+  }
+  _tickPoses(ARROWS, true); updateArrows(dt); _tickPoses(ARROWS, false);
+  // a boss's fireballs, ice spikes, burning snow and beams (0.839, 60-bosses.js), drawn between ticks too
+  _tickPoses(BOSS_FX, true); updateBossFx(dt); _tickPoses(BOSS_FX, false);
+  tp = perfLap('t:drops+arrows', tp);
+  updateFluids(dt);
+  tp = perfLap('t:fluids', tp);
+  updateTNTs(dt);
+  updateSaplings();
+  processGrassSpread(dt);
+  processHollowMushrooms(dt);               // lying hollow logs full of dirt grow mushrooms (0.7843)
+  updateFurnaces(dt);
+  advanceWorldClock(dt);                    // the day moves on; the sky only draws from it (updateDayNight)
+  perfLap('t:blocks+clock', tp);
+}
+
+/* Things whose state IS their model's place and turn (0.8384: dropped items, thrown things, arrows; `o.group`). Around
+   each tick: before it the pose the last tick left is put back (the tick reads and moves it), after it that pose is
+   kept. Each frame they are drawn between their last two poses by how far the next tick is, a tick behind, so they
+   move smoothly at any frame rate. One just made (no pose yet) stays where it was put until its first tick. */
+function _tickPoses(list, before) {
+  for (const o of list) {
+    const g = o.group;
+    if (!g) continue;
+    if (before) {
+      const c = o._poseC;
+      if (c) { g.position.set(c[0], c[1], c[2]); g.rotation.set(c[3], c[4], c[5]); g.scale.set(c[6], c[7], c[8]); o._poseP = c; }
+    } else {
+      const c = [g.position.x, g.position.y, g.position.z, g.rotation.x, g.rotation.y, g.rotation.z, g.scale.x, g.scale.y, g.scale.z];
+      if (!o._poseP) o._poseP = c;
+      o._poseC = c;
+    }
+  }
+}
+function _tickPosesDraw(list, t) {
+  for (const o of list) {
+    const g = o.group, a = o._poseP, b = o._poseC;
+    if (!g || !a || !b || !g.visible) continue;
+    const L = (n) => a[n] + (b[n] - a[n]) * t;
+    const R = (n) => { let d = b[n] - a[n]; d -= Math.round(d / (Math.PI * 2)) * Math.PI * 2; return a[n] + d * t; };
+    g.position.set(L(0), L(1), L(2)); g.rotation.set(R(3), R(4), R(5)); g.scale.set(L(6), L(7), L(8));
+  }
 }
 
 /* A held torch goes out with your head under water (0.8245): no light, no warmth, and the hand that holds it
@@ -1522,6 +1660,7 @@ function tickPlayer(dt, now, slot) {
     }
     selBox.updateMatrix();
   }
+  if (typeof updateWandOutline === 'function') updateWandOutline(hit);   // what a held wand would do, outlined (0.8374)
 
   updateInteractPrompt();                   // "(E) to pickup grass" under the crosshair
   /* Crafting bench (0.76): E works the bench you are looking at, a tap takes what is finished, holding
@@ -1683,7 +1822,8 @@ function tickPlayer(dt, now, slot) {
   } else {
     resetMining();
     if (wantMine) { if (!act.break || now - act.lastBreak > 240) { doBreak(); act.lastBreak = now; } }
-    if (wantPlace && !_didThrow) { if (!act.place || now - act.lastPlace > 240) { doPlace(); act.lastPlace = now; } }
+    // a wand acts once a press: held, it would lay a second layer a moment later (0.8375)
+    if (wantPlace && !_didThrow) { if (!act.place || (now - act.lastPlace > 240 && !holdingWand())) { doPlace(); act.lastPlace = now; } }
   }
   act.break = wantBreak; act.place = wantPlace;
 
@@ -1742,9 +1882,11 @@ function tickPlayer(dt, now, slot) {
   if (!menuScene && typeof syncVariantHud === 'function') syncVariantHud();   // 0.794
   if (!menuScene && typeof syncEffectBar === 'function') syncEffectBar();     // running effects beside the hotbar (0.797)
   if (typeof updateQuests === 'function') updateQuests(dt);                   // the starter quest, top right (0.798)
-  // food rots in your hands, a second at a time (0.789, 44-spoil.js)
-  if (!menuScene && typeof tickSpoilage === 'function') tickSpoilage(dt);
+  if (typeof syncBossHud === 'function') syncBossHud();                       // a boss's bar, the last quest's marker (0.839)
+  // food rots in your hands, a second at a time (0.789, 44-spoil.js); with the fixed tick in simTick (0.8379)
+  if (!SIM_FIXED && !menuScene && typeof tickSpoilage === 'function') tickSpoilage(dt);
   if (!menuScene && !joining && _hereC && _hereC.data) updateVitals(dt);
+  else player._statsLive = false;           // the bars wait with the vitals (0.8379, simTick)
   updateXPBar(dt);
   updateCraftQueue(dt);                     // this player's crafting queue, and its HUD strip (0.76)
   updateHands(dt, wantBreak, wantPlace, eatProg, drawProg);
@@ -1771,6 +1913,7 @@ function tickPlayer(dt, now, slot) {
    frame no matter how many people are playing.
    ================================================================================================ */
 function runWorldTick(dt, now) {
+  let tp = perfNow();                       // F3 timings (0.83851)
   /* ---- chunk streaming, centred on the union of every player's position ---- */
   syncPlayerChunks();
   /* Finish arrived chunks before uploading meshes — a chunk must be lit before it is meshed.
@@ -1795,9 +1938,14 @@ function runWorldTick(dt, now) {
   const _rush = _loadingWorld || menuScene;   // nothing to stutter; the player is waiting on this
   const _catchUp = genFinishQueue.length > 6 || meshResults.length > 12;
   const _streamDeadline = performance.now() + (_rush ? 30 : _catchUp ? 12 : 5);
+  tp = perfLap('stream', tp);
   processGenFinish(_rush ? 8 : _catchUp ? 6 : 2, _streamDeadline);
+  tp = perfLap('chunk finish', tp);
   updateChunkFades(dt);                     // chunks fading in and out (0.8195)
   applyMeshResults(_rush ? 48 : _catchUp ? 32 : 12, _streamDeadline);
+  tp = perfLap('mesh upload', tp);
+  updateFarRegions();                       // settled far chunks drawn 4x4 to a mesh (0.8386, C8)
+  tp = perfLap('far regions', tp);
   pump();
 
   /* Title panorama: lift the veil once every chunk in the (small) menu radius has both data and
@@ -1894,23 +2042,41 @@ function runWorldTick(dt, now) {
      fluids, no mobs and no growth — it is a camera pointed at generated terrain — so every one of
      these is dead weight there, and the boot frames are better spent streaming the backdrop in. */
   // ...and while a world is joining nothing runs either: no mobs, fluids, drops or growth (0.759)
+  tp = perfLap('stream', tp);
   if (!menuScene && !worldJoining()) {
     updateSimWake();                        // seed physics for chunks entering the sim radius
     processFalling(dt);
-    if (!player.canFly) { updateDrops(dt); updateProjectiles(dt); processLeavesDecay(dt); }
-    updateArrows(dt);                       // arrows fly in both modes: mobs shoot, creative tests
-    updateFluids(dt);
-    updateEntities(dt);
-    updateTNTs(dt);
-    updateSaplings();
-    processGrassSpread(dt);
-    processHollowMushrooms(dt);             // lying hollow logs full of dirt grow mushrooms (0.7843)
-    updateFurnaces(dt);
+    tp = perfLap('falling', tp);
+    if (SIM_FIXED) {
+      // dropped items, thrown things and arrows step in simTick (0.8384): drawn here between their ticks
+      const t = Math.max(0, Math.min(1, _simAcc / SIM_DT));
+      if (!player.canFly) { _tickPosesDraw(DROPS, t); _tickPosesDraw(PROJECTILES, t); }
+      _tickPosesDraw(ARROWS, t);
+      _tickPosesDraw(BOSS_FX, t);           // 0.839
+    } else {
+      if (!player.canFly) { updateDrops(dt); updateProjectiles(dt); processLeavesDecay(dt); }
+      updateArrows(dt);                     // arrows fly in both modes: mobs shoot, creative tests
+      updateBossFx(dt);                     // 0.839
+    }
+    if (!SIM_FIXED) updateFluids(dt);       // with the fixed tick these step in simTick (0.8378)
+    // creatures: with the fixed tick they step in simTick and are drawn here between their ticks (0.838)
+    if (SIM_FIXED) updateEntitiesFrame(dt, _simAcc / SIM_DT);
+    else updateEntities(dt);
+    tp = perfLap('creatures+drops draw', tp);
+    if (!SIM_FIXED) {
+      updateTNTs(dt);
+      updateSaplings();
+      processGrassSpread(dt);
+      processHollowMushrooms(dt);           // lying hollow logs full of dirt grow mushrooms (0.7843)
+      updateFurnaces(dt);
+    }
     updateDoors(dt);
     updateBed(dt);
     updateChests(dt);
     updateBenchDisplays();                  // the order floating over each busy crafting bench (0.76)
+    tp = perfLap('doors+chests', tp);
     if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)
+    tp = perfLap('particles', tp);
   }
   /* The armour-stand preview is a single WebGL renderer whose canvas can only live in one panel at
      a time. It follows whoever opened their inventory MOST RECENTLY, and the moment they close it
@@ -1920,11 +2086,17 @@ function runWorldTick(dt, now) {
   let pv = -1, pvSeq = -1;
   forEachPlayerState((g, i) => { if (g.invOpen && (g._invSeq || 0) > pvSeq) { pvSeq = g._invSeq || 0; pv = i; } });
   if (pv >= 0) withSlot(pv, () => updateEquipPreview(dt));
+  tp = perfLap('gear preview', tp);
 
   /* ---- sky, lighting & shadow maps, then one render pass per player ---- */
-  updateDayNight(worldJoining() ? 0 : dt);     // the clock waits for the world too (0.759)
+  // the clock waits for the world too (0.759); with the fixed tick it moves in simTick, but on the title here (0.8378)
+  updateDayNight(worldJoining() ? 0 : dt, !SIM_FIXED || !!menuScene);
   updateClouds(worldJoining() ? 0 : dt);        // the cloud layer drifts with the wind (0.815)
+  tp = perfLap('sky+clouds', tp);
   renderAllViews(dt);
+  tp = perfLap('render', tp);
+  if (typeof updateCameraFilter === 'function') updateCameraFilter(worldJoining() ? 0 : dt);   // what is on each lens (0.837)
+  tp = perfLap('lens', tp);
 
   /* ---- HUD text (after the render so draw/tri stats reflect the main pass) ---- */
   hudT += dt;
@@ -1932,6 +2104,7 @@ function runWorldTick(dt, now) {
     hudT = 0;
     forEachPlayerSlot(paintDebugHud);
   }
+  perfLap('hud', tp);
 }
 
 /* Volume fog for the camera currently installed: lava murk, water murk, or the ordinary surface
@@ -2032,7 +2205,7 @@ function paintDebugHud() {
   const clock = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(Math.floor(mins % 60)).padStart(2, '0')}`;
   const cx = Math.floor(p.x / 16), cz = Math.floor(p.z / 16);
   hudEl.innerHTML =
-    `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
+    `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz}${SIM_FIXED ? ` &middot; sim ${SIM_HZ} Hz x${_simTicksLast}` : ''} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
     `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock}<br>` +
     // the date, the weather and the wind where you stand (0.81, 51-seasons.js)
     `${_dbgDate()}<br>` +
@@ -2042,6 +2215,7 @@ function paintDebugHud() {
     `seed ${SEED} &middot; dist ${viewDist} [ ] &middot; sim ${simDist()}<br>` +
     // what this seat is actually listening to — the quickest answer to "is my controller detected"
     `input ${escapeHtml(inputLabelFor(activePlayerSlot()))}<br>` +
-    `draws ${info.calls} &middot; tris ${(info.triangles / 1000).toFixed(0)}k`;
+    `draws ${info.calls} &middot; tris ${(info.triangles / 1000).toFixed(0)}k &middot; creatures ${ENTITIES.length} &middot; drops ${DROPS.length}` +
+    (_perfLine ? `<br>${_perfLine}` : '');      // where the time goes (0.83851, MultithreadPlan C1)
 }
 

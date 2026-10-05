@@ -133,15 +133,19 @@ document.getElementById('createBtn').addEventListener('click', async () => {
             || Math.random().toString(36).slice(2, 10).toUpperCase();
   const w = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
               name, seed, mode: newModeSel.value === 'creative' ? 'creative' : 'survival',
-              tickSpeed: clampi(+tickInput.value || 5, 0, 20),   // simulation speed for decay/flow/grass
+              // simulation speed for decay/flow/grass/burning lights; 0 is a real setting (0.8373: it read as 5)
+              tickSpeed: clampi(tickInput.value.trim() === '' || !isFinite(+tickInput.value) ? 5 : +tickInput.value, 0, 20),
               terrain: newTerrainSel.value === 'flat' ? 'flat' : 'default',   // fixed at creation
               // split screen is fixed at creation too: the save keeps a roster of profiles, and a
               // world that never had one should not sprout half-filled player records later
               split: !!newSplitChk.checked,
               structures: !!newStructChk.checked,   // villages and dungeons, fixed at creation (0.7594)
               seasons: !!newSeasonChk.checked,      // off: always 1 July, fixed at creation (0.818)
-              biomeRev: 18,                         // 9: the Ice Spikes biome and the snow's icebergs (0.835); 10: Snowy Hills, bigger icebergs (0.8351); 11: oceans 3x bigger, rivers that flow to the sea (0.8353); 12: taller land, mountains to ~240 (0.8354); 13: shores of turf, sand, gravel and rock (0.8356); 14: hills, crags, cliffs, no puddles, beaches to 10 wide (0.83547); 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs (0.83548); 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores (0.835481); 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms (0.83549); 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks (0.835491)                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232), every biome twice as big (0.833); older worlds keep theirs
-              createdVersion: GAME_VERSION, lastVersion: GAME_VERSION,
+              // 0.837, fixed at creation: off = always noon / a clear sky / no clouds / no animals / no monsters
+              dayNight: !!newDayNightChk.checked, weather: !!newWeatherChk.checked, clouds: !!newCloudsChk.checked,
+              animals: !!newAnimalsChk.checked, monsters: !!newMonstersChk.checked,
+              biomeRev: 20,                         // 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind (0.837); 19: the Coldest Deep Snow, rime trees and ice shapes (0.836); 9: the Ice Spikes biome and the snow's icebergs (0.835); 10: Snowy Hills, bigger icebergs (0.8351); 11: oceans 3x bigger, rivers that flow to the sea (0.8353); 12: taller land, mountains to ~240 (0.8354); 13: shores of turf, sand, gravel and rock (0.8356); 14: hills, crags, cliffs, no puddles, beaches to 10 wide (0.83547); 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs (0.83548); 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores (0.835481); 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms (0.83549); 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks (0.835491)                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232), every biome twice as big (0.833); older worlds keep theirs
+              createdVersion: APP_VERSION, lastVersion: APP_VERSION,   // the game's alpha number (0.837)
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);
   persistWorlds();
@@ -250,6 +254,12 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'F1') { e.preventDefault(); toggleFullscreen(); return; }
   if (e.code === 'F2') { e.preventDefault(); if (playing) cycleCameraView(); return; }
   if (e.code === 'F3') { e.preventDefault(); toggleDebugHud(0); return; }   // keyboard is seat one
+  // F8 with F3 open: summon the Frozen King in front of you, until his castle exists (0.839, 60-bosses.js)
+  if (e.code === 'F8') {
+    e.preventDefault();
+    if (!e.repeat && typeof bossDebugSummon === 'function' && !debugHudHidden(0)) bossDebugSummon();
+    return;
+  }
   // Backspace: hide every piece of HUD and the hand for a clean view, again to bring them back (0.801).
   // Never while typing into a field — there it is still a Backspace.
   if (e.code === 'Backspace' && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '') && !e.target?.isContentEditable) {

@@ -94,11 +94,13 @@ function _updateBolts(dt) {
 
 /* ---------------------------------- fire ---------------------------------- */
 // flames licking up a body: called every frame it burns, throttled here
-function fxOnFire(x, y, z, h, dt) {
+// `cold` (0.83911): the Frozen King's cold fire, blue flames and a pale mist instead of smoke (_bossFlame, 60-bosses.js)
+function fxOnFire(x, y, z, h, dt, cold = false) {
   if (typeof _fxFlame !== 'function' || Math.random() > dt * 22) return;
+  const flame = cold && typeof _bossFlame === 'function' ? _bossFlame : _fxFlame;
   for (let k = 0; k < 2; k++)
-    _fxFlame(x + (Math.random() - 0.5) * 0.7, y + Math.random() * h * 0.9, z + (Math.random() - 0.5) * 0.7, 0.5, 0.2);
-  if (Math.random() < 0.3 && typeof _fxSmoke === 'function') _fxSmoke(x, y + h, z, 0.25, 1, 0.6);
+    flame(x + (Math.random() - 0.5) * 0.7, y + Math.random() * h * 0.9, z + (Math.random() - 0.5) * 0.7, 0.5, 0.2);
+  if (Math.random() < 0.3 && typeof _fxSmoke === 'function') _fxSmoke(x, y + h, z, cold ? 0.85 : 0.25, 1, 0.6);
 }
 // the ground where a strike landed burns a little while
 const GROUND_FIRES = [];
@@ -116,6 +118,7 @@ function _updateEntityFire(dt) {
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];
     if (!(e.fireT > 0) || e.active === false) continue;
+    if (e.boss) { e.fireT = 0; continue; }           // the Frozen King does not burn (0.839)
     const wet = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
     if (wet) { e.fireT = 0; e.burnT = 0; _fireSound('fireOff', e.x, e.y, e.z); continue; }
     e.fireT -= dt;
@@ -179,6 +182,7 @@ const _thunders = [];                        // sounds on their way: { t: second
 function strikeLightning(x, y, z) {
   _spawnBolt(x, y, z);
   skyFlash = 1;
+  if (typeof cameraFilterLightning === 'function') cameraFilterLightning(x, y, z);   // a flash on near lenses (0.837)
   GROUND_FIRES.push({ x, y, z, t: 3 });
   // what it struck catches, if it burns: a tree, leaves, grass (0.8191)
   { const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
@@ -197,7 +201,7 @@ function strikeLightning(x, y, z) {
   // creatures the same
   if (typeof ENTITIES !== 'undefined')
     for (const e of [...ENTITIES]) {
-      if (e.active === false || !(e.hp > 0)) continue;
+      if (e.active === false || !(e.hp > 0) || e.boss) continue;   // lightning leaves a boss alone (0.839)
       const d = Math.hypot(e.x - x, e.z - z), dy = e.y - y;
       if (d > LIGHTNING_NEAR_R || dy < -2 || dy > 4) continue;
       e.hp -= d <= LIGHTNING_HIT_R ? LIGHTNING_DMG : LIGHTNING_NEAR_DMG;
@@ -326,7 +330,7 @@ function clearStorms() {
 }
 
 /* ================================== fire blocks (0.8191) ==================================
-   A burning cell is a FIRE block (02-voxel-core.js): nothing is drawn — the flames are particles — but it lights
+   A burning cell is a FIRE block (58-blocks.js): nothing is drawn — the flames are particles — but it lights
    its surroundings (light 13) and burns what touches it. Each cell burns through its fuel on its own clock: a log in
    about 9 s, leaves in 3.5, the grass under it in 2.5; wood leaves a little ash on the ground below (1-2 layers,
    60% of logs), grass turns to dirt with an ash carpet on it, leaves and plants just go. Fire passes on readily in
@@ -343,13 +347,14 @@ const FIRE_PLANT_SPREAD = 0.06;              // a tick's chance to catch a plant
 // block id -> [seconds to burn away, chance a tick to pass the fire on]
 const _BURN = new Map();
 const _WOOD = new Set([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
-                       B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG]);
+                       B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,
+                       B.RIME_LOG, B.STRIPPED_RIME_LOG, B.HOLLOW_RIME_LOG]);   // 0.836
 /* 0.8241: fire runs through wood and leaves. Logs and planks pass it on as readily as each other (planks 0.15 before),
    everything a little more, and a burnt log, plank or leaf block leaves the fire standing where it was (_BURN_INTO). */
 for (const id of _WOOD) _BURN.set(id, [9, 0.3]);
-for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]) _BURN.set(id, [3.5, 0.5]);
-for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS]) _BURN.set(id, [8, 0.3]);
-const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS]);
+for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES]) _BURN.set(id, [3.5, 0.5]);
+for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS]) _BURN.set(id, [8, 0.3]);
+const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS]);
 for (const id of [B.HAY, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
 _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blades go, the block turns to dirt
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }

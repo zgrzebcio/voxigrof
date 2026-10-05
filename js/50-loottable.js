@@ -118,6 +118,8 @@ function blockDrop(blockId, isNatural = false) {
        torn off by hand. Canopy Forager (45-skills.js) scales all three. */
     const hand = !isNatural && typeof heldUseId === 'function' && !isToolItem(heldUseId());
     const mul = (hand ? 0.5 : 1) * (typeof skillLeafMul === 'function' ? skillLeafMul() : 1);
+    // rime leaves (0.836): sticks only, no apple and no sapling (it has none yet)
+    if (blockId === B.RIME_LEAVES) return _drop(ITEM.STICK, rollLoot(LOOT.stick, mul));
     const sap = blockId === B.BIRCH_LEAVES ? B.BIRCH_SAPLING : blockId === B.SPRUCE_LEAVES ? B.SPRUCE_SAPLING : B.OAK_SAPLING;
     return [..._drop(ITEM.STICK, rollLoot(LOOT.stick, mul)),
             ..._drop(ITEM.APPLE, rollLoot(LOOT.apple, mul)),

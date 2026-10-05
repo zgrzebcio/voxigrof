@@ -137,15 +137,25 @@ function _dropMat(p) {
   m.uniforms = { ...sharedUniforms, uLightOverride: { value: -1 } };
   return (_dropMats[p] = m);
 }
+/* 0.83852 (MultithreadPlan C5): a drop reads its cell's light once a tick (`_dropLitTick`, bumped by updateDrops), not
+   on every draw of every one of its meshes in every view; and the shared material's uniforms are sent again only when
+   this drop's light differs from the one drawn just before it (drops lying together mostly share a light). */
+let _dropLitTick = 0;
 function _dropLightHook(_r, _s, _c, _g, material) {
   const g = this.parent, u = material.uniforms && material.uniforms.uLightOverride;
   if (!g || !u) return;
-  const x = Math.floor(g.position.x), y = Math.floor(g.position.y), z = Math.floor(g.position.z);
-  let v = (getSkyWorld(x, y, z) << 4) | getLightWorld(x, y, z);
-  if (g.userData.glow) v |= 15;                       // a dropped glowstone still reads as lit
-  if ((v & 15) && lightColdWorld(x, y, z)) v |= 256;  // in blue light, blue (0.834)
-  u.value = v;
-  material.uniformsNeedUpdate = true;                 // per draw: each drop sits in its own light
+  const ud = g.userData;
+  if (ud.litAt !== _dropLitTick) {
+    ud.litAt = _dropLitTick;
+    const x = Math.floor(g.position.x), y = Math.floor(g.position.y), z = Math.floor(g.position.z);
+    let v = (getSkyWorld(x, y, z) << 4) | getLightWorld(x, y, z);
+    if (ud.glow) v |= 15;                             // a dropped glowstone still reads as lit
+    if ((v & 15) && lightColdWorld(x, y, z)) v |= 256;  // in blue light, blue (0.834)
+    ud.lit = v;
+  }
+  if (u.value === ud.lit) return;
+  u.value = ud.lit;
+  material.uniformsNeedUpdate = true;                 // each drop sits in its own light
 }
 
 const DROPS = [];
@@ -163,25 +173,60 @@ const PLAYER_DROP_PICKUP_DELAY = 1.5;      // player-tossed items refuse re-pick
 /* Creative drops nothing (0.804): no item ever comes loose in it — thrown, spilled, felled or refunded.
    A save being loaded is the one exception, so a survival world's drops survive a load in creative. */
 var _dropsRestoring = false;
-function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null, life = 0) {
+/* Stacked drops (0.8385). One drop holds `count` of one thing, so a spilled chest, a death or a felled tree lies as a
+   few drops instead of hundreds: each drop was its own group of meshes (a draw per pass, a light upload per draw) and
+   its own physics step. Drops of the same thing that come to rest near each other join (`_dropMerge`); a stack shows
+   1-3 copies by its size (`_dropCopies`). Worn things (`dur`) and things that do not stack never join; food keeps the
+   older clock (the rule `stackInto` uses); Well made joins only Well made. */
+const DROP_MERGE_R = 1.0, DROP_MERGE_EVERY = 0.5, DROP_MERGE_AGE = 0.6;
+const DROP_COPY_OFF = [[0, 0, 0, 0], [0.26, 0.14, 0.2, 0.7], [-0.22, 0.28, -0.18, -0.6]];   // x y z (drop units), turn
+const _dropCopies = n => n < 2 ? 1 : n < 10 ? 2 : 3;
+const _dropStacks = (id, dur) => dur == null && _baseStack(id) > 1;
+function _dropFill(group, passes, copies) {
+  for (let k = 0; k < copies; k++) {
+    const o = DROP_COPY_OFF[k];
+    for (const { p, geo, mat: matOverride, node } of passes) {
+      let m;
+      if (node) m = k ? node.clone() : node;       // prebuilt sub-tree (chest); no pass material
+      else {
+        m = new THREE.Mesh(geo, matOverride || _dropMat(p));
+        if (!matOverride) m.onBeforeRender = _dropLightHook;   // lit by the cell it is in (0.7521)
+        m.renderOrder = p;
+      }
+      if (k) { m.position.x += o[0]; m.position.y += o[1]; m.position.z += o[2]; m.rotation.y += o[3]; }
+      group.add(m);
+    }
+  }
+}
+// a stack's size changed: re-dress it only when its copy count moves
+function _dropSetCount(d, n) {
+  const was = _dropCopies(d.count);
+  d.count = n;
+  if (_dropCopies(n) === was) return;
+  const g = d.group;
+  while (g.children.length) g.remove(g.children[g.children.length - 1]);
+  _dropFill(g, buildDropGeom(d.id), _dropCopies(n));
+}
+function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null, life = 0, count = 1) {
   if (!_dropsRestoring && typeof player !== 'undefined' && player && player.canFly) return null;
+  // a count of something that cannot stack falls as that many single drops (0.8385)
+  if (count > 1 && !_dropStacks(id, dur)) {
+    let rec = null;
+    for (let n = 0; n < count; n++) rec = spawnDrop(id, x, y, z, vel, pickupDelay, dur, meta, life) || rec;
+    return rec;
+  }
+  count = Math.max(1, count | 0);
   const passes = buildDropGeom(id);
   if (!passes.length) return null;
   const group = new THREE.Group();
-  for (const { p, geo, mat: matOverride, node } of passes) {
-    if (node) { group.add(node); continue; }     // prebuilt sub-tree (chest); no pass material
-    const m = new THREE.Mesh(geo, matOverride || _dropMat(p));
-    if (!matOverride) m.onBeforeRender = _dropLightHook;   // lit by the cell it is in (0.7521)
-    m.renderOrder = p;
-    group.add(m);
-  }
+  _dropFill(group, passes, _dropCopies(count));
   group.scale.setScalar(DROP_SCALE);
   group.userData.glow = id < 256 && !!PROPS[id]?.light;
   // Spawn CENTRE the drop above the cell's midpoint so it can't start already inside a block.
   group.position.set(x + 0.5, y + 0.5, z + 0.5);
   scene.add(group);
   const rec = {
-    group, id, age: 0,
+    group, id, age: 0, count,                // how many it holds (0.8385)
     vx: vel ? vel.x : (Math.random() - 0.5) * 1.4,
     vy: vel ? vel.y : 3.5,
     vz: vel ? vel.z : (Math.random() - 0.5) * 1.4,
@@ -208,13 +253,14 @@ function throwFromPlayer(id, count, dur = null, meta = null) {
   const blocked = reach < 0.4;
   const spawnX = player.pos.x + forward.x * reach;
   const spawnZ = player.pos.z + forward.z * reach;
-  for (let i = 0; i < count; i++) {
+  const whole = _dropStacks(id, dur);          // a stack goes as one drop holding it all (0.8385)
+  for (let i = 0; i < (whole ? 1 : count); i++) {
     const jitter = 0.6, push = blocked ? 0 : 5.5;
     const rec = spawnDrop(id, Math.floor(spawnX), Math.floor(spawnY), Math.floor(spawnZ), {
       x: forward.x * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
       y: blocked ? 1 : 3.6 + (Math.random() - 0.5) * 0.3,
       z: forward.z * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
-    }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN);   // thrown down by you: 10 minutes (0.7981)
+    }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN, whole ? count : 1);   // thrown down by you: 10 minutes (0.7981)
     // spawnDrop centres on the cell midpoint; nudge back to the true throw origin (null in creative, 0.804)
     if (rec) rec.group.position.set(spawnX, spawnY, spawnZ);
   }
@@ -238,6 +284,46 @@ function tryPickup(id, dur = null, reason = 'picked up', meta = null) {
   if (!_tryPickupInto(id, dur, meta)) return false;
   if (typeof feedItem === 'function') feedItem(id, 1, reason);
   return true;
+}
+/* Up to `n` at once (0.8385, a stacked drop): how many were taken. Same order as one by one (offhand, then partial
+   stacks in hotbar, bags, backpack, then empty slots), but each grid is saved and redrawn once, not once per item. */
+function tryPickupMany(id, n, dur = null, reason = 'picked up', meta = null) {
+  let got = 0;
+  if (n <= 1 || dur != null) { while (got < n && _tryPickupInto(id, dur, meta)) got++; }
+  else got = _pickupBulk(id, n, meta);
+  if (got && typeof feedItem === 'function') feedItem(id, got, reason);
+  return got;
+}
+function _pickupBulk(id, n, meta) {
+  const fresh = meta ? meta.fresh ?? null : null;
+  let left = n - (typeof offhandTopUp === 'function' ? offhandTopUp(id, n, fresh) : 0);
+  const cap = stackSize(id);
+  const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+  const top = (arr, len) => {
+    let hit = false;
+    for (let i = 0; i < len && left > 0; i++) {
+      const s = arr[i];
+      if (s && s.id === id && s.count < cap) { const t = Math.min(left, cap - s.count); stackInto(s, t, fresh); left -= t; hit = true; }
+    }
+    return hit;
+  };
+  const fill = (arr, len) => {
+    let hit = false;
+    for (let i = 0; i < len && left > 0; i++) if (arr[i] == null) {
+      const t = Math.min(left, cap); arr[i] = applyMeta(mkSlot(id, t), meta); left -= t; hit = true;
+    }
+    return hit;
+  };
+  let hot = false, inv = false;
+  if (top(HOTBAR, HOTBAR.length)) hot = true;
+  if (top(invSlots, invSlots.length)) inv = true;
+  if (top(invSlots2, packN)) inv = true;
+  if (fill(HOTBAR, HOTBAR.length)) hot = true;
+  if (fill(invSlots, invSlots.length)) inv = true;
+  if (fill(invSlots2, packN)) inv = true;
+  if (hot) { saveHotbar(); buildHotbar(); }
+  if (inv) { saveInv(); if (invOpen) buildInventory(); }
+  return n - left;
 }
 function _tryPickupInto(id, dur, meta = null) {
   const fresh = meta ? meta.fresh ?? null : null;
@@ -287,6 +373,7 @@ function clearDrops() {
   for (const pr of PROJECTILES) scene.remove(pr.group);
   PROJECTILES.length = 0;
   if (typeof clearArrows === 'function') clearArrows();   // ammo in flight (38-ranged.js)
+  if (typeof clearBossFx === 'function') clearBossFx();   // a boss's spells in the air (0.839, 60-bosses.js)
   if (typeof fxClear === 'function') fxClear();           // and every particle and footprint (0.8)
 }
 /* ---- projectiles: throwable items (snowball etc) — fly forward, vanish on block hit ---- */
@@ -334,7 +421,47 @@ function updateProjectiles(dt) {
   }
 }
 
+/* Join resting drops of the same thing (0.8385). Oldest first, so a newcomer joins what already lay there and the
+   stack stays where it was. Only settled drops (on the ground or floating) old enough for their pop to have been seen. */
+let _dropMergeAcc = 0;
+function _dropJoinable(a, b) {
+  return a.id === b.id && a.dur == null && b.dur == null && (a.meta?.wm ?? null) === (b.meta?.wm ?? null);
+}
+function _dropJoin(k, o) {                      // o into k
+  const fk = k.meta?.fresh, fo = o.meta?.fresh;
+  if (fo != null && (fk == null || fo < fk)) k.meta = { ...(k.meta || {}), fresh: fo };
+  k.life = k.age + Math.max(k.life - k.age, o.life - o.age);                       // the longer time left
+  k.pickupDelay = Math.max(k.pickupDelay, k.age + o.pickupDelay - o.age);          // a fresh toss keeps its grace
+  _dropSetCount(k, k.count + o.count);
+  o.count = 0;
+}
+function _dropMerge() {
+  if (DROPS.length < 2) return;
+  const cells = new Map(), R2 = DROP_MERGE_R * DROP_MERGE_R;
+  let joined = false;
+  for (const d of DROPS) {
+    if (d.count <= 0 || d.age < DROP_MERGE_AGE || !d.group.visible || !_dropStacks(d.id, d.dur)) continue;
+    if (!d.grounded && Math.abs(d.vy) > 0.5) continue;               // still flying
+    const p = d.group.position;
+    const cx = Math.floor(p.x), cy = Math.floor(p.y), cz = Math.floor(p.z);
+    let into = null;
+    for (let dx = -1; dx <= 1 && !into; dx++) for (let dy = -1; dy <= 1 && !into; dy++) for (let dz = -1; dz <= 1 && !into; dz++) {
+      const list = cells.get((cx + dx) + ',' + (cy + dy) + ',' + (cz + dz));
+      if (list) for (const k of list) {
+        const q = k.group.position, ex = q.x - p.x, ey = q.y - p.y, ez = q.z - p.z;
+        if (ex * ex + ey * ey + ez * ez <= R2 && _dropJoinable(k, d)) { into = k; break; }
+      }
+    }
+    if (into) { _dropJoin(into, d); joined = true; continue; }
+    const key = cx + ',' + cy + ',' + cz;
+    const list = cells.get(key);
+    if (list) list.push(d); else cells.set(key, [d]);
+  }
+  if (joined) for (let i = DROPS.length - 1; i >= 0; i--) if (DROPS[i].count <= 0) removeDrop(i);
+}
 function updateDrops(dt) {
+  _dropLitTick++;                               // each drop re-reads its light at its next draw (0.83852)
+  if ((_dropMergeAcc += dt) >= DROP_MERGE_EVERY) { _dropMergeAcc = 0; _dropMerge(); }
   for (let i = DROPS.length - 1; i >= 0; i--) {
     const d = DROPS[i];
     const p = d.group.position;
@@ -431,7 +558,11 @@ function updateDrops(dt) {
         const d2 = dx*dx + dyv*dyv + dz*dz;
         if (d2 < bestD2) { bestD2 = d2; taker = pl; }
       }
-      if (taker && withPlayer(taker, () => tryPickup(d.id, d.dur ?? null, 'picked up', d.meta ?? null))) { removeDrop(i); continue; }
+      if (taker) {                                  // as much of the stack as fits (0.8385)
+        const got = withPlayer(taker, () => tryPickupMany(d.id, d.count, d.dur ?? null, 'picked up', d.meta ?? null));
+        if (got >= d.count) { removeDrop(i); continue; }
+        if (got > 0) _dropSetCount(d, d.count - got);
+      }
     }
     if (d.age > (d.life || DROP_LIFETIME)) removeDrop(i);
   }

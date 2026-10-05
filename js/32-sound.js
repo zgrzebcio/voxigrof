@@ -14,7 +14,7 @@
 
    BLOCK SOUNDS
    ------------
-   Blocks don't name a sound file — they carry a `type` in PROPS (02-voxel-core.js): 'stone',
+   Blocks don't name a sound file — they carry a `type` in PROPS (58-blocks.js): 'stone',
    'ground', 'wood', 'grass', 'glass', 'snow', 'wool', 'tnt'. BLOCK_TYPE_SOUND maps that type to
    a file, so a new block picks up the right sound just by declaring its type.
 

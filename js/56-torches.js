@@ -10,7 +10,12 @@
 
    Rain puts a fire torch under the open sky out a little at a time. A torch in a hand burns while it is held: one
    torch of the stack at a time, handed back unlit when it goes out. Right-click a placed unlit torch with flint to
-   light it, or with a glow crystal to make it a crystal torch. */
+   light it, or with a glow crystal to make it a crystal torch.
+
+   0.8373: the burning runs at the world's random tick (burnRate): at 5, a new world's default, the times above; at 10
+   twice as fast; at 0 nothing burns out or is put out by rain, placed or held. The lights keep their own clock for it
+   (_burnNow: the world's seconds, run at that rate, saved with them). A light placed in creative never burns out:
+   its due time is BURN_NEVER. */
 const BURN_S = {                                       // [shortest, longest] life in world seconds
   [B.TORCH]:             [300, 600],
   [B.CRYSTAL_TORCH]:     [900, 1800],
@@ -25,10 +30,26 @@ const BURN_TICK = 1;                                   // seconds between looks 
 const BURN_OUTS_PER_TICK = 8;                          // a world opened after long away goes dark a few at a time
 const TORCH_STRIKE_FAIL = 0.25, FLINT_WEAR = 0.5, CRYSTAL_WEAR = 0.25;   // relighting (tryLightTorch)
 
-const BURNS = new Map();                               // "x,y,z" -> [x, y, z, world second it goes out]
-const _burnNow = () => worldClockDays() * DAY_LEN;
+const BURNS = new Map();                               // "x,y,z" -> [x, y, z, burn-clock second it goes out]
+const BURN_NEVER = -1;                                  // the due time of a light placed in creative (0.8373)
+const BURN_TICK_REF = 5;                                // the random tick the times above are for (0.8373)
+// how fast the lights burn: the world's random tick against BURN_TICK_REF (0 = not at all)
+const burnRate = () => Math.max(0, (typeof randomTickSpeed === 'number' ? randomTickSpeed : BURN_TICK_REF) / BURN_TICK_REF);
+/* The lights' own clock (0.8373): the world's seconds (a night slept through counts) run at burnRate. `_burnSync`: set
+   it to the world's clock at its next reading (a new world, or a save from before it, whose due times are the world's) */
+let _burnClock = 0, _burnWorldAt = null, _burnSync = true;
+function _burnNow() {
+  const w = worldClockDays() * DAY_LEN;
+  if (_burnSync) { _burnClock = w; _burnSync = false; }
+  else if (_burnWorldAt != null && w > _burnWorldAt) _burnClock += (w - _burnWorldAt) * burnRate();
+  _burnWorldAt = w;
+  return _burnClock;
+}
 const _burnKey = (x, y, z) => x + ',' + y + ',' + z;
 const _burnLife = (id) => { const r = BURN_S[id]; return r[0] + Math.random() * (r[1] - r[0]); };
+// a light being put down by a player in creative (0.8373): it never burns out
+const _creativePlacing = () => typeof _placingByPlayer !== 'undefined' && _placingByPlayer
+                              && typeof player !== 'undefined' && !!player && player.canFly;
 
 // a light seen as its chunk loads: it keeps the time it already has, or draws one (finishChunkGen, 11)
 function burnSeen(x, y, z, id) {
@@ -36,12 +57,13 @@ function burnSeen(x, y, z, id) {
   const k = _burnKey(x, y, z);
   if (!BURNS.has(k)) BURNS.set(k, [x, y, z, _burnNow() + _burnLife(id)]);
 }
-// the setBlock hook (11): a light placed draws a fresh time, one taken away is forgotten
+// the setBlock hook (11): a light placed draws a fresh time (none in creative), one taken away is forgotten
 function burnPlaced(x, y, z, oldVal, val) {
   const id = val & 255, oid = oldVal & 255;
   if (!BURN_S[id] && !BURN_S[oid]) return;
   const k = _burnKey(x, y, z);
   if (!BURN_S[id]) { BURNS.delete(k); return; }
+  if (_creativePlacing()) { BURNS.set(k, [x, y, z, BURN_NEVER]); return; }
   if (id !== oid || !BURNS.has(k)) BURNS.set(k, [x, y, z, _burnNow() + _burnLife(id)]);
 }
 
@@ -69,17 +91,18 @@ function updateBurns(dt) {
   if (_burnT < BURN_TICK) return;
   const step = Math.min(5, _burnT);
   _burnT = 0;
-  if (!BURNS.size) return;
-  const now = _burnNow();
+  const now = _burnNow(), rate = burnRate();            // the clock read every look, so it keeps up with the world
+  if (!BURNS.size || rate <= 0) return;                 // random tick 0: nothing burns out (0.8373)
   let outs = 0;
   for (const [k, e] of BURNS) {
     if (outs >= BURN_OUTS_PER_TICK) break;
+    if (e[3] < 0) continue;                             // placed in creative: burns for ever (0.8373)
     const x = e[0], y = e[1], z = e[2];
     const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
     if (!c || !c.data || !c.lit) continue;             // waits for its chunk
     const v = getBlock(x, y, z), id = v & 255;
     if (!BURN_S[id]) { BURNS.delete(k); continue; }    // gone some way the hook did not see
-    const rained = id === B.TORCH && getSkyWorld(x, y, z) >= 15 && _rainDouses(x, y, z, step);
+    const rained = id === B.TORCH && getSkyWorld(x, y, z) >= 15 && _rainDouses(x, y, z, step * rate);
     if (now >= e[3] || rained) { burnOut(x, y, z, v); outs++; }
   }
 }
@@ -92,8 +115,9 @@ function tickHeldBurn(p, dt) {
   if (p.canFly || p.dead) return;
   p._heldBurnAcc = (p._heldBurnAcc || 0) + dt;
   if (p._heldBurnAcc < 0.5) return;
-  const step = Math.min(5, p._heldBurnAcc);
+  const step = Math.min(5, p._heldBurnAcc) * burnRate();   // at the world's random tick (0.8373)
   p._heldBurnAcc = 0;
+  if (step <= 0) return;
   const main = HOTBAR[hotbarSel], off = typeof offhandSlot === 'function' ? offhandSlot() : null;
   const t = p._torchBurn || (p._torchBurn = {});
   for (const id of [B.TORCH, B.CRYSTAL_TORCH]) {
@@ -166,11 +190,16 @@ function tryLightTorch(hit) {
   return true;
 }
 
-// the world save (16): every light's due time, on the world's clock
-const serializeBurns = () => [...BURNS.values()].map(e => [e[0], e[1], e[2], Math.round(e[3])]);
-function restoreBurns(list) {
+// the world save (16): the lights' clock and every light's due time on it (0.8373; before, a bare list on the world's clock)
+const serializeBurns = () => ({ clock: Math.round(_burnNow()), list: [...BURNS.values()].map(e => [e[0], e[1], e[2], Math.round(e[3])]) });
+function restoreBurns(rec) {
   BURNS.clear();
   _burnT = 0;
+  _burnWorldAt = null;
+  const own = rec && !Array.isArray(rec) && typeof rec.clock === 'number' && isFinite(rec.clock);
+  _burnSync = !own;                                    // an older save's times are the world's: the clock starts there
+  _burnClock = own ? rec.clock : 0;
+  const list = own ? rec.list : rec;
   if (!Array.isArray(list)) return;
   for (const e of list)
     if (Array.isArray(e) && e.length === 4 && e.every(n => typeof n === 'number' && isFinite(n)))

@@ -135,15 +135,19 @@ const VSH = /* glsl */`
   out float vBlock;
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
+  flat out float vFill;                      // fast leaves: fill the leaf's holes (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade; vClim = clim;
+    /* Fast leaves (0.8386, FAST_LEAF_TILE in 02): the tile's top bit says "a solid leaf block": its holes are filled
+       (FSH) and it does not sway, which would open slits against the faces it now hides. */
+    float fillF = step(32767.5, tile), tileId = tile - fillF * 32768.0;
+    vUv = uv; vTile = tileId; vShade = shade; vClim = clim; vFill = fillF;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;                      // flood-filled block-light level (0..15) for this face
     vec4 wp = modelMatrix * vec4(position, 1.0);
     /* The wind (0.81): plants bend from the foot the way it blows, leaves drift a touch. Every term is a
        function of world position and time, so two leaf blocks sharing an edge move it together. */
     /* 0.812: the bend follows the wind's SPEED, the height bonus added here per vertex (51-seasons.js
        windHeightBonus), and a faster wind shakes it faster too. */
-    float sk = texelFetch(uTileLayer, ivec2(int(tile + 0.5), 0), 0).b;
+    float sk = fillF > 0.5 ? 0.0 : texelFetch(uTileLayer, ivec2(int(tileId + 0.5), 0), 0).b;
     /* A chunk fading in (0.8196): its grass and flowers grow up out of the ground as it comes, a beat behind the
        land, rather than being there at once. A plant's height above its foot is uv.y (a tall plant's top half
        carries on from 1), so squashing that keeps every foot where it is and both halves joined. */
@@ -198,6 +202,7 @@ const FSH = /* glsl */`
   in float vBlock;
   in vec3 vSC;
   in vec3 vWp;
+  flat in float vFill;                              // fast leaves (0.8386)
   out vec4 fragColor;
   ${CLOUD_GLSL}
   ${SKY_GLSL}
@@ -249,6 +254,12 @@ const FSH = /* glsl */`
           tex.rgb *= 1.0 + 0.12 * rip;
         }
       }
+    }
+    /* Fast leaves (0.8386): a hole in the leaf art shows the leaf's own average colour, darker, as if looking into the
+       crown. The atlas keeps a hole as (0,0,0,0), so a small mip's colour over its alpha is the average of the leaves. */
+    if (vFill > 0.5 && tex.a < 0.5) {
+      vec4 mc = textureLod(map, vec3(vUv, tl.x), 5.0);
+      tex = vec4(mc.rgb / max(mc.a, 0.05) * 0.6, 1.0);
     }
     if (tex.a < 0.02) discard;
     if (uTintTile >= 0.0 && abs(vTile - uTintTile) < 0.5) tex.rgb *= uTintColor;
@@ -308,8 +319,9 @@ const VSH_WATER = /* glsl */`
   out float vBlock;
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
+  flat out float vFill;                      // never a fast leaf (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim;
+    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim; vFill = 0.0;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Waving surface vertices are marked with shade 253/255 by emitWater; every vertex of one
@@ -371,8 +383,9 @@ const VSH_LAVA = /* glsl */`
   out float vBlock;
   out vec3 vSC;
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
+  flat out float vFill;                      // never a fast leaf (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade; vClim = 0.0;
+    vUv = uv; vTile = tile; vShade = shade; vClim = 0.0; vFill = 0.0;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     if (shade > 0.985) {

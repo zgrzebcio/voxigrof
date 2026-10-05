@@ -69,7 +69,7 @@ function chiselShapeKey() {
 
 /* ---- shaping blocks (0.782; variants since 0.783; pane and fence 0.784) ----
    Every shape in the radial now places. A shape is the full block's own id with the shape in its variant
-   byte (CHISEL SHAPES in 02-voxel-core.js); which blocks take which shape is SHAPE_BLOCKS there, read here
+   byte (CHISEL SHAPES in 58-blocks.js); which blocks take which shape is SHAPE_BLOCKS there, read here
    through PROPS[id].shapes — so a block can take a pane but no fence, and the slots show that. */
 const CHISEL_BLOCK_SHAPE = { slab: 'slab', vslab: 'slab', stairs: 'stairs', pane: 'pane', fence: 'fence',
                              carpet: 'layer', cover: 'cover', wall: 'wall' };   // radial key -> family (carpet 0.785, cover/wall 0.787)

@@ -14,6 +14,9 @@ function resetWorld(seed, terrainType, biomeRev = 1) {
   for (const [, c] of chunks) disposeChunkMeshes(c);
   clearChunkFades();                        // 0.8195
   chunks.clear();
+  _chunkCacheClear();                       // 0.83851
+  lightForgetAll();                         // the light thread lets go of every chunk (0.8386)
+  if (typeof farRegionsClear === 'function') farRegionsClear();   // 0.8386
   editStore.clear();
   glowClear();
   _plyGlows.fill(null);

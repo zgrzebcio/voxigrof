@@ -32,6 +32,13 @@ const newTerrainSel = document.getElementById('newTerrainSel');
 const newSplitChk = document.getElementById('newSplitChk');
 const newStructChk = document.getElementById('newStructChk');
 const newSeasonChk = document.getElementById('newSeasonChk');   // 0.818
+/* The game's own version, as the corner of the screen shows it ("alpha 0.837"), stamped on a world when it is made and
+   each time it is played (0.837; GAME_VERSION before, which only moves with the textures) */
+const APP_VERSION = ((document.getElementById('version') || {}).textContent || '').replace(/^\s*alpha\s*/i, '').trim() || GAME_VERSION;
+// 0.837: day and night, weather, clouds, animals, monsters — each can be switched off when a world is made
+const newDayNightChk = document.getElementById('newDayNightChk'), newWeatherChk = document.getElementById('newWeatherChk');
+const newCloudsChk = document.getElementById('newCloudsChk'), newAnimalsChk = document.getElementById('newAnimalsChk');
+const newMonstersChk = document.getElementById('newMonstersChk');
 const tickInput   = document.getElementById('tickInput');
 const modeLabel   = document.getElementById('modeLabel');
 
@@ -119,7 +126,112 @@ const idbGet = (id) => new Promise((res) => {
 });
 const idbDel = (id) => { if (idb) try { idb.transaction('worlds', 'readwrite').objectStore('worlds').delete(id); } catch {} };
 
-const persistWorlds = () => localStorage.setItem('vg_worlds', JSON.stringify(WORLDS));
+/* THE SAVE WORKER (0.8384, MultithreadPlan.md "Later"; SAVE_WORKER in 00-config). Building the save and storing it
+   used to happen in one go on the game's thread: every chunk's edits turned into [cell, value] pairs, then all of it
+   copied into IndexedDB. Now the edits leave as one flat Uint32Array per chunk (cell, value, cell, value...), handed
+   over without copying, and this worker turns them back into exactly the shape the save always had and writes it.
+   A world being opened waits for its save still on the way (_saveWaits), so it never reads the one before. */
+const SAVE_WORKER_SRC = `'use strict';
+let db = null;
+const open = () => db ? Promise.resolve(db) : new Promise((res, rej) => {
+  const rq = indexedDB.open(${JSON.stringify(IDB_NAME)}, 1);
+  rq.onupgradeneeded = () => rq.result.createObjectStore('worlds');
+  rq.onsuccess = () => res(db = rq.result);
+  rq.onerror = () => rej(rq.error);
+});
+self.onmessage = async (e) => {
+  const { seq, id, data, editKeys, editBufs } = e.data;
+  try {
+    const edits = {};
+    editKeys.forEach((k, n) => {
+      const a = new Uint32Array(editBufs[n]), out = new Array(a.length >> 1);
+      for (let i = 0; i < out.length; i++) out[i] = [a[2 * i], a[2 * i + 1]];
+      edits[k] = out;
+    });
+    data.edits = edits;
+    const d = await open();
+    await new Promise((res, rej) => {
+      const tx = d.transaction('worlds', 'readwrite');
+      tx.objectStore('worlds').put(data, id);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+    self.postMessage({ seq, ok: true });
+  } catch (err) { self.postMessage({ seq, ok: false, message: String((err && err.message) || err) }); }
+};`;
+let _saveWorker = null, _saveSeq = 0;
+const _saveDone = new Map(), _saveWaits = new Map();   // seq -> its settle; world id -> its latest save on the way
+function _saveWorkerOf() {
+  if (_saveWorker || !SAVE_WORKER || typeof Worker === 'undefined') return _saveWorker;
+  try {
+    _saveWorker = new Worker(URL.createObjectURL(new Blob([SAVE_WORKER_SRC], { type: 'text/javascript' })));
+    _saveWorker.onmessage = (e) => { const f = _saveDone.get(e.data.seq); if (f) { _saveDone.delete(e.data.seq); f(e.data); } };
+  } catch { _saveWorker = null; }
+  return _saveWorker;
+}
+// a world's save still on the way, waited for before it is read again
+const _saveSettled = (id) => _saveWaits.get(id) || Promise.resolve();
+// the save through the worker; resolves { ok } once it is written (or failed)
+function _saveViaWorker(id, data) {
+  const w = _saveWorkerOf();
+  if (!w) return null;
+  const editKeys = [], editBufs = [];
+  for (const [k, m] of editStore) {
+    if (!m.size) continue;
+    const a = new Uint32Array(m.size * 2);
+    let j = 0;
+    for (const [i, v] of m) { a[j++] = i; a[j++] = v; }
+    editKeys.push(k); editBufs.push(a.buffer);
+  }
+  const seq = ++_saveSeq;
+  const p = new Promise((res) => _saveDone.set(seq, res));
+  try { w.postMessage({ seq, id, data, editKeys, editBufs }, editBufs); }
+  catch (err) { _saveDone.delete(seq); return null; }      // something in the save that cannot be handed over: the old way
+  const settled = p.then(() => {});
+  _saveWaits.set(id, settled);
+  settled.then(() => { if (_saveWaits.get(id) === settled) _saveWaits.delete(id); });
+  return p;
+}
+
+/* Storage full (0.8387). localStorage holds about 5 MB a site. Closing the page writes the world being played there
+   too (`vg_world_<id>`, saveWorld(true): IndexedDB may not finish while a page closes), and that copy was only taken
+   away when the same world was saved again later; a few big worlds left that way filled it, and the world list could
+   no longer be written: Create threw before the world loaded. Now every such copy goes into IndexedDB (when it is
+   newer than the one there) and leaves localStorage at boot and whenever a write finds it full; and a full storage
+   never stops a world from starting. */
+function _isQuotaErr(e) { return !!e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014); }
+let _lsMoving = null;
+function lsWorldsToIdb() {
+  if (_lsMoving) return _lsMoving;
+  _lsMoving = (async () => {
+    await idbReady;
+    if (!idb) return;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vg_world_')) keys.push(k); }
+    for (const k of keys) {
+      const id = k.slice('vg_world_'.length);
+      let ls = null;
+      try { ls = JSON.parse(localStorage.getItem(k)); } catch {}
+      try {
+        if (ls) {
+          const cur = await idbGet(id);
+          if (!cur || (ls.savedAt || 0) > (cur.savedAt || 0)) await idbPut(id, ls);   // the newer copy is kept
+        }
+        localStorage.removeItem(k);                       // in the database now (or unreadable anyway)
+      } catch (err) { console.warn('[worlds] could not move', k, 'into IndexedDB', err); }
+    }
+  })().finally(() => { _lsMoving = null; });
+  return _lsMoving;
+}
+function persistWorlds() {
+  try { localStorage.setItem('vg_worlds', JSON.stringify(WORLDS)); return; }
+  catch (e) { if (!_isQuotaErr(e)) { console.warn('[worlds] world list not saved', e); return; } }
+  // full: make room by moving the closing-time copies into the database, then write the list again
+  lsWorldsToIdb().then(() => {
+    try { localStorage.setItem('vg_worlds', JSON.stringify(WORLDS)); }
+    catch (e) { console.warn('[worlds] world list not saved', e); if (typeof toast === 'function') toast('storage full: the world list could not be saved'); }
+  });
+}
+lsWorldsToIdb();                            // last session's closing-time copies into the database (0.8387)
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 // a taken name gets a number in brackets: World, World(1), World(2)... (0.829; was World1)
@@ -139,14 +251,17 @@ worldNameIn.addEventListener('input', paintWorldNameHint);
 
 function saveWorld(syncToLS = false) {
   if (!currentWorld) return;
+  // the edits as the save holds them; an autosave through the worker builds them there instead (0.8384)
+  const viaWorker = !syncToLS && SAVE_WORKER && !!_saveWorkerOf();
   const edits = {};
-  for (const [k, m] of editStore) if (m.size) edits[k] = [...m];
+  if (!viaWorker) for (const [k, m] of editStore) if (m.size) edits[k] = [...m];
   const drops = DROPS.map(r => [r.id,
     +r.group.position.x.toFixed(2), +r.group.position.y.toFixed(2), +r.group.position.z.toFixed(2),
     +r.vx.toFixed(2), +r.vy.toFixed(2), +r.vz.toFixed(2),
     Math.round(r.age * 10) / 10, Math.max(0, +(r.pickupDelay || 0).toFixed(2)),
     r.dur ?? null, r.meta || null,                                    // wear and extras (0.79)
-    r.life || DROP_LIFETIME]);                                        // how long it lies: 5, 10 or 20 min (0.7981)
+    r.life || DROP_LIFETIME,                                          // how long it lies: 5, 10 or 20 min (0.7981)
+    r.count || 1]);                                                   // a stacked drop's size (0.8385)
   const furnaces = [...FURNACES].map(([k, f]) =>
     [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3),
      +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP (0.775)
@@ -160,6 +275,7 @@ function saveWorld(syncToLS = false) {
     // structures: which chunks were already rolled, unopened loot markers, structure-block setups
     structPlaced: serializeStructPlaced(), structLoot: serializePendingLoot(),
     structBlocks: serializeStructBlocks(),
+    bossLairs: typeof serializeBossLairs === 'function' ? serializeBossLairs() : [],   // the snow castles and their kings (0.8393)
     time: worldTime, worldDay, curMode: currentInvMode,
     bloodLast: bloodMoonLast,               // the night of the last blood moon (0.8192, 53-storms.js)
     survHot: survStash.hot, survInv: survStash.inv, survInv2: survStash.inv2,
@@ -189,12 +305,22 @@ function saveWorld(syncToLS = false) {
   if (syncToLS) {           // unload path: synchronous localStorage copy, IDB may not finish
     try { localStorage.setItem('vg_world_' + id, JSON.stringify(data)); } catch {}
   }
-  idbPut(id, data)
-    .then(() => { if (!syncToLS) localStorage.removeItem('vg_world_' + id); })
-    .catch(() => {
-      try { localStorage.setItem('vg_world_' + id, JSON.stringify(data)); }
-      catch { toast('save failed — storage full'); }
-    });
+  // the old way when the worker cannot take it: `edits` built here after all (0.8384)
+  const direct = () => {
+    if (viaWorker) { data.edits = {}; for (const [k, m] of editStore) if (m.size) data.edits[k] = [...m]; }
+    idbPut(id, data)
+      .then(() => { if (!syncToLS) localStorage.removeItem('vg_world_' + id); })
+      .catch(() => {
+        try { localStorage.setItem('vg_world_' + id, JSON.stringify(data)); }
+        catch { toast('save failed — storage full'); }
+      });
+  };
+  const sent = viaWorker ? _saveViaWorker(id, data) : null;
+  if (sent) sent.then(r => {
+    if (r && r.ok) localStorage.removeItem('vg_world_' + id);
+    else direct();                                         // the worker could not write it: try here
+  });
+  else direct();
   if (!syncToLS) _captureThumb(id);   // update thumbnail on every async save
   currentWorld.lastPlayed = Date.now();
   currentWorld.savedDay = worldDay;    // in-game day at the moment of the save, shown in the list
@@ -216,11 +342,13 @@ async function loadWorld(w) {
   const vd = clampi(+distInput.value || 10, 4, 32);      // leave the short panorama distance
   // always, even at the same distance: the backdrop had no far ring, and the camera's reach must grow by it (0.8193)
   viewDist = vd; applyViewDist();
-  randomTickSpeed = clampi(+w.tickSpeed || 3, 0, 20);     // world's simulation-speed setting
+  // world's simulation-speed setting; a saved 0 stays 0 (0.8373), a world without one is 3
+  randomTickSpeed = clampi(typeof w.tickSpeed === 'number' && isFinite(w.tickSpeed) ? w.tickSpeed : 3, 0, 20);
   if (!w.createdVersion) w.createdVersion = 'pre-0.443';  // legacy worlds predate version stamping
-  w.lastVersion = GAME_VERSION;                           // record the version this session joined on
+  w.lastVersion = APP_VERSION;                            // record the version this session joined on
   persistWorlds();
   await idbReady;
+  await _saveSettled(w.id);                 // its own save still on the way through the save worker first (0.8384)
   let data = await idbGet(w.id);
   let ls = null;
   try { ls = JSON.parse(localStorage.getItem('vg_world_' + w.id)); } catch {}
@@ -293,6 +421,7 @@ async function loadWorld(w) {
   restoreEntChunks(data && data.entChunks);
   restorePendingLoot(data && data.structLoot);
   restoreStructBlocks(data && data.structBlocks);
+  if (typeof restoreBossLairs === 'function') restoreBossLairs(data && data.bossLairs);   // 0.8393
   for (const [k, m] of editStore) {
     const cxz = k.split(','), gx = cxz[0] * 16, gz = cxz[1] * 16;
     for (const [i, v] of m) {
@@ -362,12 +491,12 @@ function restoreDrops(list) {
 function _restoreDropList(list) {
   for (const d of list) {
     if (!Array.isArray(d) || d.length < 4) continue;
-    const [id, x, y, z, vx = 0, vy = 0, vz = 0, age = 0, pd = 0, dur = null, meta = null, life = 0] = d;
+    const [id, x, y, z, vx = 0, vy = 0, vz = 0, age = 0, pd = 0, dur = null, meta = null, life = 0, count = 1] = d;
     if (!PLACEABLE.includes(id) && !ITEM_PROPS[id]) continue;
-    // a save from before 0.7981 has no lifetime: it keeps the 5 minutes every drop had then
+    // a save from before 0.7981 has no lifetime: it keeps the 5 minutes every drop had then; before 0.8385, one each
     const rec = spawnDrop(id, Math.floor(x), Math.floor(y), Math.floor(z), { x: vx, y: vy, z: vz }, pd,
                           typeof dur === 'number' ? dur : null, meta && typeof meta === 'object' ? meta : null,
-                          +life > 0 ? +life : DROP_LIFETIME);
+                          +life > 0 ? +life : DROP_LIFETIME, Math.max(1, +count | 0));
     if (rec) { rec.group.position.set(x, y, z); rec.age = age; }
   }
 }
@@ -418,13 +547,20 @@ function renderWorldList() {
     ];
     if (w.split) bits.push('split screen');
     if (typeof w.savedDay === 'number') bits.push(`day ${w.savedDay}`);
-    bits.push(`v${escapeHtml(w.lastVersion || w.createdVersion || 'pre-0.443')}`);
+    /* which game made it and which last played it, and its world generation (biomeRev: the land a world grows
+       stays the one it was made with, 0.837) */
+    const made = w.createdVersion || 'pre-0.443', last = w.lastVersion || made;
+    // early in the line, which ends in an ellipsis when it runs long
+    bits.splice(2, 0, `made in v${escapeHtml(made)}` + (last !== made ? `, played in v${escapeHtml(last)}` : ''), `world gen ${w.biomeRev || 1}`);
+    const off = [w.dayNight === false && 'no night', w.weather === false && 'no weather', w.clouds === false && 'no clouds',
+                 w.animals === false && 'no animals', w.monsters === false && 'no monsters'].filter(Boolean);
+    if (off.length) bits.push(off.join(', '));
     row.innerHTML =
       `<div class="wshade"></div>` +
       `<div class="wbody">` +
         `<div class="winfo">` +
           `<b>${escapeHtml(w.name)}</b>` +
-          `<span class="wseed">${bits.join(' &middot; ')}</span>` +
+          `<span class="wseed" title="${bits.join(' · ').replace(/"/g, '&quot;')}">${bits.join(' &middot; ')}</span>` +
         `</div>` +
       `</div>` +
       `<div class="wbtns"></div>`;

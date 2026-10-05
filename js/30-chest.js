@@ -32,10 +32,11 @@ const CHEST_WALL = 1 / 16;                            // the body is a box you c
 /* WOOD (0.809): the chest art is grey wood with its metal fittings on separate overlay sheets. Each wood
    tints the grey by the colour of its planks, then the metal goes on top untinted. The wood sits in bits
    4-5 of the variant byte, picked on the variant bar (46-variants.js); 0 is oak, as every older chest is. */
-const CHEST_WOODS = ['oak', 'birch', 'spruce'];
+// rime wood (0.8392): the fourth and last the two bits hold, tinted by the frozen planks like the rest
+const CHEST_WOODS = ['oak', 'birch', 'spruce', 'rime'];
 const CHEST_WOOD_SHIFT = 4;
 const chestWoodOf = (va) => { const w = (va >> CHEST_WOOD_SHIFT) & 3; return w < CHEST_WOODS.length ? w : 0; };
-const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33]];
+const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33], [1.4, 1.5, 1.62]];
 const _chestTints = [];
 /* The planks' mean colour over the grey art's mean, so a tinted chest averages out to its planks. It can
    pass 1: the grey is darker than any plank, and the tint is applied per pixel, which may brighten. */
@@ -341,7 +342,7 @@ function chestBroken(x, y, z, oldVal) {
   if (!c) return;
   if (!player.canFly)
     for (const s of c.slots)
-      if (s) for (let n = 0; n < s.count; n++) spawnDrop(s.id, x, y, z);
+      if (s) spawnDrop(s.id, x, y, z, null, undefined, s.dur ?? null, slotMeta(s), 0, s.count);   // one stack a slot, wear kept (0.8385)
   CHESTS.delete(k);
   if (activeChest === k || activeChest2 === k) {
     activeChest = activeChest2 = null;
@@ -390,7 +391,7 @@ function fitChestSlots(list, x, y, z) {
     const at = list.find(([c]) => c && c.slots.includes(null));
     if (at) { at[0].slots[at[0].slots.indexOf(null)] = s; continue; }
     if (!player.canFly) {
-      for (let k = 0; k < s.count; k++) spawnDrop(s.id, x, y + 1, z, null, undefined, s.dur ?? null, slotMeta(s));
+      spawnDrop(s.id, x, y + 1, z, null, undefined, s.dur ?? null, slotMeta(s), 0, s.count);   // one stack (0.8385)
       fell++;
       continue;
     }

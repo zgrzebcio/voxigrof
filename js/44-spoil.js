@@ -54,7 +54,6 @@ function stackInto(dst, n, srcFresh) {
 /* ---- the tick ----
    One whole second at a time, so the clock a player reads counts down in steps they can follow and
    a laggy frame cannot eat two seconds at once. */
-let _spoilAcc = 0;
 const SPOIL_STEP = 1;
 
 /* Drain one second off everything carried. A slot whose clock merely MOVED needs a repaint and
@@ -63,10 +62,11 @@ function tickSpoilage(dt) {
   if (typeof player === 'undefined' || !player || player.dead) return;
   if (player.canFly) return;                    // creative: nothing rots
   if (typeof currentWorld !== 'undefined' && !currentWorld) return;
-  _spoilAcc += dt;
-  if (_spoilAcc < SPOIL_STEP) return;
-  const steps = Math.floor(_spoilAcc / SPOIL_STEP);
-  _spoilAcc -= steps * SPOIL_STEP;
+  // each player's own second (0.8379): one counter shared by every split-screen seat let their food rot unevenly
+  player._spoilAcc = (player._spoilAcc || 0) + dt;
+  if (player._spoilAcc < SPOIL_STEP) return;
+  const steps = Math.floor(player._spoilAcc / SPOIL_STEP);
+  player._spoilAcc -= steps * SPOIL_STEP;
 
   let hotPaint = false, invPaint = false, offPaint = false;
   let hotLost = false, invLost = false, offLost = false;

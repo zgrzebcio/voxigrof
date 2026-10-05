@@ -1243,6 +1243,25 @@ function _fxAmbBubble(x, y, z) {
   if (Math.random() > 0.04 || !_fxSolid(x, y - 1, z) || (getBlock(x, y + 1, z) & 255) !== B.WATER) return;
   _fxBubble(x + _rnd(0.2, 0.8), y + 0.1, z + _rnd(0.2, 0.8));
 }
+/* Diamond dust (0.836): in the Coldest Deep Snow the open air glitters with drifting ice crystals. `_fxRime` is how far
+   into its cold a player stands (climateAt's rime, 55-biomes.js), asked twice a second. */
+function _fxRime(p) {
+  const now = performance.now();
+  if (!(p._fxRimeT > now)) {
+    p._fxRimeT = now + 500;
+    const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climateAt ? mainGen.climateAt(Math.floor(p.pos.x), Math.floor(p.pos.z)) : null;
+    p._fxRime = c ? c.rime || 0 : 0;
+  }
+  return p._fxRime;
+}
+function _fxDiamondDust(x, y, z) {
+  if (getSkyWorld(x, y, z) < 13) return;                             // under the open sky only
+  const L = Math.max(0.4, _fxLight(x + 0.5, y + 0.5, z + 0.5));
+  const i = _fxGlint(FX.sprites, x + Math.random(), y + Math.random(), z + Math.random(), [0.82 * L, 0.92 * L, L], _rnd(0.03, 0.06), _rnd(0.9, 1.7));
+  if (i < 0) return;
+  const S = FX.sprites;
+  S.vx[i] = _rnd(-0.15, 0.15); S.vy[i] = _rnd(-0.25, -0.05); S.vz[i] = _rnd(-0.15, 0.15); S.fade[i] = 0.5;
+}
 /* Ambient effects, Minecraft's way: a fixed number of random cells around each player each frame. A
    lava surface pops embers and flickers; a sand or gravel block hanging over air sheds dust (0.8). */
 function _fxAmbient(dt) {
@@ -1255,10 +1274,14 @@ function _fxAmbient(dt) {
   for (const p of PLAYERS) {
     if (!p.spawned || p.dead) continue;
     const cx = Math.floor(p.pos.x) - FX_AMB_RADIUS, cy = Math.floor(p.pos.y) - FX_AMB_RADIUS, cz = Math.floor(p.pos.z) - FX_AMB_RADIUS;
+    const rime = _fxRime(p);
     for (let s = 0; s < per; s++) {
       const x = cx + ((Math.random() * D) | 0), y = cy + ((Math.random() * D) | 0), z = cz + ((Math.random() * D) | 0);
       const v = getBlock(x, y, z);
-      if (!v) continue;
+      if (!v) {
+        if (rime > 0.2 && Math.random() < 0.012 * rime) _fxDiamondDust(x, y, z);   // 0.836
+        continue;
+      }
       const id = v & 255;
       if (id === B.LAVA) {
         if ((getBlock(x, y + 1, z) & 255) !== B.AIR) continue;
@@ -1268,6 +1291,9 @@ function _fxAmbient(dt) {
         else if (r < 0.5) _fxSmoke(x + 0.5, top + 0.1, z + 0.5, 0.28, 1, 0.8);
       } else if (id === B.WATER) {
         _fxAmbWater(x, y, z, v);                                     // 0.803
+      } else if (id === B.ICE && rime > 0.3) {
+        // the Coldest Deep Snow's ice glints all over (0.836)
+        if (Math.random() < 0.06) _fxGlint(FX.sprites, x + _rnd(-0.02, 1.02), y + _rnd(0, 1.02), z + _rnd(-0.02, 1.02), [0.75, 0.92, 1], _rnd(0.05, 0.09));
       } else if (LEAF_BLOCKS.has(id)) {
         // a leaf lets go now and then and flutters down, in its own tree's colour (0.803)
         if (Math.random() > 0.06 || CORE.shapeOfVal(v) || (getBlock(x, y - 1, z) & 255) !== B.AIR) continue;
@@ -1360,7 +1386,7 @@ function _fxSandstorm(p, dt) {
    drives it sideways with the wind. A drop or flake is only made where the sky is open above it, so none fall under a
    roof, a canopy or in a cave, and each dies on what it hits: rain leaves the odd puddle on the ground, or a ring and a
    splash on water (_fxRainLand). Nothing falls above the clouds. */
-const FX_RAIN_PER_S = 900, FX_SNOW_PER_S = 240, FX_BLIZZARD_PER_S = 700;   // at full strength, before the particle setting
+const FX_RAIN_PER_S = 900, FX_SNOW_PER_S = 240, FX_BLIZZARD_PER_S = 1700;   // at full strength, before the particle setting (blizzard 700 before 0.837)
 const FX_PUDDLE_CHANCE = 0.03, FX_SPLASH_CHANCE = 0.12, FX_RING_CHANCE = 0.45;
 function _fxWeather(p, dt) {
   const ey = p.pos.y + (p.EYE || 1.62);
@@ -1400,16 +1426,18 @@ function _fxWeather(p, dt) {
   // snow: drifting flakes, or a blizzard's driven ones
   const sn = p._fxSnow, bz = p._fxBliz;
   p._fxSnowAcc = Math.min(60, (p._fxSnowAcc || 0) + (FX_SNOW_PER_S * sn + FX_BLIZZARD_PER_S * bz) * _fxScale * dt);
-  const side = ws * (0.2 + 0.6 * bz);
+  /* a blizzard (0.837) packs its snow close round you: flakes made within about 4 blocks instead of 12, driven
+     harder, living shorter, so the air at arm's length is thick with them and past it there is only white */
+  const side = ws * (0.2 + 0.9 * bz), R = 12 - 8 * bz, up = 9 - 5 * bz;
   while (p._fxSnowAcc >= 1) {
     p._fxSnowAcc -= 1;
-    const x = p.pos.x + _rnd(-12, 12) - wx * side * 1.2, y = ey + _rnd(-3, 9), z = p.pos.z + _rnd(-12, 12) - wz * side * 1.2;
+    const x = p.pos.x + _rnd(-R, R) - wx * side * (1.2 - 0.9 * bz), y = ey + _rnd(-3 + bz, up), z = p.pos.z + _rnd(-R, R) - wz * side * (1.2 - 0.9 * bz);
     if (!open(x, y, z)) continue;
-    const i = FX.weather.add(x, y, z, bz > 0.5 ? _rnd(2.2, 3.2) : _rnd(4.5, 6.5));
+    const i = FX.weather.add(x, y, z, bz > 0.5 ? _rnd(1.1, 1.8) : _rnd(4.5, 6.5));
     if (i < 0) break;
     const W = FX.weather, L = _fxLight(x, y, z);
     W.setRect(i, ..._R.FLAKE);
-    W.s0[i] = W.s1[i] = _rnd(0.22, 0.36);
+    W.s0[i] = W.s1[i] = _rnd(0.22, 0.36) * (1 - 0.3 * bz);
     W.color(i, 0.95 * L, 0.97 * L, L, 0.9);
     W.vx[i] = wx * side * _rnd(0.8, 1.2); W.vz[i] = wz * side * _rnd(0.8, 1.2); W.vy[i] = -_rnd(1, 1.7) * (1 + bz);
     W.sway[i] = 0.5 * (1 - bz) + 0.1;

@@ -56,13 +56,27 @@ const meshResults = [];        // finished meshes waiting for capped main-thread
 const key = (cx, cz) => cx + ',' + cz;
 const CHUNK_AREA = CHUNK_X * CHUNK_Z;
 
-function getChunk(cx, cz) { return chunks.get(key(cx, cz)); }
+/* The chunk table (0.83851, CHUNK_CACHE, MultithreadPlan C2). getBlock, getLightWorld, getSkyWorld and the rest all
+   come through getChunk, thousands of times a frame, and each call built a "cx,cz" string and searched `chunks`. An 8x8
+   table by the low 3 bits of cx and cz keeps the last chunk found (or not found) per slot, so reads around one place
+   cost two compares. EVERY change to `chunks` (set, delete, clear) must call `_chunkCacheClear()`. */
+const _ccX = new Int32Array(64).fill(0x7fffffff), _ccZ = new Int32Array(64), _ccC = new Array(64).fill(undefined);
+function _chunkCacheClear() { _ccX.fill(0x7fffffff); _ccC.fill(undefined); }
+function getChunk(cx, cz) {
+  if (!CHUNK_CACHE) return chunks.get(key(cx, cz));
+  const i = (cx & 7) | ((cz & 7) << 3);
+  if (_ccX[i] === cx && _ccZ[i] === cz) return _ccC[i];
+  const c = chunks.get(key(cx, cz));
+  _ccX[i] = cx; _ccZ[i] = cz; _ccC[i] = c;
+  return c;
+}
 function ensureChunk(cx, cz) {
   let c = getChunk(cx, cz);
   if (!c) {
     c = { cx, cz, data: null, light: null, generating: false, meshing: false, queuedMesh: false,
           dirty: false, lit: false, rev: 0, meshes: [null, null, null] };
     chunks.set(key(cx, cz), c);
+    _chunkCacheClear();                     // it was remembered as missing (0.83851)
   }
   return c;
 }
@@ -104,6 +118,8 @@ function rebuildQueues() {
     if (d2 > (R + 2) * (R + 2)) {           // unload: dispose GPU resources, drop voxel data
       retireChunkMeshes(c);                 // ...after a short fade out (0.8195)
       chunks.delete(k);                     // (edits are kept in editStore)
+      _chunkCacheClear();                   // 0.83851
+      lightForget(c.cx, c.cz);              // 0.8386
     } else if (d2 > R * R) {
       retireChunkMeshes(c);                 // data ring beyond render radius: keep data only (fading out, 0.8195)
     } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
@@ -133,14 +149,187 @@ function rebuildQueues() {
 }
 
 function disposeChunkMeshes(c) {
-  for (let i = 0; i < 5; i++) {                // five passes since 0.8263 (glass)
-    if (c.meshes[i]) {
-      _fadeDrop(c.meshes[i]);               // a remesh mid-fade: the new meshes carry the fade on (0.8195)
-      scene.remove(c.meshes[i]);
-      c.meshes[i].geometry.dispose();       // materials/texture are shared — never disposed
-      c.meshes[i] = null;
-    }
+  _regionTouch(c);                          // 0.8386
+  for (let i = 0; i < 5; i++) _disposeChunkMesh(c, i);   // five passes since 0.8263 (glass)
+}
+function _disposeChunkMesh(c, i) {
+  if (!c.meshes[i]) return;
+  _fadeDrop(c.meshes[i]);                   // a remesh mid-fade: the new meshes carry the fade on (0.8195)
+  scene.remove(c.meshes[i]);
+  c.meshes[i].geometry.dispose();           // materials/texture are shared — never disposed
+  c.meshes[i] = null;
+}
+
+/* Chunk geometry reuse (0.83852, MESH_REUSE, MultithreadPlan C6). A remesh (every block edit, a light change, a level
+   of detail step) threw the chunk's five geometries away and built new ones: new GPU buffers and new JS objects each
+   time. Now a pass whose new data fits its old buffers is copied into them (`_meshRefill`): only the used part goes to
+   the GPU and only that part is drawn (drawRange). A remesh from a player's edit (`rush`) that does not fit gets new
+   buffers with room to spare (MESH_ROOM), since more edits usually follow. Much smaller data (under MESH_SHRINK of the
+   room) gets new, smaller buffers instead, so a chunk going far does not keep its near-detail memory. */
+const MESH_ROOM = 1.25, MESH_ROOM_ADD = 96, MESH_SHRINK = 0.4;
+const _MESH_ATTRS = [['position', 'pos'], ['uv', 'uv'], ['tile', 'tile'], ['shade', 'shade'],
+                     ['blockLight', 'lite'], ['clim', 'clim'], ['dark', 'dark']];
+function _meshGeometry(p, room) {
+  const nv = p.pos.length / 3, ni = p.index.length;
+  const cv = room ? Math.ceil(nv * MESH_ROOM) + MESH_ROOM_ADD : nv;
+  const ci = room ? Math.ceil(ni * MESH_ROOM) + MESH_ROOM_ADD * 2 : ni;
+  const fit = (a, n) => { if (a.length === n) return a; const b = new a.constructor(n); b.set(a); return b; };
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(fit(p.pos, cv * 3), 3));
+  geo.setAttribute('uv',       new THREE.BufferAttribute(fit(p.uv, cv * 2), 2));
+  geo.setAttribute('tile',     new THREE.BufferAttribute(fit(p.tile, cv), 1, false));
+  geo.setAttribute('shade',    new THREE.BufferAttribute(fit(p.shade, cv), 1, true));
+  geo.setAttribute('blockLight', new THREE.BufferAttribute(fit(p.lite, cv), 1, false));
+  geo.setAttribute('clim',     new THREE.BufferAttribute(fit(p.clim, cv), 1, true));   // grass and water climate colour (0.8231)
+  if (p.dark) geo.setAttribute('dark', new THREE.BufferAttribute(fit(p.dark, cv), 1, true));   // a water surface's depth shade (0.835492)
+  geo.setIndex(new THREE.BufferAttribute(fit(p.index, ci), 1));
+  geo.setDrawRange(0, ni);
+  geo.userData.nv = nv;                     // vertices in use (the far regions copy only these, 0.8386)
+  return geo;
+}
+function _meshRefill(geo, p) {
+  if (!MESH_REUSE) return false;
+  const ix = geo.index, pa = geo.attributes.position;
+  if (!ix || !pa || !!geo.attributes.dark !== !!p.dark) return false;
+  const nv = p.pos.length / 3, ni = p.index.length;
+  if (nv > pa.count || ni > ix.count || ni < ix.count * MESH_SHRINK) return false;
+  if (ix.array.constructor !== p.index.constructor) return false;
+  for (const [name, k] of _MESH_ATTRS) {
+    const a = geo.attributes[name];
+    if (a && (!p[k] || a.array.constructor !== p[k].constructor || p[k].length > a.array.length)) return false;
   }
+  const put = (a, src) => {
+    a.array.set(src);
+    a.clearUpdateRanges(); a.addUpdateRange(0, src.length);   // only the used part goes to the GPU
+    a.needsUpdate = true;
+  };
+  for (const [name, k] of _MESH_ATTRS) if (geo.attributes[name]) put(geo.attributes[name], p[k]);
+  put(ix, p.index);
+  geo.setDrawRange(0, ni);
+  geo.userData.nv = nv;
+  return true;
+}
+
+/* ---- far regions (0.8386, FAR_REGIONS, MultithreadPlan C8) ----
+   Every drawn chunk is up to five draw calls, and most of a big render distance is the far, half-resolution (level of
+   detail 2) ring: hundreds of chunks. A region is FAR_REGION x FAR_REGION chunks; once at least FAR_REGION_MIN of its
+   chunks are far ones whose meshes have not changed for FAR_REGION_SETTLE seconds (so never mid-fade, never while the
+   land is still arriving), their meshes are copied into one mesh per pass and the chunks' own are hidden. Anything that
+   touches a member's meshes (a remesh, a level-of-detail step, fading out, unloading) first takes the region apart
+   (its own meshes shown again) and it is tried again once things settle. Building waits for a quiet moment and stays
+   within FAR_REGION_MS a frame, so arriving land is never slowed by it. */
+const FAR_REGION = 4, FAR_REGION_MIN = 4, FAR_REGION_SETTLE = 2.5, FAR_REGION_MS = 2;
+const _regions = new Map();                 // "rx,rz" -> { meshes: [5], parts: [chunk...] }
+const _regionDue = new Map();               // "rx,rz" -> seconds (performance clock) when to try it
+const _regionKeyOf = (c) => Math.floor(c.cx / FAR_REGION) + ',' + Math.floor(c.cz / FAR_REGION);
+// a chunk's meshes are about to change: its region (if built) comes apart, and is tried again later
+function _regionTouch(c) {
+  if (!FAR_REGIONS) return;
+  const k = _regionKeyOf(c), r = _regions.get(k);
+  if (r && r.parts.includes(c)) _regionDissolve(k, r);
+  _regionDue.set(k, performance.now() / 1000 + FAR_REGION_SETTLE);
+}
+function _regionDissolve(k, r) {
+  for (const c of r.parts) for (const m of c.meshes) if (m) m.visible = true;
+  for (const m of r.meshes) if (m) { scene.remove(m); m.geometry.dispose(); }
+  _regions.delete(k);
+}
+function farRegionsClear() {
+  for (const [k, r] of [..._regions]) _regionDissolve(k, r);
+  _regionDue.clear();
+}
+function updateFarRegions() {
+  if (!FAR_REGIONS || !_regionDue.size || menuScene) return;
+  // only in a quiet moment: while land is arriving or chunks are waiting to mesh, that comes first
+  if (genFinishQueue.length > 2 || meshResults.length > 4) return;
+  const t0 = performance.now(), now = t0 / 1000;
+  for (const [k, due] of _regionDue) {
+    if (performance.now() - t0 > FAR_REGION_MS) break;
+    if (due > now) continue;
+    _regionDue.delete(k);
+    if (_regions.has(k)) continue;
+    const later = _regionBuild(k, now);
+    if (later) _regionDue.set(k, later);
+  }
+}
+// build region k if enough of it is settled and far; returns a time to try again, or 0
+function _regionBuild(k, now) {
+  const [rx, rz] = k.split(',').map(Number);
+  const parts = [];
+  let wait = 0;
+  for (let dz = 0; dz < FAR_REGION; dz++)
+    for (let dx = 0; dx < FAR_REGION; dx++) {
+      const c = getChunk(rx * FAR_REGION + dx, rz * FAR_REGION + dz);
+      if (!c || !c.data || c.lod !== 2 || c.meshing || c.queuedMesh || !c.meshes.some(Boolean)) continue;
+      const ready = Math.max((c._meshAt || 0), (c.shownAt || 0) + CHUNK_FADE_IN_S) + FAR_REGION_SETTLE;
+      if (ready > now) { wait = Math.max(wait, ready); continue; }
+      if (c.meshes.some((m) => m && FADING.some((f) => f.mesh === m))) { wait = Math.max(wait, now + 1); continue; }
+      parts.push(c);
+    }
+  if (parts.length < FAR_REGION_MIN) return wait;
+  const ox = rx * FAR_REGION * 16, oz = rz * FAR_REGION * 16;
+  let minY = 1e9, maxY = -1e9;
+  for (const c of parts) { minY = Math.min(minY, c._minY ?? 0); maxY = Math.max(maxY, c._maxY ?? WORLD_TOP); }
+  const half = FAR_REGION * 8;
+  const sphere = new THREE.Sphere(new THREE.Vector3(half, (minY + maxY) / 2, half),
+                                  Math.sqrt(2 * half * half + Math.pow((maxY - minY) / 2 + 1, 2)) + 1);
+  const meshes = [null, null, null, null, null];
+  for (let p = 0; p < 5; p++) {
+    const srcs = [];
+    let nv = 0, ni = 0, dark = false;
+    for (const c of parts) {
+      const g = c.meshes[p] && c.meshes[p].geometry;
+      if (!g || !g.index) continue;
+      const v = g.userData.nv != null ? g.userData.nv : g.attributes.position.count;
+      const i = Math.min(g.index.count, g.drawRange.count);
+      if (!v || !i) continue;
+      srcs.push({ c, g, v, i });
+      nv += v; ni += i;
+      if (g.attributes.dark) dark = true;
+    }
+    if (!srcs.length) continue;
+    const g0 = srcs[0].g.attributes;
+    const out = {
+      position: new Float32Array(nv * 3), uv: new Float32Array(nv * 2), tile: new g0.tile.array.constructor(nv),
+      shade: new g0.shade.array.constructor(nv), blockLight: new g0.blockLight.array.constructor(nv),
+      clim: new g0.clim.array.constructor(nv), dark: dark ? new Uint8Array(nv) : null,
+    };
+    const index = new Uint32Array(ni);
+    let vb = 0, ib = 0;
+    for (const { c, g, v, i } of srcs) {
+      const A = g.attributes, px = c.cx * 16 - ox, pz = c.cz * 16 - oz;
+      const P = out.position;
+      P.set(A.position.array.subarray(0, v * 3), vb * 3);
+      for (let q = vb * 3, e = (vb + v) * 3; q < e; q += 3) { P[q] += px; P[q + 2] += pz; }
+      out.uv.set(A.uv.array.subarray(0, v * 2), vb * 2);
+      for (const n of ['tile', 'shade', 'blockLight', 'clim']) out[n].set(A[n].array.subarray(0, v), vb);
+      if (dark && A.dark) out.dark.set(A.dark.array.subarray(0, v), vb);
+      const src = g.index.array;
+      for (let q = 0; q < i; q++) index[ib + q] = src[q] + vb;
+      vb += v; ib += i;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(out.position, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(out.uv, 2));
+    geo.setAttribute('tile', new THREE.BufferAttribute(out.tile, 1, false));
+    geo.setAttribute('shade', new THREE.BufferAttribute(out.shade, 1, true));
+    geo.setAttribute('blockLight', new THREE.BufferAttribute(out.blockLight, 1, false));
+    geo.setAttribute('clim', new THREE.BufferAttribute(out.clim, 1, true));
+    if (out.dark) geo.setAttribute('dark', new THREE.BufferAttribute(out.dark, 1, true));
+    geo.setIndex(new THREE.BufferAttribute(index, 1));
+    geo.boundingSphere = sphere.clone();
+    const mesh = new THREE.Mesh(geo, MATERIALS[p]);
+    mesh.renderOrder = p;
+    mesh.layers.set(p === 0 ? 0 : p === 1 || p === 4 ? 2 : 3);   // as a chunk's (applyOneMesh)
+    mesh.position.set(ox, 0, oz);
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
+    scene.add(mesh);
+    meshes[p] = mesh;
+  }
+  for (const c of parts) for (const m of c.meshes) if (m) m.visible = false;
+  _regions.set(k, { meshes, parts });
+  return 0;
 }
 
 /* ---- chunks fade in and out (0.8195) ----
@@ -186,6 +375,7 @@ function updateChunkFades(dt) {
 }
 // a chunk leaving the drawn range: its meshes fade out on their own, and it will fade in again if it comes back
 function retireChunkMeshes(c) {
+  if (c.meshes.some(Boolean)) _regionTouch(c);   // shown again on its own before it fades (0.8386)
   for (let i = 0; i < 5; i++) {
     const m = c.meshes[i];
     if (!m) continue;
@@ -251,7 +441,7 @@ function tryQueueMesh(c, d2, front) {
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
 const TERRAIN_KEY = 'terrain8354:';   // 0.8354 the world 250 tall (a cached 200-tall buffer must never be read)     // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
-const ZERO_LIGHT = new Uint8Array(16 * 16 * CHUNK_Y);   // stand-in for un-lit neighbours
+// (ZERO_LIGHT, the stand-in for an unlit neighbour, went in 0.83941: the workers pack the light since 0.8386)
 function edgeSlice(d, side, Ctor) {
   const s = new Ctor(16 * CHUNK_Y);
   for (let y = 0; y < CHUNK_Y; y++) {
@@ -271,35 +461,30 @@ function dispatchMesh(worker, c) {
   const nn = getChunk(c.cx, c.cz - 1), ns = getChunk(c.cx, c.cz + 1);
   c.meshing = true; c.queuedMesh = false; c.dirty = false; c.rev++;
   c.lod = chunkLod(chunkDist2ToPlayers(c.cx, c.cz), c.lod | 0);   // its level of detail (0.8092)
-  const data = c.data.slice();              // copy: main thread keeps the authoritative data
-  // pack glow (low nibble) + sky (high nibble) into one byte per cell for the mesher
-  const glow = c.light, skyA = c.sky;
-  /* 16 bits since 0.834: bit 8 says the block light is a cold (blue) one — the flood fill's LIGHT_COLD_BIT (08)
-     moved up past the sky nibble (LIGHT_COLD in 02) */
-  const light = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
-  const _pk = (g) => Math.min(15, g & LIGHT_LEVEL_MASK) | ((g & LIGHT_COLD_BIT) << 1);
-  for (let i = 0; i < light.length; i++)
-    light[i] = (glow ? _pk(glow[i]) : 0) | ((skyA ? skyA[i] : SKY_LEVEL) << 4);   // capped: 16+ turned black (0.8094)
-  const packedEdge = (n, side) => {
-    const e = edgeSlice(n.light || ZERO_LIGHT, side, Uint8Array), g = new Uint16Array(e.length);
-    for (let i = 0; i < g.length; i++) g[i] = _pk(e[i]);           // same cap as above (0.8094)
-    if (n.sky) {
-      const s = edgeSlice(n.sky, side, Uint8Array);
-      for (let i = 0; i < g.length; i++) g[i] |= s[i] << 4;
-    } else for (let i = 0; i < g.length; i++) g[i] |= 0xF0;   // unlit neighbour: assume open sky
-    return g;
-  };
-  const sxn = edgeSlice(nw.data, 0, Uint32Array), sxp = edgeSlice(ne.data, 1, Uint32Array);
-  const szn = edgeSlice(nn.data, 2, Uint32Array), szp = edgeSlice(ns.data, 3, Uint32Array);
-  const lxn = packedEdge(nw, 0), lxp = packedEdge(ne, 1);
-  const lzn = packedEdge(nn, 2), lzp = packedEdge(ns, 3);
-  worker.postMessage({ type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
-                       data: data.buffer, sxn: sxn.buffer, sxp: sxp.buffer, szn: szn.buffer, szp: szp.buffer,
-                       light: light.buffer, lxn: lxn.buffer, lxp: lxp.buffer, lzn: lzn.buffer, lzp: lzp.buffer,
-                       layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks (0.785)
-                       lod: c.lod },
-                     [data.buffer, sxn.buffer, sxp.buffer, szn.buffer, szp.buffer,
-                      light.buffer, lxn.buffer, lxp.buffer, lzn.buffer, lzp.buffer]);
+  /* 0.8386 (MultithreadPlan C10): the worker packs the light itself (block light low nibble, capped at 15, its cold bit
+     at 8; sky high nibble: `packLight` in WORKER_MAIN), which was a 102,400-cell loop here for every mesh job. With
+     shared memory the chunk and its four neighbours go as they are (`self`, `nb`), and the worker copies what it needs;
+     without, the chunk's three arrays are copied here and the neighbours' border planes cut out. */
+  const msg = { type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
+                layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks (0.785)
+                lod: c.lod };
+  if (SHARED_OK && c.data.buffer instanceof SharedArrayBuffer) {
+    const arrs = (n) => ({ data: n.data, light: n.light || null, sky: n.sky || null });
+    msg.shared = true;
+    msg.self = arrs(c);
+    msg.nb = [arrs(nw), arrs(ne), arrs(nn), arrs(ns)];        // sides 0-3: west, east, north, south
+    worker.postMessage(msg);
+    return;
+  }
+  const own = { data: c.data.slice(), light: c.light ? c.light.slice() : null, sky: c.sky ? c.sky.slice() : null };
+  const edge = (n, side) => ({ data: edgeSlice(n.data, side, Uint32Array),
+                               light: n.light ? edgeSlice(n.light, side, Uint8Array) : null,
+                               sky: n.sky ? edgeSlice(n.sky, side, Uint8Array) : null });
+  msg.self = own;
+  msg.nb = [edge(nw, 0), edge(ne, 1), edge(nn, 2), edge(ns, 3)];
+  const tr = [];
+  for (const o of [own, ...msg.nb]) for (const a of [o.data, o.light, o.sky]) if (a) tr.push(a.buffer);
+  worker.postMessage(msg, tr);
 }
 
 /* ---- generation throttle (0.7143) ----
@@ -377,8 +562,11 @@ function pump() {
           const _cx = job.cx, _cz = job.cz, _w = w, _wid = currentWorld.id;
           idbGet(TERRAIN_KEY + _wid + ':' + key(_cx, _cz)).then(buf => {
             if (buf instanceof ArrayBuffer) {
-              _w.busy--;
               const c = getChunk(_cx, _cz);
+              /* 0.8383: a cached chunk still goes by the worker, which lists its light emitters and lights its own sky
+                 (MultithreadPlan.md B1/B3); its answer comes back as a 'gen' marked _fromSave, so it is not cached again */
+              if (c && c.generating && LIGHT_WORKER) { _w.postMessage({ type: 'prep', cx: _cx, cz: _cz, data: buf }, [buf]); return; }
+              _w.busy--;
               if (c && c.generating) onWorkerMessage({ type: 'gen', cx: _cx, cz: _cz, data: buf, _fromSave: true });
               else if (c) c.generating = false;
               pump();
@@ -412,23 +600,37 @@ function finishChunkGen(c) {
      is a flat 256-entry lookup built once at boot, so the overwhelmingly common case (air, stone,
      dirt — cells that can never emit) is one typed-array read. */
   const wx0 = c.cx * 16, wz0 = c.cz * 16, d = c.data;
-  for (let i = 0; i < d.length; i++) {
+  const seeEmitter = (i) => {
     const v = d[i];
-    if (!EMITTER_ID[v & 255]) continue;
+    if (!EMITTER_ID[v & 255]) return;
     if (blockLightOf(v) > 0) {
       glowAdd(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15));
       // a torch or glow block seen for the first time starts burning (0.834, 56-torches.js)
       if (!menuScene && typeof burnSeen === 'function') burnSeen(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v & 255);
     }
-  }
+  };
+  /* 0.8381 (MultithreadPlan.md B1): the worker made the chunk and listed the cells that may give light, so only those are
+     looked at, and the cells the player's edits rewrote (an edit may have put a torch where there was none). Glow and
+     burn registration both ignore a cell they already have. */
+  if (c._emit) {
+    for (let k = 0; k < c._emit.length; k++) seeEmitter(c._emit[k]);
+    const edits = editStore.get(key(c.cx, c.cz));
+    if (edits) for (const i of edits.keys()) seeEmitter(i);
+    c._emit = null;
+  } else for (let i = 0; i < d.length; i++) seeEmitter(i);
   // its open water freezes as the season says, straight in the data before it meshes (0.8322, 51-seasons.js)
-  if (typeof iceDressChunk === 'function') iceDressChunk(c);
+  const froze = typeof iceDressChunk === 'function' ? iceDressChunk(c) : 0;
   /* A chunk arriving fresh needs seeding again — its edits were just re-applied, and if it landed
      while outside the simulation radius the relight below declines. Clearing the woken mark is
      what guarantees the sim-wake pass revisits it (and lights it) once the player is close. */
   simWakeInvalidate(c.cx, c.cz);
   relightForChunk(c.cx, c.cz);             // pour in any nearby glowstone before this meshes
-  seedSkyForChunk(c);                      // daylight columns + spread into caves/overhangs
+  /* daylight columns + spread into caves/overhangs. 0.8383 (MultithreadPlan.md B3): the worker lit the chunk's inside as
+     it made it, so only what crosses its borders is done here — unless the data is no longer what the worker saw (the
+     player's edits, water frozen just now, the title's season dressing): then all of it, as before. */
+  if (c._skyW && LIGHT_WORKER && !menuScene && !froze && !editStore.has(key(c.cx, c.cz))) seedSkyFromWorker(c, c._skyW);
+  else seedSkyForChunk(c);
+  c._skyW = null;
   c.lit = true;                            // only now may it mesh — see the note on tryQueueMesh
   // structures are stamped AFTER terrain, on the main thread — see the header of 34-structures.js
   trySpawnStructureInChunk(c.cx, c.cz);
@@ -463,14 +665,21 @@ function processGenFinish(maxPerFrame, deadline) {
 
 function onWorkerMessage(m) {
   if (m.type === 'error') { console.error('[worker]', m.message); return; }
+  if (m.type === 'probe') { if (typeof bossLairProbe === 'function') bossLairProbe(m); return; }   // a castle site looked at (0.8393)
   const c = getChunk(m.cx, m.cz);
   if (m.type === 'gen') {
     noteGenDone();                           // free a slot in the generation throttle, always
     if (!c) return;                          // chunk was unloaded while generating
     c.generating = false;
-    c.data = new Uint32Array(m.data);
+    // in shared memory when it is on (0.8386, C10): the mesh, scan and light workers then read it where it lies
+    c.data = shareArr(new Uint32Array(m.data));
+    if (typeof lightRegister === 'function') lightRegister(c);   // the light thread reads it from now on (0.8386)
+    // the cells that may give light, found by the worker (0.8381); without them (LIGHT_WORKER off and cached): a full scan
+    c._emit = m.emit ? new Int32Array(m.emit) : null;
+    c._skyW = m.sky ? new Uint8Array(m.sky) : null;   // and its own sky light, worked out there (0.8383)
     if (!m._fromSave && currentWorld && !menuScene)
-      idbPut(TERRAIN_KEY + currentWorld.id + ':' + key(m.cx, m.cz), c.data.buffer.slice()).catch(() => {});
+      // shared memory cannot be stored: then the worker's own buffer goes in, untouched since c.data copied it (0.8386)
+      idbPut(TERRAIN_KEY + currentWorld.id + ':' + key(m.cx, m.cz), c.data.buffer === m.data ? c.data.buffer.slice() : m.data).catch(() => {});
     const edits = editStore.get(key(m.cx, m.cz));
     if (edits) for (const [i, v] of edits) c.data[i] = v;   // re-apply player edits
     /* The voxel data is installed immediately — it is only a typed-array wrap and the edit
@@ -479,6 +688,9 @@ function onWorkerMessage(m) {
        four workers finishing in the same frame no longer means four of those passes back to
        back. That burst was what showed up as periodic stutter while flying. */
     genFinishQueue.push(c);
+  } else if (m.type === 'scan') {
+    // a chunk's season pass, its cells listed by a worker (0.8382, 51-seasons.js)
+    if (c && typeof seasonScanResult === 'function') seasonScanResult(c, m);
   } else if (m.type === 'mesh') {
     if (!c) return;
     c.meshing = false;
@@ -533,26 +745,23 @@ function applyOneMesh(m) {
     if (!c || m.rev !== c.rev) return false;
     { const r = shadowR / 16 + 2; if (chunkDist2ToPlayers(m.cx, m.cz) <= r * r) _shadowTouched = true; }   // inside the shadow maps (0.8196)
     c.editRush = false;
-    disposeChunkMeshes(c);
+    _regionTouch(c);                        // its far region (if built) comes apart first (0.8386)
+    if (!MESH_REUSE) disposeChunkMeshes(c);
     // first shown now, or still fading in from its first showing: the new meshes fade on from there (0.8195)
     const nowS = performance.now() / 1000;
+    c._meshAt = nowS; c._minY = m.minY; c._maxY = m.maxY;   // for the far regions (0.8386)
     if (c.shownAt == null) c.shownAt = nowS;
     const fadeAge = nowS - c.shownAt;
     const midY = (m.minY + m.maxY) / 2;
     const sphere = new THREE.Sphere(new THREE.Vector3(8, midY, 8),
                                     Math.sqrt(128 + Math.pow((m.maxY - m.minY) / 2 + 1, 2)) + 1);
     for (let i = 0; i < 5; i++) {
-      const p = m.passes[i];
+      const p = m.passes[i], old = c.meshes[i];
+      // the pass already drawn and the new one fits its buffers: rewritten in place, mesh and fade kept (0.83852)
+      if (old && p && _meshRefill(old.geometry, p)) { old.geometry.boundingSphere.copy(sphere); continue; }
+      if (old) _disposeChunkMesh(c, i);
       if (!p) continue;
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(p.pos, 3));
-      geo.setAttribute('uv',       new THREE.BufferAttribute(p.uv, 2));
-      geo.setAttribute('tile',     new THREE.BufferAttribute(p.tile, 1, false));
-      geo.setAttribute('shade',    new THREE.BufferAttribute(p.shade, 1, true));
-      geo.setAttribute('blockLight', new THREE.BufferAttribute(p.lite, 1, false));
-      geo.setAttribute('clim',     new THREE.BufferAttribute(p.clim, 1, true));   // grass and water climate colour (0.8231)
-      if (p.dark) geo.setAttribute('dark', new THREE.BufferAttribute(p.dark, 1, true));   // a water surface's depth shade (0.835492)
-      geo.setIndex(new THREE.BufferAttribute(p.index, 1));
+      const geo = _meshGeometry(p, MESH_REUSE && m.rush);   // a player's edit: spare room for the next one
       geo.boundingSphere = sphere.clone();                  // manual: skip costly compute
       const mesh = new THREE.Mesh(geo, MATERIALS[i]);
       mesh.renderOrder = i;                                 // opaque -> cutout -> water -> lava -> glass (0.8263)
@@ -912,6 +1121,15 @@ function glowNear(x, y, z) {
   for (const g of _plyGlows)
     if (g && Math.abs(g[0]-x) <= LIGHT_REACH && Math.abs(g[1]-y) <= LIGHT_REACH && Math.abs(g[2]-z) <= LIGHT_REACH) return true;
   return false;
+}
+// every drawn chunk meshed again, nearest first: a setting the mesher reads changed (fast leaves, 0.8386)
+function remeshAllChunks() {
+  for (const c of chunks.values()) {
+    if (!c.data || !c.lit) continue;
+    if (c.meshing) { c.dirty = true; continue; }
+    if (c.meshes.some(Boolean)) tryQueueMesh(c, chunkDist2ToPlayers(c.cx, c.cz));
+  }
+  pump();
 }
 function markDirty(c) {
   if (!c || !c.data) return;

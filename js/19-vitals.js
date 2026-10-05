@@ -236,6 +236,7 @@ function updateVitals(dt) {
   _syncHeatBlur();
   _updateMirages(dt);
   _syncDeathMark(dt);                            // where you last died (0.827)
+  player._statsLive = survival;                  // the fixed tick runs this player's bars only while this holds (0.8379)
   if (!survival) return;
   if (typeof flushOwedXP === 'function') flushOwedXP();   // XP earned while another seat ran (a sapling grew, 0.8283)
   if (!player.dead) player.aliveT = (player.aliveT || 0) + dt;   // survival stopwatch for the death screen
@@ -249,8 +250,10 @@ function updateVitals(dt) {
      the same in-call baseline. Carrying the value across the frame boundary catches both. */
   const dmgBase = (typeof player._hpLast === 'number') ? player._hpLast : player.hp;
 
-  // every bar: effects, stamina, healing, hunger and thirst, oxygen and drowning, temperature (0.82)
-  tickStats(dt);
+  /* every bar: effects, stamina, healing, hunger and thirst, oxygen and drowning, temperature (0.82). With the fixed
+     tick (SIM_FIXED, 0.8379) they step in simTick instead, SIM_DT at a time; what they cost in health since the last
+     frame still shows here, as the baseline above is last frame's. */
+  if (!SIM_FIXED) tickStats(dt);
 
   /* Fall damage: track apex → landing (walking mode only); water cancels any fall.
      The landing test is `onGround()` since 0.7341, not `vy >= 0`. Velocity is a poor proxy for
@@ -335,7 +338,7 @@ function updateVitals(dt) {
         player.hp = Math.max(0, player.hp - VITAL_K * skillHazardMul());
         player._dmgCause = 'burned to death';
       }
-      if (typeof fxOnFire === 'function') fxOnFire(p.x, p.y, p.z, player.H || 1.8, dt);
+      if (typeof fxOnFire === 'function') fxOnFire(p.x, p.y, p.z, player.H || 1.8, dt, !!player._fireCold);   // cold fire blue (0.83911)
     }
   }
   if (player._kbT > 0) {
@@ -396,10 +399,9 @@ function updateVitals(dt) {
       for (let i = 0; i < len; i++) {
         const s = arr[i];
         if (!s) continue;
-        for (let n = 0; n < s.count; n++)
-          spawnDrop(s.id, dx0, dy0, dz0,
-            { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
-            s.dur ?? null, slotMeta(s));   // falls as it was: wear and extras kept, no free repair by dying (0.79)
+        spawnDrop(s.id, dx0, dy0, dz0,
+          { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
+          s.dur ?? null, slotMeta(s), 0, s.count);   // falls as it was: wear and extras kept, no free repair by dying (0.79); one stack a slot (0.8385)
         arr[i] = null;
       }
     // the crafting queue's ingredients were already taken from you, so they fall with the rest (0.76)

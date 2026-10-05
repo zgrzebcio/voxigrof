@@ -30,7 +30,7 @@ function BIOME_CORE() {
      one at a time. `biomes` is for reading only: which biome a level grows is decided in terrainInfo and biomeAt below.
      The edges share the land out about 8 / 17 / 15 / 20 / 15 / 17 / 8 % (spawn is pulled to level 0). */
   const CLIMATE_LADDER = [
-    { lvl: -3, to: -0.51, air: -24, biomes: 'Deep Snow' },
+    { lvl: -3, to: -0.51, air: -24, biomes: 'Deep Snow, Coldest Deep Snow (0.836, its coldest heart) and its Forest (0.837)' },
     { lvl: -2, to: -0.27, air: -16, biomes: 'Snow, Snow Forest, Snowy Mountains, Ice Spikes (0.835), Snowy Hills (0.8351)' },
     { lvl: -1, to: -0.10, air: -7,  biomes: 'Cold Plains, Spruce Forest' },
     { lvl:  0, to:  0.10, air: 0,   biomes: 'Plains, Forest, Birch Forest, Mountains' },
@@ -110,6 +110,15 @@ function BIOME_CORE() {
        by its cell alone, so two rivers trapped in one basin share one lake. Mountains are named from 150 (where the
        ridges, not the hills, make the height), raised land below or of hills is '<biome> Hills'; plains half as many. */
     const DIVIDE = biomeRev >= 18, DIV_REACH = 3, BASIN_CELL = 64, PLAINS_FROM = DIVIDE ? 0.28 : 0.0;
+    /* Coldest Deep Snow (0.836, biomeRev 19): the heart of the deep snow, where the temperature field is lowest (the
+       coldest two fifths of the deep snow, about 3% of the land). -60°C there (`rimeAir`, 54-stats-effects.js), rime trees
+       and ice the wind has carved standing over the snow (genChunk, 02). `fRime` names it from RIME_TO; `rimeAir` starts
+       at RIME_AIR_FROM, a few hundred blocks out, so the cold comes on before the biome does. */
+    const RIME = biomeRev >= 19, RIME_FROM = 0.60, RIME_TO = 0.64, RIME_AIR_FROM = 0.55;
+    /* Its two halves (0.837, biomeRev 20): the Coldest Deep Snow Forest (`rimeW` 1), where the rime trees and the ice
+       stand (half as thick as 0.836 had them everywhere), and the open Coldest Deep Snow, gently rolling, its hills and
+       mountains mostly smoothed away (RIME_CALM), with only the odd tree or ice shape: room to build (the snow castle). */
+    const RIME2 = biomeRev >= 20, RIME_CALM = 0.8;
     // two waters that may meet at different heights: one group, or a river and a lake it leaves or enters
     const _kin = (a, b) => a.g === b.g || (!a.lake && b.lake && (a.up === b.g || a.dn === b.g)) || (!b.lake && a.lake && (b.up === a.g || b.dn === a.g));
     // the mountain valleys' depth 0..1 at a place, from the same mask the mountains use (0 outside mountain country)
@@ -602,6 +611,11 @@ function BIOME_CORE() {
         fDeepSnow = down(2.5);
         fTaiga = cold * (1 - fSnow);
       }
+      const fRime = RIME ? smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow : 0;   // 0.836
+      const rimeAir = RIME ? smooth01(-temp, RIME_AIR_FROM, RIME_TO) * fDeepSnow : 0;
+      // rev 20 (0.837): its forest half, by a slow noise of its own (about half), and how calm the open half lies here
+      const rimeW = RIME2 ? smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) : 1;
+      const calm = RIME2 ? RIME_CALM * fRime * (1 - rimeW) : 0;
       /* Deep forests (rev 5): their own patches inside forest country, where trees stand denser and grow bigger. */
       const deepF = REV5 ? smooth01(fbm(x * 0.0022 * BS + 3137.1, z * 0.0022 * BS - 1289.3, 2), 0.18, 0.34) : 0;
 
@@ -623,6 +637,7 @@ function BIOME_CORE() {
         }
         mTerm *= 1 - 0.85 * _valley(x, z) * mMask;
       }
+      if (calm > 0) mTerm *= 1 - calm;                 // the open Coldest Deep Snow lies low (0.837)
       // desert hills sub-biome: tall dunes / small sandy mountains with rocky tops
       // rarer dune hills = flatter deserts; biomeRev 3 (0.8193) about 30% fewer again
       const dhN    = fbm(x * 0.0035 * BS + 641.3, z * 0.0035 * BS - 141.7, 2);
@@ -634,7 +649,7 @@ function BIOME_CORE() {
       const rdh = smooth01(fbm(x * 0.0035 * BS + 941.3, z * 0.0035 * BS - 241.7, 2), 0.1, 0.55) * fRed;
       // snowy hills (0.8351, biomeRev 10): the snow's own rolling hills, in patches as the desert's dunes, up to ~26 high
       const sh = SNOW_HILLS ? smooth01(fbm(x * 0.0035 * BS - 1641.3, z * 0.0035 * BS + 1141.7, 2), 0.28, 0.62) * fSnow : 0;
-      let h = 102 + cont * 16 + hills * hillAmp + mTerm + dh * 30 + sh * 26
+      let h = 102 + cont * 16 + hills * hillAmp * (1 - 0.6 * calm) + mTerm + dh * 30 + sh * 26 * (1 - calm)   // calm: 0.837
             + (TALL ? Math.max(0, cont) * 22 : 0);    // rev 12: the land climbs the further inland it lies (0.8354)
       if (rdh > 0.01) {
         const sp = 1 - Math.abs(fbm(x * 0.045 + 77.7, z * 0.045 - 55.5, 2));
@@ -678,8 +693,8 @@ function BIOME_CORE() {
             if (lng > 0.01) cs += (fbm(x * 0.0035 + 1733.9, z * 0.0035 - 2909.1, 2) - cs) * lng;
             hl += cm * smooth01(cs, 0.0, 0.025 + 0.09 * soft) * (5 + 9 * size) * (1 + 0.4 * lng);
           }
-          h += hl * land;
-          hlv = hl * land;
+          h += hl * land * (1 - calm);                 // the open Coldest Deep Snow only gently rolling (0.837)
+          hlv = hl * land * (1 - calm);
         }
       }
       /* Continental shelf -> oceans. The descent used to switch on the instant cont crossed -0.2,
@@ -827,7 +842,7 @@ function BIOME_CORE() {
       if (!UPLAND) h = capH(h);                        // the peaks ease into the cap, not shorn off on it (0.8354)
       h = Math.min(TALL ? TALL_CAP : 196, Math.max(4, Math.floor(h)));
       return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, warm, cold, fTaiga, deepF,
-               fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv };
+               fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW };
     }
     const heightAt = (x, z) => terrainInfo(x, z).h;
 
@@ -881,6 +896,8 @@ function BIOME_CORE() {
       const hilly = DIVIDE && !mountain && ((ti.hlv || 0) > 7 || h > 132);
       if (fSnow > 0.5) {
         if (mountain) return 'Snowy Mountains';
+        // 0.836: no ice spikes or hills of its own name in it; its Forest half since 0.837 (rev 20)
+        if ((ti.fRime || 0) > 0.5) return RIME2 && ti.rimeW > 0.5 ? 'Coldest Deep Snow Forest' : 'Coldest Deep Snow';
         if (iceSpikesAt(x, z)) return 'Ice Spikes';                      // 0.835
         if (sh > 0.35 || hilly) return 'Snowy Hills';                    // 0.8351
         if (fDeepSnow > 0.5) return 'Deep Snow';                         // the coldest level, treeless (0.8232)
@@ -900,6 +917,16 @@ function BIOME_CORE() {
        water) .. 0 the usual .. 1 warm (pale dry grass, cyan water). Smooth all the way, from the temperature field, with
        a slow wander of its own on top, so each stretch of land has a palette a little its own and nothing is speckled.
        Cheap enough for the mesher to ask at every column corner; nothing about the blocks changes. */
+    /* The open Coldest Deep Snow by its fields alone (0.8393, the snow castle's sites, 60-bosses.js): the same fRime and
+       rimeW terrainInfo works out, but only those few noises — microseconds, where biomeAt costs milliseconds. It does not
+       know about water or mountains; a site it finds is checked with biomeAt and heightAt (on a worker) after. */
+    function rimeOpenAt(x, z) {
+      if (!RIME2 || !LADDER) return false;
+      const temp = _temp(x, z);
+      const fDeepSnow = smooth01(-climateLevel(temp), 2.4, 2.6);
+      if (smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow <= 0.5) return false;
+      return smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) <= 0.5;
+    }
     function climAt(x, z) {
       const temp = _temp(x, z);
       // on the ladder (0.8232): half way at warm or cold plains, full in the desert and the snow
@@ -908,7 +935,7 @@ function BIOME_CORE() {
       return c < -1 ? -1 : c > 1 ? 1 : c;
     }
 
-    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE };
+    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2 };
   }
   // the names every biome-keyed list should treat alike (entity spawns, structures, mushrooms): the base name
   // ...and a forest's or the plains' hills count as that forest or plain (0.835491)

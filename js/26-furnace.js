@@ -32,6 +32,7 @@ const SMELT_RECIPES = [
   { in: B.LOG,              out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.BIRCH_LOG,        out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.SPRUCE_LOG,       out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
+  { in: B.RIME_LOG,         out: ITEM.CHARCOAL,      time: 5, xp: 2, cat: 'materials' },   // 0.836: thaws first, a little slower
   { in: ITEM.CLAY_BALL,     out: ITEM.BRICK,         time: 5, xp: 1, cat: 'materials' },
   // cured hide (0.7444): the second leather source, beside cows — gives zombie drops a use
   { in: ITEM.ROTTEN_FLESH,  out: ITEM.LEATHER,       time: 7, xp: 1, cat: 'materials' },
@@ -91,7 +92,7 @@ function furnaceBroken(x, y, z) {
   if (!f) return;
   FURNACES.delete(k);
   if (!player.canFly)
-    for (const s of f.slots) if (s) for (let n = 0; n < s.count; n++) spawnDrop(s.id, x, y, z);
+    for (const s of f.slots) if (s) spawnDrop(s.id, x, y, z, null, undefined, null, null, 0, s.count);   // one stack a slot (0.8385)
   if (activeFurnace === k) { activeFurnace = null; if (invOpen) toggleInventory(false); }
 }
 

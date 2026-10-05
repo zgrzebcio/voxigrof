@@ -49,7 +49,8 @@ function _recalcLevel() {
 function addXP(n, why) {
   if (!(n > 0)) return;
   if (typeof player !== 'undefined' && player.canFly) return;
-  const gain = Math.round(n);
+  // boss boost (0.839, 60-bosses.js): +20% a level on everything earned
+  const gain = Math.round(n * (typeof bossXpMul === 'function' ? bossXpMul() : 1));
   if (why && gain > 0 && typeof feedXP === 'function') feedXP(gain, why);
   playerXP += gain;
   const leveled = _recalcLevel();
@@ -92,18 +93,19 @@ const XP_GEM_ORE = 150;            // diamond and every gem ore (0.832)
   set(B.GLASSY_SAND, 5); set(B.GLASSY_RED_SAND, 5); set(B.GLASSY_PINK_SAND, 5);
   // scenery is free — you are not going to grind a level out of grass
   set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
-  set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0);
+  set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0); set(B.RIME_LEAVES, 0);
+  set(B.RIME_LOG, 3);                                                  // frozen wood from the far cold (0.836)
   set(B.STONE_BRICK, 0);
   /* Built things never grow in the wild, only in villages and by your hand (0.8282: COBBLESTONE was misspelt and
      paid 1): cobblestone, planks, sandstone, adobe, terracotta and hay, every look of each. Breaking a village teaches
      nothing. */
   for (const fam of CORE.VARIANT_FAMILIES) if ([B.COBBLE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.ADOBE, B.BRICKS].includes(fam[0]))
     for (const id of fam) set(id, 0);
-  set(B.PLANKS, 0); set(B.BIRCH_PLANKS, 0); set(B.SPRUCE_PLANKS, 0);
+  set(B.PLANKS, 0); set(B.BIRCH_PLANKS, 0); set(B.SPRUCE_PLANKS, 0); set(B.RIME_PLANKS, 0);
   // a little more for what is rare or hard to come by (0.8282)
   set(B.SULFUR_UP_TIP, 4); set(B.SULFUR_DOWN_TIP, 4); set(B.GLOW_VINE, 5); set(B.COBWEB, 3);
   set(B.SALT_CRUST, 2); set(B.CLAY, 2);                                // salt pays per layer too (22-main-loop.js)
-  set(B.HOLLOW_LOG, 2); set(B.HOLLOW_BIRCH_LOG, 2); set(B.HOLLOW_SPRUCE_LOG, 2);
+  set(B.HOLLOW_LOG, 2); set(B.HOLLOW_BIRCH_LOG, 2); set(B.HOLLOW_SPRUCE_LOG, 2); set(B.HOLLOW_RIME_LOG, 3);
   // furniture breaks by hand since 0.7442 (see HAND_BREAK_BLOCKS) — moving your own bed or
   // chest is housekeeping, so it pays nothing. Crafting them still pays: each recipe's xpToGive (25-crafting.js).
   set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.BED, 0); set(B.HAY, 0);
@@ -140,7 +142,7 @@ const XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD
 /* A biome found (0.8324): the more you have found already, the more the next one pays — XP_BIOME for the first, rising
    by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (55-biomes.js biomeAt names them: 9 kinds of
    water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last (0.833). */
-const XP_BIOME_LAST = 1000, BIOME_COUNT = 33;   // 500 in 0.8324; 28 with the Ice Spikes (0.835), 29 the Snowy Hills (0.8351); 33 the plains' and forests' Hills (0.835491)
+const XP_BIOME_LAST = 1000, BIOME_COUNT = 35;   // 35 the Coldest Deep Snow Forest (0.837)   // 500 in 0.8324; 28 with the Ice Spikes (0.835), 29 the Snowy Hills (0.8351); 33 the plains' and forests' Hills (0.835491); 34 the Coldest Deep Snow (0.836)
 const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
 const XP_SAPLING = { [B.OAK_SAPLING]: 3, [B.BIRCH_SAPLING]: 4, [B.SPRUCE_SAPLING]: 5 };
 const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = WORLD_TOP, WORLD_BOTTOM_Y = 2;
@@ -158,9 +160,12 @@ function flushOwedXP() {
   for (const why in owed) addXP(owed[why], why || undefined);
 }
 // what a player has found once and for all (0.8283): the biomes, the top and the bottom. Saved with the player.
+// ...and the bosses beaten, by kind (0.839, 60-bosses.js): each one a level of boss boost
 const restoreFeats = (r) => ({ biomes: new Set(r && Array.isArray(r.biomes) ? r.biomes.filter(b => typeof b === 'string') : []),
-                               top: !!(r && r.top), bottom: !!(r && r.bottom) });
-const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p._feats.top, bottom: p._feats.bottom } : null;
+                               top: !!(r && r.top), bottom: !!(r && r.bottom),
+                               bosses: new Set(r && Array.isArray(r.bosses) ? r.bosses.filter(b => typeof b === 'string') : []) });
+const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p._feats.top, bottom: p._feats.bottom,
+                                           bosses: [...(p._feats.bosses || [])] } : null;
 // smelting XP lives on each furnace recipe since 0.775 (SMELT_RECIPES, 26-furnace.js), paid on taking the output
 
 /* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its

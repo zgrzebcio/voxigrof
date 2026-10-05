@@ -278,6 +278,10 @@ scene.add(cloudMesh);
 function updateClouds(dt) {
   const p = typeof PLAYERS !== 'undefined' && PLAYERS[0] ? PLAYERS[0] : (typeof player !== 'undefined' ? player : null);
   if (!p || !p.pos) return;
+  // a world made without clouds (0.837): no layer and no shadows from it
+  const none = typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.clouds === false && !menuScene;
+  cloudMesh.visible = !none && _cloudTexReady === 2;
+  if (none) { sharedUniforms.uCloudOn.value = 0; return; }
   _cloudWxT += dt;
   if (_cloudWxT >= 0.25) { _cloudWeatherTick(Number.isFinite(_cloudWxT) ? _cloudWxT : 0, p.pos.x, p.pos.z); _cloudWxT = 0; }
   const w = weatherAt(p.pos.x, p.pos.z, CLOUD_Y0), [wx, wz] = windVector(w.dir), v = w.speed / 3.6 * CLOUD_WIND * dt;
@@ -321,7 +325,8 @@ function _sandAround(st, cam, now, dts) {
 /* RAIN AND SNOW FOG (0.83, precipAt in 51-seasons.js): a light grey haze in the rain, thicker the harder it falls
    (RAIN_FOG_FAR at its heaviest), a whiter one in falling snow (SNOW_FOG_FAR), and a blizzard's white-out
    (BLIZZARD_FOG_FAR; BLIZZARD_ROOF_FAR under a roof). Eased per eye like the sand. */
-const RAIN_FOG_FAR = 60, SNOW_FOG_FAR = 36, BLIZZARD_FOG_FAR = 7, BLIZZARD_ROOF_FAR = 18, PRECIP_FOG_EASE_S = 6;
+// a blizzard closes in to about 3 blocks (7 before 0.837), 14 under a roof (18)
+const RAIN_FOG_FAR = 60, SNOW_FOG_FAR = 36, BLIZZARD_FOG_FAR = 3.2, BLIZZARD_ROOF_FAR = 14, PRECIP_FOG_EASE_S = 6;
 const _rainGrey = new THREE.Color(0.5, 0.55, 0.62), _snowWhite = new THREE.Color(0.84, 0.87, 0.92), _wxCol = new THREE.Color();
 function _precipAround(st, cam, now, dts) {
   if (st.wxT == null || now - st.wxT > 500) {          // sampled twice a second
@@ -368,7 +373,7 @@ function applyMist(cam) {
   if (rain > 0.01) U.fogColor.value.lerp(_wxCol.copy(_rainGrey).multiplyScalar(0.2 + 0.8 * _skyDayF), rain * 0.6);
   const white = Math.min(1, snow * 0.7 + bliz);
   if (white > 0.01) U.fogColor.value.lerp(_wxCol.copy(_snowWhite).multiplyScalar(0.18 + 0.82 * _skyDayF), white);
-  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.6 * bliz);   // the sun comes through soft
+  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.85 * bliz);   // the sun comes through soft (a blizzard all but hides it, 0.837)
   const wx = 0.3 * rain + 0.4 * snow + bliz;
   skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand - wx));
   // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades (0.817)

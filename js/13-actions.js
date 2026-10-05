@@ -3,7 +3,7 @@
 
 /* ---------------------------------- block edit actions ---------------------------------- */
 // every placeable block, straight from the registry (raycastable excludes water/air) —
-// new blocks registered in VOXEL_CORE automatically appear in the inventory
+// new blocks registered in 58-blocks.js automatically appear in the inventory
 const PLACEABLE = PROPS.map((p, id) => (p && id !== B.AIR && p.raycast && !p.noInv) ? id : -1).filter(id => id >= 0);
 
 /* ---- disabled blocks (0.7295) ----
@@ -88,11 +88,11 @@ const INV2_SLOTS = INV_SLOTS;                  // second grid matches (creative 
    to add it here. */
 const CREATIVE_ORDER = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE,
-  B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG,
-  B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
-  B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,   // 0.8143
-  B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS,
-  B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES,
+  B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG,                            // rime 0.836
+  B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG,
+  B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG, B.HOLLOW_RIME_LOG,   // 0.8143
+  B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS,
+  B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES,
   B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
   B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.PACKED_ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833; packed ice 0.835
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
@@ -123,7 +123,7 @@ function _defaultCreativeInventory() {
   // blocks in palette order, then a few useful items (infinite water bucket) appended
   const sorted = PLACEABLE.filter(id => isObtainable(id) && !PROPS[id].noCreative)   // not the grilled mushrooms (0.822)
                           .sort((a, b) => rankOf(a) - rankOf(b))
-                          .concat([ITEM.WATER_BUCKET, ITEM.LAVA_BUCKET]);
+                          .concat([ITEM.WATER_BUCKET, ITEM.LAVA_BUCKET, ITEM.BUILD_WAND, ITEM.BREAK_WAND]);   // the wands 0.8371 / 0.8374
   /* The hotbar starts EMPTY (0.7346). Creative used to deal the first eight blocks into it, which
      meant every session opened holding grass, dirt and stone whether or not that was what you
      wanted — and the palette read as if it began at slot nine. The whole palette lives in the
@@ -285,7 +285,7 @@ function clearPlantAt(x, y, z) {
 /* A log wider than one block (a flared stump) physically overhangs its neighbours, so those cells
    are already occupied even though they read as air. Refuse to build into them — except with the
    things that legitimately grow through a canopy or wash around a trunk. */
-const OVERHANG_OK = [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.WATER, B.LAVA];
+const OVERHANG_OK = [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.WATER, B.LAVA];
 function logOverhangsCell(x, y, z) {
   // a log only bulges along its two NON-axis directions, so check each neighbour accordingly
   const dirs = [[1,0,0,0],[-1,0,0,0],[0,1,0,1],[0,-1,0,1],[0,0,1,2],[0,0,-1,2]];
@@ -725,6 +725,10 @@ function _offhandPlaceable() {
   return s;
 }
 function doPlace() {
+  // a wand in hand builds or breaks a layer, whatever the off hand holds (0.8371; breaking 0.8374)
+  const wand = slotId(HOTBAR[hotbarSel]);
+  if (wand === ITEM.BUILD_WAND || wand === ITEM.BREAK_WAND)
+    return withPlayerPlacement(() => { const hit = currentRay(); if (hit) (wand === ITEM.BUILD_WAND ? wandBuild : wandBreak)(hit); });
   return withPlayerPlacement(() => {
     const off = _offhandPlaceable();
     if (!off) return _doPlace();
@@ -741,6 +745,162 @@ function doPlace() {
     }
   });
 }
+/* The wands, creative only. Right-click a block's face and the wand takes every block JOINED to it across that face:
+   the very same block, look, shape and turn, in the face's plane, touching side by side or corner to corner (0.8374;
+   only side by side in 0.8371) — a gap parts them.
+     the BUILDING wand (0.8371) lays a copy one cell out on each of them, wherever that cell is free (air, water, a
+       plant): a wall clicked on its side grows a course thicker, on its top a course taller; a floor a layer up. A
+       grown log is copied as a placed log on the same axis (no tree's width, so it never fells).
+     the BREAKING wand (0.8374) takes them all away, as creative breaks: no drops.
+   Up to WAND_MAX at once, the nearest first, within WAND_REACH of the click. Blocks with a mesh or storage of their own
+   (door, bed, chest, furnace...), plants, torches and mixed stacks are left alone. While a wand is held, what it would
+   do is outlined (updateWandOutline): one outline round the lot, seen through the blocks in front. */
+const WAND_MAX = 256, WAND_REACH = 48;
+const WAND_SKIP = new Set([B.AIR, B.WATER, B.LAVA, B.DOOR, B.BED, B.CHEST, B.FURNACE, B.CRAFTING_BENCH, B.MORTAR,
+                           B.STRUCTURE_BLOCK, B.TNT, B.BEDROCK, B.FIRE]);
+// the plane's eight neighbours: side by side, then corner to corner
+const _wandSteps = (A) => [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+  .map(([a, b]) => [A[0][0] * a + A[1][0] * b, A[0][1] * a + A[1][1] * b, A[0][2] * a + A[1][2] * b]);
+// what a wand would do here: { cells, id, put } (build: the free cells to fill; break: the blocks to take), or null
+function wandCells(hit, mode) {
+  const v = getBlock(hit.x, hit.y, hit.z), id = v & 255, p = PROPS[id];
+  const shapeHi = ((v >> 8) & 255) & 0xF0;                  // a mixed layer stack (0x60) or mixed slab (0x90) lives off-cell
+  if (!p || WAND_SKIP.has(id) || isNoTargetPlant(id) || p.model === 'cross' || p.torch || p.topOnly
+      || shapeHi === 0x60 || shapeHi === 0x90) return null;
+  const nx = hit.nx | 0, ny = hit.ny | 0, nz = hit.nz | 0;
+  if (!nx && !ny && !nz) return null;
+  const build = mode === 'build';
+  const put = p.model === 'log' ? id | (((v >> 8) & 3) << 8) : v;
+  const steps = _wandSteps(nx ? [[0, 1, 0], [0, 0, 1]] : ny ? [[1, 0, 0], [0, 0, 1]] : [[1, 0, 0], [0, 1, 0]]);
+  const pr = player.pos, R = player.R, H = player.H;
+  const inMe = (x, y, z) => p.solid && x + 1 > pr.x - R && x < pr.x + R && y + 1 > pr.y && y < pr.y + H && z + 1 > pr.z - R && z < pr.z + R;
+  /* building (0.8375): a block whose cell out front is taken (by the same block or any other) neither gets a copy nor
+     passes the spread on, so the new layer only grows out from the clicked block across open front: it never jumps
+     past a filled spot to land a block or two away. The clicked block's own front taken: nothing at all. */
+  const freeFront = (x, y, z) => {
+    const tx = x + nx, ty = y + ny, tz = z + nz;
+    return ty >= 1 && ty < WORLD_TOP && isPlaceableInto(getBlock(tx, ty, tz) & 255) && !inMe(tx, ty, tz)
+        && (OVERHANG_OK.includes(id) || !logOverhangsCell(tx, ty, tz));
+  };
+  if (build && !freeFront(hit.x, hit.y, hit.z)) return null;
+  const seen = new Set([hit.x + ',' + hit.y + ',' + hit.z]), q = [[hit.x, hit.y, hit.z]], cells = [];
+  for (let qi = 0; qi < q.length && cells.length < WAND_MAX; qi++) {
+    const [x, y, z] = q[qi];
+    cells.push(build ? [x + nx, y + ny, z + nz] : [x, y, z]);
+    for (const [sx, sy, sz] of steps) {
+      const x2 = x + sx, y2 = y + sy, z2 = z + sz, k = x2 + ',' + y2 + ',' + z2;
+      if (seen.has(k) || Math.abs(x2 - hit.x) > WAND_REACH || Math.abs(y2 - hit.y) > WAND_REACH || Math.abs(z2 - hit.z) > WAND_REACH) continue;
+      seen.add(k);
+      if (getBlock(x2, y2, z2) === v && (!build || freeFront(x2, y2, z2))) q.push([x2, y2, z2]);
+    }
+  }
+  return cells.length ? { cells, id, put } : null;
+}
+function wandBuild(hit) {
+  if (!player.canFly) { feedWarn('The building wand works only in creative'); return; }
+  const w = wandCells(hit, 'build');
+  if (!w) return;
+  const place = () => { for (const [x, y, z] of w.cells) { clearPlantAt(x, y, z); setBlock(x, y, z, w.put); } };
+  if (typeof _litEdits === 'function') _litEdits(w.cells, place); else place();   // the light worked out once for the lot
+  playBlockSound(w.id, 'place', w.cells[0][0], w.cells[0][1], w.cells[0][2]);
+  handPlaceSwing = true;
+  player._wandKey = null;                                   // the outline is drawn again for what is there now
+}
+function wandBreak(hit) {
+  if (!player.canFly) { feedWarn('The breaking wand works only in creative'); return; }
+  const w = wandCells(hit, 'break');
+  if (!w) return;
+  const take = () => { for (const [x, y, z] of w.cells) setBlock(x, y, z, B.AIR); };
+  if (typeof _litEdits === 'function') _litEdits(w.cells, take); else take();
+  playBlockSound(w.id, 'break', hit.x, hit.y, hit.z);
+  handPlaceSwing = true;
+  player._wandKey = null;
+}
+/* The wand's outline (0.8374), per player (each seat its own; 36-splitscreen shows only the seat's own in its view):
+   the outside edges of the cells it would fill or take — an edge between two cells showing the same flat face is left
+   out, so a wall reads as one shape, not a grid of boxes. Drawn through everything in front (no depth test), white
+   for building, red for breaking. Worked out again when the aim moves or every WAND_OUTLINE_S. */
+const WAND_OUTLINE_S = 0.3;
+const _WAND_N = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+function _wandOutlinePos(cells) {
+  const S = new Set(cells.map(c => c[0] + ',' + c[1] + ',' + c[2]));
+  const has = (x, y, z) => S.has(x + ',' + y + ',' + z);
+  const seg = new Set(), pos = [];
+  const add = (a, b) => {
+    const k1 = a.join() + '|' + b.join(), k2 = b.join() + '|' + a.join();
+    if (seg.has(k1) || seg.has(k2)) return;
+    seg.add(k1); pos.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+  };
+  for (const [x, y, z] of cells)
+    for (const [nx, ny, nz] of _WAND_N) {
+      if (has(x + nx, y + ny, z + nz)) continue;            // this face is inside the lot
+      const ax = nx ? [[0, 1, 0], [0, 0, 1]] : ny ? [[1, 0, 0], [0, 0, 1]] : [[1, 0, 0], [0, 1, 0]];
+      for (const [u, w] of [[ax[0], ax[1]], [ax[1], ax[0]]])
+        for (const s of [1, -1]) {
+          // across this edge the next cell shows the same flat face: one patch, no line
+          const mx = x + u[0] * s, my = y + u[1] * s, mz = z + u[2] * s;
+          if (has(mx, my, mz) && !has(mx + nx, my + ny, mz + nz)) continue;
+          const cx = x + 0.5 + (nx + u[0] * s) * 0.5, cy = y + 0.5 + (ny + u[1] * s) * 0.5, cz = z + 0.5 + (nz + u[2] * s) * 0.5;
+          add([cx - w[0] * 0.5, cy - w[1] * 0.5, cz - w[2] * 0.5], [cx + w[0] * 0.5, cy + w[1] * 0.5, cz + w[2] * 0.5]);
+        }
+    }
+  return pos;
+}
+/* Thick and pulsing (0.8375): a GL line is one pixel whatever it is asked, so each edge is a thin square bar
+   WAND_BAR across (a box round the segment), and the whole outline breathes, brightness and see-through, once every
+   WAND_PULSE_S. */
+const WAND_BAR = 0.035, WAND_PULSE_S = 1.1;
+const WAND_COL = { build: [1, 1, 1], break: [1, 0.25, 0.25] };
+// the bars of an outline's segments, as triangles: every segment is axis-aligned, so its box is min..max grown by t
+function _wandBarGeo(pos, t) {
+  const n = pos.length / 6, P = new Float32Array(n * 24), I = new Uint32Array(n * 36);
+  const F = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
+  for (let s = 0; s < n; s++) {
+    const o = s * 6;
+    const x0 = Math.min(pos[o], pos[o + 3]) - t, x1 = Math.max(pos[o], pos[o + 3]) + t;
+    const y0 = Math.min(pos[o + 1], pos[o + 4]) - t, y1 = Math.max(pos[o + 1], pos[o + 4]) + t;
+    const z0 = Math.min(pos[o + 2], pos[o + 5]) - t, z1 = Math.max(pos[o + 2], pos[o + 5]) + t;
+    for (let c = 0; c < 8; c++) {                           // corner c: bit 2 x, bit 1 y, bit 0 z
+      P[s * 24 + c * 3] = c & 4 ? x1 : x0; P[s * 24 + c * 3 + 1] = c & 2 ? y1 : y0; P[s * 24 + c * 3 + 2] = c & 1 ? z1 : z0;
+    }
+    for (let k = 0; k < 36; k++) I[s * 36 + k] = s * 8 + F[k];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  g.setIndex(new THREE.BufferAttribute(I, 1));
+  return g;
+}
+function _wandLines(p) {
+  if (p._wandLines) return p._wandLines;
+  const L = new THREE.Mesh(new THREE.BufferGeometry(),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false,
+                                  side: THREE.DoubleSide, fog: false }));
+  L.renderOrder = 999; L.frustumCulled = false; L.visible = false;
+  L.layers.set(1);                                          // never in the shadow maps
+  scene.add(L);
+  return p._wandLines = L;
+}
+// once a frame per seat, from its tick (22-main-loop.js), with what it is aiming at
+function updateWandOutline(hit) {
+  const p = player, held = slotId(HOTBAR[hotbarSel]);
+  const mode = held === ITEM.BUILD_WAND ? 'build' : held === ITEM.BREAK_WAND ? 'break' : null;
+  if (!mode || !p.canFly || !hit) { p._wandShow = false; p._wandKey = null; return; }
+  const key = mode + ':' + hit.x + ',' + hit.y + ',' + hit.z + ':' + hit.nx + ',' + hit.ny + ',' + hit.nz, now = performance.now();
+  const L = _wandLines(p);
+  // the pulse, every frame: brightness and see-through rising and falling together
+  const k = 0.5 + 0.5 * Math.sin(now / 1000 * Math.PI * 2 / WAND_PULSE_S), c = WAND_COL[mode], b = 0.6 + 0.4 * k;
+  L.material.color.setRGB(c[0] * b, c[1] * b, c[2] * b);
+  L.material.opacity = 0.45 + 0.5 * k;
+  if (key === p._wandKey && now < (p._wandAt || 0)) return;
+  p._wandKey = key; p._wandAt = now + WAND_OUTLINE_S * 1000;
+  const w = wandCells(hit, mode);
+  p._wandShow = !!w;
+  if (!w) return;
+  L.geometry.dispose();
+  L.geometry = _wandBarGeo(_wandOutlinePos(w.cells), WAND_BAR);
+}
+// a wand in the hand acts once a press, never again while the button is held (0.8375; 22-main-loop.js)
+const holdingWand = () => { const id = slotId(HOTBAR[hotbarSel]); return id === ITEM.BUILD_WAND || id === ITEM.BREAK_WAND; };
 function _doPlace() {
   // shears on a woolly sheep: take the fleece instead of placing anything
   if (tryShearSheep()) { handPlaceSwing = true; return; }

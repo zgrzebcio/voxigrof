@@ -172,6 +172,13 @@ const TEXTURES = {
   spruce_sapling:           'textures/Billboards/Plants/Saplings/spruce_sapling.png',
   stripped_spruce_log:      'textures/Blocks/Woods/spruce/spruce_stripped_log_side.png',
   stripped_spruce_log_top:  'textures/Blocks/Woods/spruce/spruce_stripped_log_top.png',
+  // rime wood (0.836): the Coldest Deep Snow's frozen trees
+  rime_log:                 'textures/Blocks/Woods/rimewood/rimewood_log_side.png',
+  rime_log_top:             'textures/Blocks/Woods/rimewood/rimewood_log_top.png',
+  stripped_rime_log:        'textures/Blocks/Woods/rimewood/rimewood_stripped_log_side.png',
+  stripped_rime_log_top:    'textures/Blocks/Woods/rimewood/rimewood_stripped_log_top.png',
+  rime_planks:              'textures/Blocks/Woods/rimewood/rimewood_planks.png',
+  rime_leaves:              'textures/Blocks/Woods/rimewood/rimewood_leaves.png',
   pincushions:              'textures/Billboards/Plants/Flowers/pincushions.png',
   structure_block:          'textures/Blocks/Interactables/Structure_block.png',
   /* Berry bush: FOUR growth stages and two fruit colours, all one block driven by its variant
@@ -209,7 +216,7 @@ const TEXTURES = {
 };
 /* A furnace per rock and a crafting bench per wood (0.809). The first entry of each list is the block's
    own look, already above; the others are built from their folders. 03-atlas.js adds them to the atlas
-   in this order, and T in 02-voxel-core.js numbers them the same way. */
+   in this order, and T in 58-blocks.js numbers them the same way. */
 const FURNACE_ROCKS = ['stone', 'granite', 'marble', 'limestone', 'dolomite'];
 const FURNACE_PARTS = ['front', 'front_lit', 'side', 'top', 'bottom', 'chimney_side', 'chimney_top'];
 const furnaceTileName = (rock, part) => `furnace_${rock}_${part}`;
@@ -309,7 +316,7 @@ for (const r of DECOR_ROCKS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
 // wheat's growth stages (0.81): stage 0 sprout .. 5, and 6 is the ripe wheat (0.8273; 0..6 then wheat_full before)
 for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
-// every berry bush's six growth stages (0.827), in BERRY_KINDS order (02-voxel-core.js); stage 5 is ripe
+// every berry bush's six growth stages (0.827), in BERRY_KINDS order (58-blocks.js); stage 5 is ripe
 const BERRY_COLORS = ['red', 'blue', 'black', 'yellow', 'white'];
 for (const c of BERRY_COLORS) for (let s = 0; s < 6; s++)
   TEXTURES[`berry_${c}_stage${s}`] = `textures/Billboards/Plants/Berry_bush/${c[0].toUpperCase() + c.slice(1)}/${c}_berry_stage${s}.png`;
@@ -363,6 +370,8 @@ for (const part of ['top', 'front', 'bottom'])
 
 const ITEM_TEXTURES = {
   stick:       'textures/Items/Materials/stick.png',
+  build_wand:  'textures/Items/Tools/build_wand.png',      // 0.8371: the stick tinted purple
+  break_wand:  'textures/Items/Tools/break_wand.png',      // 0.8374: the stick tinted red
   bark:        'textures/Items/Materials/bark.png',
   coal:        'textures/Items/Ores/coal.png',
   coal_chunk:  'textures/Items/Ores/coal_chunk.png',

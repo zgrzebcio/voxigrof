@@ -17,7 +17,7 @@
 
 const VARIANT_SLOTS = 7;                           // 5 until 0.809
 // block -> its variants after the default: `id` is the block it places as, `name` goes in brackets
-// (the variant blocks themselves are VARIANT_BLOCKS in 02-voxel-core.js; mossy, cracked and the three bricks 0.7941)
+// (the variant blocks themselves are VARIANT_BLOCKS in 58-blocks.js; mossy, cracked and the three bricks 0.7941)
 const BLOCK_VARIANTS = {
   // cracked brick left the bar in 0.8091 (placed ones stay) and polished came in
   [B.STONE]:        [{ id: B.STONE_BRICK, name: 'brick' }, { id: B.MOSSY_STONE_BRICK, name: 'mossy brick' },

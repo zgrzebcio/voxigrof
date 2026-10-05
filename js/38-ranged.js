@@ -223,6 +223,12 @@ function updateArrows(dt) {
       const nx = pos.x + a.vx * sdt, ny = pos.y + a.vy * sdt, nz = pos.z + a.vz * sdt;
       // 1) a body in the way
       const ent = _arrowHitEntity(a, nx, ny, nz);
+      // a boss's raised shield turns the arrow, as a player's does (0.839, 60-bosses.js)
+      if (ent && ent.boss && typeof bossDeflects === 'function' && bossDeflects(ent, nx - a.vx, nz - a.vz)) {
+        _bounceArrow(a);
+        playSound('hit', { gain: 0.6, rate: 0.6, pos: { x: nx, y: ny, z: nz } });
+        break;
+      }
       if (ent) {
         pos.set(nx, ny, nz);
         _arrowHitsEntity(a, ent);
@@ -305,7 +311,8 @@ function _arrowHitsEntity(a, ent) {
   playSound('hit', { gain: 0.6, rate: 1.1 + Math.random() * 0.15,
                      pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
   // a mob's arrow is a creature's blow (0.7912): no XP or loot for the player, no grudge against them
-  if (a.fromPlayer) damageEntity(ent, a.dmg); else damageEntityByMob(ent, a.dmg, a.shooter);
+  // where it came from goes along for a boss's shield (0.839)
+  if (a.fromPlayer) damageEntity(ent, a.dmg, { x: ent.x - a.vx, z: ent.z - a.vz }); else damageEntityByMob(ent, a.dmg, a.shooter);
 }
 function _arrowHitPlayer(x, y, z) {
   for (const p of PLAYERS) {

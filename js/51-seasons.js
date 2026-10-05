@@ -127,7 +127,9 @@ function _weatherStretch(rx, rz, H) {
   return { start: E * 24 + cuts[i], end: E * 24 + cuts[i + 1] };
 }
 // the title backdrop has no weather (0.8198): always clear skies, a light breeze, fair-weather clouds, no fog
-const _titleCalm = () => typeof menuScene !== 'undefined' && menuScene;
+// the title's backdrop, or a world made with its weather off (0.837): always clear, no fog, sand, hail, rain or snow
+const _titleCalm = () => (typeof menuScene !== 'undefined' && !!menuScene)
+  || (typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.weather === false);
 function _pickWeather(rx, rz, start) {
   if (_titleCalm()) return 'clear';
   const season = gameDate(start / 24).season, kind = regionKind(rx, rz);
@@ -569,13 +571,17 @@ function _seasonChunk(c) {
   if (d.season >= 2) {
     const level = d.season === 3 ? 1.01 : d.progress;           // how much of the fall has happened
     const data = c.data;
-    for (let i = c._seasonScan || 0; i < data.length; i++) {
-      const v = data[i], id = v & 255;
+    // the worker's list of the cells worth a look (0.8382, MultithreadPlan.md B2), or every cell; `q` its place in it
+    /* 0.8387: the place was named `k` until now, hiding the chunk key `k` above: what fell was remembered under the place
+       number instead of the chunk, so spring could not find it to put back */
+    const cand = c._scanCand, n = cand ? cand.length : data.length;
+    for (let q = c._seasonScan || 0; q < n; q++) {
+      const i = cand ? cand[q] : q, v = data[i], id = v & 255;
       if (!(SEASON_LEAVES.has(id) || SEASON_PLANTS.has(id)) || CORE.layerCount(v)) continue;
       if (_skyAt(c, i) === 0) continue;                           // underground: no seasons there
       const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
       if (sHash(x, y, z, SEASON_LEAVES.has(id) ? 1 : 2) >= level) continue;
-      if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._seasonScan = i; return false; }
+      if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._seasonScan = q; return false; }
       _seasonOps++;
       _seasonMem(k).set(i, v);
       if (SEASON_LEAVES.has(id)) _seasonLeafFall(x, y, z, id);
@@ -614,30 +620,85 @@ function _seasonChunk(c) {
   _iceChunk(c);                                                  // water freezing and thawing (0.8321)
   return _snowlineChunk(c);                                      // and the snowline, every season (0.819)
 }
-// per frame: a couple of chunks inside the simulation radius whose hour has come round
+/* per frame: a couple of chunks inside the simulation radius whose hour has come round (updateSeasonScan), and the
+   growing and the weather on the ground (updateSeasonGrowth). 0.8378: with the fixed tick (SIM_FIXED) the growing
+   steps in the tick and the scanning stays a frame's background work; updateSeasons does both, as before. */
 let _seasonKeys = [], _seasonCursor = 0, _seasonListT = 0;
 function updateSeasons(dt) {
+  updateSeasonScan(dt);
+  updateSeasonGrowth(dt);
+}
+function updateSeasonGrowth(dt) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   if (typeof currentWorld !== 'undefined' && !currentWorld) return;
-  _seasonOps = 0;
-  _seasonListT -= dt;
-  if (_seasonListT <= 0 || _seasonCursor >= _seasonKeys.length) { _seasonKeys = [...chunks.keys()]; _seasonCursor = 0; _seasonListT = 5; }
-  const nowH = worldClockDays() * 24, season = gameDate().season;
-  let scans = 0;
-  while (_seasonCursor < _seasonKeys.length && scans < SEASON_SCANS_PER_FRAME && _seasonOps < SEASON_OPS_PER_FRAME) {
-    const c = chunks.get(_seasonKeys[_seasonCursor]);
-    if (!c || !c.data || !c.lit || !inSimRangeChunk(c.cx, c.cz)) { _seasonCursor++; continue; }
-    if (c._seasonH != null && nowH - c._seasonH < SEASON_CHUNK_EVERY_H && c._seasonS === season) { _seasonCursor++; continue; }
-    scans++;
-    if (_seasonChunk(c)) { c._seasonH = nowH; c._seasonS = season; _seasonCursor++; }
-    else break;                                                   // out of budget: same chunk next frame
-  }
   updateWheatGrow(dt);
   updateShroomGrow(dt);                                          // 0.821
   updateCaneGrow(dt);                                            // 0.829
   updateWeatherGround(dt);                                       // rain washes, snow lays, salt grows (0.83)
   updateIceMelt(dt);                                             // ice by heat (0.8321)
   if (typeof updateBurns === 'function') updateBurns(dt);        // torches and glow blocks burning out (0.834, 56-torches.js)
+}
+function updateSeasonScan(dt) {
+  if (typeof menuScene !== 'undefined' && menuScene) return;
+  if (typeof currentWorld !== 'undefined' && !currentWorld) return;
+  _seasonOps = 0;
+  _seasonListT -= dt;
+  if (_seasonListT <= 0 || _seasonCursor >= _seasonKeys.length) { _seasonKeys = [...chunks.keys()]; _seasonCursor = 0; _seasonListT = 5; }
+  const nowH = worldClockDays() * 24, season = gameDate().season;
+  let scans = 0, asks = 0;
+  /* 0.8382 (MultithreadPlan.md B2, SEASON_WORKER_SCAN in 00-config): a chunk whose hour has come is first handed to a
+     worker, which lists the cells worth a look (leaves, the season's plants, wild mushrooms, cane: seasonScanIds);
+     when the list is back (seasonScanResult) the chunk takes its turn here, looking at those cells only. Everything
+     done to them is decided here as before; a cell changed meanwhile is simply judged as it is now. */
+  while (_seasonReady.length && scans < SEASON_SCANS_PER_FRAME && _seasonOps < SEASON_OPS_PER_FRAME) {
+    const c = _seasonReady[0];
+    if (!c.data || chunks.get(key(c.cx, c.cz)) !== c || !c._scanCand) { c._scanCand = null; _seasonReady.shift(); continue; }
+    scans++;
+    if (_seasonChunk(c)) { c._seasonH = nowH; c._seasonS = season; c._scanCand = null; c._seasonScan = 0; _seasonReady.shift(); }
+    else break;                                                   // out of budget: same chunk next frame
+  }
+  while (_seasonCursor < _seasonKeys.length && scans < SEASON_SCANS_PER_FRAME && _seasonOps < SEASON_OPS_PER_FRAME) {
+    const c = chunks.get(_seasonKeys[_seasonCursor]);
+    if (!c || !c.data || !c.lit || !inSimRangeChunk(c.cx, c.cz)) { _seasonCursor++; continue; }
+    if (c._seasonH != null && nowH - c._seasonH < SEASON_CHUNK_EVERY_H && c._seasonS === season) { _seasonCursor++; continue; }
+    if (c._scanPending || c._scanCand) { _seasonCursor++; continue; }   // with a worker, or waiting its turn above
+    if (SEASON_WORKER_SCAN && typeof postScanJob === 'function' && !c._seasonScan) {
+      if (asks >= SEASON_ASKS_PER_FRAME) break;
+      asks++;
+      c._scanPending = true;
+      // shared memory (0.8386, C10): the worker reads the chunk where it lies, nothing copied
+      if (c.data.buffer instanceof (globalThis.SharedArrayBuffer || Array))
+        postScanJob({ type: 'scan', cx: c.cx, cz: c.cz, data: c.data.buffer, want: seasonScanIds() }, []);
+      else {
+        const copy = c.data.slice();
+        postScanJob({ type: 'scan', cx: c.cx, cz: c.cz, data: copy.buffer, want: seasonScanIds() }, [copy.buffer]);
+      }
+      _seasonCursor++;
+      continue;
+    }
+    scans++;
+    if (_seasonChunk(c)) { c._seasonH = nowH; c._seasonS = season; _seasonCursor++; }
+    else break;                                                   // out of budget: same chunk next frame
+  }
+}
+// the cells a season pass looks at, by id, for the worker's scan (0.8382); built at first use, as SHROOM_WILD comes below
+let _seasonScanIds = null;
+const seasonScanIds = () => {
+  if (_seasonScanIds) return _seasonScanIds;
+  _seasonScanIds = new Uint8Array(256);
+  for (const id of [...SEASON_LEAVES, ...SEASON_PLANTS, ...SHROOM_WILD, B.SUGAR_CANE]) _seasonScanIds[id] = 1;
+  return _seasonScanIds;
+};
+const SEASON_ASKS_PER_FRAME = 4;             // chunks a frame may hand to the workers
+const _seasonReady = [];                     // chunks whose list is back, in order
+// a worker's list for a chunk (onWorkerMessage, 11-chunks.js)
+function seasonScanResult(c, m) {
+  if (!c) return;
+  c._scanPending = false;
+  if (chunks.get(key(c.cx, c.cz)) !== c || !c.data) return;
+  c._scanCand = new Int32Array(m.cand);
+  c._seasonScan = 0;
+  _seasonReady.push(c);
 }
 function serializeSeasons() {
   const out = [];
@@ -704,10 +765,13 @@ const SHROOM_STEPS = 31, SHROOM_GROW_S = 900, SHROOM_LIFE_S = 1800;
 const SHROOM_WILD = new Set([B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM,
                              B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM]);      // not the lava one
 const SHROOM_OAK = [B.BROWN_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM];
-// what an autumn forest grows, by its biome (read once per chunk)
-const SHROOM_BY_BIOME = { 'Forest': SHROOM_OAK, 'Birch Forest': [B.RED_MUSHROOM], 'Snow Forest': [B.BLUE_MUSHROOM],
-                          'Spruce Forest': [B.BLUE_MUSHROOM] };   // spruce forest 0.823; deep ones by their base (biomeBase)
-const SHROOM_AUTUMN_TRIES = 2, SHROOM_AUTUMN_CHANCE = 0.03;   // per chunk, per hourly pass: a few standing at once
+/* what an autumn wood grows under its trees, by its biome (read once per chunk; deep ones by their base, biomeBase):
+   0.837, brown and black in every forest and the wood's own kind, yellow under oak, red under birch, blue under
+   spruce; white out in the open beside trees, and very rarely on the plains' flat by a tree */
+const SHROOM_FOREST_OWN = { 'Forest': B.YELLOW_MUSHROOM, 'Birch Forest': B.RED_MUSHROOM, 'Snow Forest': B.BLUE_MUSHROOM,
+                            'Spruce Forest': B.BLUE_MUSHROOM };
+const SHROOM_AUTUMN_TRIES = 2, SHROOM_AUTUMN_CHANCE = 0.039;  // per chunk, per hourly pass: a few standing at once (0.03 before 0.837)
+const SHROOM_PLAINS_SHARE = 0.15;                             // the plains' white ones: this share of a forest's tries
 const SHROOM_AUTUMN_MAX = 6;                                  // a chunk with this many out already grows no more
 const shroomLeft = (vr) => ((vr || 0) >> 3) & 31;
 const shroomTooSmall = (id, vr) => PROPS[id]?.shroom != null && shroomLeft(vr) > SHROOM_STEPS * 0.6;
@@ -740,8 +804,12 @@ function _shroomChunk(c) {
   const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
   const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16;
   let out = 0;
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i], id = v & 255;
+  // the worker's list of the cells worth a look (0.8382), or every cell
+  /* 0.8387: the place in the list was `k`, and the body's own `const k` (the grow key below) shadowed it: every pass
+     threw "Cannot access 'k' before initialization", which stopped the frame before the players were ticked */
+  const cand = c._scanCand, n = cand ? cand.length : data.length;
+  for (let q = 0; q < n; q++) {
+    const i = cand ? cand[q] : q, v = data[i], id = v & 255;
     if (id === B.SUGAR_CANE) { _caneAdopt(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v); continue; }   // the same scan finds cane (0.829)
     if (!SHROOM_WILD.has(id) || _skyAt(c, i) === 0) continue;      // a cave's stay as they are
     const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
@@ -760,23 +828,50 @@ function _shroomChunk(c) {
 function _shroomAutumn(c) {
   if (c._shroomBiome === undefined)
     c._shroomBiome = typeof mainGen !== 'undefined' && mainGen ? BIOMES.biomeBase(mainGen.biomeAt(c.cx * 16 + 8, c.cz * 16 + 8)) : '';
-  const kinds = SHROOM_BY_BIOME[c._shroomBiome];
-  if (!kinds) return;
+  const own = SHROOM_FOREST_OWN[c._shroomBiome], plains = c._shroomBiome === 'Plains';
+  if (!own && !plains) return;
   for (let t = 0; t < SHROOM_AUTUMN_TRIES; t++) {
-    if (Math.random() >= SHROOM_AUTUMN_CHANCE || _seasonOps >= SEASON_OPS_PER_FRAME) continue;
+    if (Math.random() >= SHROOM_AUTUMN_CHANCE * (plains ? SHROOM_PLAINS_SHARE : 1) || _seasonOps >= SEASON_OPS_PER_FRAME) continue;
     const lx = (Math.random() * 16) | 0, lz = (Math.random() * 16) | 0;
-    // down from the sky past air and the canopy to the first ground
+    // down from the sky past air and the canopy (noting it) to the first ground
+    let canopy = false;
     for (let y = WORLD_TOP - 1; y > 1; y--) {
       const i = lx + (lz << 4) + (y << 8), id = c.data[i] & 255;
-      if (id === B.AIR || !CORE.solidVal(c.data[i]) || PROPS[id]?.type === 'wood' || id === B.LEAVES
-          || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES) continue;
+      if (LEAF_BLOCKS.has(id)) { canopy = true; continue; }
+      if (id === B.AIR || !CORE.solidVal(c.data[i]) || PROPS[id]?.type === 'wood') continue;
       if ((id === B.GRASS || id === B.DIRT) && (c.data[i + 256] & 255) === B.AIR) {
-        _seasonOps++;
-        sproutShroom(c.cx * 16 + lx, y + 1, c.cz * 16 + lz, kinds[(Math.random() * kinds.length) | 0]);
+        let kind = null;
+        if (canopy && own) { const r = Math.random(); kind = r < 0.3 ? B.BROWN_MUSHROOM : r < 0.6 ? B.BLACK_MUSHROOM : own; }
+        else if (!canopy && id === B.GRASS && _shroomWoodNear(c, lx, y, lz) && (!plains || _shroomFlat(c, lx, y, lz)))
+          kind = B.WHITE_TALL_MUSHROOM;
+        if (kind) { _seasonOps++; sproutShroom(c.cx * 16 + lx, y + 1, c.cz * 16 + lz, kind); }
       }
       break;
     }
   }
+}
+// a tree's wood within 4 of a ground cell, a little over it (this chunk's own cells)
+function _shroomWoodNear(c, lx, y, lz) {
+  for (let dz = -4; dz <= 4; dz++)
+    for (let dx = -4; dx <= 4; dx++) {
+      const x = lx + dx, z = lz + dz;
+      if (x < 0 || x > 15 || z < 0 || z > 15) continue;
+      for (let dy = 1; dy <= 3; dy++) {
+        const id = c.data[x + (z << 4) + ((y + dy) << 8)] & 255;
+        if (PROPS[id]?.model === 'log' && PROPS[id].type === 'wood') return true;
+      }
+    }
+  return false;
+}
+// level ground round it: solid beside it at its height with air over (the plains' white mushrooms)
+function _shroomFlat(c, lx, y, lz) {
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const x = lx + dx, z = lz + dz;
+    if (x < 0 || x > 15 || z < 0 || z > 15) continue;
+    const i = x + (z << 4) + (y << 8);
+    if (!CORE.solidVal(c.data[i]) || (c.data[i + 256] & 255) !== B.AIR) return false;
+  }
+  return true;
 }
 // once a second: the growing take a step by day, the grown under the sky run out
 let _shroomTickT = 0;
@@ -999,17 +1094,19 @@ function _iceTop(data, li) {
 /* A chunk just in from the generator (finishChunkGen, 11-chunks.js, after its edits and its lights are in): its open
    water is frozen as the season says, straight in the data — no edits, no re-mesh, no light work (ice and water both
    let light through). A reload dresses it again the same way, so nothing needs saving. */
+// returns how many cells it froze (0.8383: a chunk with none keeps the sky light its worker gave it, 11-chunks.js)
 function iceDressChunk(c) {
-  if (typeof menuScene !== 'undefined' && menuScene) return;
+  if (typeof menuScene !== 'undefined' && menuScene) return 0;
   const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;
   const data = c.data, wx0 = c.cx * 16, wz0 = c.cz * 16, heat = _heatAround(c.cx, c.cz);
-  let edges = 0;                                                  // which borders it froze along: -X 1, +X 2, -Z 4, +Z 8
+  let edges = 0, froze = 0;                                       // which borders it froze along: -X 1, +X 2, -Z 4, +Z 8
   for (let col = 0; col < 256; col++) {
     const lx = col & 15, lz = col >> 4, i = _iceTop(data, lx + (lz << 4));
     if (i < 0 || (data[i] & 255) !== B.WATER) continue;
     const x = wx0 + lx, z = wz0 + lz, y = i >> 8;
     if (!_iceFreezes(x, y, z, _iceKindAt(x, z, _iceDepth(data, i)), d, season) || (heat && iceHeatNear(x, y, z))) continue;
     data[i] = B.ICE | (ICE_FROM_WATER << 8);                     // ice that was water (0.833)
+    froze++;
     edges |= (lx === 0 ? 1 : 0) | (lx === 15 ? 2 : 0) | (lz === 0 ? 4 : 0) | (lz === 15 ? 8 : 0);
   }
   /* A neighbour that meshed while this chunk was still water drew its ice's sides against that water, and kept them once
@@ -1018,6 +1115,7 @@ function iceDressChunk(c) {
   if (edges & 2) markDirty(getChunk(c.cx + 1, c.cz));
   if (edges & 4) markDirty(getChunk(c.cx, c.cz - 1));
   if (edges & 8) markDirty(getChunk(c.cx, c.cz + 1));
+  return froze;
 }
 function _iceChunk(c) {
   const d = seasonsOn() ? gameDate() : null, season = d ? d.season : 1;

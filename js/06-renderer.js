@@ -6,7 +6,19 @@
    ================================================================================================ */
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+/* Render scale (0.83852, MultithreadPlan C4): Options > Video "Render scale" draws the world at 100/85/75/50 % of the
+   screen's pixels and stretches it to fit. The screen's own density is capped at 2: a hi-DPI or 4K screen drew up to 4x
+   the pixels of 1080p, the biggest cost on a weak graphics card. Stars (07, uPx) follow it; particles read the viewport. */
+let renderScale = clampi(parseInt(localStorage.getItem('vg_scale')) || 100, 25, 100);
+const renderPixelRatio = () => Math.min(window.devicePixelRatio || 1, 2) * renderScale / 100;
+function applyRenderScale(pct) {
+  renderScale = clampi(parseInt(pct) || 100, 25, 100);
+  try { localStorage.setItem('vg_scale', renderScale); } catch {}
+  renderer.setPixelRatio(renderPixelRatio());
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (typeof starMat !== 'undefined') starMat.uniforms.uPx.value = renderPixelRatio();
+}
+renderer.setPixelRatio(renderPixelRatio());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(SKY);
 
@@ -36,6 +48,7 @@ function newPlayerCamera() {
 }
 
 window.addEventListener('resize', () => {
+  renderer.setPixelRatio(renderPixelRatio());   // the window may have moved to a screen of another density (0.83852)
   renderer.setSize(window.innerWidth, window.innerHeight);
   // aspect is per-viewport in split screen; the layout pass owns it
   if (typeof relayoutSplitScreen === 'function') relayoutSplitScreen();

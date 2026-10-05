@@ -139,7 +139,7 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'mossy_granite_bricks', 'mossy_marble_bricks', 'mossy_limestone_bricks'
                      ,'polished_granite', 'polished_marble', 'polished_limestone'
                      ,'chimney_side', 'chimney_top'
-                     // a furnace per rock, and a bench per wood (0.809); the order must match T in 02-voxel-core.js
+                     // a furnace per rock, and a bench per wood (0.809); the order must match T in 58-blocks.js
                      ,...FURNACE_ROCKS.slice(1).flatMap(r => FURNACE_PARTS.map(p => furnaceTileName(r, p)))
                      ,'crafting_bench_bottom'
                      ,...BENCH_WOODS.slice(1).flatMap(w => BENCH_PARTS.map(p => benchTileName(w, p)))
@@ -176,7 +176,9 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'ice_bricks', 'snow_bricks', 'snow_ice_bricks', 'bone_block_side', 'bone_block_top', 'bone_bricks'   // 0.833 (T 365-370)
                      ,'torch_fire', 'torch_unlit', 'torch_crystal', 'glowstone_spent', 'glowcrystal_spent'   // 0.834 (T 371-375)
                      ,'packed_ice'                                            // 0.835 (T 376)
-                     ,'water_flow_fast', 'water_fall'];                       // 0.835491 (T 377-378): the flow art, faster
+                     ,'water_flow_fast', 'water_fall'                         // 0.835491 (T 377-378): the flow art, faster
+                     // 0.836: rime wood (T 379-384)
+                     ,'rime_log', 'rime_log_top', 'stripped_rime_log', 'stripped_rime_log_top', 'rime_planks', 'rime_leaves'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -376,7 +378,7 @@ function _checkLayerLimit() {
       console.error(`voxiGrof: ${ATLAS_LAYERS} texture layers, but this GPU holds ${max}`);
   } catch {}
 }
-// the tile list and T in 02-voxel-core.js must agree, or every face after a gap samples its neighbour (0.809)
+// the tile list and T in 58-blocks.js must agree, or every face after a gap samples its neighbour (0.809)
 function _checkTileOrder() {
   const T = CORE.T;
   const top = Math.max(...Object.values(T));
@@ -394,7 +396,7 @@ function _checkTileOrder() {
 /* 0.812: every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
    the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
    its segments stay joined; the upper half of tall grass carries on from the lower (3). */
-const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2 };
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2 };   // rime leaves are frozen stiff (0.836)
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;

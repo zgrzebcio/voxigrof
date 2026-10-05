@@ -7,7 +7,7 @@
    Propagation runs on the main thread (glowstones are rare, player-placed, tracked in glowLights),
    crossing chunk borders via getBlock/getLightWorld, and marks touched chunks dirty to re-mesh.
    ================================================================================================ */
-function chunkLightArr(c) { return c.light || (c.light = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z)); }
+function chunkLightArr(c) { return c.light || (c.light = newSharedArr(Uint8Array, CHUNK_X * CHUNK_Y * CHUNK_Z)); }   // shared when it can be (0.8386)
 /* Light COLOUR (0.834): a cell's byte is its level (bits 0-4, up to the 20 of a glow dust block) and LIGHT_COLD_BIT when
    that level came from a cold source (`coldLight` in PROPS: crystal torch, glowcrystal block, glow vine). The flood
    carries it, the brightest light wins a cell and its colour with it; the mesh packing (11) hands it to the shader. */
@@ -163,6 +163,7 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   let x0 = bx0 - R, x1 = bx1 + R, y0 = by0 - R, y1 = by1 + R, z0 = bz0 - R, z1 = bz1 + R;
   for (const g of near) { x0 = Math.min(x0, g[0]-R); x1 = Math.max(x1, g[0]+R); y0 = Math.min(y0, g[1]-R); y1 = Math.max(y1, g[1]+R); z0 = Math.min(z0, g[2]-R); z1 = Math.max(z1, g[2]+R); }
   y0 = Math.max(0, y0); y1 = Math.min(WORLD_TOP, y1);
+  if (_lightW) { _lightPost('lbox', near, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread (0.8386)
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(near);                // all of them in one flood (0.8196)
   for (let ccz = Math.floor(z0/16); ccz <= Math.floor(z1/16); ccz++)
@@ -200,6 +201,7 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   if (!skipOld && old) { x0=Math.min(x0,old[0]-R); x1=Math.max(x1,old[0]+R); y0=Math.min(y0,old[1]-R); y1=Math.max(y1,old[1]+R); z0=Math.min(z0,old[2]-R); z1=Math.max(z1,old[2]+R); }
   for (const g of sources) { x0=Math.min(x0,g[0]-R); x1=Math.max(x1,g[0]+R); y0=Math.min(y0,g[1]-R); y1=Math.max(y1,g[1]+R); z0=Math.min(z0,g[2]-R); z1=Math.max(z1,g[2]+R); }
   y0=Math.max(0,y0); y1=Math.min(WORLD_TOP,y1);
+  if (_lightW) { _lightPost('lbox', sources, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread (0.8386)
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(sources);             // 0.8196
   for (let ccz=Math.floor(z0/16);ccz<=Math.floor(z1/16);ccz++)
@@ -226,7 +228,55 @@ function relightForChunk(cx, cz) {
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
     if (dx <= lv && dz <= lv) srcs.push(g);                 // with its colour (0.834)
   }
+  if (_lightW) { if (srcs.length) _lightPost('ladd', srcs, null); return; }   // the light thread (0.8386)
   propagateLightMany(srcs);
+}
+
+/* ---- the light thread (0.8386, MultithreadPlan C9: LIGHT_THREAD, only with shared memory, SHARED_OK) ----
+   A worker of its own (started from 10-workers, `lightThreadStart`) runs every block-light flood: relight (an edit),
+   updatePlayerLight (a held light moving), relightForChunk (a chunk arriving near lights). The main thread still
+   gathers the sources (it owns glowLights and the held lights) and the box, posts them as a job, and when the answer
+   comes marks the chunks whose light changed for a remesh. The worker reads each loaded chunk's cells straight from
+   shared memory (registered on arrival `lightRegister`, forgotten on unload) and writes the light arrays in shared
+   memory; one it had to make for a chunk with no light yet comes back and is hung on the chunk (`c._lid` makes sure it
+   is still the same load of that chunk). Jobs run in the order sent, so two overlapping floods never cross. A light now
+   shows a frame or two after the edit instead of stopping the frame. Without shared memory everything stays here. */
+let _lightW = null, _lightJobN = 0, _lightRegN = 0;
+const _lightJobs = new Map();               // job id -> its box (the chunks to remesh) or null
+function lightThreadStart() {
+  if (_lightW || !SHARED_OK || !LIGHT_THREAD || typeof workerURL === 'undefined') return;
+  _lightW = new Worker(workerURL);
+  _lightW.onmessage = (e) => _lightThreadAnswer(e.data);
+  _lightW.postMessage({ type: 'lreset', top: WORLD_TOP,
+                        pack: { mask: LIGHT_LEVEL_MASK, cold: LIGHT_COLD_BIT, sky: typeof SKY_LEVEL !== 'undefined' ? SKY_LEVEL : 15 } });
+}
+// a chunk's cells (and light, if it has some) to the light thread, as they arrive
+function lightRegister(c) {
+  if (!_lightW || !c || !c.data) return;
+  c._lid = ++_lightRegN;
+  _lightW.postMessage({ type: 'lreg', cx: c.cx, cz: c.cz, lid: c._lid, data: c.data, light: c.light || null });
+}
+function lightForget(cx, cz) { if (_lightW) _lightW.postMessage({ type: 'lforget', cx, cz }); }
+function lightForgetAll() { if (_lightW) { _lightW.postMessage({ type: 'lreset' }); _lightJobs.clear(); } }
+function _lightPost(type, srcs, box) {
+  const id = ++_lightJobN;
+  _lightJobs.set(id, box);
+  _lightW.postMessage({ type, id, srcs, box });
+}
+function _lightThreadAnswer(m) {
+  if (m.type === 'error') { console.error('[light worker]', m.message); return; }
+  if (m.type !== 'lit') return;
+  const box = _lightJobs.get(m.id);
+  _lightJobs.delete(m.id);
+  for (const a of m.made) {                 // a light array made there for a chunk that had none
+    const c = chunks.get(a.key);
+    if (c && c._lid === a.lid && !c.light) c.light = a.light;
+  }
+  const dirty = new Set(m.touched);
+  if (box)
+    for (let cz = Math.floor(box.z0 / 16); cz <= Math.floor(box.z1 / 16); cz++)
+      for (let cx = Math.floor(box.x0 / 16); cx <= Math.floor(box.x1 / 16); cx++) dirty.add(cx + ',' + cz);
+  for (const k of dirty) { const c = chunks.get(k); if (c && c.data) markDirty(c); }
 }
 
 // Dev test — run _dbgHeldLight() in browser console while holding a light block

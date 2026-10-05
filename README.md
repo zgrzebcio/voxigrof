@@ -43,6 +43,70 @@ wheat a fifth commoner. New worlds: waters at different heights are kept apart b
 lake shores, half the plains (with twice the trees), a few oaks high on the mountains, and 'Hills' biomes (Plains Hills,
 Forest Hills...) where hills rise; Mountains start at 150.
 0.835492: ripples run downhill on rivers, and the water surface no longer shows bright greenish lines.
+0.836: new biome Coldest Deep Snow, the frozen heart of the Deep Snow (new worlds). It is -60°C there, which kills fast
+without warm gear, fire or shelter. Frozen rime trees grow there (rime log, rime planks, rime leaves; no sapling yet),
+wind-combed snow drifts lie between them, and ice shapes stand everywhere: giant ribcages, arches, rings, fins, twisted
+spires, frozen waves, tusks, ice trees, crystals and penitentes. The air sparkles with ice. Deep Snow is now about -22°C.
+0.837: blizzards are brutal: you see about 3 blocks, the snow swirls thick around you and it is 25°C colder. Rain drops
+run down your view, water streams off it when you come up, snow sticks and slowly melts, close lightning flashes it and
+fire licks up from its bottom. Mushrooms 30% more: brown and black under any tree, red under birch, blue under spruce,
+yellow under oak, white in clearings beside trees. Animals 30% more (not polar bears). New worlds can switch off day and
+night, weather, clouds, animals and monsters. The world list shows the version a world was made in. The Coldest Deep
+Snow is now two biomes: the Coldest Deep Snow Forest (rime trees and ice shapes, half as many as before) and the open,
+gently rolling Coldest Deep Snow. Distant ice and glass no longer draw faces along chunk edges.
+0.8371: creative has a building wand (a purple stick). Right-click a block's face and every same block joined to it
+across that face gets one more layer laid on it, with the same look, shape and turn: a wall grows thicker or taller in
+one click, a floor rises a layer. Up to 256 blocks at once.
+0.8373: torches and glow blocks placed in creative never burn out. How fast lights burn out follows the world's random
+tick: 5 (the default) as before, 10 twice as fast, 0 never (rain does not put torches out either). A random tick of 0
+can now really be set.
+0.8374: a breaking wand (a red stick) in creative: right-click takes away the clicked block and every same block joined
+to it across that face. Both wands now outline what they will build or break, as one shape seen through other blocks,
+and blocks touching corner to corner count as joined too (a gap still parts them).
+0.8378: the world runs at the same speed at any frame rate: the day clock, furnaces, growth, saplings, grass, leaf
+decay and the rest step 20 times a real second. Below 20 fps the game no longer runs in slow motion (only below 10 for
+movement and creatures). A minimized game still waits for you.
+0.8379: hunger, thirst, stamina, energy, oxygen, body temperature, effects, held torches and food spoiling now also run
+20 times a real second, the same at any frame rate. In split screen each player's food now spoils at the right speed.
+0.838: creatures move at the same speed at any frame rate too, drawn smoothly between steps.
+0.8381-0.8383: less stutter while exploring: the worker threads now find a new chunk's lights, light its sky, and find
+what the seasons change in it, so the game itself does far less of that work.
+0.8384: autosaving no longer makes the game hitch (a worker writes the save). Dropped items, thrown snowballs and arrows
+move at the same speed at any frame rate, drawn smoothly.
+0.8385: dropped items stack. Items of the same kind lying close together join into one drop (a big stack shows a few
+copies), and a broken chest, a death or a felled tree drops one stack per slot instead of a cloud of single items.
+Walking over a stack picks up as much as fits. Fewer drops on the ground means smoother frames.
+0.83851: F3 also shows where each frame's time goes (the costliest parts in ms, and the worst frame). Block reads are
+faster (the game remembers the chunks it just looked in).
+0.83852: new Options > Video "Render scale" (100/85/75/50%): fewer pixels drawn, much faster on a weak graphics card or
+a hi-DPI / 4K screen. Calm creatures far from you think less often, creatures out of view are not animated, chunks
+reuse their memory when you build or dig, and dropped items cost less to draw.
+0.839: the first boss, the Frozen King (2000 health, a 200-point shield). He floats, throws cold fireballs that set
+you alight, raises his shield (it turns arrows and takes your blows from the front), drops ice spikes from above,
+flies round you leaving burning snow, and below half health sends homing beams. Close to him you cannot mine. Beating
+him gives Boss boost (+20% XP, kept for good, one level per kind of boss, up to 5) and finishes the last quest (2000
+XP). He has no castle yet: F8 (with F3 open) summons him for testing.
+0.8391: burning in the Frozen King's cold fire, the flames on your view are blue (0.83911: and the flames on your body).
+0.8394: the snow castle's chests hold the best loot in the game: plenty of mushroom stew, raw meat and fish, bronze,
+iron and gold, nuggets of every metal, glow crystal, rime planks, cloth and leather; now and then a leather armour piece
+(it keeps the cold out), a golden apple, a saddle or a backpack, and in about one chest in nine a single gem. Opening
+one pays three times the XP.
+0.8393: the Frozen King's snow castle stands in the open Coldest Deep Snow (not its Forest), very rare: never two within
+4000 blocks, in worlds made since 0.837. He waits in its hall; killed, he never returns. The last quest's crown marker
+points to the nearest castle, even one you have never been near. Its lights never burn out.
+0.8392: a rime wood chest: pick "rime" for the chest on the variant bar (R).
+0.83914: a running crafting queue shows as the Crafting effect (slower walk, lower jump, no sprinting, the time left);
+milk does not lift it and it ends with the last craft. The Frozen curse and Ice daze say what they do in Effects.
+0.8387: fixed: since 0.8382 a world froze right after it loaded (no moving, no clicking): the mushroom pass of the
+seasons stopped every frame. Also fixed: leaves that fell in autumn could not grow back in spring. And: a browser
+whose storage had filled up could not create or start a world; the copies saved when the page closes now move into the
+bigger world database at start, and a full storage no longer stops a world from starting.
+0.8386: new Options > Video "Leaves": fast draws leaf blocks solid (much faster in forests). Far land is drawn in big
+pieces once it settles (fewer draw calls). Torch and glowstone light is worked out on its own thread, and new chunks
+cost the game less: the worker threads now share the world's memory (the first visit reloads the page once to turn
+this on; it works on GitHub Pages).
+0.8375: the wand outline is thicker and pulses. The building wand only grows the layer across open space from the block
+you click (never past a filled spot, nothing if the clicked block is covered), and each wand acts once per click.
 
 **Igloos (0.833)** stand now and then in the snow (not the cold plains): a snow-brick dome with a furnace, a crafting
 bench, a hay bale, a crystal torch and a chest of cold-country things (ice, snowballs, fish, berries, bread, paper, clay, copper nuggets...).

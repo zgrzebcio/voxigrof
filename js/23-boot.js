@@ -10,6 +10,15 @@ distInput.value = viewDist;
 simInput.value = simRadius;
 sensInput.value = Math.round(sens * 100);
 shadowSel.value = String(shadowR);
+// render scale (0.83852, 06-renderer): applied the moment it is picked
+const scaleSel = document.getElementById('scaleSel');
+scaleSel.value = String(renderScale);
+if (scaleSel.value !== String(renderScale)) scaleSel.value = '100';
+scaleSel.addEventListener('change', () => applyRenderScale(scaleSel.value));
+// leaves fancy or fast (0.8386, 10-workers): every chunk remeshes when it changes
+const leavesSel = document.getElementById('leavesSel');
+leavesSel.value = fastLeaves ? 'fast' : 'fancy';
+leavesSel.addEventListener('change', () => applyFastLeaves(leavesSel.value === 'fast'));
 // texture quality (0.752): the saved choice, and what "auto" resolves to on this device
 const texSel = document.getElementById('texSel');
 texSel.value = (() => { try { return localStorage.getItem(TEX_Q_KEY) || 'auto'; } catch { return 'auto'; } })();
@@ -166,7 +175,7 @@ window.__vg = {
   hardness: (id) => PROPS[id].hardness,
   stack: (id) => stackSize(id),
   mining: () => ({ active: mining.active, x: mining.x, y: mining.y, z: mining.z, elapsed: mining.elapsed, needed: mining.needed, stage: mining.stage }),
-  drops: () => DROPS.map(d => ({ id: d.id, x: d.group.position.x, y: d.group.position.y, z: d.group.position.z, age: d.age, grounded: d.grounded })),
+  drops: () => DROPS.map(d => ({ id: d.id, count: d.count, x: d.group.position.x, y: d.group.position.y, z: d.group.position.z, age: d.age, grounded: d.grounded })),
   stats() { return { fps, chunks: chunks.size, draws: renderer.info.render.calls,
                      tris: renderer.info.render.triangles, pos: player.pos.toArray(),
                      genQ: genQueue.length, meshQ: meshQueue.length, results: meshResults.length }; },

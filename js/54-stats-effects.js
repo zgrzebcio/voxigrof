@@ -532,6 +532,9 @@ function _tickOxygen(dt) {
 const TEMP_SAMPLE_S = 0.5, TEMP_EASE_S = 10, TEMP_EASE_WATER_S = 4;
 const TEMP_MEAN = 11, TEMP_SWING = 13;             // about -2 in mid January, 24 in mid July
 const SNOW_BIOME_MEAN = -10, SNOW_BIOME_SWING = 4, SNOWFALL_CHILL = 4;   // 0.8323 (airTempAt)
+const DEEP_SNOW_CHILL = 1.5;                       // how much colder the deep snow is, per degree its level is past the snow's: about -22°C (0.836; 0.5, -14 before)
+const RIME_MEAN = -60, RIME_SWING = 3;             // the Coldest Deep Snow (0.836)
+const TEMP_FLOOR = -75;                            // the coldest the air ever reads (-50 before 0.836)
 const TEMP_PEAK_DAY = 6.5 * MONTH_DAYS;            // mid July, in days from 1 January
 const TEMP_SNOW = -16, TEMP_HOT = 14;              // deep inside a snow biome, a desert
 const TEMP_DAY_AMP = 5;                            // the day's swing either way; a desert doubles it by day
@@ -541,7 +544,7 @@ const TEMP_LAPSE_FROM = 110, TEMP_LAPSE = 0.12;    // colder by this a block abo
    the ground you are, TEMP_CAVE_DEEP_PER a block past TEMP_CAVE_DEEP_FROM, up to TEMP_CAVE_DEEP_MAX more. */
 const TEMP_CAVE = 4, TEMP_CAVE_DEEP_FROM = 16, TEMP_CAVE_DEEP_PER = 0.1, TEMP_CAVE_DEEP_MAX = 10;
 const caveTemp = (depth) => TEMP_CAVE + Math.min(TEMP_CAVE_DEEP_MAX, Math.max(0, depth - TEMP_CAVE_DEEP_FROM) * TEMP_CAVE_DEEP_PER);
-const TEMP_WEATHER = { clear: 0, sunny: 2, cloudy: -1, windy: -1, rainy: -3, darky: -2, storm: -5, foggy: -1.5, blizzard: -12 };   // blizzard 0.83
+const TEMP_WEATHER = { clear: 0, sunny: 2, cloudy: -1, windy: -1, rainy: -3, darky: -2, storm: -5, foggy: -1.5, blizzard: -25 };   // blizzard 0.83; -12 before 0.837
 const TEMP_WATER = -6, TEMP_ON_FIRE = 25;
 // heat right beside a source, fading with distance, summed over HEAT_R blocks around you
 const HEAT_OF = new Float32Array(256);
@@ -585,13 +588,15 @@ function airTempAt(x, y, z, open = 1) {
   const c = mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : { snow: 0, hot: 0, h: y };
   t += c.air != null ? c.air : TEMP_SNOW * c.snow + TEMP_HOT * c.hot;   // a ladder world: its level's air (0.8232, 55-biomes.js)
   /* SNOW BIOMES (0.8323): about -10°C the year round (SNOW_BIOME_MEAN, swinging SNOW_BIOME_SWING either way with the
-     seasons; it reached 13°C on a summer noon before), deep snow 4°C colder; blended in by how snowy the place is (a
-     ladder level from cold plains to snow). Falling snow takes up to SNOWFALL_CHILL more, below. */
+     seasons; it reached 13°C on a summer noon before), deep snow about -22 (DEEP_SNOW_CHILL, 0.836; -14 before); blended
+     in by how snowy the place is (a ladder level from cold plains to snow). Falling snow takes up to SNOWFALL_CHILL more,
+     below. The Coldest Deep Snow (0.836) is RIME_MEAN, eased in over its edge (c.rime, 55-biomes.js). */
   const snowy = c.air != null ? Math.max(0, Math.min(1, (-c.air - 7) / 9)) : Math.min(1, c.snow || 0);
   if (snowy > 0) {
-    const snowT = SNOW_BIOME_MEAN + SNOW_BIOME_SWING * yearCos + (c.air != null ? Math.min(0, c.air + 16) * 0.5 : 0);
+    const snowT = SNOW_BIOME_MEAN + SNOW_BIOME_SWING * yearCos + (c.air != null ? Math.min(0, c.air + 16) * DEEP_SNOW_CHILL : 0);
     t += (snowT - t) * snowy;
   }
+  if (c.rime > 0) t += (RIME_MEAN + RIME_SWING * yearCos - t) * c.rime;
   const w = weatherAt(x + 0.5, z + 0.5, y);
   if (typeof precipAt === 'function') t -= SNOWFALL_CHILL * precipAt(x + 0.5, z + 0.5, y).snow * open;   // 0.8323
   const overcast = !(w.type === 'clear' || w.type === 'sunny' || w.type === 'windy');
@@ -616,7 +621,7 @@ function ambientTemp(p) {
   if (p._inWater) t += TEMP_WATER;
   t += Math.min(HEAT_MAX, _heatNear(x, Math.floor(p.pos.y), z) + _heldHeat(p));
   if (p.fireT > 0) t += TEMP_ON_FIRE;
-  return Math.max(-50, Math.min(90, t));
+  return Math.max(TEMP_FLOOR, Math.min(90, t));
 }
 /* How fast the body follows the air (0.8245). A big gap closes faster: the ease time is cut by 1 + gap /
    TEMP_EASE_BIG (a 15° jump twice as fast, 30° three times). Resistance slows the turn toward its side: cold
@@ -964,7 +969,8 @@ const playerMoveSpeedMul = () => {
 function playerMoveSpeedPct() { return Math.round(playerMoveSpeedMul() * 100); }
 /* Jump strength (0.756): a multiplier on jump HEIGHT. No gear grants it yet, but it has its own stat line
    and the jump already reads it, so an item only needs a `jumpStrength` field (0.10 = +10%). */
-const playerJumpMul = () => Math.max(0.25, 1 + _equipSum('jumpStrength') - WET_JUMP * wetness());   // wet, by how soaked (0.8323; 0.8324)
+const playerJumpMul = () => Math.max(0.25, 1 + _equipSum('jumpStrength') + _effectSum('jumpStrength')   // effects too: the ice daze (0.839)
+  - WET_JUMP * wetness());   // wet, by how soaked (0.8323; 0.8324)
 function playerJumpPct() { return Math.round(playerJumpMul() * 100); }
 /* Crafting speed (0.76): 1 = 100%, the rate every recipe's timeToCraft is written for; 2 crafts twice as
    fast; 0 means you cannot craft at all. Gear adds a `craftSpeed` field (0.25 = +25%). Never negative. */
@@ -979,6 +985,7 @@ const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed') - SICK_
    show up. Summed as a fraction (0.15 = 15% resisted) and clamped to 100%. */
 // gear plus Weathered's 10% (0.79): the one total both the stat panel and anything that reads it use
 const _resSum = (field) => _equipSum(field) + ((typeof hasSkill === 'function' && hasSkill('weathered')) ? 0.1 : 0)
+  + _effectSum(field)                                          // effects too: the Frozen King's curse -30% cold (0.839)
   - (field === 'coldResist' ? WET_COLD_RES * wetness() : 0);   // wet: up to half the cold resistance gone (0.8323; by % 0.8324)
 const _resPct = (field) => Math.round(Math.min(1, Math.max(-1, _resSum(field))) * 100);
 function playerColdResist() { return _resPct('coldResist'); }
@@ -1031,10 +1038,19 @@ function activeEffects() {
   }
   const b = armorSetBonus();
   if (b) out.push({ name: b.name, time: Infinity, good: b.good, desc: b.desc });
+  /* boss boost (0.839, 60-bosses.js): for good, through death too. Listed here with what it gives; not on the effect
+     bar by the hotbar (0.83915), which is for what comes and goes */
+  if (typeof bossBoostLevel === 'function' && bossBoostLevel() > 0) {
+    const lv = bossBoostLevel(), d = EFFECT_DEFS.bossBoost;
+    out.push({ name: `${d.name} ${lv}`, time: Infinity, good: true, lasts: d.lasts,
+               desc: `XP +${Math.round((bossXpMul() - 1) * 100)}% (x${bossXpMul().toFixed(1)}) on everything you earn. ` +
+                     `Level ${lv} of ${BOSS_BOOST_MAX}, one for each kind of boss defeated: ${bossBoostNames().join(', ')}.` });
+  }
   for (const e of PLAYER_EFFECTS) out.push(e);
   for (const e of player.effects || []) {
     const d = EFFECT_DEFS[e.id];
-    if (d) out.push({ name: d.name, time: Math.ceil(e.left), good: d.good, desc: d.desc });
+    // an aura's effect (0.83913, the Frozen King's curse) has no clock to read: it says what keeps it instead
+    if (d) out.push({ name: d.name, time: d.aura ? Infinity : Math.ceil(e.left), good: d.good, desc: d.desc, lasts: d.lasts });
   }
   return out;
 }
@@ -1077,6 +1093,8 @@ const EFFECT_DEFS = {
   /* what you are doing (0.8243): shown while it lasts, like the temperature (stateEffects) */
   sneaking:     { name: 'Sneaking', good: true, icon: '🐾', lasts: 'Lasts while you sneak',
                   desc: "You do not step off an edge, and your stamina comes back 20% faster." },
+  // your crafting queue running (0.83914): shown, never lifted by milk nor shortened, gone when the last craft is done
+  crafting:     { name: 'Crafting', good: false, icon: '🔨', lasts: 'Lasts while your crafting queue runs: it ends when the last craft is done. Milk does not lift it.' },
   climbing:     { name: 'Climbing', good: false, icon: '🧗', lasts: 'Lasts while you climb a wall',
                   desc: `Climbing a bare wall costs ${STAMINA_CLIMB_PER_S} stamina a second, and energy with it. Run dry and you let go until it is back to ${STAMINA_BACK}.` },
 };
@@ -1120,6 +1138,13 @@ function stateEffects(p = player) {
     desc: `Food you carry spoils ${Math.round(SALT_SLOW * 100)}% slower while it lasts (${Math.ceil(p._saltT / 60)} min).` });
   if (p.sneaking) out.push({ id: 'sneaking' });
   if (p._wallClimbing) out.push({ id: 'climbing' });
+  // the crafting queue (0.83914, 25-crafting.js): what it costs you while it runs, and how long it still has
+  if (p === player && typeof playerIsCrafting === 'function' && playerIsCrafting()) {
+    const s = typeof craftQueueLeft === 'function' ? craftQueueLeft() : 0;
+    out.push({ id: 'crafting', label: s >= 60 ? Math.ceil(s / 60) + 'm' : Math.ceil(s) + 's',
+      desc: `Walk speed -${Math.round((1 - craftMoveMul()) * 100)}%. Jump strength -${Math.round((1 - CRAFT_JUMP_MUL) * 100)}%. No sprinting.` +
+            ` ${Math.ceil(s)} s of crafting left.` });
+  }
   return out;
 }
 /* The body's temperature (player.temp, °C) against four lines (0.823):
@@ -1224,7 +1249,8 @@ function tickPlayerEffects(dt) {
 function syncEffectBar() {
   if (typeof hotbarEl === 'undefined' || !hotbarEl) return;
   const t = (s) => s >= 60 ? Math.ceil(s / 60) + 'm' : Math.ceil(s) + 's';
-  const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id, label: t(e.left) }));
+  // an aura's effect shows what it is, not a clock that never runs down (0.83913)
+  const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id, label: EFFECT_DEFS[e.id]?.aura ? EFFECT_DEFS[e.id].aura : t(e.left) }));
   // cold or hot (0.822) first, showing the temperature instead of a clock; sneaking and climbing too (0.8243)
   list.unshift(...stateEffects().map(s => ({ id: s.id, label: s.label || '' })));
   let bar = hotbarEl.querySelector(':scope > .effBar');
@@ -1238,7 +1264,9 @@ function syncEffectBar() {
   bar.innerHTML = list.map(e => {
     const d = EFFECT_DEFS[e.id];
     if (!d) return '';
-    return `<div class="effSlot${d.good === false ? ' bad' : ' good'}" title="${d.name}">` +
+    // its name and what it does on hover (0.83913: the name alone before)
+    const tip = (d.name + (d.desc ? ': ' + d.desc : d.lasts ? ': ' + d.lasts : '')).replace(/"/g, '&quot;');
+    return `<div class="effSlot${d.good === false ? ' bad' : ' good'}" title="${tip}">` +
            `<i>${d.icon || '✨'}</i><b>${e.label}</b></div>`;
   }).join('');
 }
@@ -1246,7 +1274,8 @@ function effectTipHTML(i) {
   const e = activeEffects()[i];
   if (!e) return '';
   const cls = e.good === false ? ' bad' : '';
-  const left = e.time === Infinity ? (e.lasts || 'Lasts while the full set is worn') : `${e.time}s left`;   // cold, hot: their own (0.822)
+  // a timed one with its own `lasts` says where it comes from too (0.83914: the ice daze)
+  const left = e.time === Infinity ? (e.lasts || 'Lasts while the full set is worn') : `${e.time}s left` + (e.lasts ? `. ${e.lasts}` : '');   // cold, hot: their own (0.822)
   return `<div class="tipName">${e.name}</div>` + (e.desc ? `<div class="tipSet${cls}">${e.desc}</div>` : '') +
          `<div class="tipDesc">${left}</div>`;
 }

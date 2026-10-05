@@ -95,10 +95,10 @@ function onGroundAt(px, py, pz) {
    deep the stack is: -10% per snow layer (a full 8-layer drift = -80%), -5% per leaf layer (a
    whole leaf block = -40%). Worst overlapping cell wins, checked feet-to-head over the body box. */
 const DRAG_PER_SNOW = 0.10, DRAG_PER_LEAF = 0.05, DRAG_FLOOR = 0.2;
-const LEAF_DRAG_IDS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES]);
+const LEAF_DRAG_IDS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES]);   // rime 0.836
 // slowdown per layer of each block you wade through (0.785: sand, gravel and fiber stacks join snow and leaves)
 const DRAG_PER_LAYER = { [B.SNOW]: DRAG_PER_SNOW, [B.LEAVES]: DRAG_PER_LEAF, [B.BIRCH_LEAVES]: DRAG_PER_LEAF,
-                         [B.SPRUCE_LEAVES]: DRAG_PER_LEAF, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.PINK_SAND]: 0.06, [B.GRAVEL]: 0.05,
+                         [B.SPRUCE_LEAVES]: DRAG_PER_LEAF, [B.RIME_LEAVES]: DRAG_PER_LEAF, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.PINK_SAND]: 0.06, [B.GRAVEL]: 0.05,
                          [B.FIBER_BLOCK]: 0.04, [B.SALT_CRUST]: 0.03, [B.ASH]: 0.03 };   // salt 0.8097, ash 0.8191
 // speed multiplier this cell imposes, given how far the feet sit above the cell floor
 function _cellDrag(val, feetOff, x, y, z) {

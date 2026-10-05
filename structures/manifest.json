@@ -11,7 +11,8 @@
   "desert_village_well.json",
   "dungeon_room.json",
   "dungeon_cell.json",
-  "igloo.json"
+  "igloo.json",
+  "snow_castle.json"
  ],
  "groups": {
   "village": {

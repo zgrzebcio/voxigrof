@@ -28,8 +28,8 @@ const QUESTS = [
   // the flint pickaxe left the chain in 0.8095: it breaks stone but keeps none
   { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
   { name: 'Chop wood',              hint: 'Use the hatchet on a tree',
-    reqs: [_req([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG], 4)], xp: 15 },
-  { name: 'Make planks',            hint: 'A log makes 3 planks',                    reqs: [_req([B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS], 10)], xp: 10 },
+    reqs: [_req([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG], 4)], xp: 15 },   // rime 0.836
+  { name: 'Make planks',            hint: 'A log makes 3 planks',                    reqs: [_req([B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS], 10)], xp: 10 },
   { name: 'Build a crafting bench', hint: '5 planks and 5 fiber',                    reqs: [_req(B.CRAFTING_BENCH)], xp: 20 },
   /* The way into the stone age (0.8095): a flint pickaxe keeps no stone, so the first five come from stone
      pebbles (five make a stone at the bench) — enough for a stone pickaxe, which then mines the rest. */
@@ -56,16 +56,22 @@ const QUESTS = [
   { name: 'Craft a bronze pickaxe', hint: 'Copper and tin powder smelt into bronze', reqs: [_req(ITEM.BRONZE_PICKAXE)], xp: 50 },
   { name: 'Every gem',              hint: 'Gem clusters grow in caves. You need a bronze pickaxe',
     reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 100 },
+  /* The last (0.839): the first boss. Done once its kind is in your feats (60-bosses.js), so beating it before you got
+     here counts too. A marker over the nearest Frozen King shows the way while it is the quest you are on. Its 2000
+     XP is paid as written (`fixedXp`), and after the kill's boss boost has landed, so the boost already counts. */
+  { name: 'Defeat the Frozen King', hint: 'Follow the crown marker. Keep moving: close to him you cannot mine',
+    reqs: [{ boss: 'frozen_king', need: 1 }], xp: 2000, fixedXp: true },
 ];
 // every quest pays half as much again since 0.8281 (the numbers above are the old ones: 10 -> 15, 100 -> 150)
 const QUEST_XP_MUL = 1.5 * 1.5;            // +50% in 0.8281, and again in 0.831
-for (const q of QUESTS) q.xp = Math.round(q.xp * QUEST_XP_MUL);
+for (const q of QUESTS) if (!q.fixedXp) q.xp = Math.round(q.xp * QUEST_XP_MUL);
 
 var questEl = document.getElementById('quest');   // one per split-screen pane (36-splitscreen.js)
 const QUEST_CHECK_S = 0.25;
 
 // how many of these ids the current player carries, gear included
 function _questCount(req) {
+  if (req.boss) return typeof bossKilledBy === 'function' && bossKilledBy(player, req.boss) ? 1 : 0;   // a boss beaten (0.839)
   const want = req.items ? new Set(req.items) : null;
   const hit = want ? (id) => want.has(id) : req.test;
   let n = 0;

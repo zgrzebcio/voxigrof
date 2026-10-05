@@ -199,7 +199,7 @@ const starGeo = new THREE.BufferGeometry();
 }
 const starMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  uniforms: { uVis: { value: 0 }, uTime: sharedUniforms.uTime, uPx: { value: Math.min(window.devicePixelRatio, 2) } },
+  uniforms: { uVis: { value: 0 }, uTime: sharedUniforms.uTime, uPx: { value: renderPixelRatio() } },   // follows the render scale (0.83852)
   vertexShader: /* glsl */`
     in float aSize;
     in float aBright;
@@ -537,10 +537,17 @@ function _updateMeteor(dt, vis) {
 }
 
 const _skyRot = new THREE.Matrix4();
-function updateDayNight(dt) {
+// the world clock moves on (0.8378: on its own, so the fixed tick can move it and the sky only draws from it)
+function advanceWorldClock(dt) {
   const _prevTime = worldTime;
-  worldTime = (worldTime + dt / DAY_LEN) % 1;
+  // a world made with day and night off (0.837) stands at noon for ever, its days never passing
+  if (typeof currentWorld !== 'undefined' && currentWorld && currentWorld.dayNight === false) worldTime = 0.25;
+  else worldTime = (worldTime + dt / DAY_LEN) % 1;
   if (worldTime < _prevTime) worldDay++;
+}
+// `advance` false (0.8378): the fixed tick moves the clock (simTick), this only draws the sky from it
+function updateDayNight(dt, advance = true) {
+  if (advance) advanceWorldClock(dt);
   const a = worldTime * Math.PI * 2, ph = moonPhase(), lit = moonLit(ph), am = a - ph * Math.PI * 2;
   // the season moves the sun off the wheel's middle, and a full moon the other way (0.818)
   const dec = sunDeclination(), decM = dec * Math.cos(ph * Math.PI * 2);

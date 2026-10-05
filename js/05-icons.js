@@ -84,7 +84,7 @@ function _renderIconScene(scene, cam) {
 const ICON_MESH_ART = {
   [B.CHEST]: ['chest_front', 'chest_side', 'chest_top', 'chest_bottom',
               'chest_front_metal', 'chest_side_metal', 'chest_top_metal',
-              'oak_planks', 'birch_planks', 'spruce_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js)
+              'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js; rime 0.8392)
   [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342
   [B.DOOR]:  ['oak_door'],
 };

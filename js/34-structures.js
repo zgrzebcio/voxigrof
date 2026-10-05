@@ -35,7 +35,9 @@ const STRUCT_MANIFEST = STRUCT_DIR + 'manifest.json';
 
 const STRUCTURES = new Map();          // id -> prefab
 const STRUCT_GROUPS = new Map();       // group name -> settlement/dungeon config from the manifest
-const STRUCT_MAX_SPAN = 48;            // per-axis clamp; a prefab is stamped in one frame
+// per-axis clamp of the structure block's capture box; 100 since 0.83921 (48 before). Placing is budgeted over frames
+// (PLACE_BUDGET), so a big prefab assembles over a few seconds rather than in one
+const STRUCT_MAX_SPAN = 100;
 
 /* ---------------------------------- loot ---------------------------------- */
 /* A table is { rolls: [min, max], entries: [{ id, min, max, chance }] }. A roll picks one entry
@@ -98,7 +100,10 @@ function rollLootInto(slots, table) {
   const rolls = _lootRange(Math.max(0, rMin | 0), Math.max(rMin | 0, rMax | 0));
   let placed = 0;
   const got = new Set();                         // the different things this roll has put in (0.833)
+  /* `once` (0.8394): entries sharing a tag give at most one of them a chest — the snow castle's one gem (60-bosses.js) */
+  const tags = new Set();
   const put = (e, id) => {
+    if (e.once) { if (tags.has(e.once)) return true; tags.add(e.once); }
     const free = [];
     for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
     if (!free.length) return false;
@@ -123,7 +128,7 @@ function rollLootInto(slots, table) {
   const kinds = new Set(entries.map(e => resolveLootId(e.id))).size;
   const want = Math.min(table.minKinds ?? LOOT_MIN_KINDS, kinds);
   while (got.size < want) {
-    const left = entries.filter(e => !got.has(resolveLootId(e.id)));
+    const left = entries.filter(e => !got.has(resolveLootId(e.id)) && !(e.once && tags.has(e.once)));
     if (!left.length) break;
     let r = Math.random() * left.reduce((n, e) => n + (e.chance ?? 1), 0), e = left[left.length - 1];
     for (const c of left) { r -= (c.chance ?? 1); if (r <= 0) { e = c; break; } }
@@ -873,6 +878,7 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
       if (j.blend) _bulkWrite(j.ox - SNOW_BACK_R, j.oz - SNOW_BACK_R, w + 2 * SNOW_BACK_R, l + 2 * SNOW_BACK_R,
                               () => _resnowAround(j.prefab, j.ox, j.oz));
       PLACE_QUEUE.splice(i--, 1);
+      if (typeof j.onDone === 'function') j.onDone();   // whoever queued it finishes off (0.8393: the snow castle, 60)
     }
   }
   // one chunk re-lit per call, and only once the writes for this frame are done

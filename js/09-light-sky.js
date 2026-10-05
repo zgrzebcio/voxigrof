@@ -13,7 +13,7 @@ const SKY_LEVEL = 15;
    darkening the top face by how much water is under it, so this only has to handle what's
    BELOW the surface and can be much gentler. */
 const WATER_ABSORB = 2;   // 3 before 0.835481: a river or lake bed shows a few blocks deeper
-function chunkSkyArr(c) { return c.sky || (c.sky = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z)); }
+function chunkSkyArr(c) { return c.sky || (c.sky = newSharedArr(Uint8Array, CHUNK_X * CHUNK_Y * CHUNK_Z)); }   // shared when it can be (0.8386)
 function getSkyWorld(x, y, z) {
   if (y > WORLD_TOP) return SKY_LEVEL;
   if (y < 0) return 0;
@@ -122,6 +122,45 @@ function seedSkyForChunk(c) {
   const touched = new Set();
   propagateSky(q, touched);
   touched.delete(key(c.cx, c.cz));            // self meshes later anyway
+  for (const k of touched) { const t = chunks.get(k); if (t) markDirty(t); }
+}
+/* A new chunk the worker already lit inside (0.8383, MultithreadPlan.md B3; skyOf in WORKER_MAIN, 02): its own sky is
+   that, raised wherever light the neighbours spread in earlier already reached further; then the light crossing its
+   borders both ways — its edge cells spread out into the neighbours, theirs in — through the one flood. The flood only
+   ever raises, so this ends where seedSkyForChunk would. */
+function seedSkyFromWorker(c, sky) {
+  if (c.sky) for (let i = 0; i < sky.length; i++) if (c.sky[i] > sky[i]) sky[i] = c.sky[i];
+  c.sky = sky = shareArr(sky);              // into shared memory when it is on, for the mesh workers (0.8386)
+  const data = c.data, q = [], wx0 = c.cx * 16, wz0 = c.cz * 16;
+  for (let lz = 0; lz < 16; lz++)
+    for (let lx = 0; lx < 16; lx++) {
+      if (lx > 0 && lx < 15 && lz > 0 && lz < 15) continue;     // the edge columns only
+      for (let y = 0; y <= WORLD_TOP; y++) {
+        const ci = lx + (lz << 4) + (y << 8);
+        if (sky[ci] <= 1) continue;
+        const v = sky[ci] - CORE.lightDim(data[ci]);
+        if (v > 1) q.push(wx0 + lx, y, wz0 + lz, v);
+      }
+    }
+  // pull lit neighbour borders in (their earlier floods stopped at this then-unloaded chunk), as seedSkyForChunk does
+  for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    const n = getChunk(c.cx + dx, c.cz + dz);
+    if (!n || !n.sky || !n.data) continue;
+    const side = dx === -1 ? 0 : dx === 1 ? 1 : dz === -1 ? 2 : 3;
+    const plane = edgeSlice(n.sky, side, Uint8Array);
+    for (let y = 0; y < CHUNK_Y; y++)
+      for (let i = 0; i < 16; i++) {
+        const v = plane[i + (y << 4)];
+        if (v <= 1) continue;
+        const wx = dx === -1 ? wx0 - 1 : dx === 1 ? wx0 + 16 : wx0 + i;
+        const wz = dz === -1 ? wz0 - 1 : dz === 1 ? wz0 + 16 : wz0 + i;
+        const nlx = dx === -1 ? 15 : dx === 1 ? 0 : i, nlz = dz === -1 ? 15 : dz === 1 ? 0 : i;
+        q.push(wx, y, wz, v - CORE.lightDim(n.data[nlx + (nlz << 4) + (y << 8)]));
+      }
+  }
+  const touched = new Set();
+  propagateSky(q, touched);
+  touched.delete(key(c.cx, c.cz));
   for (const k of touched) { const t = chunks.get(k); if (t) markDirty(t); }
 }
 // after a block edit: rebuild sky in a box around the change (straight-down reseed per column,
