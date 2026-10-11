@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.836';     // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.8445';     // 0.843: the chest art in four sheets, the metal chest   // 0.8411: the Dryland's pale grass and dry leaves   // 0.84: palm wood, palm sapling, dry grass, tall dry grass, dry bush   // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // 0.80991: blackberry bush art
 // 0.8099: blackberries icon, pumpkin pie art
 // 0.8098: item textures moved (containers, powders, raw ores)
@@ -62,8 +62,10 @@ const SIM_DIST_MIN = 2, SIM_DIST_MAX = 16;
 const DEFAULT_SIM_DIST = 6;
 /* Water and lava flow (0.8245): OFF for now, it lagged too much. Fluids stay exactly where they are put: a bucket
    places one still block, breaking beside water opens no flow, and nothing is queued (queueWaterAt / queueLavaAt,
-   22-main-loop.js). True brings the old flow back. */
-const FLUID_FLOW = false;
+   22-main-loop.js). True brings the old flow back.
+   0.844: back on, rebuilt: its own thread with shared memory, finite (falling water is never a source), the world's own
+   loose water flows too (61-fluids.js, the rules makeFluidSim in 02). False stills every fluid again. */
+const FLUID_FLOW = true;
 /* The fixed simulation tick (0.8378, MultithreadPlan.md part A1). The world's clockwork — the day clock, furnaces,
    saplings, grass spreading and growing, berries, wheat, mushrooms, cane, the weather on the ground, ice melting,
    lights burning out, leaf decay, snow melt, litter, fluids, TNT — steps SIM_HZ times a real second whatever the frame
@@ -73,6 +75,22 @@ const FLUID_FLOW = false;
    long hitch) is dropped, not caught up: the world waits while you are away. SIM_FIXED false: all of it once a frame,
    as before 0.8378. */
 const SIM_FIXED = true, SIM_HZ = 20, SIM_DT = 1 / SIM_HZ, SIM_MAX_FRAME = 0.5, SIM_MAX_STEPS = 10, FRAME_DT_MAX = 0.1;
+/* How dark it gets (0.8442: a fifth lighter in caves and at night). SKY_FLOOR is the share of daylight a face with no
+   sky light still shows (a cave, deep shade; 0.276 before, 0.24 before 0.8242): the chunk shader (04) and everything
+   lit to match it (doors 27, creatures 28, beds 29, chests 30) read it here. NIGHT_LIGHTEN scales the night's ambient
+   light and the moon's (07-sky.js); the day is as it was.
+   0.8443: half as light again as 0.8441 had it (0.414 and 1.5; 0.8442's 0.331 and 1.2 were real but too small a step to
+   see: the cave floor went from 10% of daylight to 12%, and is 15% now). The two multiply in a cave at night. */
+const SKY_FLOOR_0843 = 0.414, NIGHT_LIGHTEN_0843 = 1.5;
+/* 0.8444: a quarter of the darkness that was left taken off again. A cave's floor goes a quarter of the way from 0.414
+   to full daylight (0.56), and the night's light a quarter more (1.875: its ambient 0.32, the day's is 0.368). Cloud
+   shadows are half as dark too (CLOUD_SHADOW_MUL, 04-materials.js). */
+const SKY_FLOOR = SKY_FLOOR_0843 + (1 - SKY_FLOOR_0843) * 0.25, NIGHT_LIGHTEN = NIGHT_LIGHTEN_0843 * 1.25;
+/* Raw mouse for looking around (0.8443, 17-input.js): the pointer lock asks for the mouse's own movement, without the
+   system's pointer acceleration, which made fast strokes (the ones a low frame rate draws out of you) turn further than
+   slow ones. Falls back to the ordinary lock where the browser has none. false = the ordinary lock, as before.
+   A setting since 0.8443: Options > Gameplay "Raw mouse input" (on unless switched off; applySettings, 17-input.js). */
+let rawMouse = (() => { try { return localStorage.getItem('vg_rawmouse') !== 'off'; } catch { return true; } })();
 /* Work handed to the worker threads (MultithreadPlan.md part B). SEASON_WORKER_SCAN (0.8382): a chunk's hourly season
    pass gets its list of cells worth a look from a worker instead of walking all of the chunk (51-seasons.js).
    LIGHT_WORKER (0.8383): a new chunk's own sky light is worked out in the worker as it is made (09-light-sky.js). */

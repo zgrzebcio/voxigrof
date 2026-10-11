@@ -16,6 +16,7 @@ function resetWorld(seed, terrainType, biomeRev = 1) {
   chunks.clear();
   _chunkCacheClear();                       // 0.83851
   lightForgetAll();                         // the light thread lets go of every chunk (0.8386)
+  if (typeof fluidReset === 'function') fluidReset();   // ...and the fluids every chunk and queued cell (0.844)
   if (typeof farRegionsClear === 'function') farRegionsClear();   // 0.8386
   editStore.clear();
   glowClear();

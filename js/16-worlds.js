@@ -269,6 +269,7 @@ function saveWorld(syncToLS = false) {
     savedAt: Date.now(),
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     burns: serializeBurns(),              // when each torch and glow block goes out (0.834, 56-torches.js)
+    doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (0.842, 27-doors.js)
     // mixed layer stacks (0.785): [chunk key, [[cell index, [block ids bottom to top]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
@@ -356,7 +357,8 @@ async function loadWorld(w) {
   setPlayerCount(1);                  // the roster is per world; the previous one's players leave
   player.chiselShape = null;          // the chisel's shape is not kept between worlds (0.7844)
   player._variantPick = null;         // ...nor the picked variants (0.794)
-  player._deathMark = null;           // ...nor where they died in another world (0.827)
+  player._deathMarks = [];            // ...nor where they died in another world (0.827; the last five since 0.8442)
+  player._restacked = false;          // its stacks are fitted again as this world is joined (0.8442, 15-drops.js)
   player._feats = null; player._night = null;   // ...nor what they found there (0.8283)
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
@@ -408,6 +410,7 @@ async function loadWorld(w) {
     }
   glowClear();                               // re-derive glowstone lights from the saved edits
   clearDoors();                              // + rebuild door meshes from saved bottom halves
+  restoreDoorLocks(data && data.doorLocks);  // and their locks (0.842)
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
@@ -427,13 +430,12 @@ async function loadWorld(w) {
     for (const [i, v] of m) {
       if (blockLightOf(v) > 0)
         glowAdd(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15));
-      if ((v & 255) === B.DOOR && !((v >> 8) & 8))
-        registerDoor(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3,
-                     ((v >> 8) & 4) !== 0, ((v >> 8) & DOOR_HINGE_R) !== 0);
+      if (BLOCKS.isDoorVal(v) && !((v >> 8) & 8))     // a door of any material (0.842; old oak doors converted above)
+        registerDoor(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), v);
       if ((v & 255) === B.BED && !((v >> 8) & 8))     // only the foot half owns a mesh
         registerBed(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, bedWoodOf((v >> 8) & 255));   // wood 0.8342
-      if ((v & 255) === B.CHEST)
-        registerChest(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3);
+      if (isChestId(v & 255))                         // wooden or metal (0.843)
+        registerChest(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, v);   // its value: the chunk is not in yet (0.8445)
     }
   }
   /* Who is player one in this world?  (0.721)

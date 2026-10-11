@@ -56,6 +56,41 @@ function tryMilkCow() {
     feedInfo(`This cow was milked recently: try again in ${m} min`);
     return true;
   }
+  /* 0.8446: milking takes MILK_TIME of the right button held. The press only starts it; updateMilking (once a frame,
+     from tickPlayer) carries it through or drops it. */
+  if (!player._milk)
+    player._milk = { cow, t: 0, sel: hotbarSel, hp: cow.hp, px: player.pos.x, py: player.pos.y, pz: player.pos.z, cx: cow.x, cz: cow.z };
+  cow._milkHold = MILK_HOLD_S;
+  return true;
+}
+/* The hold (0.8446). While it runs you stand still (tickPlayer treats it as it does working a bench: no walking, no
+   looking away) and so does the cow (_updateGrazer, 28: `_milkHold`). Anything that moves either of you ends it — a
+   shove, a current, a fall, the cow struck — as does letting the button go, changing the held slot, or the cow's
+   health dropping. `held` is the RAW right button: the controls are locked while it runs. Returns 0..1. */
+const MILK_TIME = 2, MILK_MOVE_MAX = 0.3, MILK_HOLD_S = 0.3;
+function updateMilking(dt, held) {
+  /* `_milkLatch`: the button was still down when the hold ended, done or dropped. Until it is let go it counts for
+     nothing else (tickPlayer's wantPlace), or the full bucket now in your hand would be drunk on the spot. */
+  if (!held) player._milkLatch = false;
+  const m = player._milk;
+  if (!m) { player._milkProg = 0; return 0; }
+  player._milkLatch = !!held;
+  const cow = m.cow, slot = HOTBAR[hotbarSel];
+  const here = typeof ENTITIES === 'undefined' || !Array.isArray(ENTITIES) || ENTITIES.includes(cow);
+  const ok = held && playing && !invOpen && !menuScene && !player.dead && !player.riding
+    && hotbarSel === m.sel && slotId(slot) === ITEM.BUCKET
+    && here && cow.hp > 0 && cow.hp >= m.hp && !(cow.milkCd > 0)
+    && Math.hypot(player.pos.x - m.px, player.pos.z - m.pz) <= MILK_MOVE_MAX && Math.abs(player.pos.y - m.py) <= 0.5
+    && Math.hypot(cow.x - m.cx, cow.z - m.cz) <= MILK_MOVE_MAX;
+  if (!ok) {
+    player._milk = null; player._milkProg = 0;
+    if (m.t > 0.2 && typeof feedInfo === 'function') feedInfo('Milking interrupted');
+    return 0;
+  }
+  m.t += dt;
+  cow._milkHold = MILK_HOLD_S;                       // refreshed every frame: it stands for as long as you hold
+  if (m.t < MILK_TIME) { player._milkProg = m.t / MILK_TIME; return player._milkProg; }
+  player._milk = null; player._milkProg = 0;
   cow.milkCd = COW_MILK_COOLDOWN;
   slot.count--;
   if (slot.count <= 0) HOTBAR[hotbarSel] = mkSlot(ITEM.MILK_BUCKET, 1);   // the last bucket becomes the milk
@@ -63,8 +98,8 @@ function tryMilkCow() {
   if (slot.count <= 0 && typeof feedItem === 'function') feedItem(ITEM.MILK_BUCKET, 1, 'milked');
   saveHotbar(); buildHotbar(); updateHotbar();
   playSound('fillWater', { gain: 0.8, rate: 1.1, pos: { x: cow.x, y: cow.y + 1, z: cow.z } });
-  addXP(XP_MILK, 'milking');                                    // 0.8283
-  return true;
+  addXP(XP_MILK, 'milking');                                    // 0.8283; 100 since 0.8446
+  return 1;
 }
 
 /* ---------------------------------- the interaction ----------------------------------

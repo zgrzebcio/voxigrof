@@ -140,6 +140,11 @@ function BLOCK_CORE() {
   Object.assign(T, { WATER_FLOW_FAST:377, WATER_FALL:378 });                          // 0.835491: the flow art run faster, for steep water and falls
   // 0.836: rime wood, the frozen trees of the Coldest Deep Snow
   Object.assign(T, { RIME_LOG:379, RIME_LOG_TOP:380, STRIPPED_RIME_LOG:381, STRIPPED_RIME_LOG_TOP:382, RIME_PLANKS:383, RIME_LEAVES:384 });
+  // 0.84: palm wood and its sapling; the desert's dry grass (short, tall bottom and top) and dry bush
+  Object.assign(T, { PALM_LOG:385, PALM_LOG_TOP:386, STRIPPED_PALM_LOG:387, STRIPPED_PALM_LOG_TOP:388, PALM_PLANKS:389, PALM_LEAVES:390,
+                     PALM_SAPLING:391, DRY_GRASS:392, DRY_TALL_BOT:393, DRY_TALL_TOP:394, DRY_BUSH:395 });
+  // 0.8411: the Dryland's pale grass block (top, side) and its dry leaves, all built at atlas build from the usual art (03)
+  Object.assign(T, { GRASS_TOP_DRY:396, GRASS_SIDE_DRY:397, DRY_LEAVES:398 });
   /* Ice that froze from water (0.833) carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -223,6 +228,11 @@ function BLOCK_CORE() {
               PACKED_ICE:213,                                                          // 0.835: the ice spikes' ice
               // 0.836: rime wood, the Coldest Deep Snow's frozen trees (no sapling yet)
               RIME_LOG:214, STRIPPED_RIME_LOG:215, RIME_PLANKS:216, RIME_LEAVES:217, HOLLOW_RIME_LOG:218,
+              // 0.84: palm wood (oases and warm shores), its sapling, and the desert's dry plants
+              PALM_LOG:219, STRIPPED_PALM_LOG:220, PALM_PLANKS:221, PALM_LEAVES:222, PALM_SAPLING:223,
+              DRY_GRASS:224, DRY_TALL_LOWER:225, DRY_TALL_UPPER:226, DRY_BUSH:227,
+              DRY_LEAVES:228,                                                          // 0.8411: the Dryland's big dry bushes
+              METAL_CHEST:229,                                                         // 0.843: iron / copper / gold chest
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -232,7 +242,8 @@ function BLOCK_CORE() {
        furnace additionally uses bit 2 (value 4) = lit
      - log (rot:'all'): 0 = Y axis, 1 = X (lying), 2 = Z (lying)
      - slab (rot:'all'): 0 bottom, 1 top(ceiling), 2..5 vertical halves (-X,+X,-Z,+Z side) */
-  const V = { GRASS_SNOWY:1, FURNACE_ON:4,
+  // GRASS_DRY (0.8411): the Dryland's pale grass, its own top and sides (the mesher, 02); spread passes it on (22)
+  const V = { GRASS_SNOWY:1, GRASS_DRY:2, FURNACE_ON:4,
               // which rock a furnace is built of, bits 3-5 (0 stone, then FURNACE_ROCKS), and which wood a
               // bench is, bits 2-4 (0 oak, then BENCH_WOODS) — picked on the variant bar (0.809)
               FURNACE_ROCK_SHIFT:3, BENCH_WOOD_SHIFT:2 };
@@ -254,9 +265,9 @@ function BLOCK_CORE() {
   const PROPS = [];
   // `hardness` = seconds to break by hand in survival. Infinity = unbreakable (bedrock).
   PROPS[B.AIR]     = { name:'Air', solid:false, opaque:false, raycast:false, pass:0, model:'cube', hardness:0,    faces:null, desc: '' };
-  PROPS[B.GRASS]   = { name:'Grass', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.0, type:'grass', faces:[T.GRASS_SIDE,T.GRASS_SIDE,T.GRASS_TOP,T.DIRT,T.GRASS_SIDE,T.GRASS_SIDE], desc: '' };
-  PROPS[B.DIRT]    = { name:'Dirt', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.8, type:'ground', faces:[T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT], desc: '' };
-  PROPS[B.STONE]   = { name:'Stone', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
+  PROPS[B.GRASS]   = { name:'Grass', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.0, type:'grass', faces:[T.GRASS_SIDE,T.GRASS_SIDE,T.GRASS_TOP,T.DIRT,T.GRASS_SIDE,T.GRASS_SIDE], desc: '' };
+  PROPS[B.DIRT]    = { name:'Dirt', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.8, type:'ground', faces:[T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT], desc: '' };
+  PROPS[B.STONE]   = { name:'Stone', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.0, type:'stone', faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
   /* ---- log width ----
      Log variant byte: bits 0-1 axis | bits 2-7 WIDTH INDEX (1..40).
 
@@ -287,71 +298,83 @@ function BLOCK_CORE() {
   // indexed by the whole variant byte, so the width bits never fall through to prop.boxes
   const LOG_CUT_COLL = [];
   for (let v = 0; v < 256; v++) LOG_CUT_COLL[v] = [logCutBox(v & 3, logWidthOf(v))];
-  PROPS[B.LOG]     = { name:'Oak log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.LOG,T.LOG,T.LOG_TOP,T.LOG_TOP,T.LOG,T.LOG], desc: '' };
-  PROPS[B.PLANKS]  = { name:'Oak planks', solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:4.0, type:'wood', faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
-  PROPS[B.LEAVES]  = { name:'Oak leaves',     solid:false, opaque:false, raycast:true,  pass:1, model:'cube', stack:60, hardness:0.4, type:'grass', faces:[T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES], desc: '' };
-  PROPS[B.BIRCH_LOG]    = { name:'Birch log',    solid:true,  opaque:false,  raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.BIRCH_LOG,T.BIRCH_LOG,T.BIRCH_LOG_TOP,T.BIRCH_LOG_TOP,T.BIRCH_LOG,T.BIRCH_LOG], desc: '' };
-  PROPS[B.BIRCH_PLANKS] = { name:'Birch planks', solid:true,  opaque:true,  raycast:true, pass:0, model:'cube', stack:60, hardness:3.0, type:'wood', faces:[T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS], desc: '' };
-  PROPS[B.BIRCH_LEAVES] = { name:'Birch leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:60, hardness:0.4, type:'grass', faces:[T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES], desc: '' };
-  PROPS[B.SAND]    = { name:'Sand',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:1.9, type:'ground', faces:[T.SAND_SIDE,T.SAND_SIDE,T.SAND,T.SAND,T.SAND_SIDE,T.SAND_SIDE], desc: '' };   // own sides 0.8091
+  PROPS[B.LOG]     = { name:'Oak log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.LOG,T.LOG,T.LOG_TOP,T.LOG_TOP,T.LOG,T.LOG], desc: '' };
+  PROPS[B.PLANKS]  = { name:'Oak planks', solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:50, hardness:4.0, type:'wood', faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
+  PROPS[B.LEAVES]  = { name:'Oak leaves',     solid:false, opaque:false, raycast:true,  pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:[T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES,T.LEAVES], desc: '' };
+  PROPS[B.BIRCH_LOG]    = { name:'Birch log',    solid:true,  opaque:false,  raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.BIRCH_LOG,T.BIRCH_LOG,T.BIRCH_LOG_TOP,T.BIRCH_LOG_TOP,T.BIRCH_LOG,T.BIRCH_LOG], desc: '' };
+  PROPS[B.BIRCH_PLANKS] = { name:'Birch planks', solid:true,  opaque:true,  raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:[T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS,T.BIRCH_PLANKS], desc: '' };
+  PROPS[B.BIRCH_LEAVES] = { name:'Birch leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:[T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES,T.BIRCH_LEAVES], desc: '' };
+  PROPS[B.SAND]    = { name:'Sand',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:50, hardness:1.9, type:'ground', faces:[T.SAND_SIDE,T.SAND_SIDE,T.SAND,T.SAND,T.SAND_SIDE,T.SAND_SIDE], desc: '' };   // own sides 0.8091
   // pass 4 (0.8263): the see-through pass, blended without writing depth, so glass shows through glass (04-materials.js)
-  PROPS[B.GLASS]   = { name:'Glass',      solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.9, type:'glass', faces:[T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS], desc: '' };
-  PROPS[B.BEDROCK] = { name:'Bedrock',    solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:Infinity, type:'stone', faces:[T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK], desc: '' };
+  PROPS[B.GLASS]   = { name:'Glass',      solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:50, hardness:0.9, type:'glass', faces:[T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS,T.GLASS], desc: '' };
+  PROPS[B.BEDROCK] = { name:'Bedrock',    solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:50, hardness:Infinity, type:'stone', faces:[T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK,T.BEDROCK], desc: '' };
   PROPS[B.WATER]   = { name:'Water',      solid:false, opaque:false, raycast:false, pass:2, model:'cube', hardness:0, faces:[T.WATER,T.WATER,T.WATER,T.WATER,T.WATER,T.WATER], desc: '' };
-  PROPS[B.GLOWSTONE] = { name:'Glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', light:20,handLight:10, stack:60, hardness:2.5, type:'glass', faces:[T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE], desc: '' };
+  PROPS[B.GLOWSTONE] = { name:'Glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', light:20,handLight:10, stack:50, hardness:2.5, type:'glass', faces:[T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE,T.GLOWSTONE], desc: '' };
   // the six halves a slab shape can fill: bottom, top, -X, +X, -Z, +Z (see CHISEL SHAPES below)
   const SLAB_HALF = [[0,0,0,1,0.5,1],[0,0.5,0,1,1,1],[0,0,0,0.5,1,1],[0.5,0,0,1,1,1],[0,0,0,1,1,0.5],[0,0,0.5,1,1,1]];
-  PROPS[B.CLAY]    = { name:'Clay',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:2.2, type:'ground', faces:[T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY], desc: '' };
-  PROPS[B.SNOW]    = { name:'Snow',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:60, hardness:1.2, type:'snow', faces:[T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW], desc: '' };
+  PROPS[B.CLAY]    = { name:'Clay',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:50, hardness:2.2, type:'ground', faces:[T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY,T.CLAY], desc: '' };
+  PROPS[B.SNOW]    = { name:'Snow',       solid:true,  opaque:true,  raycast:true,  pass:0, model:'cube', stack:50, hardness:1.2, type:'snow', faces:[T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW,T.SNOW], desc: '' };
   /* Ice (0.8321): see-through like glass (pass 4). It covers the water of a snow biome all year and every lake in winter
      but a desert's; breaking it leaves water and drops nothing, and heat melts it (51-seasons.js). */
-  PROPS[B.ICE]     = { name:'Ice',        solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:60, hardness:0.5, type:'glass', faces:Array(6).fill(T.ICE),
+  PROPS[B.ICE]     = { name:'Ice',        solid:true,  opaque:false, raycast:true,  pass:4, model:'cube', stack:50, hardness:0.5, type:'glass', faces:Array(6).fill(T.ICE),
                        desc: 'Breaks into water. Melts within 1 block of a torch, 3 of a lit furnace, 5 of fire, 9 of lava' };
   // packed ice (0.835): the ice spikes' and icebergs' ice, pressed hard over the years. Solid, it never melts; mined only
-  PROPS[B.PACKED_ICE] = { name:'Packed ice', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.5, type:'glass',
+  PROPS[B.PACKED_ICE] = { name:'Packed ice', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.5, type:'glass',
                           faces:Array(6).fill(T.PACKED_ICE), desc: 'Ice pressed hard over the years: it never melts' };
   // the bone block (0.833): pressed from ten bones; a pillar that turns to the face it is put on, its brick a look of it
-  PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2, type:'stone',
+  PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2, type:'stone',
                           pillar: true, rot: 'all',
                           faces:[T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_TOP, T.BONE_BLOCK_TOP, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE], desc: '' };
   /* Stripped logs: what a log becomes after the first axe hit. Same 'log' model so the 0.6692
      gap-fill still welds them to their neighbours, and softer than a live log because the bark
      is already off. */
-  PROPS[B.STRIPPED_LOG]       = { name:'Stripped oak log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_LOG,T.STRIPPED_LOG,T.STRIPPED_LOG_TOP,T.STRIPPED_LOG_TOP,T.STRIPPED_LOG,T.STRIPPED_LOG], desc: '' };
-  PROPS[B.STRIPPED_BIRCH_LOG] = { name:'Stripped birch log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG_TOP,T.STRIPPED_BIRCH_LOG_TOP,T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG], desc: '' };
+  PROPS[B.STRIPPED_LOG]       = { name:'Stripped oak log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_LOG,T.STRIPPED_LOG,T.STRIPPED_LOG_TOP,T.STRIPPED_LOG_TOP,T.STRIPPED_LOG,T.STRIPPED_LOG], desc: '' };
+  PROPS[B.STRIPPED_BIRCH_LOG] = { name:'Stripped birch log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG_TOP,T.STRIPPED_BIRCH_LOG_TOP,T.STRIPPED_BIRCH_LOG,T.STRIPPED_BIRCH_LOG], desc: '' };
   /* Spruce: the cold-forest conifer. */
-  PROPS[B.SPRUCE_LOG]          = { name:'Spruce log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.SPRUCE_LOG,T.SPRUCE_LOG,T.SPRUCE_LOG_TOP,T.SPRUCE_LOG_TOP,T.SPRUCE_LOG,T.SPRUCE_LOG], desc: '' };
-  PROPS[B.STRIPPED_SPRUCE_LOG] = { name:'Stripped spruce log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG_TOP,T.STRIPPED_SPRUCE_LOG_TOP,T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG], desc: '' };
-  PROPS[B.SPRUCE_PLANKS]       = { name:'Spruce planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:3.0, type:'wood', faces:[T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS], desc: '' };
-  PROPS[B.SPRUCE_LEAVES]       = { name:'Spruce leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:60, hardness:0.4, type:'grass', faces:[T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES], desc: '' };
-  PROPS[B.SPRUCE_SAPLING]      = { name:'Spruce sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.SPRUCE_SAPLING], desc: '' };
+  PROPS[B.SPRUCE_LOG]          = { name:'Spruce log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:4.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.SPRUCE_LOG,T.SPRUCE_LOG,T.SPRUCE_LOG_TOP,T.SPRUCE_LOG_TOP,T.SPRUCE_LOG,T.SPRUCE_LOG], desc: '' };
+  PROPS[B.STRIPPED_SPRUCE_LOG] = { name:'Stripped spruce log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG_TOP,T.STRIPPED_SPRUCE_LOG_TOP,T.STRIPPED_SPRUCE_LOG,T.STRIPPED_SPRUCE_LOG], desc: '' };
+  PROPS[B.SPRUCE_PLANKS]       = { name:'Spruce planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:[T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS,T.SPRUCE_PLANKS], desc: '' };
+  PROPS[B.SPRUCE_LEAVES]       = { name:'Spruce leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:[T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES,T.SPRUCE_LEAVES], desc: '' };
+  PROPS[B.SPRUCE_SAPLING]      = { name:'Spruce sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.SPRUCE_SAPLING], desc: '' };
   /* Rime (0.836): the frozen trees of the Coldest Deep Snow, wood hard with frost all through. Its leaves give sticks,
      never a sapling or an apple (50-loottable.js). */
-  PROPS[B.RIME_LOG]          = { name:'Rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:5.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.RIME_LOG,T.RIME_LOG,T.RIME_LOG_TOP,T.RIME_LOG_TOP,T.RIME_LOG,T.RIME_LOG], desc: 'Frozen wood from the Coldest Deep Snow' };
-  PROPS[B.STRIPPED_RIME_LOG] = { name:'Stripped rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:60, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG], desc: '' };
-  PROPS[B.RIME_PLANKS]       = { name:'Rime planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:3.5, type:'wood', faces:Array(6).fill(T.RIME_PLANKS), desc: '' };
-  PROPS[B.RIME_LEAVES]       = { name:'Rime leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:60, hardness:0.5, type:'grass', faces:Array(6).fill(T.RIME_LEAVES), desc: 'Needles under a crust of frost' };
-  PROPS[B.COBBLE]      = { name:'Cobblestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:[T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE], desc: '' };
-  PROPS[B.COAL_ORE]    = { name:'Coal ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:9.0, type:'stone', faces:[T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE], desc: '' };
-  PROPS[B.IRON_ORE]    = { name:'Iron ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:12.0, type:'stone', selfGlow:2, faces:[T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE], desc: '' };
-  PROPS[B.DIAMOND_ORE] = { name:'Diamond ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:18.0, type:'stone', selfGlow:3, faces:[T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE], desc: '' };
-  PROPS[B.COPPER_ORE]    = { name:'Copper ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:10.0, type:'stone', selfGlow:2, faces:[T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE], desc: '' };
-  PROPS[B.TIN_ORE]    = { name:'Tin ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:13.0, type:'stone', selfGlow:2, faces:[T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE], desc: '' };
-  PROPS[B.GOLD_ORE]    = { name:'Gold ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone',  selfGlow:2, faces:[T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE], desc: '' };
-  PROPS[B.MARBLE]      = { name:'Marble',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:[T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE], desc: '' };
-  PROPS[B.GRANITE]     = { name:'Granite',   solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.5, type:'stone', faces:[T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE], desc: '' };
-  PROPS[B.LIMESTONE]   = { name:'Limestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:7.5, type:'stone', faces:[T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE], desc: '' };
-  PROPS[B.DOLOMITE]    = { name:'Dolomite',  solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:8.0, type:'stone', faces:Array(6).fill(T.DOLOMITE), desc: '' };   // 0.809
+  PROPS[B.RIME_LOG]          = { name:'Rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:5.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.RIME_LOG,T.RIME_LOG,T.RIME_LOG_TOP,T.RIME_LOG_TOP,T.RIME_LOG,T.RIME_LOG], desc: 'Frozen wood from the Coldest Deep Snow' };
+  PROPS[B.STRIPPED_RIME_LOG] = { name:'Stripped rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG], desc: '' };
+  PROPS[B.RIME_PLANKS]       = { name:'Rime planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.5, type:'wood', faces:Array(6).fill(T.RIME_PLANKS), desc: '' };
+  PROPS[B.RIME_LEAVES]       = { name:'Rime leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.5, type:'grass', faces:Array(6).fill(T.RIME_LEAVES), desc: 'Needles under a crust of frost' };
+  /* Palm (0.84): the oases' and warm shores' tree, a slim bending trunk under a crown of drooping fronds. Its sapling
+     takes grass, dirt or sand. */
+  PROPS[B.PALM_LOG]          = { name:'Palm log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.PALM_LOG,T.PALM_LOG,T.PALM_LOG_TOP,T.PALM_LOG_TOP,T.PALM_LOG,T.PALM_LOG], desc: 'Grows in oases and on warm shores' };
+  PROPS[B.STRIPPED_PALM_LOG] = { name:'Stripped palm log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:2.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG_TOP,T.STRIPPED_PALM_LOG_TOP,T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG], desc: '' };
+  PROPS[B.PALM_PLANKS]       = { name:'Palm planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:Array(6).fill(T.PALM_PLANKS), desc: '' };
+  PROPS[B.PALM_LEAVES]       = { name:'Palm leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.PALM_LEAVES), desc: '' };
+  /* Dry leaves (0.8411): the Dryland's big dry bushes, oak leaves gone pale. They stand on the ground with no wood, so they
+     never decay (not leaves to 22-main-loop.js), and give sticks only (50-loottable.js). */
+  PROPS[B.DRY_LEAVES]        = { name:'Dry leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.DRY_LEAVES),
+                                 desc: 'The Dryland\'s bushes. Gives sticks' };
+  PROPS[B.PALM_SAPLING]      = { name:'Palm sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.PALM_SAPLING],
+                                 desc: 'Plant it on grass, dirt or sand' };
+  PROPS[B.COBBLE]      = { name:'Cobblestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.0, type:'stone', faces:[T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE,T.COBBLE], desc: '' };
+  PROPS[B.COAL_ORE]    = { name:'Coal ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:9.0, type:'stone', faces:[T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE,T.COAL_ORE], desc: '' };
+  PROPS[B.IRON_ORE]    = { name:'Iron ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:12.0, type:'stone', selfGlow:2, faces:[T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE,T.IRON_ORE], desc: '' };
+  PROPS[B.DIAMOND_ORE] = { name:'Diamond ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:18.0, type:'stone', selfGlow:3, faces:[T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE,T.DIAMOND_ORE], desc: '' };
+  PROPS[B.COPPER_ORE]    = { name:'Copper ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:10.0, type:'stone', selfGlow:2, faces:[T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE,T.COPPER_ORE], desc: '' };
+  PROPS[B.TIN_ORE]    = { name:'Tin ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:13.0, type:'stone', selfGlow:2, faces:[T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE,T.TIN_ORE], desc: '' };
+  PROPS[B.GOLD_ORE]    = { name:'Gold ore',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:15.0, type:'stone',  selfGlow:2, faces:[T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE,T.GOLD_ORE], desc: '' };
+  PROPS[B.MARBLE]      = { name:'Marble',    solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.0, type:'stone', faces:[T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE,T.MARBLE], desc: '' };
+  PROPS[B.GRANITE]     = { name:'Granite',   solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.5, type:'stone', faces:[T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE,T.GRANITE], desc: '' };
+  PROPS[B.LIMESTONE]   = { name:'Limestone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:7.5, type:'stone', faces:[T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE,T.LIMESTONE], desc: '' };
+  PROPS[B.DOLOMITE]    = { name:'Dolomite',  solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.0, type:'stone', faces:Array(6).fill(T.DOLOMITE), desc: '' };   // 0.809
   // adobe (0.8091): a clay block and 5 wheat make 4 at the bench; its brick is a variant
-  PROPS[B.ADOBE]       = { name:'Adobe',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone', faces:Array(6).fill(T.ADOBE), desc: '' };
+  PROPS[B.ADOBE]       = { name:'Adobe',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:4.0, type:'stone', faces:Array(6).fill(T.ADOBE), desc: '' };
   PROPS[B.LAVA]        = { name:'Lava',      solid:false,opaque:false, raycast:false, pass:3, model:'cube', light:15, hardness:0, faces:[T.LAVA,T.LAVA,T.LAVA,T.LAVA,T.LAVA,T.LAVA], desc: '' };
   // Sulfur crystal block: full opaque cube, drops itself. Common cave form.
-  PROPS[B.SULFUR_BLOCK] = { name:'Sulfur block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'stone', faces:[T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK], desc: '' };
+  PROPS[B.SULFUR_BLOCK] = { name:'Sulfur block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.5, type:'stone', faces:[T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK,T.SULFUR_BLOCK], desc: '' };
   // Sulfur tip billboards: cross model, two orientations. Down tip = stalactite (from ceiling),
   // up tip = stalagmite (from floor). Break drops ITEM.SULFUR only (handled in blockDrop).
   // Sulfur tip — single placeable block with rotation via variant (0 = up, 1 = down).
   // Legacy SULFUR_DOWN_TIP kept for storage compatibility, hidden from inventory, drops as SULFUR_UP_TIP.
-  PROPS[B.SULFUR_DOWN_TIP] = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', noInv:true, stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0.2,0.2,0.8,1,0.8]], faces:[T.SULFUR_DOWN_TIP], desc: '' };
+  PROPS[B.SULFUR_DOWN_TIP] = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', noInv:true, stack:50, hardness:0.6, type:'stone', boxes:[[0.2,0.2,0.2,0.8,1,0.8]], faces:[T.SULFUR_DOWN_TIP], desc: '' };
   /* Glow vine (0.765): a thin plate against the wall it hangs on, drawn like a carpet turned upright
      ('wall' model, see the carpet branch of the mesher). Walk-through, climbable, and a light source.
      Variant = the wall it clings to: 0 -Z, 1 +Z, 2 -X, 3 +X. */
@@ -360,27 +383,27 @@ function BLOCK_CORE() {
                     [[0, 0, 0, WALL_T, 1, 1]], [[1 - WALL_T, 0, 0, 1, 1, 1]]];
   // coldLight (0.834): its light is blue, carried through the flood fill (08) to the shader (04)
   PROPS[B.GLOW_VINE] = { name:'Glow vine', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
-                         light:10, coldLight:true, stack:60, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
+                         light:10, coldLight:true, stack:50, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                          faces:[T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE], desc: '' };
   // five glow crystals pressed into a block: brighter than glowstone's reach, a real room light (0.765)
   PROPS[B.GLOWCRYSTAL_BLOCK] = { name:'Glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
-                         light:18, handLight:12, coldLight:true, stack:60, hardness:2.5, type:'glass',
+                         light:18, handLight:12, coldLight:true, stack:50, hardness:2.5, type:'glass',
                          faces:[T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL,T.GLOWCRYSTAL], desc: '' };
   /* The glow blocks burn out (0.834, 56-torches.js): 30-60 minutes after they are placed or first seen they go dark,
      their own picture in grey. A spent one gives no light and breaks into nothing. */
-  PROPS[B.GLOWSTONE_SPENT] = { name:'Spent glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,
+  PROPS[B.GLOWSTONE_SPENT] = { name:'Spent glow dust block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50,
                          hardness:2.5, type:'glass', faces:Array(6).fill(T.GLOWSTONE_SPENT), desc: 'Burnt out: it gives no light, and breaks into nothing' };
-  PROPS[B.GLOWCRYSTAL_SPENT] = { name:'Spent glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,
+  PROPS[B.GLOWCRYSTAL_SPENT] = { name:'Spent glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50,
                          hardness:2.5, type:'glass', faces:Array(6).fill(T.GLOWCRYSTAL_SPENT), desc: 'Burnt out: it gives no light, and breaks into nothing' };
   /* Cobweb (0.766): a billboard strung in cave corners — floor, wall or ceiling, it needs no support.
      Walking into one slows you by 80% (12-player.js); only a sword cuts the string out of it. */
-  PROPS[B.COBWEB] = { name:'Cobweb', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60,
+  PROPS[B.COBWEB] = { name:'Cobweb', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:50,
                       hardness:0.8, type:'wool', boxes:[[0.05,0,0.05,0.95,1,0.95]],
                       faces:[T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB,T.COBWEB], desc: '' };
   // gem ores (0.766): an iron pickaxe or better, and they glow like diamond ore so they read in the dark
-  PROPS[B.EMERALD_ORE]  = { name:'Emerald ore',  solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE], desc: '' };
-  PROPS[B.RUBY_ORE]     = { name:'Ruby ore',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE], desc: '' };
-  PROPS[B.SAPPHIRE_ORE] = { name:'Sapphire ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE], desc: '' };
+  PROPS[B.EMERALD_ORE]  = { name:'Emerald ore',  solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:15.0, type:'stone', selfGlow:3, faces:[T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE,T.EMERALD_ORE], desc: '' };
+  PROPS[B.RUBY_ORE]     = { name:'Ruby ore',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:15.0, type:'stone', selfGlow:3, faces:[T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE,T.RUBY_ORE], desc: '' };
+  PROPS[B.SAPPHIRE_ORE] = { name:'Sapphire ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:15.0, type:'stone', selfGlow:3, faces:[T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE,T.SAPPHIRE_ORE], desc: '' };
   /* Storage blocks (0.768): ten of a material pressed into one block, and back again at the bench. Plain
      cubes that drop themselves; the coal and charcoal ones burn in a furnace (26-furnace.js). */
   for (const [bid, name, tile] of [
@@ -393,10 +416,10 @@ function BLOCK_CORE() {
     [B.RAW_TIN_BLOCK, 'Block of raw tin', T.RAW_TIN_BLOCK],   [B.RAW_COPPER_BLOCK, 'Block of raw copper', T.RAW_COPPER_BLOCK],
     [B.TOPAZ_BLOCK, 'Block of topaz', T.TOPAZ_BLOCK],                                              // 0.769
   ])
-    PROPS[bid] = { name, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:6.0, type:'stone',
+    PROPS[bid] = { name, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:6.0, type:'stone',
                    faces:[tile,tile,tile,tile,tile,tile], desc: '' };
   // topaz ore (0.769): the fourth gem, same rules as the others
-  PROPS[B.TOPAZ_ORE] = { name:'Topaz ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:15.0, type:'stone', selfGlow:3, faces:[T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE], desc: '' };
+  PROPS[B.TOPAZ_ORE] = { name:'Topaz ore', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:15.0, type:'stone', selfGlow:3, faces:[T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE,T.TOPAZ_ORE], desc: '' };
   /* GEM CLUSTERS (0.7945). Diamond, emerald, ruby, sapphire and topaz are no longer ore blocks buried in the
      rock: each is a cluster of crystal spikes growing out of a stone face in a cave — floor, ceiling or wall —
      drawn in its gem block's texture. Same ids, so drops, tool tiers, XP and Prospector are unchanged. The
@@ -462,16 +485,16 @@ function BLOCK_CORE() {
     Object.assign(PROPS[id], { name, solid: false, opaque: false, model: 'cluster', bedFaces: PROPS[id].faces,
                                faces: [tile, tile, tile, tile, tile, tile], boxes: CLUSTER_HIT[0], boxesByVar: CLUSTER_HIT });
   // sandstone (0.769): five sand of its colour, with its own top, side and bottom faces [+X,-X,top,bottom,+Z,-Z]
-  PROPS[B.SANDSTONE]     = { name:'Sandstone',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
+  PROPS[B.SANDSTONE]     = { name:'Sandstone',     solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:4.0, type:'stone',
                              faces:[T.SANDSTONE_SIDE,T.SANDSTONE_SIDE,T.SANDSTONE_TOP,T.SANDSTONE_BOTTOM,T.SANDSTONE_SIDE,T.SANDSTONE_SIDE], desc: '' };
-  PROPS[B.RED_SANDSTONE] = { name:'Red sandstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:4.0, type:'stone',
+  PROPS[B.RED_SANDSTONE] = { name:'Red sandstone', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:4.0, type:'stone',
                              faces:[T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_TOP,T.RED_SANDSTONE_BOTTOM,T.RED_SANDSTONE_SIDE,T.RED_SANDSTONE_SIDE], desc: '' };
   // pink sand (0.822): on warm beaches, sand in every way but its colour; five make pink sandstone
   PROPS[B.PINK_SAND]      = { ...PROPS[B.SAND], name: 'Pink sand', faces: [T.PINK_SAND_SIDE,T.PINK_SAND_SIDE,T.PINK_SAND,T.PINK_SAND,T.PINK_SAND_SIDE,T.PINK_SAND_SIDE] };
   PROPS[B.PINK_SANDSTONE] = { ...PROPS[B.SANDSTONE], name: 'Pink sandstone', faces: Array(6).fill(T.PINK_SANDSTONE) };
   /* Glassy sand (0.824): sand that lightning struck, fused. It no longer falls or piles, and breaks into glass shards
      (50-loottable.js). Made by strikeLightning (53-storms.js) from any sand. */
-  PROPS[B.GLASSY_SAND]    = { name:'Glassy sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.4, type:'ground',
+  PROPS[B.GLASSY_SAND]    = { name:'Glassy sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.4, type:'ground',
                               faces:Array(6).fill(T.GLASSY_SAND), desc: 'Sand fused by lightning. Breaks into glass shards' };
   // ...red sand and pink sand fuse into their own (0.8241)
   PROPS[B.GLASSY_RED_SAND]  = { ...PROPS[B.GLASSY_SAND], name: 'Glassy red sand',  faces: Array(6).fill(T.GLASSY_RED_SAND) };
@@ -479,12 +502,12 @@ function BLOCK_CORE() {
   // red and pink are glassy sand's variants (0.8263; each sand's own in 0.8261), so like every other look not in the palette
   for (const id of [B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]) PROPS[id].noInv = true;
   // fiber block (0.769): ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
-  PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.8, type:'grass',
+  PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
   /* Ladder (0.769): a glow vine made of sticks — the same upright plate on a wall, climbed the same way,
      but no light. Wood, and it comes down by hand as quickly as a crafting bench does. */
   PROPS[B.LADDER] = { name:'Ladder', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
-                      stack:60, hardness:4.5, type:'wood', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
+                      stack:50, hardness:4.5, type:'wood', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                       faces:[T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER], desc: '' };
   /* Mortar and pestle (0.77): a carved stone bowl with its pestle, built from a voxel model
      (mortar_voxels.json, with its top rim ring trimmed off). MORTAR_VOX holds the model as greedy-merged
@@ -508,27 +531,27 @@ function BLOCK_CORE() {
                       voxBoxes: MORTAR_BOXES, matFaces: MORTAR_FACES, animMat: 3,   // the pestle moves (0.772)
                       faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE],
                       desc: 'Keep its top clear: with a block or plant on it, it cannot be used' };   // 0.801
-  PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:60, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
+  PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:50, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
   // break; a separate map (TNTS in 22-main-loop.js) protects blocks with an active fuse.
-  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:0.5, type:'tnt', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: '' };
+  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.5, type:'tnt', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: '' };
   // Obsidian: dark blast/lava-quench block. Very hard, pickaxe required (see MINE_REQ / TOOL_BLOCKS).
-  PROPS[B.OBSIDIAN] = { name:'Obsidian', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:30, type:'stone', faces:[T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN], desc: '' };
+  PROPS[B.OBSIDIAN] = { name:'Obsidian', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:30, type:'stone', faces:[T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN], desc: '' };
   // Saplings — placed on grass, grow into a tree after 7..14 in-game days (tracked in SAPLINGS map)
-  PROPS[B.OAK_SAPLING]   = { name:'Oak sapling',   solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.OAK_SAPLING], desc: '' };
-  PROPS[B.BIRCH_SAPLING] = { name:'Birch sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.BIRCH_SAPLING], desc: '' };
+  PROPS[B.OAK_SAPLING]   = { name:'Oak sapling',   solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.OAK_SAPLING], desc: '' };
+  PROPS[B.BIRCH_SAPLING] = { name:'Birch sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.BIRCH_SAPLING], desc: '' };
   // Sugar cane — cross billboard; only placeable on sand/grass/dirt next to water, or stacked on
   // an existing cane. Column capped at 5 blocks tall. Break drops one sugar cane per broken block.
-  PROPS[B.SUGAR_CANE]    = { name:'Sugar cane',    solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:64, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,1,0.9]], faces:[T.SUGAR_CANE], desc: '',
+  PROPS[B.SUGAR_CANE]    = { name:'Sugar cane',    solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:50, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,1,0.9]], faces:[T.SUGAR_CANE], desc: '',
                              // by steps left to grow (0.829): 0 grown (a column's piece: emitCross), 1 stage 4 .. 5 the sprout
                              tilesByVar: [T.SUGAR_CANE, T.SUGAR_CANE_S4, T.SUGAR_CANE_S3, T.SUGAR_CANE_S2, T.SUGAR_CANE_S1, T.SUGAR_CANE_S0],
                              segTiles: [T.SUGAR_CANE_BOTTOM, T.SUGAR_CANE_MIDDLE, T.SUGAR_CANE_TOP] };
-  PROPS[B.GRAVEL]      = { name:'Gravel',      solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'ground',  faces:[T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL], desc: '' };
-  PROPS[B.RED_MUSHROOM]  = { name:'Red mushroom',  solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.RED_MUSHROOM], desc: '' };
+  PROPS[B.GRAVEL]      = { name:'Gravel',      solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.5, type:'ground',  faces:[T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL,T.GRAVEL], desc: '' };
+  PROPS[B.RED_MUSHROOM]  = { name:'Red mushroom',  solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:79, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.RED_MUSHROOM], desc: '' };
   // the third mushroom (0.7691): grows wherever the red and brown do, and goes into mushroom stew
-  PROPS[B.BLUE_MUSHROOM] = { name:'Blue mushroom', solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BLUE_MUSHROOM], desc: '' };
-  PROPS[B.BROWN_MUSHROOM]= { name:'Brown mushroom',solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:99, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BROWN_MUSHROOM], desc: '' };
+  PROPS[B.BLUE_MUSHROOM] = { name:'Blue mushroom', solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:79, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BLUE_MUSHROOM], desc: '' };
+  PROPS[B.BROWN_MUSHROOM]= { name:'Brown mushroom',solid:false,opaque:false,raycast:true, pass:1, model:'cross',stack:79, hardness:0, type:'grass', boxes:[[0.3,0,0.3,0.7,0.8,0.7]], faces:[T.BROWN_MUSHROOM], desc: '' };
   /* MUSHROOMS ARE MODELS (0.8091): a stem, a cap and a crown of boxes (textures/Blocks/mushrooms/<kind>/*.json),
      drawn by emitShroom rather than as a crossed billboard. They keep model 'cross' — everything that treats a
      mushroom as a small plant (breaking free by hand, falling off its ground, the hand pose) still does.
@@ -536,7 +559,7 @@ function BLOCK_CORE() {
      cook like brown; lava grows by lava in caves and glows a little. */
   // the model each kind is drawn with: white (5, 11) and yellow (6, 12) have their own shapes (0.821)
   const SHROOM_SHAPE = [0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 1, 2];
-  const _shroom = (name, kind, extra) => ({ name, solid:false, opaque:false, raycast:true, pass:0, model:'cross', stack:99,
+  const _shroom = (name, kind, extra) => ({ name, solid:false, opaque:false, raycast:true, pass:0, model:'cross', stack:79,
     // boxes fit the largest a mushroom grows in the world since 0.819 (0.6 of the model; emitShroom)
     hardness:0, type:'grass', shroom: kind,
     boxes: [[[5/16, 0, 5/16, 11/16, 7/16, 11/16], [6/16, 0, 6/16, 10/16, 10/16, 10/16], [5/16, 0, 5/16, 11/16, 6/16, 11/16]][SHROOM_SHAPE[kind]]],
@@ -577,13 +600,21 @@ function BLOCK_CORE() {
                           [5, 4, 5, 11, 6, 11,  [5, 0, 0], null,       null],
                           [3, 6, 3, 13, 9, 13,  [1, 0, 0], [0, 0, 0],  [2, 0, 0]]];
   const SHROOM_MODEL = SHROOM_SHAPE.map(s => [_SHROOM_STD, _SHROOM_WHITE, _SHROOM_YELLOW][s]);
-  PROPS[B.TALLGRASS]     = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
-  PROPS[B.POPPY]         = { name:'Poppy',   solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.POPPY], desc: '' };
-  PROPS[B.ORCHID]        = { name:'Blue orchid',solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.ORCHID], desc: '' };
-  PROPS[B.TALL_LOWER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, noInv:true, stack:99, type:'grass', hardness:0, boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_BOT], desc: '' };
-  PROPS[B.TALL_UPPER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',noInv:true, stack:99, hardness:0, type:'grass', boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_TOP], desc: '' };
+  PROPS[B.TALLGRASS]     = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
+  PROPS[B.POPPY]         = { name:'Poppy',   solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.POPPY], desc: '' };
+  PROPS[B.ORCHID]        = { name:'Blue orchid',solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.ORCHID], desc: '' };
+  PROPS[B.TALL_LOWER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, noInv:true, stack:79, type:'grass', hardness:0, boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_BOT], desc: '' };
+  PROPS[B.TALL_UPPER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',noInv:true, stack:79, hardness:0, type:'grass', boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_TOP], desc: '' };
+  /* The desert's dry plants (0.84): picked like the grass (13-actions.js). Dry grass gives a fiber now and then, tall dry
+     grass is cut down to dry grass, a dry bush gives sticks. They stand on sand, red sand, grass or dirt. */
+  PROPS[B.DRY_GRASS]      = { name:'Dry grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.8,0.9]], faces:[T.DRY_GRASS],
+                              desc: 'Grows in deserts, and here and there on the warm plains' };
+  PROPS[B.DRY_TALL_LOWER] = { name:'Tall dry grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, noInv:true, stack:79, type:'grass', hardness:0, boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.DRY_TALL_BOT], desc: '' };
+  PROPS[B.DRY_TALL_UPPER] = { name:'Tall dry grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',noInv:true, stack:79, hardness:0, type:'grass', boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.DRY_TALL_TOP], desc: '' };
+  PROPS[B.DRY_BUSH]       = { name:'Dry bush', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.8,0.85]], faces:[T.DRY_BUSH],
+                              desc: 'Pick it for sticks' };
   // faces [+X,-X,top,bottom,+Z,-Z]; front picked per variant (rot:'side') in the mesher
-  PROPS[B.CRAFTING_BENCH] = { name:'Crafting bench', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:4.5, type:'wood', faces:[T.CRAFT_SIDE,T.CRAFT_SIDE,T.CRAFT_TOP,T.PLANKS,T.CRAFT_FRONT,T.CRAFT_FRONT],
+  PROPS[B.CRAFTING_BENCH] = { name:'Crafting bench', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:20, hardness:4.5, type:'wood', faces:[T.CRAFT_SIDE,T.CRAFT_SIDE,T.CRAFT_TOP,T.PLANKS,T.CRAFT_FRONT,T.CRAFT_FRONT],
                               desc: 'Keep its top clear: with a block or plant on it, it cannot be used' };   // 0.801
   // torch: cross model (texture has transparent margins so it reads as a small stick),
   // light 10 placed / 5 in hand (handLight overrides the default held-light scaling),
@@ -604,17 +635,17 @@ function BLOCK_CORE() {
   /* 0.834: the fire torch (the old torch, id kept), the unlit one it burns down to, and the crystal torch. `torch`: drawn
      as a stick by emitTorch, hangs on walls, held fattened in the hand. They burn out (56-torches.js): fire 5-10 minutes,
      crystal 15-30; rain puts a fire torch out. Right-click an unlit one with flint or a glow crystal to light it. */
-  PROPS[B.TORCH] = { name:'Fire torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_FIRE], torch:true,
+  PROPS[B.TORCH] = { name:'Fire torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:79, hardness:0, light:15, handLight:8, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_FIRE], torch:true,
                      desc: 'Carried in the offhand it lights your way; forage with an empty main hand. Burns out in 5-10 minutes; rain puts it out' };   // 0.7992; burns out 0.834
-  PROPS[B.TORCH_UNLIT] = { name:'Unlit torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_UNLIT], torch:true,
+  PROPS[B.TORCH_UNLIT] = { name:'Unlit torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:79, hardness:0, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_UNLIT], torch:true,
                      desc: 'Place it, then right-click it with flint to light it, or with a glow crystal for a crystal torch' };
-  PROPS[B.CRYSTAL_TORCH] = { name:'Crystal torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:99, hardness:0, light:12, handLight:6, coldLight:true, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_CRYSTAL], torch:true,
+  PROPS[B.CRYSTAL_TORCH] = { name:'Crystal torch', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:79, hardness:0, light:12, handLight:6, coldLight:true, topOnly:true, type:'wood', boxes:[[0.4,0,0.4,0.6,0.7,0.6]], rayBoxesByVar: TORCH_RAY_BOXES, faces:[T.TORCH_CRYSTAL], torch:true,
                      desc: 'A cold blue light: it melts nothing and stays lit under water and in rain. Burns out in 15-30 minutes' };
   // furnace: front picked per variant facing (rot:'side'); lit bit swaps the front tile
   // its top is a chimney since 0.801: an open hole that must stay clear (26-furnace.js)
-  PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:30, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP_OPEN,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE],
+  PROPS[B.FURNACE] = { name:'Furnace', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', stack:20, hardness:8.5, type:'stone',  faces:[T.FURNACE_SIDE,T.FURNACE_SIDE,T.FURNACE_TOP_OPEN,T.FURNACE_TOP,T.FURNACE_FRONT,T.FURNACE_SIDE],
                        desc: 'Keep its top clear: with a block on it, it stops smelting but its fuel still burns away' };
-  PROPS[B.RED_SAND] = { name:'Red Sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.1, type:'ground', faces:[T.RED_SAND_SIDE,T.RED_SAND_SIDE,T.RED_SAND,T.RED_SAND,T.RED_SAND_SIDE,T.RED_SAND_SIDE], desc: '' };   // own sides 0.8091
+  PROPS[B.RED_SAND] = { name:'Red Sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.1, type:'ground', faces:[T.RED_SAND_SIDE,T.RED_SAND_SIDE,T.RED_SAND,T.RED_SAND,T.RED_SAND_SIDE,T.RED_SAND_SIDE], desc: '' };   // own sides 0.8091
   // oak door: 2-cell (bottom + upper half), 1/8 thick. Rendered as an animated standalone mesh
   // (27-doors.js) — the chunk mesher emits nothing for it. Collision boxes swap with the open
   // bit so an open door is passable. variant: bits 0-1 facing, bit 2 open, bit 3 upper half,
@@ -638,7 +669,7 @@ function BLOCK_CORE() {
       bv[v] = set[v & 3];                                 // open door has a thin panel hitbox
       rv[v] = bv[v];                                      // raycast == collision (both match the visual)
     }
-    PROPS[B.DOOR] = { name:'Oak door', solid:true, opaque:false, raycast:true, pass:1, model:'door', rot:'side', stack:20, hardness:3.5, type:'wood', boxes:closed[0], boxesByVar:bv, rayBoxesByVar:rv, faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
+    PROPS[B.DOOR] = { name:'Oak door', solid:true, opaque:false, raycast:true, pass:1, model:'door', rot:'side', stack:10, hardness:3.5, type:'wood', boxes:closed[0], boxesByVar:bv, rayBoxesByVar:rv, faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
   }
   // Bed: 2 cells long (1 wide x 9/16 tall). Like the door the mesher emits nothing for it —
   // 29-bed.js draws one textured mesh per bed. The cells stay for collision + raycast.
@@ -646,9 +677,15 @@ function BLOCK_CORE() {
   // Chest: storage with an animated lid, drawn by 30-chest.js (mesher emits nothing).
   // variant byte: bits 0-1 facing. Two chests facing the same way, side by side, form a double.
   PROPS[B.CHEST] = { name:'Chest', solid:true, opaque:false, raycast:true, pass:1, model:'chest', rot:'side',
-                     stack:60, hardness:4.5, type:'wood', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],   // 4.5 = bench (0.769)
+                     stack:50, hardness:4.5, type:'wood', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],   // 4.5 = bench (0.769)
                      faces:[T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS,T.PLANKS], desc: '' };
-  PROPS[B.BED] = { name:'Bed', solid:true, opaque:false, raycast:true, pass:1, model:'bed', rot:'side',
+  /* Metal chest (0.843): the chest in iron, copper or gold, 6 rows (a double 6 + 1 + 6). Variant bits 0-3 as the chest,
+     4-5 the metal (30-chest.js CHEST_METALS), 6 SEALED: found locked in the world, opened by a key of its metal. Never
+     crafted: it comes from the world, and an opened one is mined with a pickaxe. */
+  PROPS[B.METAL_CHEST] = { name:'Metal chest', solid:true, opaque:false, raycast:true, pass:1, model:'chest', rot:'side',
+                           stack:50, hardness:6.0, type:'stone', boxes:[[0.0625, 0, 0.0625, 0.9375, 0.9375, 0.9375]],
+                           faces:Array(6).fill(T.IRON_BLOCK), desc: 'Found sealed in the world: a key of its metal opens it. 6 rows; two side by side hold 13' };
+  PROPS[B.BED] ={ name:'Bed', solid:true, opaque:false, raycast:true, pass:1, model:'bed', rot:'side',
                    stack:1, hardness:1.0, type:'wood', boxes:[[0, 0, 0, 1, 0.5, 1]],   // half a block, as its art (0.8342; 9/16 before)
                    faces:[T.WOOL,T.WOOL,T.WOOL,T.PLANKS,T.WOOL,T.WOOL], desc: '' };
   // oak stairs: base half-slab + back step. variant: bits 0-1 facing (full side toward player),
@@ -725,7 +762,7 @@ function BLOCK_CORE() {
      the way a branch does. `family` keeps it from welding itself to actual wood if the two ever
      end up adjacent. No stripping and no leaves — those live in 33-felling, which only knows about
      the wood ids. */
-  PROPS[B.CACTUS] = { name:'Cactus', solid:true, opaque:false, raycast:true, pass:1, model:'log', rot:'all', family:'cactus', stack:60, hardness:1.4, type:'grass', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.CACTUS_SIDE,T.CACTUS_SIDE,T.CACTUS_TOP,T.CACTUS_BOTTOM,T.CACTUS_SIDE,T.CACTUS_SIDE], desc: '' };
+  PROPS[B.CACTUS] = { name:'Cactus', solid:true, opaque:false, raycast:true, pass:1, model:'log', rot:'all', family:'cactus', stack:50, hardness:1.4, type:'grass', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.CACTUS_SIDE,T.CACTUS_SIDE,T.CACTUS_TOP,T.CACTUS_BOTTOM,T.CACTUS_SIDE,T.CACTUS_SIDE], desc: '' };
   /* Build tool, not a material: it has no recipe, so it only ever reaches a player through the
      creative palette. Left fully solid so a capture volume can be lined up against it. */
   PROPS[B.STRUCTURE_BLOCK] = { name:'Structure block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:1, hardness:1.0, type:'stone', faces:[T.STRUCTURE_BLOCK,T.STRUCTURE_BLOCK,T.STRUCTURE_BLOCK,T.STRUCTURE_BLOCK,T.STRUCTURE_BLOCK,T.STRUCTURE_BLOCK], desc: '' };
@@ -751,7 +788,7 @@ function BLOCK_CORE() {
   const _berryBush = (name, kind, extra) => {
     const tiles = []; for (let s = 0; s < BERRY_STAGES; s++) tiles.push(T['BERRY_' + kind + '_S' + s]);
     return { name, solid:false, opaque:false, raycast:true, noTarget:true,
-      pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass',
+      pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass',
       boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[tiles[BERRY_STAGE.GROWN]],
       tilesByVar:[...tiles, tiles[5], tiles[5]],         // indexed by stage (6 and 7 never happen: ripe)
       desc: '', ...extra };
@@ -764,7 +801,7 @@ function BLOCK_CORE() {
   PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Yellow berry bush', 'YELLOW', { lightByVar: [0, 0, 0, 0, 3, 7, 7, 7],
                                           desc: 'Grows rarely in the darkest forests and on the dirt of caves, and glows as it ripens.' });
   PROPS[B.WHITEBERRY_BUSH]  = _berryBush('White berry bush',  'WHITE', { desc: 'Grows in light, sunny forests like the birch.' });
-  PROPS[B.PINCUSHION] = { name:'Pincushion', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:99, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.7,0.75]], faces:[T.PINCUSHION], desc: '' };
+  PROPS[B.PINCUSHION] = { name:'Pincushion', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.7,0.75]], faces:[T.PINCUSHION], desc: '' };
   /* Flint stone (0.732) — a dark nodule lying on the turf. Built on the `carpet` model, which is
      just "one flat box, chosen by variant", so it renders as a low slab rather than a full cube;
      it has a single variant because nothing about it stacks. `noTarget` puts it in the same class
@@ -779,7 +816,7 @@ function BLOCK_CORE() {
   const FR = 1 / 64;
   const FLINT_ROCK_BOX = [[[24 * FR, 0, 24 * FR, 40 * FR, 8 * FR, 40 * FR]]];
   PROPS[B.FLINT_ROCK] = { name:'Flint pebble', solid:false, opaque:false, raycast:true, noTarget:true,
-                          pass:0, model:'carpet', topOnly:true, stack:60, hardness:0.4, type:'stone',
+                          pass:0, model:'carpet', topOnly:true, stack:50, hardness:0.4, type:'stone',
                           boxes:FLINT_ROCK_BOX[0], boxesByVar:FLINT_ROCK_BOX,
                           faces:[T.FLINT_ROCK, T.FLINT_ROCK, T.FLINT_ROCK_TOP, T.FLINT_ROCK_TOP,
                                  T.FLINT_ROCK, T.FLINT_ROCK],
@@ -789,7 +826,7 @@ function BLOCK_CORE() {
   PROPS[B.STONE_PEBBLE] = { ...PROPS[B.FLINT_ROCK], name:'Stone pebble', faces: Array(6).fill(T.STONE),
                             desc: 'Pick it up by hand for a stone pebble' };
   // the clay bricks block is TERRACOTTA since 0.8093 (same id, same recipe); its brick look is a variant
-  PROPS[B.BRICKS]    = { name:'Terracotta', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:6.5, type:'stone', faces:[T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS], desc: '' };
+  PROPS[B.BRICKS]    = { name:'Terracotta', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:6.5, type:'stone', faces:[T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS], desc: '' };
   /* Gourds (0.7343) — 32 x 32 x 32 of this game's 64-pixel block, so half a cell across and half
      a cell tall, centred on the floor of its cell rather than filling it. They are FRUIT lying in
      a field, not masonry: you walk straight through one (`solid:false`), the crosshair passes over
@@ -800,7 +837,7 @@ function BLOCK_CORE() {
   const FULL_UV_BOX = [0, 0, 0, 1, 1, 1];            // a `fullUV` model's UVs: the whole tile on every face (0.824)
   const _gourd = (name, side, top, bottom = top) => ({
     name, solid:false, opaque:false, raycast:true, noTarget:true,
-    pass:0, model:'carpet', topOnly:true, stack:60, hardness:2.5, type:'wood',
+    pass:0, model:'carpet', topOnly:true, stack:50, hardness:2.5, type:'wood',
     boxes:GOURD_BOX[0], boxesByVar:GOURD_BOX,
     faces:[side, side, top, bottom, side, side], desc: '',
   });
@@ -810,11 +847,11 @@ function BLOCK_CORE() {
      like sand or snow — worldgen lays it one layer deep on beach sand at the water's edge. Broken, it gives
      salt (50-loottable.js), and each layer slows you a little (12-player.js). */
   PROPS[B.SALT_CRUST] = { name:'Salt crust', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
-                          stack:60, hardness:0.6, type:'ground', faces:Array(6).fill(T.SALT_CRUST), desc: '' };
+                          stack:50, hardness:0.6, type:'ground', faces:Array(6).fill(T.SALT_CRUST), desc: '' };
   /* Ash (0.8191): what fire leaves on the ground. Piles in layers like sand and falls like it; a layer gives ashes
      half the time (50-loottable.js). */
   PROPS[B.ASH] = { name:'Ash', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
-                   stack:60, hardness:0.3, type:'ground', faces:Array(6).fill(T.ASH), desc: '' };
+                   stack:50, hardness:0.3, type:'ground', faces:Array(6).fill(T.ASH), desc: '' };
   /* Fire (0.8191): a burning cell. It draws nothing — the flames are particles (53-storms.js) — but it is a light
      source, and it is what burns its neighbours: wood, leaves, grass. Never an item. */
   PROPS[B.FIRE] = { name:'Fire', solid:false, opaque:false, raycast:false, noTarget:true, noInv:true, pass:1, model:'none',
@@ -836,11 +873,11 @@ function BLOCK_CORE() {
   PROPS[B.JACK_O_LANTERN] = _carved("Jack o'lantern", T.JACK_O_LANTERN_FRONT, { light: 14 });
   /* Wheat grows (0.81): variant 0 is RIPE, as every wheat the world ever generated is, and 1-7 are the growing
      stages 0-6 (51-seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
-  PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:99, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
+  PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:79, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
                         tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S5], desc: '' };   // six growing stages since 0.8273 (seven before); 7 only in old saves
-  PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
-  PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
-  PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:60, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
+  PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
+  PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
+  PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
   /* CHISEL SHAPES (0.783; pane and fence 0.784). A shape is a VARIANT of a full block, not a block of its
      own: the block keeps its id — so its textures, hardness, sound, tool, mining gate and drops are simply
      its own — and the variant byte says how much of the cell it fills. Variant 0 is always the full block.
@@ -879,6 +916,16 @@ function BLOCK_CORE() {
      WALL (0.787): SHAPE_WALL, a solid wall 8 px thick and the full block tall, joining walls of the SAME block
      straight and diagonally like the fence; +1 is the pose for icons and the hand. */
   const SHAPE_COVER = 0x70, SHAPE_WALL = 0x80;
+  /* DOOR (0.842): a door is a shape of its material (planks, the iron, copper and tin blocks, adobe, glass and their
+     looks), hinged on the left (SHAPE_DOOR) or the right (SHAPE_DOOR_R). Low nibble: bits 0-1 facing (0 +Z, 1 -Z, 2 +X,
+     3 -X), 4 open, 8 the upper half. The mesher draws nothing for it: 27-doors.js gives each door its own swinging mesh,
+     its look built from the material's art. Boxes as the old oak door's (B.DOOR, kept only to convert old saves). */
+  const SHAPE_DOOR = 0xA0, SHAPE_DOOR_R = 0xB0;
+  const _DT = 0.125;
+  const DOOR_CLOSED = [[[0,0,0,1,1,_DT]], [[0,0,1-_DT,1,1,1]], [[0,0,0,_DT,1,1]], [[1-_DT,0,0,1,1,1]]];
+  const DOOR_OPEN   = [[[0,0,0,_DT,1,1]], [[0,0,0,_DT,1,1]], [[0,0,0,1,1,_DT]], [[0,0,0,1,1,_DT]]];
+  const DOOR_OPEN_R = [[[1-_DT,0,0,1,1,1]], [[1-_DT,0,0,1,1,1]], [[0,0,1-_DT,1,1,1]], [[0,0,1-_DT,1,1,1]]];
+  const doorBoxes = (va) => ((va & 4) ? ((va & 0xF0) === SHAPE_DOOR_R ? DOOR_OPEN_R : DOOR_OPEN) : DOOR_CLOSED)[va & 3];
   /* VARIANT BLOCKS (0.7941): the looks the variant bar picks between (46-variants.js). Each is a block of its
      own, hidden from the inventory: in hand it is always its base block with the variant picked, and broken it
      drops that base block. Each is built from the block it plays like (hardness, sound, tool), so one more is
@@ -947,6 +994,8 @@ function BLOCK_CORE() {
     PROPS[id] = { ...PROPS[like], name, noInv: true, faces: [tile, tile, tile, tile, tile, tile], desc: '', ...extra };
   // the door and the ladder are switched off (0.809): no recipe, not in creative. Placed ones still work
   PROPS[B.LADDER].noInv = true;
+  // the old oak door (0.842): a door is a hammer shape of its material now; this id stays only so old saves convert (02)
+  PROPS[B.DOOR].noInv = true;
   // the door is back in the creative palette (0.82421), for building prefabs; its recipe stays removed (25-crafting.js)
   // every brick variant takes what stone brick takes; mossy cobblestone what cobblestone takes
   const _BRICK_VARIANTS = [B.MOSSY_STONE_BRICK, B.CRACKED_STONE_BRICK, B.SULFUR_BRICKS,
@@ -961,7 +1010,7 @@ function BLOCK_CORE() {
                            B.POLISHED_RED_SANDSTONE, B.PINK_SANDSTONE_BRICKS, B.POLISHED_PINK_SANDSTONE];
   // the glass looks take what glass takes (0.8091)
   const _GLASS_VARIANTS = [B.DARK_GLASS, B.GREENHOUSE_GLASS, B.GLASS_BRICKS, B.DARK_GLASS_BRICKS];
-  const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS];   // rime 0.836
+  const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS];   // rime 0.836; palm 0.84
   /* 0.8261: the four rocks and every look of them (brick, mossy brick, polished, band, pillar) take slabs, stairs and
      panes; every look of the three sandstones takes panes; glowstone and the glowcrystal block slabs and panes;
      obsidian slabs, stairs and panes; wool slabs and stairs; stone and the tin block walls. Adobe and terracotta lost
@@ -993,19 +1042,20 @@ function BLOCK_CORE() {
              ..._ROCKS, ..._ROCK_LOOKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,    // 0.8261; sulfur 0.8264
              ..._METALS],                                                                      // 0.8265
     fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK],                                       // 0.784; iron off 0.8261
-    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822; rime 0.836
+    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822; rime 0.836; palm 0.84
              B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.MOSSY_COBBLE,                        // iron and gold off 0.8261, glass 0.8263
              B.HAY, B.ICE],                                                                    // 0.8265; ice 0.833
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.STONE_BRICK, B.BRICKS,              // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE]
              .filter(b => !_NO_COVER.has(b)),                                                  // adobe, terracotta off 0.8261
+    door:   [..._ALL_PLANKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.TIN_BLOCK, B.ADOBE, B.GLASS],          // 0.842; their looks follow
     wall:   [B.COBBLE, B.STONE_BRICK, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,          // 0.787
              B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE, B.WOOL, B.SANDSTONE, B.RED_SANDSTONE, ..._BRICK_VARIANTS, B.MOSSY_COBBLE,
              B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,                                             // 0.8261; sulfur 0.8264
              B.OBSIDIAN, B.SNOW, B.ICE],                                                       // 0.8265; ice 0.833
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
+  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   /* EVERY LOOK OF A BLOCK TAKES THE SAME SHAPES (0.8263): its default's. One list per block, its default first,
@@ -1095,12 +1145,15 @@ function BLOCK_CORE() {
   SHAPE_FAMILY[SHAPE_LAYER_MIX >> 4] = 'layer';  // a mixed stack is still a layer, just with a list beside it
   SHAPE_FAMILY[SHAPE_COVER     >> 4] = 'cover';
   SHAPE_FAMILY[SHAPE_WALL      >> 4] = 'wall';
+  SHAPE_FAMILY[SHAPE_DOOR      >> 4] = 'door';   // 0.842, hinged left
+  SHAPE_FAMILY[SHAPE_DOOR_R    >> 4] = 'door';   // ...and right
   function shapeOfVal(v) {
     const va = (v >> 8) & 255, p = PROPS[v & 255];
     if (!va || !p || !p.shapes) return null;
     const fam = SHAPE_FAMILY[va >> 4];
     return fam && p.shapes[fam] ? fam : null;
   }
+  const isDoorVal = (v) => shapeOfVal(v) === 'door';   // 0.842
   const PANE_BOX = [[0, 0, 0.375, 1, 1, 0.625], [0.375, 0, 0, 0.625, 1, 1]];
   /* Fence (0.7841): our own picket fence. A square post with a pointed tip; toward each fence of the same
      block beside it, an ARM — a low rail, a high rail and a thin picket standing through both; toward one
@@ -1194,6 +1247,7 @@ function BLOCK_CORE() {
     if (s === 'fence') return joinBoxesAt(FENCE_SPEC, 'fence', SHAPE_FENCE, g, x, y, z, v, coll);
     if (s === 'wall')  return joinBoxesAt(WALL_SPEC, 'wall', SHAPE_WALL, g, x, y, z, v, coll);
     if (s === 'cover') return coll ? NO_BOXES : COVER_BOX[va & ROT_MASK];
+    if (s === 'door')  return doorBoxes(va);                                      // 0.842
     return stairBoxesAt(g, x, y, z, v);
   }
 
@@ -1241,7 +1295,7 @@ function BLOCK_CORE() {
                                             [B.HOLLOW_BIRCH_LOG, 'Hollow birch log', B.BIRCH_LOG, B.STRIPPED_BIRCH_LOG],
                                             [B.HOLLOW_SPRUCE_LOG, 'Hollow spruce log', B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG],
                                             [B.HOLLOW_RIME_LOG, 'Hollow rime log', B.RIME_LOG, B.STRIPPED_RIME_LOG]]) {   // 0.836
-    PROPS[bid] = { name, solid:true, opaque:false, raycast:true, pass:0, model:'hollow', rot:'all', stack:60, hardness:3.0,
+    PROPS[bid] = { name, solid:true, opaque:false, raycast:true, pass:0, model:'hollow', rot:'all', stack:50, hardness:3.0,
                    type:'wood', faces:PROPS[log].faces.slice(), innerTile:PROPS[stripped].faces[0],   // inside: stripped wood (0.7844)
                    boxesOf:hollowBoxes, desc:'Fill it with dirt, grass or sand to plant in it' };
     PROPS[bid].boxes = hollowBoxes(bid);
@@ -1266,6 +1320,7 @@ function BLOCK_CORE() {
            FENCE_POST, FENCE_POST_COLL, FENCE_ARM, FENCE_DIAG, FENCE_ARM_COLL, FENCE_DIAG_COLL, FENCE_DIRS,
            _fenceArm, _joinSpec, FENCE_SPEC, WALL_SPEC, joinBoxesAt, COVER_BOX, opaqueVal, SHAPE_DIM, lightDim,
            shapeBoxesAt, HOLLOW_FILLS, HOLLOW_WALLS, HOLLOW_CORE_UP, HOLLOW_CORE_LYING, HOLLOW_SWAP, HOLLOW_INNER,
-           _hollowOnAxis, _hollowParts, _hollowBoxes, hollowParts, hollowBoxes };
+           _hollowOnAxis, _hollowParts, _hollowBoxes, hollowParts, hollowBoxes,
+           SHAPE_DOOR, SHAPE_DOOR_R, isDoorVal, doorBoxes };                     // 0.842 (main thread: BLOCKS.*)
 }
 const BLOCKS = BLOCK_CORE();

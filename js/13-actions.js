@@ -25,12 +25,18 @@ const isObtainable = (id) => !isDisabledBlock(id);
 // Storage keys are namespaced so switching modes cannot leak into the survival inventory.
 // Slot model: `null` (empty) OR `{id, count}` where `count >= 1`. Stack cap comes from
 // PROPS[id].stack (blocks default 60; future items can set 20/99/etc.).
-const DEFAULT_STACK = 60;
+/* 0.8442: every stack is smaller. In the registries (58-blocks.js, 59-items.js): items 79 (99 before), blocks 50 (60),
+   and the small "special" stacks ten less (a bowl, a snowball or a golden apple 20, a bucket or a stew 10, a melon
+   slice 30). A stack saved bigger than it may be now is split when its world is joined (restackInventory, 15-drops.js). */
+const DEFAULT_STACK = 50;
 const _baseStack = (id) => id >= 256 ? (ITEM_PROPS[id]?.stack ?? DEFAULT_STACK) : (PROPS[id]?.stack ?? DEFAULT_STACK);
 // Pack Rat (0.79): blocks that stack at all stack 10 higher
-const PACK_RAT_BONUS = 10;
-const _packRatRoom = (id) => (id < 256 && _baseStack(id) > 1) ? PACK_RAT_BONUS : 0;
+/* 0.8442: 20 more on an item's stack (79 -> 99), 10 more on a block's (50 -> 60), nothing on the special ones (under
+   PACK_RAT_MIN). By the stack's size, so the plants and torches that stack as items do (79) get the 20 too. */
+const PACK_RAT_ITEMS = 20, PACK_RAT_BLOCKS = 10, PACK_RAT_MIN = 50, PACK_RAT_ITEM_STACK = 79;
+const _packRatRoom = (id) => { const s = _baseStack(id); return s >= PACK_RAT_ITEM_STACK ? PACK_RAT_ITEMS : s >= PACK_RAT_MIN ? PACK_RAT_BLOCKS : 0; };
 const stackSize = (id) => _baseStack(id) + ((typeof hasSkill === 'function' && hasSkill('packRat')) ? _packRatRoom(id) : 0);
+const STACK_SANE_MAX = 999;                    // the most a saved slot may claim: over its stack it is split, not thrown away
 /* A tool or piece of gear at 0 durability only exists with the Mender skill: broken, kept, useless
    until repaired (0.79). Every place that asks what the held item DOES asks through heldUseId, so a
    broken pickaxe mines like a bare hand and a broken sword hits like one. */
@@ -51,7 +57,8 @@ const mkSlot    = (id, n = 1) => {
    (0.789), `wm` marks a tool or piece of gear as Well made (the Fine Work skill). Every path that
    moves a slot through the world — a throw, a drop, a pickup, a chest, a save — carries them as one
    object, so a new field only has to be added to this list. */
-const SLOT_META_KEYS = ['fresh', 'wm'];
+// ...and `lock` (0.842): the lock code a key is bound to (27-doors.js)
+const SLOT_META_KEYS = ['fresh', 'wm', 'lock'];
 function slotMeta(s) {
   if (!s) return null;
   let m = null;
@@ -88,11 +95,11 @@ const INV2_SLOTS = INV_SLOTS;                  // second grid matches (creative 
    to add it here. */
 const CREATIVE_ORDER = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE,
-  B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG,                            // rime 0.836
-  B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG,
+  B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG, B.PALM_LOG,                // rime 0.836; palm 0.84
+  B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG, B.STRIPPED_PALM_LOG,
   B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG, B.HOLLOW_RIME_LOG,   // 0.8143
-  B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS,
-  B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES,
+  B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS,
+  B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES,   // dry 0.8411
   B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
   B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.PACKED_ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833; packed ice 0.835
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
@@ -106,12 +113,12 @@ const CREATIVE_ORDER = [
   B.RAW_IRON_BLOCK, B.RAW_GOLD_BLOCK, B.RAW_TIN_BLOCK, B.RAW_COPPER_BLOCK,
   B.SULFUR_BLOCK, B.SULFUR_UP_TIP, B.GLOWCRYSTAL_BLOCK, B.GLOWCRYSTAL_SPENT, B.OBSIDIAN,
   B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.FIBER_BLOCK, B.CACTUS,
-  B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.DOOR, B.LADDER, B.STRUCTURE_BLOCK,
+  B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.TNT, B.HAY, B.BED, B.CHEST, B.METAL_CHEST, B.LADDER, B.STRUCTURE_BLOCK,   // doors are a hammer shape (0.842); metal chest 0.843
   B.MELON, B.PUMPKIN, B.CARVED_PUMPKIN, B.JACK_O_LANTERN, B.CANTALOUPE, B.SUGAR_CANE, B.TORCH,   // cantaloupe 0.8091, carved 0.824
   B.CRYSTAL_TORCH, B.TORCH_UNLIT,                                                                // 0.834
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
-  B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING,
-  B.TALLGRASS, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,
+  B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PALM_SAPLING,   // palm 0.84
+  B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,   // dry grass and bush 0.84
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
   B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
   B.GLOW_VINE, B.COBWEB,
@@ -164,9 +171,14 @@ function _validateSlot(v) {
   // an old slab or stairs item (before 0.783) comes back as the full block it was made of
   if (typeof v === 'number') v = legacyItemId(v);
   else if (v && typeof v === 'object' && legacyItemId(v.id) !== v.id) v = { ...v, id: legacyItemId(v.id) };
+  // an old oak door item (0.842: doors are a hammer shape now) comes back as the 3 oak planks a door takes
+  if (v === B.DOOR) v = { id: B.PLANKS, count: 3 };
+  else if (v && typeof v === 'object' && v.id === B.DOOR) v = { id: B.PLANKS, count: Math.min(stackSize(B.PLANKS), Math.max(1, v.count | 0) * 3) };
   if (typeof v === 'number' && _isValidId(v)) return mkSlot(v);
+  /* a count over the stack is kept (0.8442; it was thrown away past stackSize + Pack Rat's room): stacks got smaller, and
+     restackInventory splits it as the world is joined */
   if (v && typeof v === 'object' && _isValidId(v.id)
-      && Number.isInteger(v.count) && v.count >= 1 && v.count <= stackSize(v.id) + _packRatRoom(v.id)) {
+      && Number.isInteger(v.count) && v.count >= 1 && v.count <= STACK_SANE_MAX) {
     const out = { id: v.id, count: v.count };
     const maxD = v.id >= 256 ? ITEM_PROPS[v.id]?.durability : null;   // keep tool wear across saves
     // 0 is a broken tool kept by Mender (0.79), not a corrupt one: it comes back broken, not repaired
@@ -175,6 +187,7 @@ function _validateSlot(v) {
     const maxF = typeof spoilMax === 'function' ? spoilMax(v.id) : (v.id >= 256 ? ITEM_PROPS[v.id]?.spoil : null);   // 0.7992
     if (maxF) out.fresh = Number.isFinite(v.fresh) && v.fresh >= 0 && v.fresh <= maxF ? v.fresh : maxF;
     if (maxD && v.wm) out.wm = 1;                  // Well made only means anything on something that wears (0.79)
+    if (v.id >= 256 && ITEM_PROPS[v.id]?.key && Number.isInteger(v.lock)) out.lock = v.lock;   // a key's door (0.842)
     return out;
   }
   return null;
@@ -266,8 +279,11 @@ function tryCarvePumpkin(hit) {
 
 /* Blocks a placement simply overwrites, the way air does. Only the grass billboards qualify —
    flowers, saplings and torches are deliberate placements and must not be silently destroyed. */
-const PLANT_REPLACE = [B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER];
+const PLANT_REPLACE = [B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER];   // dry 0.84
 const isPlantReplaceable = (id) => PLANT_REPLACE.includes(id & 255);
+// the two-cell plants (0.84: the dry one too): lower half -> upper half, and back
+const TALL_UPPER_OF = { [B.TALL_LOWER]: B.TALL_UPPER, [B.DRY_TALL_LOWER]: B.DRY_TALL_UPPER };
+const TALL_LOWER_OF = { [B.TALL_UPPER]: B.TALL_LOWER, [B.DRY_TALL_UPPER]: B.DRY_TALL_LOWER };
 const isPlaceableInto = (id) =>
   id === B.AIR || id === B.WATER || id === B.LAVA || isPlantReplaceable(id);
 // clear a plant out of a cell before building there; tall grass is 2 cells, so take both halves.
@@ -277,15 +293,15 @@ const isNoTargetPlant = (id) => !!(PROPS[id & 255] && PROPS[id & 255].noTarget);
 function clearPlantAt(x, y, z) {
   const id = getBlock(x, y, z) & 255;
   if (!isPlantReplaceable(id) && !isNoTargetPlant(id)) return;
-  if (id === B.TALL_LOWER) setBlock(x, y + 1, z, B.AIR);
-  else if (id === B.TALL_UPPER) setBlock(x, y - 1, z, B.AIR);
+  if (TALL_UPPER_OF[id]) setBlock(x, y + 1, z, B.AIR);
+  else if (TALL_LOWER_OF[id]) setBlock(x, y - 1, z, B.AIR);
   setBlock(x, y, z, B.AIR);
 }
 
 /* A log wider than one block (a flared stump) physically overhangs its neighbours, so those cells
    are already occupied even though they read as air. Refuse to build into them — except with the
    things that legitimately grow through a canopy or wash around a trunk. */
-const OVERHANG_OK = [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.WATER, B.LAVA];
+const OVERHANG_OK = [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES, B.WATER, B.LAVA];   // palm 0.84; dry 0.8411
 function logOverhangsCell(x, y, z) {
   // a log only bulges along its two NON-axis directions, so check each neighbour accordingly
   const dirs = [[1,0,0,0],[-1,0,0,0],[0,1,0,1],[0,-1,0,1],[0,0,1,2],[0,0,-1,2]];
@@ -354,6 +370,10 @@ const BUSH_NAME = [];
 BUSH_NAME[B.TALLGRASS] = 'grass';
 BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
+BUSH_NAME[B.DRY_GRASS] = 'dry grass';                                          // the desert's dry plants (0.84)
+BUSH_NAME[B.DRY_TALL_LOWER] = BUSH_NAME[B.DRY_TALL_UPPER] = 'tall dry grass';
+BUSH_NAME[B.DRY_BUSH] = 'dry bush';
+const DRY_FIBER_CHANCE = 0.1;                                                 // dry grass is a poor fiber: 10% a pick (0.84)
 BUSH_NAME[B.REDBERRY_BUSH] = 'red berry bush';
 BUSH_NAME[B.BLUEBERRY_BUSH] = 'blue berry bush';
 BUSH_NAME[B.BLACKBERRY_BUSH] = 'blackberry bush';   // renamed 0.8099
@@ -392,21 +412,29 @@ function bushGive(id, x, y, z) {
   if (player.canFly) return;                    // creative: no yield, same as every other break
   if (!tryPickup(id, null, 'picked')) spawnDrop(id, x, y, z);
 }
+// is this cell something the player put down (the leveling ledger, 35)? Lucky Hands gives nothing more off those (0.8442)
+const _ownPlaced = (x, y, z) => typeof playerPlaced !== 'undefined' && typeof pkey === 'function' && playerPlaced.has(pkey(x, y, z));
 /* A fiber roll that hits yields ONE fiber (0.7572; 0.757 briefly made it 1 or 2, which was too much). The chances are
    set in 0.7571: 20% per grass roll, 30% for wheat, 20% on a ripe berry pick, 40% stripping a bare bush. */
 function _giveFiber(x, y, z) {
   bushGive(ITEM.FIBER, x, y, z);
 }
 // every fiber roll goes through here: Grass Weaver makes each one 30% likelier (0.79)
-const fiberChance = (c) => c * (typeof skillFiberMul === 'function' ? skillFiberMul() : 1);
+/* 0.8441: every roll 10 points likelier first (grass 25%, dry grass 20%, a ripe bush 52%...), Grass Weaver 40% then, and
+   never past FIBER_CHANCE_MAX */
+const FIBER_BONUS = 0.1, FIBER_CHANCE_MAX = 0.9;
+const fiberChance = (c) => Math.min(FIBER_CHANCE_MAX, (c + FIBER_BONUS) * (typeof skillFiberMul === 'function' ? skillFiberMul() : 1));
 function _harvestFiber(x, y, z, rolls, chance = HARVEST_FIBER_CHANCE) {
   if (player.canFly) return;
   for (let i = 0; i < rolls; i++)
     if (Math.random() < fiberChance(chance)) _giveFiber(x, y, z);
 }
 /* The single source of truth for both the prompt and the action: what would a pickup take right
-   now? Returns {x, y, z, id, name} or null. Pure — it never changes the world. */
-function findBushPickup() {
+   now? Returns {x, y, z, id, name} or null. Pure — it never changes the world.
+   readyOnly (0.8443, a HELD E past its first tap): only what is ready comes — a berry bush with ripe fruit, ripe wheat,
+   a mushroom done growing — so walking a field with the key down no longer strips young bushes, pulls up growing wheat
+   or takes half-grown mushrooms. A tap (and the prompt) still sees everything, as before. */
+function findBushPickup(readyOnly = false) {
   if (!playing || invOpen || menuScene || player.dead) return null;
   /* Creative has no bush pickup (0.7295). It never yielded anything there anyway — bushGive and
      _harvestFiber both bail on canFly — so all it did was uproot plants on a key you were more
@@ -440,9 +468,11 @@ function findBushPickup() {
           const tiny = shroomTooSmall(id, v), size = +shroomSizeAt(x, y, z, v).toFixed(2);
           const name = `${BUSH_NAME[id]} (${size}x${tiny ? ', too small' : ''})`;
           if (tiny) { if (d < smallD) { smallD = d; small = { x, y, z, id, v, name, small: true }; } continue; }
+          if (readyOnly && typeof shroomLeft === 'function' && shroomLeft(v) > 0) continue;   // still growing (0.8443)
           if (d < bestD) { bestD = d; best = { x, y, z, id, v, name }; }
           continue;
         }
+        if (readyOnly && ((isBerryBush(id) && berryStage(v) !== BERRY_STAGE.GROWN) || (id === B.WHEAT && (v & 7)))) continue;   // 0.8443
         if (d >= bestD) continue;
         bestD = d;
         // the prompt says what you would actually get, so a bare bush reads as bare
@@ -459,8 +489,8 @@ function findBushPickup() {
   return best || small;
 }
 /* Returns the cooldown to arm (seconds) on a successful pick, or 0 when nothing was taken. */
-function harvestAtPlayer() {
-  const t = findBushPickup();
+function harvestAtPlayer(readyOnly = false) {
+  const t = findBushPickup(readyOnly);
   if (!t || t.small) return 0;                   // a mushroom too small to pick stays where it is (0.826)
   const { x, z, id } = t;
   // the right hand grabs when empty; holding anything, the left does it (40-shield.js shows that arm, 0.802)
@@ -502,11 +532,15 @@ function harvestAtPlayer() {
      everywhere; a flint nodule is rare enough (see FLINT_ROCK_CHANCE) that walking to one and
      getting nothing would just be a punishment. */
   if (FORAGE_WHOLE.has(id)) {                        // a flower or a mushroom: the plant itself (0.819)
+    const own = _ownPlaced(x, t.y, z);               // asked before the cell is cleared (0.8442)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
     /* What it gives (back in 0.826: the line was lost in 0.821, and every pick gave nothing): a mushroom itself, a
        flower half the time a fiber (blockDrop, 50-loottable.js). One under 40% grown is never picked (above). */
-    for (const d of blockDrop(id)) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+    const drops = blockDrop(id);
+    // Lucky Hands (0.8442): 20% for one more mushroom, unless you put this one down yourself
+    if (PROPS[id].shroom != null && !own && drops.length) drops[0].count += lootBonus(hasSkill('luckyHands'));
+    for (const d of drops) for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
     // a mushroom pays by its size: one more every 0.2x, and more again fully grown (0.8282, 35-leveling.js)
     if (PROPS[id].shroom != null && typeof shroomSizeAt === 'function')
       addXP(Math.floor(shroomSizeAt(x, t.y, z, t.v) / XP_SHROOM_STEP + 1e-6) + (shroomLeft(t.v) ? 0 : XP_SHROOM_GROWN));
@@ -524,10 +558,15 @@ function harvestAtPlayer() {
   /* Gourds: picked up whole, and they hand over exactly what breaking them used to (0.7343) —
      a melon comes apart into slices, a pumpkin comes away as itself. */
   if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE || id === B.CARVED_PUMPKIN || id === B.JACK_O_LANTERN) {   // cantaloupe 0.8091, carved 0.824
+    const own = _ownPlaced(x, t.y, z);               // asked before the cell is cleared (0.8442)
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(id, 'break', x, t.y, z);
     let slices = 0;
-    for (const d of blockDrop(id, true)) {
+    const drops = blockDrop(id, true);
+    /* Lucky Hands (0.8442): 20% for one more slice of a melon or cantaloupe, or a second pumpkin; not off a carved one,
+       nor off one you put down yourself (a pumpkin placed and picked again would be free pumpkins) */
+    if (id !== B.CARVED_PUMPKIN && id !== B.JACK_O_LANTERN && !own && drops.length) drops[0].count += lootBonus(hasSkill('luckyHands'));
+    for (const d of drops) {
       for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
       if (d.id === ITEM.MELON_SLICE || d.id === ITEM.CANTALOUPE_SLICE) slices += d.count;
     }
@@ -538,11 +577,18 @@ function harvestAtPlayer() {
   }
   if (id === B.WHEAT) {
     const st = (getBlock(x, t.y, z) >> 8) & 7, ripe = !st;           // growing wheat gives straw only (0.81)
-    setBlock(x, t.y, z, B.AIR);
+    /* 0.8443: a ripe one is cut, not pulled up: the plant stays at its first stage and grows again (51-seasons.js).
+       One still growing comes up whole, as before: a tap only, a held E leaves it be (findBushPickup). */
+    if (ripe && typeof wheatRegrow === 'function') wheatRegrow(x, t.y, z);
+    else setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.WHEAT, 'break', x, t.y, z);
-    if (ripe) for (const d of blockDrop(B.WHEAT)) {
-      for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
-      addXP(d.count * XP_FORAGE_ITEM);                     // one more a wheat (0.8281)
+    if (ripe) {
+      const drops = blockDrop(B.WHEAT);
+      if (drops.length) drops[0].count += lootBonus(hasSkill('luckyHands'));   // Lucky Hands: 20% for one more wheat (0.8442)
+      for (const d of drops) {
+        for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+        addXP(d.count * XP_FORAGE_ITEM);                     // one more a wheat (0.8281)
+      }
     }
     // wheat straw yields fiber as well: 5% at its first stage, 5% more each stage on, 40% ripe (0.826; 20% flat before)
     _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_PER_STAGE * (ripe ? 7 : Math.min(6, st)));   // 35% ripe since 0.8273 (six stages)
@@ -552,6 +598,32 @@ function harvestAtPlayer() {
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
     _harvestFiber(x, t.y, z, 1);
+    return BUSH_REPEAT;
+  }
+  /* The desert's dry plants (0.84): dry grass gives a fiber 10% of the time; tall dry grass is cut down to dry grass with
+     the same roll, as the tall grass is; a dry bush comes up whole with its sticks (LOOT.dryBush, 50-loottable.js). */
+  if (id === B.DRY_GRASS) {
+    setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
+    _harvestFiber(x, t.y, z, 1, DRY_FIBER_CHANCE);
+    return BUSH_REPEAT;
+  }
+  if (id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER) {
+    const dy = id === B.DRY_TALL_LOWER ? t.y : t.y - 1;
+    setBlock(x, dy, z, B.DRY_GRASS);
+    setBlock(x, dy + 1, z, B.AIR);
+    playBlockSound(B.TALL_LOWER, 'break', x, dy, z);
+    _harvestFiber(x, dy, z, 1, DRY_FIBER_CHANCE);
+    return BUSH_REPEAT;
+  }
+  if (id === B.DRY_BUSH) {
+    setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
+    if (!player.canFly) {
+      const n = rollLoot(LOOT.dryBush);
+      for (let i = 0; i < n; i++) bushGive(ITEM.STICK, x, t.y, z);
+      addXP(n * XP_FORAGE_ITEM);
+    }
     return BUSH_REPEAT;
   }
   /* Tall grass is cut DOWN rather than pulled up (0.757): the first pick trims it to short grass and
@@ -576,12 +648,18 @@ const BUSH_REPEAT = 0.3;                         // seconds between picks while 
    repeat would let one held key strip a ripe bush AND immediately re-pick the empty one it just
    became, in the same breath. The longer cooldown makes each stage a deliberate, separate pick. */
 const BERRY_REPEAT = 1.1;
-var _bushCd = 0;
+/* 0.8443: a TAP takes whatever is nearest, as it always did; once the key has been down longer than BUSH_TAP_S it is
+   being held, and a held key only takes what is ready (findBushPickup's readyOnly). _bushHeldT is how long it has been
+   down, per seat like the cooldown (36-splitscreen.js). */
+const BUSH_TAP_S = 0.25;
+var _bushCd = 0, _bushHeldT = 0;
 function updateBushPickup(dt, wantPick) {
-  if (!wantPick) { _bushCd = 0; return; }
+  if (!wantPick) { _bushCd = 0; _bushHeldT = 0; return; }
+  const held = _bushHeldT > BUSH_TAP_S;
+  _bushHeldT += dt;
   _bushCd -= dt;
   if (_bushCd > 0) return;
-  const cd = harvestAtPlayer();
+  const cd = harvestAtPlayer(held);
   if (cd) _bushCd = cd;
 }
 var handPlaceSwing = false;   // set on a SUCCESSFUL place; 24-hands consumes it for the swing
@@ -662,7 +740,7 @@ function _rayLava(maxDist = 6) {
   for (let t = 0; t <= maxDist; t += 0.15) {
     const x = Math.floor(o.x + _dir.x * t), y = Math.floor(o.y + _dir.y * t), z = Math.floor(o.z + _dir.z * t);
     const val = getBlock(x, y, z), id = val & 255;
-    if (id === B.LAVA) return ((val >> 8) & 15) === 0 ? { x, y, z } : null;   // source only
+    if (id === B.LAVA) return ((val >> 8) & 7) === 0 ? { x, y, z } : null;   // source only (level bits 0-2, 0.844)
     if (id !== B.AIR) return null;
   }
   return null;
@@ -674,7 +752,7 @@ function _rayWater(maxDist = 6) {
   for (let t = 0; t <= maxDist; t += 0.15) {
     const x = Math.floor(o.x + _dir.x * t), y = Math.floor(o.y + _dir.y * t), z = Math.floor(o.z + _dir.z * t);
     const val = getBlock(x, y, z), id = val & 255;
-    if (id === B.WATER) return ((val >> 8) & 15) === 0 ? { x, y, z } : null;   // source only, not flowing
+    if (id === B.WATER) return ((val >> 8) & 7) === 0 ? { x, y, z } : null;   // source only, not flowing (a river's top too, 0.844)
     if (id !== B.AIR) return null;          // hit something solid first — no water grabbed
   }
   return null;
@@ -756,7 +834,7 @@ function doPlace() {
    (door, bed, chest, furnace...), plants, torches and mixed stacks are left alone. While a wand is held, what it would
    do is outlined (updateWandOutline): one outline round the lot, seen through the blocks in front. */
 const WAND_MAX = 256, WAND_REACH = 48;
-const WAND_SKIP = new Set([B.AIR, B.WATER, B.LAVA, B.DOOR, B.BED, B.CHEST, B.FURNACE, B.CRAFTING_BENCH, B.MORTAR,
+const WAND_SKIP = new Set([B.AIR, B.WATER, B.LAVA, B.DOOR, B.BED, B.CHEST, B.METAL_CHEST,B.FURNACE, B.CRAFTING_BENCH, B.MORTAR,
                            B.STRUCTURE_BLOCK, B.TNT, B.BEDROCK, B.FIRE]);
 // the plane's eight neighbours: side by side, then corner to corner
 const _wandSteps = (A) => [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
@@ -766,7 +844,7 @@ function wandCells(hit, mode) {
   const v = getBlock(hit.x, hit.y, hit.z), id = v & 255, p = PROPS[id];
   const shapeHi = ((v >> 8) & 255) & 0xF0;                  // a mixed layer stack (0x60) or mixed slab (0x90) lives off-cell
   if (!p || WAND_SKIP.has(id) || isNoTargetPlant(id) || p.model === 'cross' || p.torch || p.topOnly
-      || shapeHi === 0x60 || shapeHi === 0x90) return null;
+      || shapeHi === 0x60 || shapeHi === 0x90 || BLOCKS.isDoorVal(v)) return null;   // a door, two cells and a mesh (0.842)
   const nx = hit.nx | 0, ny = hit.ny | 0, nz = hit.nz | 0;
   if (!nx && !ny && !nz) return null;
   const build = mode === 'build';
@@ -923,15 +1001,16 @@ function _doPlace() {
   if (!player.canFly && isStation(hit.id)) { if (!benchBusy(hit.x, hit.y, hit.z)) openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]); return; }
   // survival: right-clicking a furnace opens its smelting GUI
   if (!player.canFly && hit.id === B.FURNACE) { openFurnace(hit.x, hit.y, hit.z); return; }
-  // doors open/close in any mode
-  if (hit.id === B.DOOR) { toggleDoor(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
+  // doors open/close in any mode; a key locks, opens or unlocks one (0.842, 27-doors.js)
+  if (BLOCKS.isDoorVal(getBlock(hit.x, hit.y, hit.z))) { useDoor(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // right-clicking a bed sleeps through the night
   if (hit.id === B.BED) { trySleep(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // right-clicking a chest opens its storage GUI (both halves if it is a double)
   // structure block: a build tool, so it opens in BOTH modes (unlike the chest/bench/furnace)
   if (hit.id === B.STRUCTURE_BLOCK) { openStructureBlock(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // survival only, same as the bench and the furnace — in creative a chest is just a block to build with
-  if (!player.canFly && hit.id === B.CHEST) { openChest(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
+  // a key locks, opens or unlocks one, and opens a sealed metal chest (0.843, useChest in 30-chest.js)
+  if (!player.canFly && isChestId(hit.id)) { useChest(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // a block with a variant picked places as that variant: stone as stone brick (0.794, 46-variants.js)
   const heldId = heldBlockOf(slotId(HOTBAR[hotbarSel]));
   // buckets: fill empty bucket from a water source, or pour a water source from a full one
@@ -981,9 +1060,11 @@ function _doPlace() {
     return;
   }
   // grass on grass -> grow a 2-block tall grass (lower + upper), if there's headroom
-  if (heldId === B.TALLGRASS && hit.id === B.TALLGRASS && (getBlock(hit.x, hit.y + 1, hit.z) & 255) === B.AIR) {
-    setBlock(hit.x, hit.y, hit.z, B.TALL_LOWER);
-    setBlock(hit.x, hit.y + 1, hit.z, B.TALL_UPPER);
+  // ...and dry grass on dry grass a tall dry grass (0.84)
+  const tallOf = heldId === B.TALLGRASS ? B.TALL_LOWER : heldId === B.DRY_GRASS ? B.DRY_TALL_LOWER : 0;
+  if (tallOf && hit.id === heldId && (getBlock(hit.x, hit.y + 1, hit.z) & 255) === B.AIR) {
+    setBlock(hit.x, hit.y, hit.z, tallOf);
+    setBlock(hit.x, hit.y + 1, hit.z, TALL_UPPER_OF[tallOf]);
     playBlockSound(B.TALL_LOWER, 'place', hit.x, hit.y, hit.z);
     handPlaceSwing = true;
     spendHeld("placed");
@@ -1075,6 +1156,12 @@ function _doPlace() {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;                  // a planter works too (0.7842)
   }
+  /* 0.84: a palm sapling and the dry plants take grass, dirt, sand or red sand (a planter of soil or sand too); not
+     pink sand, that is the warm beach's */
+  if (id === B.PALM_SAPLING || id === B.DRY_GRASS || id === B.DRY_BUSH || id === B.DRY_TALL_LOWER) {
+    const bv = getBlock(px, py - 1, pz), b = bv & 255;
+    if (CORE.layerCount(bv) || (b !== B.GRASS && b !== B.DIRT && b !== B.SAND && b !== B.RED_SAND && !potSoil(bv) && !potSand(bv))) return;
+  }
   // sugar cane: on top of an existing cane (stack up to 5), OR on sand (any)/grass/dirt/gravel (0.8356) with an
   // adjacent water block at the same y as the ground. Reject otherwise.
   if (id === B.SUGAR_CANE) {
@@ -1127,42 +1214,52 @@ function _doPlace() {
     if (px + 1 > p.x - R && px < p.x + R && py + 1 > p.y && py < p.y + player.H &&
         pz + 1 > p.z - R && pz < p.z + R) return;
   }
-  // door: needs headroom + floor, places both halves, spawns the animated mesh
-  if (id === B.DOOR) {
+  /* door: needs headroom + floor, places both halves, spawns the animated mesh. Since 0.842 a door is the hammer's Door
+     shape of the held block (planks, the iron, copper and tin blocks, adobe, glass and their looks): in survival it takes
+     DOOR_COST of them from the held stack and DOOR_WEAR of the hammer's durability. An old oak door item still places,
+     as an oak planks door. */
+  const doorShape = shaped && shaped.key === 'door';
+  if (id === B.DOOR || doorShape) {
+    const mat = id === B.DOOR ? B.PLANKS : id;
     const above = getBlock(px, py + 1, pz) & 255;
     if (!isPlaceableInto(above)) return;
     if (!isSolid(px, py - 1, pz)) return;
+    if (doorShape && !player.canFly) {
+      if ((slot?.count || 0) < DOOR_COST) { feedWarn(`A door takes ${DOOR_COST} ${PROPS[mat].name.toLowerCase()}`); return; }
+      if (!hammerCanDoor()) { feedWarn(`Your hammer needs repairing: a door takes ${DOOR_WEAR} of its durability`); return; }
+    }
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
     const facing = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
     // hinge side from WHERE on the block the ray landed: left half hinges left, right half right
     const hx = camera.position.x + _dir.x * hit.t, hz = camera.position.z + _dir.z * hit.t;
     let hingeRight = doorHingeFromHit(facing, hx - px, hz - pz);
-    // beside an existing same-facing door, always take the opposite hinge — that is what turns
+    // beside an existing same-facing door (of any material), always take the opposite hinge — that is what turns
     // the two into a double door that opens outward from the shared edge
     const dirs = (facing === 0 || facing === 1) ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
     for (const [dx, dz] of dirs) {
       const nv = getBlock(px + dx, py, pz + dz);
-      if ((nv & 255) !== B.DOOR) continue;
-      const nva = (nv >> 8) & 255;
-      if ((nva & 3) !== facing || (nva & 8)) continue;
-      hingeRight = !(nva & DOOR_HINGE_R);
+      if (!BLOCKS.isDoorVal(nv)) continue;
+      const ndv = doorDv(nv);
+      if ((ndv & 3) !== facing || (ndv & 8)) continue;
+      hingeRight = !(ndv & DOOR_HINGE_R);
       break;
     }
-    const varb = facing | (hingeRight ? DOOR_HINGE_R : 0);
+    const dv = facing | (hingeRight ? DOOR_HINGE_R : 0);
     clearPlantAt(px, py, pz);
     clearPlantAt(px, py + 1, pz);
-    setBlock(px, py, pz, id | (varb << 8));
-    setBlock(px, py + 1, pz, id | ((varb | 8) << 8));
-    registerDoor(px, py, pz, facing, false, hingeRight);
-    playBlockSound(id, 'place', px, py, pz);
+    setBlock(px, py + 1, pz, doorValOf(mat, dv | 8));
+    setBlock(px, py, pz, doorValOf(mat, dv));               // the bottom half last: its hook makes the mesh (11-chunks.js)
+    playBlockSound(mat, 'place', px, py, pz);
     handPlaceSwing = true;
-    spendHeld("placed");
+    if (doorShape) { for (let n = 0; n < DOOR_COST; n++) spendHeld("placed"); chiselWear(DOOR_WEAR); }
+    else spendHeld("placed");
     return;
   }
   // bed: needs two free cells on solid ground, lays foot + head and spawns the mesh
   if (id === B.BED) {
     // its frame's wood from the variant bar (0.8342)
     if (!tryPlaceBed(px, py, pz, typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(slotId(slot)) : 0)) return;
+    playBlockSound(B.BED, 'place', px, py, pz);   // its frame set down: it was silent (0.8445)
     handPlaceSwing = true;
     spendHeld("placed");
     return;
@@ -1198,12 +1295,12 @@ function _doPlace() {
   setBlock(px, py, pz, id | (varb << 8));
   if (caneSprout && typeof queueCaneGrow === 'function') queueCaneGrow(px, py, pz);
   playBlockSound(id, 'place', px, py, pz);
-  if (id === B.CHEST) {
+  if (isChestId(id)) {                        // a metal chest too (0.843)
     tryPairChest(px, py, pz, varb & 3);       // link to a lone same-facing neighbour, if any
     registerChest(px, py, pz, varb & 3);      // spawn its animated mesh
   }
   if (id === B.TNT) armTNT(px, py, pz);          // start the fuse the moment TNT is placed
-  if (id === B.OAK_SAPLING || id === B.BIRCH_SAPLING || id === B.SPRUCE_SAPLING) armSapling(px, py, pz, id);
+  if (id === B.OAK_SAPLING || id === B.BIRCH_SAPLING || id === B.SPRUCE_SAPLING || id === B.PALM_SAPLING) armSapling(px, py, pz, id);   // palm 0.84
   /* Only an OPAQUE block smothers the grass under it. Anything light still gets through — leaves,
      leaf litter, snow carpets, glass, a chest, every cross billboard — leaves the grass alive.
      (0.703: this used to key off the cross model alone, which killed grass under a pane of glass

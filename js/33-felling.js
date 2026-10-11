@@ -45,12 +45,14 @@ STRIPPED_OF[B.LOG] = B.STRIPPED_LOG;
 STRIPPED_OF[B.BIRCH_LOG] = B.STRIPPED_BIRCH_LOG;
 STRIPPED_OF[B.SPRUCE_LOG] = B.STRIPPED_SPRUCE_LOG;
 STRIPPED_OF[B.RIME_LOG] = B.STRIPPED_RIME_LOG;                     // 0.836
+STRIPPED_OF[B.PALM_LOG] = B.STRIPPED_PALM_LOG;                     // 0.84
 // stripped -> the live log it came from, so a felled tree can drop the normal variant
 const UNSTRIPPED_OF = {};
 UNSTRIPPED_OF[B.STRIPPED_LOG] = B.LOG;
 UNSTRIPPED_OF[B.STRIPPED_BIRCH_LOG] = B.BIRCH_LOG;
 UNSTRIPPED_OF[B.STRIPPED_SPRUCE_LOG] = B.SPRUCE_LOG;
 UNSTRIPPED_OF[B.STRIPPED_RIME_LOG] = B.RIME_LOG;
+UNSTRIPPED_OF[B.STRIPPED_PALM_LOG] = B.PALM_LOG;
 /* leaves -> the block they settle as: since 0.785 litter is simply a layer of the leaf block itself, so this
    maps each leaf to its own id (and anything else to nothing). A broken litter layer yields what LEAVES
    yield (sticks, the rare apple, a sapling) — handled at the break site. */
@@ -59,6 +61,7 @@ LITTER_OF[B.LEAVES] = B.LEAVES;
 LITTER_OF[B.BIRCH_LEAVES] = B.BIRCH_LEAVES;
 LITTER_OF[B.SPRUCE_LEAVES] = B.SPRUCE_LEAVES;
 LITTER_OF[B.RIME_LEAVES] = B.RIME_LEAVES;
+LITTER_OF[B.PALM_LEAVES] = B.PALM_LEAVES;
 
 const isLiveLog     = (id) => STRIPPED_OF[id] !== undefined;
 const isStrippedLog = (id) => UNSTRIPPED_OF[id] !== undefined;

@@ -600,9 +600,11 @@ function updateDayNight(dt, advance = true) {
   // 0.8242: 0.048 of the sun moved into the day's ambient below (shadows 15% lighter), so sunlit faces stay as they were
   const sunI  = 0.692 * smoothstepJS(0.0, 0.22, sunElev);   // day peak ~0.98 total: no overexposure
   // moonlight follows the phase (0.817): a full moon as bright as before, a new moon a fifth of it
-  const moonI = 0.12 * (0.2 + 0.8 * lit) * smoothstepJS(0.0, 0.22, moonElev);
+  // the night lighter since 0.8442 (NIGHT_LIGHTEN, 00-config.js; 1.5 since 0.8443): the moon's light and the night's ambient
+  const moonI = 0.12 * NIGHT_LIGHTEN * (0.2 + 0.8 * lit) * smoothstepJS(0.0, 0.22, moonElev);
   // a moonlit night is lighter all round, by the phase (0.8191): up to +0.08 under a full moon high up
-  sharedUniforms.uAmbient.value = 0.17 + 0.198 * dayF + 0.08 * moonGlow + 0.75 * skyFlash;   // day 0.32 -> 0.368 (0.8242); night unchanged   // ambient floor: how dark cast shadows get; + a flash
+  const ambNight = 0.17 * NIGHT_LIGHTEN;                 // 0.32 since 0.8444; the day's stays 0.368, so its share of dayF shrinks to fit
+  sharedUniforms.uAmbient.value = ambNight + (0.368 - ambNight) * dayF + 0.08 * NIGHT_LIGHTEN * moonGlow + 0.75 * skyFlash;   // day 0.32 -> 0.368 (0.8242)   // ambient floor: how dark cast shadows get; + a flash
   sharedUniforms.uDirect.value  = Math.max(sunI, moonI);
   _skySunO  = Math.min(1, Math.max(0, (sunElev + 0.10) * 8));
   _skyMoonO = Math.min(1, Math.max(0, (moonElev + 0.10) * 8)) * (0.35 + 0.65 * (1 - dayF));   // pale by day

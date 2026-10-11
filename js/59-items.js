@@ -57,32 +57,35 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               CLOTH_HELMET: 401, CLOTH_CHESTPLATE: 402, CLOTH_LEGGINGS: 403, CLOTH_BOOTS: 404, CLOTH_GLOVES: 405,
               YELLOW_BERRIES: 406, WHITE_BERRIES: 407,
               BUILD_WAND: 408,                     // 0.8371, creative's building wand (13-actions.js wandBuild)
-              BREAK_WAND: 409 };                   // 0.8374, and its breaking wand (wandBreak)   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              BREAK_WAND: 409,                     // 0.8374, and its breaking wand (wandBreak)
+              BONE_ASH: 410,                       // 0.84: ground from bones at the mortar, or out of a broken bone block
+              // 0.842: keys that lock a door (27-doors.js); only the wooden one is made yet, the rest wait for their use
+              WOODEN_KEY: 411, IRON_KEY: 412, GOLDEN_KEY: 413, COPPER_KEY: 414 };   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 const ITEM_PROPS = {
-  [ITEM.STICK]:         { name: 'Stick',         stack: 99, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
+  [ITEM.STICK]:         { name: 'Stick',         stack: 79, icon: 'stick', desc: 'Used as crafting ingredient or fuel for 0.25 smelt' },
   [ITEM.BUILD_WAND]:    { name: 'Building wand', stack: 1, icon: 'build_wand',    // 0.8371
                           desc: 'Creative only. Right-click a block: every same block joined to it across that face gets one more layer on it, the same look, shape and turn' },
   [ITEM.BREAK_WAND]:    { name: 'Breaking wand', stack: 1, icon: 'break_wand',    // 0.8374
                           desc: 'Creative only. Right-click a block: it and every same block joined to it across that face are taken away' },
-  [ITEM.BARK]:          { name: 'Bark',          stack: 99, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
-  [ITEM.FLINT]:         { name: 'Flint',         stack: 99, icon: 'flint', desc: 'Used as crafting ingredient for flint tools' },
+  [ITEM.BARK]:          { name: 'Bark',          stack: 79, icon: 'bark', desc: 'Used as fuel for 0.75 smelt' },
+  [ITEM.FLINT]:         { name: 'Flint',         stack: 79, icon: 'flint', desc: 'Used as crafting ingredient for flint tools' },
   // from glow vines, with any tool (0.765); five make a glowcrystal block
-  [ITEM.GLOW_CRYSTAL]:  { name: 'Glow crystal',  stack: 99, icon: 'glow_crystals', desc: 'Used as crafting ingredient' },
+  [ITEM.GLOW_CRYSTAL]:  { name: 'Glow crystal',  stack: 79, icon: 'glow_crystals', desc: 'Used as crafting ingredient' },
   // gems (0.766): 1-2 from their ores with an iron pickaxe or better
-  [ITEM.EMERALD]:       { name: 'Emerald',       stack: 99, icon: 'emerald',  desc: 'A rare gem from mountain rock' },
-  [ITEM.RUBY]:          { name: 'Ruby',          stack: 99, icon: 'ruby',     desc: 'A rare gem from deep caves' },
-  [ITEM.SAPPHIRE]:      { name: 'Sapphire',      stack: 99, icon: 'sapphire', desc: 'A rare gem found under the hills' },
-  [ITEM.TOPAZ]:         { name: 'Topaz',         stack: 99, icon: 'topaz',    desc: 'A rare gem from the middle depths' },   // 0.769
+  [ITEM.EMERALD]:       { name: 'Emerald',       stack: 79, icon: 'emerald',  desc: 'A rare gem from mountain rock' },
+  [ITEM.RUBY]:          { name: 'Ruby',          stack: 79, icon: 'ruby',     desc: 'A rare gem from deep caves' },
+  [ITEM.SAPPHIRE]:      { name: 'Sapphire',      stack: 79, icon: 'sapphire', desc: 'A rare gem found under the hills' },
+  [ITEM.TOPAZ]:         { name: 'Topaz',         stack: 79, icon: 'topaz',    desc: 'A rare gem from the middle depths' },   // 0.769
   // metal powders (0.773): a mortar grinds one raw ore into two, and each smelts into an ingot
-  [ITEM.IRON_POWDER]:   { name: 'Iron powder',   stack: 99, icon: 'iron_powder',   desc: 'Can be smelted in furnace into iron ingot' },
-  [ITEM.TIN_POWDER]:    { name: 'Tin powder',    stack: 99, icon: 'tin_powder',    desc: 'Can be smelted in furnace into tin ingot' },
-  [ITEM.COPPER_POWDER]: { name: 'Copper powder', stack: 99, icon: 'copper_powder', desc: 'Can be smelted in furnace into copper ingot' },
-  [ITEM.GOLD_POWDER]:   { name: 'Gold powder',   stack: 99, icon: 'gold_powder',   desc: 'Can be smelted in furnace into gold ingot' },
+  [ITEM.IRON_POWDER]:   { name: 'Iron powder',   stack: 79, icon: 'iron_powder',   desc: 'Can be smelted in furnace into iron ingot' },
+  [ITEM.TIN_POWDER]:    { name: 'Tin powder',    stack: 79, icon: 'tin_powder',    desc: 'Can be smelted in furnace into tin ingot' },
+  [ITEM.COPPER_POWDER]: { name: 'Copper powder', stack: 79, icon: 'copper_powder', desc: 'Can be smelted in furnace into copper ingot' },
+  [ITEM.GOLD_POWDER]:   { name: 'Gold powder',   stack: 79, icon: 'gold_powder',   desc: 'Can be smelted in furnace into gold ingot' },
   // not made or used by anything yet: reserved for bronze and steel (0.773)
-  [ITEM.BRONZE_POWDER]: { name: 'Bronze powder', stack: 99, icon: 'bronze_powder', desc: 'Can be smelted in furnace into bronze ingot' },   // 0.774
-  [ITEM.STEEL_POWDER]:  { name: 'Steel powder',  stack: 99, icon: 'steel_powder',  desc: 'Can be smelted in furnace into steel ingot' },
+  [ITEM.BRONZE_POWDER]: { name: 'Bronze powder', stack: 79, icon: 'bronze_powder', desc: 'Can be smelted in furnace into bronze ingot' },   // 0.774
+  [ITEM.STEEL_POWDER]:  { name: 'Steel powder',  stack: 79, icon: 'steel_powder',  desc: 'Can be smelted in furnace into steel ingot' },
   // burnt fuel leaves ashes in the furnace's fourth slot (0.775)
-  [ITEM.ASHES]:         { name: 'Ashes',         stack: 99, icon: 'ashes',         desc: 'Used as crafting ingredient, left in a furnace by burnt fuel' },
+  [ITEM.ASHES]:         { name: 'Ashes',         stack: 79, icon: 'ashes',         desc: 'Used as crafting ingredient, left in a furnace by burnt fuel' },
   // worn in the Others slot; picks a block shape from a radial (0.78, 43-chisel.js) — shaping itself comes later
   [ITEM.CHISEL]:        { name: 'Chisel',        stack: 1,  icon: 'chisel', equip: 'necklace', chisel: true, durability: 300,   // 200 until 0.7845; neck only (0.803)
                           desc: 'Wear it in the Neck slot to lay blocks as their variants: hold R and scroll (hold D-pad Right and a bumper on a gamepad). Cutting shapes is the hammer' },   // craftable again (0.799)
@@ -91,25 +94,36 @@ const ITEM_PROPS = {
   [ITEM.HAMMER]:        { name: 'Hammer',        stack: 1,  icon: 'hammer', equip: 'accessories', chisel: true, durability: 500,
                           desc: 'Wear it in the Others slot to cut blocks into shapes: hold Q (hold B on a gamepad) to pick one. Variants are the chisel' },
   // bronze metal (0.774): copper and tin powder ground together, smelted into ingots
-  [ITEM.BRONZE_INGOT]:  { name: 'Bronze ingot',  stack: 99, icon: 'bronze_ingot',  desc: 'Used as crafting ingredient' },
-  [ITEM.BRONZE_NUGGET]: { name: 'Bronze nugget', stack: 99, icon: 'bronze_nugget', desc: 'Used as crafting ingredient' },
-  [ITEM.CLAY_BALL]:     { name: 'Clay ball',     stack: 99, icon: 'clay_ball', desc: 'Used as crafting ingredient' },
-  [ITEM.BOWL]:          { name: 'Bowl',          stack: 30, icon: 'bowl', desc: 'Used to fill with some food' },
-  [ITEM.GLASS_SHARD]:   { name: 'Glass shard',   stack: 99, icon: 'glass_shard', desc: 'Used as crafting ingredient' },
-  [ITEM.SULFUR]:        { name: 'Sulfur',        stack: 99, icon: 'sulfur', desc: 'Used as crafting ingredient' },
-  [ITEM.CHARCOAL]:      { name: 'Charcoal',      stack: 99, icon: 'charcoal', desc: 'Used as crafting ingredient' },
-  [ITEM.GUNPOWDER]:     { name: 'Gunpowder',     stack: 99, icon: 'gunpowder', desc: 'Used as crafting ingredient' },
-  [ITEM.SUGAR]:         { name: 'Sugar',         stack: 99, icon: 'sugar', desc: 'Used as crafting ingredient' },
-  [ITEM.PAPER]:         { name: 'Paper',         stack: 99, icon: 'paper', desc: 'Used as crafting ingredient' },
-  [ITEM.FLOUR]:         { name: 'Flour',         stack: 99, icon: 'flour', desc: 'Used as crafting ingredient' },
-  [ITEM.BRICK]:         { name: 'Brick',         stack: 99, icon: 'brick', desc: 'Used as crafting ingredient' },
-  [ITEM.GLOW_DUST]:     { name: 'Glow dust',     stack: 99, icon: 'glow_dust', desc: 'Used as crafting ingredient' },
-  [ITEM.STRING]:        { name: 'String',        stack: 99, icon: 'string', desc: 'Used as crafting ingredient' },
-  [ITEM.FEATHER]:       { name: 'Feather',       stack: 99, icon: 'feather', desc: 'Used as crafting ingredient' },
-  [ITEM.FIBER]:         { name: 'Fiber',         stack: 99, icon: 'fiber', desc: 'Used as crafting ingredient' },
-  [ITEM.CLOTH]:         { name: 'Cloth',         stack: 99, icon: 'cloth', desc: 'Used as crafting ingredient' },
-  [ITEM.LEATHER]:       { name: 'Leather',       stack: 99, icon: 'leather', desc: 'Used as crafting ingredient' },
-  [ITEM.BONE]:          { name: 'Bone',          stack: 99, icon: 'bone', desc: 'Used as crafting ingredient' },
+  [ITEM.BRONZE_INGOT]:  { name: 'Bronze ingot',  stack: 79, icon: 'bronze_ingot',  desc: 'Used as crafting ingredient' },
+  [ITEM.BRONZE_NUGGET]: { name: 'Bronze nugget', stack: 79, icon: 'bronze_nugget', desc: 'Used as crafting ingredient' },
+  [ITEM.CLAY_BALL]:     { name: 'Clay ball',     stack: 79, icon: 'clay_ball', desc: 'Used as crafting ingredient' },
+  [ITEM.BOWL]:          { name: 'Bowl',          stack: 20, icon: 'bowl', desc: 'Used to fill with some food' },
+  [ITEM.GLASS_SHARD]:   { name: 'Glass shard',   stack: 79, icon: 'glass_shard', desc: 'Used as crafting ingredient' },
+  [ITEM.SULFUR]:        { name: 'Sulfur',        stack: 79, icon: 'sulfur', desc: 'Used as crafting ingredient' },
+  [ITEM.CHARCOAL]:      { name: 'Charcoal',      stack: 79, icon: 'charcoal', desc: 'Used as crafting ingredient' },
+  [ITEM.GUNPOWDER]:     { name: 'Gunpowder',     stack: 79, icon: 'gunpowder', desc: 'Used as crafting ingredient' },
+  [ITEM.SUGAR]:         { name: 'Sugar',         stack: 79, icon: 'sugar', desc: 'Used as crafting ingredient' },
+  [ITEM.PAPER]:         { name: 'Paper',         stack: 79, icon: 'paper', desc: 'Used as crafting ingredient' },
+  [ITEM.FLOUR]:         { name: 'Flour',         stack: 79, icon: 'flour', desc: 'Used as crafting ingredient' },
+  [ITEM.BRICK]:         { name: 'Brick',         stack: 79, icon: 'brick', desc: 'Used as crafting ingredient' },
+  [ITEM.GLOW_DUST]:     { name: 'Glow dust',     stack: 79, icon: 'glow_dust', desc: 'Used as crafting ingredient' },
+  [ITEM.STRING]:        { name: 'String',        stack: 79, icon: 'string', desc: 'Used as crafting ingredient' },
+  [ITEM.FEATHER]:       { name: 'Feather',       stack: 79, icon: 'feather', desc: 'Used as crafting ingredient' },
+  [ITEM.FIBER]:         { name: 'Fiber',         stack: 79, icon: 'fiber', desc: 'Used as crafting ingredient' },
+  [ITEM.CLOTH]:         { name: 'Cloth',         stack: 79, icon: 'cloth', desc: 'Used as crafting ingredient' },
+  [ITEM.LEATHER]:       { name: 'Leather',       stack: 79, icon: 'leather', desc: 'Used as crafting ingredient' },
+  [ITEM.BONE]:          { name: 'Bone',          stack: 79, icon: 'bone', desc: 'Used as crafting ingredient' },
+  /* Keys (0.842): `key` is what 27-doors.js keys off; a slot's `lock` is the door it is bound to. One key, one door:
+     right-click an unlocked door with a blank key to lock it, its key opens it (in hand), sneak + right-click with it
+     unlocks it. Breaking the door leaves its key blank. Iron, golden and copper keys have no recipe yet.
+     0.843: chests lock the same way (30-chest.js useChest); the metal keys drop off monsters, and each opens a sealed
+     chest of its metal found in the world, staying in its lock. */
+  [ITEM.WOODEN_KEY]:    { name: 'Wooden key',    stack: 1, icon: 'wooden_key', key: true,
+                          desc: 'Opens a sealed wooden supply chest, and stays in its lock (a blank key only). Or right-click a door or a chest to lock it: only this key opens it then (hold it). Sneak + right-click to unlock' },   // sealed chests 0.8444
+  [ITEM.IRON_KEY]:      { name: 'Iron key',      stack: 1, icon: 'iron_key', key: true, desc: 'Opens a sealed iron chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
+  [ITEM.GOLDEN_KEY]:    { name: 'Golden key',    stack: 1, icon: 'golden_key', key: true, desc: 'Opens a sealed gold chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
+  [ITEM.COPPER_KEY]:    { name: 'Copper key',    stack: 1, icon: 'copper_key', key: true, desc: 'Opens a sealed copper chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
+  [ITEM.BONE_ASH]:      { name: 'Bone ash',      stack: 79, icon: 'bone_ash', desc: 'A bone ground at the mortar makes two. Used as crafting ingredient' },   // 0.84
   /* ---- ranged (0.735) ----
      A bow is not a `tool` and not a weapon you swing: `ranged` is the marker 38-ranged.js reads,
      and it names the family so a crossbow or a firearm can join later without touching anything
@@ -117,33 +131,33 @@ const ITEM_PROPS = {
      arrow you loose is what decides how hard it lands. */
   [ITEM.BOW]:           { name: 'Bow',           stack: 1,  icon: 'bow', ranged: 'bow', damage: 5, attackSpeed: 1.0, durability: 160,
                           desc: 'Hold right click to draw, release to loose an arrow' },
-  [ITEM.ARROW]:         { name: 'Arrow',         stack: 99, icon: 'arrow', ammo: 'arrow', desc: 'Ammunition for bows' },
+  [ITEM.ARROW]:         { name: 'Arrow',         stack: 79, icon: 'arrow', ammo: 'arrow', desc: 'Ammunition for bows' },
   // 0.745: worn in the OFFHAND equipment slot; `shield` is what 40-shield.js keys off
   [ITEM.SHIELD]:        { name: 'Shield',        stack: 1,  icon: 'shield', equip: 'offhand', shield: true, durability: 336,
                           desc: 'Equip in the offhand. Hold right click to raise it: stops attacks and arrows from the front' },
 // ores
-  [ITEM.COAL]:          { name: 'Coal',          stack: 99, icon: 'coal', desc: 'Used as fuel for 5 smelts' },
-  [ITEM.COAL_CHUNK]:    { name: 'Coal chunk',    stack: 99, icon: 'coal_chunk', desc: 'Used as fuel for 1 smelt' },
+  [ITEM.COAL]:          { name: 'Coal',          stack: 79, icon: 'coal', desc: 'Used as fuel for 5 smelts' },
+  [ITEM.COAL_CHUNK]:    { name: 'Coal chunk',    stack: 79, icon: 'coal_chunk', desc: 'Used as fuel for 1 smelt' },
   // 0.767: charcoal splits the same way coal does — 8 chunks to a charcoal, half a smelt each
-  [ITEM.CHARCOAL_CHUNK]: { name: 'Charcoal chunk', stack: 99, icon: 'charcoal_chunk', desc: 'Used as fuel for 0.8 of a smelt' },
-  [ITEM.RAW_IRON]:      { name: 'Raw iron',      stack: 99, icon: 'raw_iron', desc: 'Can be smelted in furnace into iron ingot' },
-  [ITEM.IRON_INGOT]:    { name: 'Iron ingot',    stack: 99, icon: 'iron_ingot', desc: 'Used as crafting ingredient' },
-  [ITEM.IRON_NUGGET]:   { name: 'Iron nugget',   stack: 99, icon: 'iron_nugget', desc: 'Used as crafting ingredient' },
-  [ITEM.RAW_COPPER]:    { name: 'Raw copper',    stack: 99, icon: 'raw_copper', desc: 'Can be smelted in furnace into copper ingot' },
-  [ITEM.COPPER_INGOT]:  { name: 'Copper ingot',  stack: 99, icon: 'copper_ingot', desc: 'Used as crafting ingredient' },
-  [ITEM.COPPER_NUGGET]: { name: 'Copper nugget', stack: 99, icon: 'copper_nugget', desc: 'Used as crafting ingredient' },
-  [ITEM.RAW_TIN]:       { name: 'Raw tin',       stack: 99, icon: 'raw_tin', desc: 'Can be smelted in furnace into tin ingot' },
-  [ITEM.TIN_INGOT]:     { name: 'Tin ingot',     stack: 99, icon: 'tin_ingot', desc: 'Used as crafting ingredient' },
-  [ITEM.TIN_NUGGET]:    { name: 'Tin nugget',    stack: 99, icon: 'tin_nugget', desc: 'Used as crafting ingredient' },
-  [ITEM.RAW_GOLD]:      { name: 'Raw gold',      stack: 99, icon: 'raw_gold', desc: 'Can be smelted in furnace into gold ingot' },
-  [ITEM.GOLD_INGOT]:    { name: 'Gold ingot',    stack: 99, icon: 'gold_ingot', desc: 'Used as crafting ingredient' },
-  [ITEM.GOLD_NUGGET]:   { name: 'Gold nugget',   stack: 99, icon: 'gold_nugget', desc: 'Used as crafting ingredient' },
-  [ITEM.DIAMOND]:       { name: 'Diamond',       stack: 99, icon: 'diamond', desc: 'Used as crafting ingredient' },
+  [ITEM.CHARCOAL_CHUNK]: { name: 'Charcoal chunk', stack: 79, icon: 'charcoal_chunk', desc: 'Used as fuel for 0.8 of a smelt' },
+  [ITEM.RAW_IRON]:      { name: 'Raw iron',      stack: 79, icon: 'raw_iron', desc: 'Can be smelted in furnace into iron ingot' },
+  [ITEM.IRON_INGOT]:    { name: 'Iron ingot',    stack: 79, icon: 'iron_ingot', desc: 'Used as crafting ingredient' },
+  [ITEM.IRON_NUGGET]:   { name: 'Iron nugget',   stack: 79, icon: 'iron_nugget', desc: 'Used as crafting ingredient' },
+  [ITEM.RAW_COPPER]:    { name: 'Raw copper',    stack: 79, icon: 'raw_copper', desc: 'Can be smelted in furnace into copper ingot' },
+  [ITEM.COPPER_INGOT]:  { name: 'Copper ingot',  stack: 79, icon: 'copper_ingot', desc: 'Used as crafting ingredient' },
+  [ITEM.COPPER_NUGGET]: { name: 'Copper nugget', stack: 79, icon: 'copper_nugget', desc: 'Used as crafting ingredient' },
+  [ITEM.RAW_TIN]:       { name: 'Raw tin',       stack: 79, icon: 'raw_tin', desc: 'Can be smelted in furnace into tin ingot' },
+  [ITEM.TIN_INGOT]:     { name: 'Tin ingot',     stack: 79, icon: 'tin_ingot', desc: 'Used as crafting ingredient' },
+  [ITEM.TIN_NUGGET]:    { name: 'Tin nugget',    stack: 79, icon: 'tin_nugget', desc: 'Used as crafting ingredient' },
+  [ITEM.RAW_GOLD]:      { name: 'Raw gold',      stack: 79, icon: 'raw_gold', desc: 'Can be smelted in furnace into gold ingot' },
+  [ITEM.GOLD_INGOT]:    { name: 'Gold ingot',    stack: 79, icon: 'gold_ingot', desc: 'Used as crafting ingredient' },
+  [ITEM.GOLD_NUGGET]:   { name: 'Gold nugget',   stack: 79, icon: 'gold_nugget', desc: 'Used as crafting ingredient' },
+  [ITEM.DIAMOND]:       { name: 'Diamond',       stack: 79, icon: 'diamond', desc: 'Used as crafting ingredient' },
   // tools: stack 1, own durability (breaks at 0), toolSpeed = mining-time divisor on matching
   // blocks. tier: 0 = bare hand, 1 wooden, 2 stone, 3 iron, 4 steel, 5 diamond — gates drops (MINE_REQ).
   [ITEM.FLINT_SWORD]:   { name: 'Flint sword',    stack: 1, icon: 'flint_sword',   tool: 'sword',   tier: 1, toolSpeed: 1,    damage: 20,   attackSpeed: 1.8,   durability: 20, desc: '' },
   [ITEM.FLINT_SHOVEL]:  { name: 'Flint shovel',   stack: 1, icon: 'flint_shovel',  tool: 'shovel',  tier: 1, toolSpeed: 2,    damage: 10,   attackSpeed: 1.0,   durability: 40, desc: '' },
-  [ITEM.FLINT_PICKAXE]: { name: 'Flint pickaxe',  stack: 1, icon: 'flint_pickaxe', tool: 'pick',    tier: 1, toolSpeed: 2,    damage: 15,   attackSpeed: 1.0,   durability: 40, desc: '' },
+  [ITEM.FLINT_PICKAXE]: { name: 'Flint pickaxe',  stack: 1, icon: 'flint_pickaxe', tool: 'pick',    tier: 1, toolSpeed: 2,    damage: 15,   attackSpeed: 1.0,   durability: 40, desc: 'Breaks stone, but the stone drops nothing: only a pebble now and then' },   // 0.8444
   [ITEM.FLINT_HATCHET]: { name: 'Flint hatchet',  stack: 1, icon: 'flint_hatchet', tool: 'hatchet', tier: 1, toolSpeed: 2,    damage: 25,   attackSpeed: 0.8,   durability: 40, desc: '' },
   [ITEM.FLINT_HOE]:     { name: 'Flint hoe',      stack: 1, icon: 'flint_hoe',     tool: 'hoe',     tier: 1, toolSpeed: 2,    damage: 15,   attackSpeed: 1.2,   durability: 30, desc: '' },
   [ITEM.STONE_SWORD]:    { name: 'Stone sword',     stack: 1, icon: 'stone_sword',    tool: 'sword',   tier: 2, toolSpeed: 2,    damage: 25,   attackSpeed: 1.7,   durability: 50, desc: '' },
@@ -174,7 +188,7 @@ const ITEM_PROPS = {
   [ITEM.DIAMOND_HATCHET]:{ name: 'Diamond hatchet', stack: 1, icon: 'diamond_hatchet',tool: 'hatchet', tier: 5, toolSpeed: 10,   damage: 40,   attackSpeed: 0.9,   durability: 1000, desc: '' },
   [ITEM.DIAMOND_HOE]:    { name: 'Diamond hoe',     stack: 1, icon: 'diamond_hoe',    tool: 'hoe',     tier: 5, toolSpeed: 10,   damage: 10,   attackSpeed: 1.3,   durability: 750, desc: '' },
 // Useable
-  [ITEM.BUCKET]:        { name: 'Bucket',        stack: 20, icon: 'bucket', desc: 'Used to fill with fluid, even with cow\'s milk (female cow)' },
+  [ITEM.BUCKET]:        { name: 'Bucket',        stack: 10, icon: 'bucket', desc: 'Used to fill with fluid, even with cow\'s milk (female cow)' },
   // 0.767: from a cow (bucket in hand, right-click). Drinking it clears every running effect and hands the bucket back
   [ITEM.MILK_BUCKET]:   { name: 'Milk bucket',   stack: 1, icon: 'milk_bucket', food: 10, foodSat: 10, foodSatFull: 5,   // a little food (0.822)
                           // 10 minutes, and what is left when it turns is the bucket back (0.7992)
@@ -182,66 +196,68 @@ const ITEM_PROPS = {
                           desc: 'Drink it to remove all active effects. Goes off in 10 minutes, leaving the bucket' },
   [ITEM.WATER_BUCKET]:  { name: 'Water Bucket',  stack: 1,  icon: 'water_bucket', desc: '' },
   [ITEM.LAVA_BUCKET]:   { name: 'Lava Bucket',   stack: 1,  icon: 'lava_bucket', desc: '' },
-  [ITEM.SNOWBALL]:      { name: 'Snowball',      stack: 30, icon: 'snowball', throwable: true, desc: 'Can be thrown to knock back friends or enemies' },
+  [ITEM.SNOWBALL]:      { name: 'Snowball',      stack: 20, icon: 'snowball', throwable: true, desc: 'Can be thrown to knock back friends or enemies' },
   // craftable, but nothing rides yet — it is gear waiting for a mount
   [ITEM.SADDLE]:        { name: 'Saddle',        stack: 1,  icon: 'saddle', desc: 'Use it on a tamed animal to ride it' },
  //plants
-  [ITEM.SUGAR_CANE]:    { name: 'Sugar cane',    stack: 99, icon: 'sugarcane', desc: 'Can be turned into sugar in a mortar' },
-  [ITEM.WHEAT]:         { name: 'Wheat',         stack: 99, icon: 'wheat', desc: 'Can be turned into flour in a mortar' },
+  [ITEM.SUGAR_CANE]:    { name: 'Sugar cane',    stack: 79, icon: 'sugarcane', desc: 'Can be turned into sugar in a mortar' },
+  [ITEM.WHEAT]:         { name: 'Wheat',         stack: 79, icon: 'wheat', desc: 'Can be turned into flour in a mortar' },
 // Consumables. food, foodSat (over-food), foodSatFull and foodHeal are out of 100 since 0.82 (x5; they were out of 20);
 // what each also gives in thirst, fruit, vegetables and protein is FOOD_NUTRITION in 54-stats-effects.js.
 // Every eatTime is 20% longer since 0.821.
-  [ITEM.APPLE]:         { name: 'Apple',          stack: 99, icon: 'apple',         foodSatFull: 15, food: 25,  foodSat: 40,  eatTime: 1.8, spoil: 3600, desc: '' },   // an hour since 0.7992
-  [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 40, icon: 'melon_slice',   foodSatFull: 5, food: 5,  foodSat: 10,  eatTime: 0.84, spoil: 1200, desc: '' },
+  [ITEM.APPLE]:         { name: 'Apple',          stack: 79, icon: 'apple',         foodSatFull: 15, food: 25,  foodSat: 40,  eatTime: 1.8, spoil: 3600, desc: '' },   // an hour since 0.7992
+  [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 30, icon: 'melon_slice',   foodSatFull: 5, food: 5,  foodSat: 10,  eatTime: 0.84, spoil: 1200, desc: '' },
   // its own picture since 0.8098
-  [ITEM.SALT]: { name: 'Salt', stack: 60, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
-  [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 60, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
-  [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 40, icon: 'cantaloupe_slice', foodSatFull: 5, food: 5, foodSat: 10, eatTime: 0.84, spoil: 1200, desc: '' },
+  [ITEM.SALT]: { name: 'Salt', stack: 50, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
+  [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 50, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
+  [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 30, icon: 'cantaloupe_slice', foodSatFull: 5, food: 5, foodSat: 10, eatTime: 0.84, spoil: 1200, desc: '' },
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
   /* Berries (0.827): all fill you the same, and each kind adds its own. Red heals a little, blue quenches 1.5x the
      thirst (FOOD_NUTRITION, 54-stats-effects.js), black is poisonous, yellow fills 1.5x the food, white takes thirst
      but washes a second off every bad effect running (foodCleanse, 22-main-loop.js). */
-  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 60, icon: 'redberries',    foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodHeal: 2, desc: '' },
-  [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 60, icon: 'blueberries',   foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
+  [ITEM.BERRIES]:       { name: 'Red berries',    stack: 50, icon: 'redberries',    foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodHeal: 2, desc: '' },
+  [ITEM.BLUE_BERRIES]:  { name: 'Blue berries',   stack: 50, icon: 'blueberries',   foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, desc: '' },
   // blackberries (0.7947 as the yellow ones): they fill you like the others, but they are poisonous (EFFECT_DEFS.poison)
-  [ITEM.BLACKBERRIES]:  { name: 'Blackberries',   stack: 60, icon: 'blackberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600,
+  [ITEM.BLACKBERRIES]:  { name: 'Blackberries',   stack: 50, icon: 'blackberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600,
                           foodEffect: 'poison', foodEffectTime: 5, desc: 'Poisonous' },   // 5 s, not poison's 10 (0.8291)
-  [ITEM.YELLOW_BERRIES]: { name: 'Yellow berries', stack: 60, icon: 'yellowberries', foodSatFull: 0, food: 7.5, foodSat: 5, eatTime: 0.6, spoil: 600, desc: '' },
-  [ITEM.WHITE_BERRIES]: { name: 'White berries',  stack: 60, icon: 'whiteberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodCleanse: 1,
+  [ITEM.YELLOW_BERRIES]: { name: 'Yellow berries', stack: 50, icon: 'yellowberries', foodSatFull: 0, food: 7.5, foodSat: 5, eatTime: 0.6, spoil: 600, desc: '' },
+  [ITEM.WHITE_BERRIES]: { name: 'White berries',  stack: 50, icon: 'whiteberries',  foodSatFull: 0, food: 5,  foodSat: 5,  eatTime: 0.6, spoil: 600, foodCleanse: 1,
                           desc: 'Takes a little thirst, but washes a second off every bad effect with a time' },
   // 0.761: the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
   [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 15, food: 30,  foodSat: 30,  eatTime: 4.8, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
   [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 35, food: 60, foodSat: 70, eatTime: 4.8, foodHeal: 15, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
-  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 20, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: 265, foodHeal: 5, spoil: 3600, desc: '' },
-  [ITEM.BREAD]:         { name: 'Bread',          stack: 99, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
-  [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 30, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 10, foodEffect: 'rapidRegen', desc: '' },
-  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 99, icon: 'mutton',        foodSatFull: 5, food: 10,  foodSat: 15,  eatTime: 2.16, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },
-  [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 99, icon: 'cooked_mutton', foodSatFull: 20, food: 30,  foodSat: 35,  eatTime: 2.4, spoil: 14400, desc: '' },
+  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 10, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: 265, foodHeal: 5, spoil: 3600, desc: '' },
+  [ITEM.BREAD]:         { name: 'Bread',          stack: 79, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
+  [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 20, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 10, foodEffect: 'rapidRegen', desc: '' },
+  [ITEM.MUTTON]:        { name: 'Mutton',         stack: 79, icon: 'mutton',        foodSatFull: 5, food: 10,  foodSat: 15,  eatTime: 2.16, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },
+  [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 79, icon: 'cooked_mutton', foodSatFull: 20, food: 30,  foodSat: 35,  eatTime: 2.4, spoil: 14400, desc: '' },
   // beef is the best meat in the game once cooked, which is what makes hunting cows worth it
-  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 99, icon: 'beef',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 2000, desc: '' },
-  [ITEM.COOKED_BEEF]:   { name: 'Steak',          stack: 99, icon: 'cooked_beef',   foodSatFull: 25, food: 40,  foodSat: 50, eatTime: 2.64, spoil: 28800, desc: '' },
-  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 99, icon: 'rotten_flesh',  foodSatFull: 0, food: 10,  foodSat: 0,  eatTime: 1.56, foodEffect: 'nausea', foodEffectChance: 0.9, spoil: 7200, desc: 'Edible, but barely' },
+  [ITEM.BEEF]:          { name: 'Raw beef',       stack: 79, icon: 'beef',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 2000, desc: '' },
+  [ITEM.COOKED_BEEF]:   { name: 'Steak',          stack: 79, icon: 'cooked_beef',   foodSatFull: 25, food: 40,  foodSat: 50, eatTime: 2.64, spoil: 28800, desc: '' },
+  [ITEM.ROTTEN_FLESH]:  { name: 'Rotten flesh',   stack: 79, icon: 'rotten_flesh',  foodSatFull: 0, food: 10,  foodSat: 0,  eatTime: 1.56, foodEffect: 'nausea', foodEffectChance: 0.9, spoil: 7200, desc: 'Edible, but barely' },
   // 0.821: five rotten flesh pressed into one, which a bench works into leather (25-crafting.js)
-  [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 60, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },
+  [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 50, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },
   // pork (0.789): a shade under beef cooked, and it spoils faster than any other meat raw
-  [ITEM.PORK]:          { name: 'Raw pork',       stack: 99, icon: 'pork',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.6, spoil: 2600, desc: '' },
-  [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 99, icon: 'cooked_pork',   foodSatFull: 20, food: 35,  foodSat: 45,  eatTime: 2.52, spoil: 22400, desc: '' },
+  [ITEM.PORK]:          { name: 'Raw pork',       stack: 79, icon: 'pork',          foodSatFull: 5, food: 15,  foodSat: 20,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.6, spoil: 2600, desc: '' },
+  [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 79, icon: 'cooked_pork',   foodSatFull: 20, food: 35,  foodSat: 45,  eatTime: 2.52, spoil: 22400, desc: '' },
   // fish (0.805): lighter than meat and quicker to eat; the bigger the fish, the more it fills. Raw may turn the stomach
-  [ITEM.COD]:            { name: 'Raw cod',        stack: 99, icon: 'cod',            foodSatFull: 5, food: 10, foodSat: 10, eatTime: 1.68, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 99, icon: 'cooked_cod',     foodSatFull: 15, food: 25, foodSat: 30, eatTime: 1.92, spoil: 14400, desc: '' },
-  [ITEM.SALMON]:         { name: 'Raw salmon',     stack: 99, icon: 'salmon',         foodSatFull: 5, food: 10, foodSat: 15, eatTime: 1.8, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_SALMON]:  { name: 'Cooked salmon',  stack: 99, icon: 'cooked_salmon',  foodSatFull: 15, food: 30, foodSat: 35, eatTime: 2.04, spoil: 14400, desc: '' },
-  [ITEM.PIKE]:           { name: 'Raw pike',       stack: 99, icon: 'pike',           foodSatFull: 5, food: 15, foodSat: 15, eatTime: 1.92, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_PIKE]:    { name: 'Cooked pike',    stack: 99, icon: 'cooked_pike',    foodSatFull: 20, food: 30, foodSat: 40, eatTime: 2.16, spoil: 14400, desc: '' },
-  [ITEM.CATFISH]:        { name: 'Raw catfish',    stack: 99, icon: 'catfish',        foodSatFull: 5, food: 15, foodSat: 20, eatTime: 2.04, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
-  [ITEM.COOKED_CATFISH]: { name: 'Cooked catfish', stack: 99, icon: 'cooked_catfish', foodSatFull: 20, food: 35, foodSat: 45, eatTime: 2.28, spoil: 14400, desc: '' },
+  [ITEM.COD]:            { name: 'Raw cod',        stack: 79, icon: 'cod',            foodSatFull: 5, food: 10, foodSat: 10, eatTime: 1.68, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 79, icon: 'cooked_cod',     foodSatFull: 15, food: 25, foodSat: 30, eatTime: 1.92, spoil: 14400, desc: '' },
+  [ITEM.SALMON]:         { name: 'Raw salmon',     stack: 79, icon: 'salmon',         foodSatFull: 5, food: 10, foodSat: 15, eatTime: 1.8, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_SALMON]:  { name: 'Cooked salmon',  stack: 79, icon: 'cooked_salmon',  foodSatFull: 15, food: 30, foodSat: 35, eatTime: 2.04, spoil: 14400, desc: '' },
+  [ITEM.PIKE]:           { name: 'Raw pike',       stack: 79, icon: 'pike',           foodSatFull: 5, food: 15, foodSat: 15, eatTime: 1.92, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_PIKE]:    { name: 'Cooked pike',    stack: 79, icon: 'cooked_pike',    foodSatFull: 20, food: 30, foodSat: 40, eatTime: 2.16, spoil: 14400, desc: '' },
+  [ITEM.CATFISH]:        { name: 'Raw catfish',    stack: 79, icon: 'catfish',        foodSatFull: 5, food: 15, foodSat: 20, eatTime: 2.04, foodEffect: 'nausea', foodEffectChance: 0.4, spoil: 1800, desc: '' },
+  [ITEM.COOKED_CATFISH]: { name: 'Cooked catfish', stack: 79, icon: 'cooked_catfish', foodSatFull: 20, food: 35, foodSat: 45, eatTime: 2.28, spoil: 14400, desc: '' },
   // rendered off a pig. Not food — it is fuel and a crafting ingredient, so it never spoils
-  [ITEM.FAT]:           { name: 'Fat',            stack: 99, icon: 'fat',           desc: 'Burns well for 1.5 smelt. Used as crafting ingredient' },
+  [ITEM.FAT]:           { name: 'Fat',            stack: 79, icon: 'fat',           desc: 'Burns well for 1.5 smelt. Used as crafting ingredient' },
 // Armor. `equip` names the equipment slot the piece goes into; `armor` is its point value.
 // 100 armor points = the full 5-icon bar, 5 points a quarter icon (x5 in 0.82, it was out of 20). `armorMat`
 // picks both the armor-bar sprite theme and the body overlay on the preview (<mat>/<mat>_<part>.png, 0.82).
 // Optional stat modifiers, all additive across worn pieces:
-//   moveSpeed   fraction of walk speed, e.g. -0.025 = the 2.5% slow each iron plate costs
+//   moveSpeed   fraction of walk speed, e.g. -0.015 = the 1.5% slow an iron chestplate costs (iron's halved in 0.8443)
+// 0.8443: every piece of a material lasts as long as that material's CHESTPLATE (the pass under the table copies it),
+// so only the chestplate's `durability` counts; the other pieces' numbers are what they were before.
 //   strength    flat bonus damage added to whatever the held weapon deals
 //   atkSpeed    fraction added to the attack-speed multiplier
   /* Leather is the insulating tier: every piece traps heat, which is 8% cold resistance and a 5%
@@ -251,12 +267,12 @@ const ITEM_PROPS = {
   [ITEM.LEATHER_LEGGINGS]:   { name: 'Leather trousers',   stack: 1, icon: 'leather_leggings',   equip: 'leggings',   armor: 10, tier: 1, durability: 75,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, desc: '' },
   [ITEM.LEATHER_BOOTS]:      { name: 'Leather boots',      stack: 1, icon: 'leather_boots',      equip: 'boots',      armor: 5, tier: 1, durability: 65,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, moveSpeed: 0.005, desc: '' },
   [ITEM.LEATHER_GLOVES]:     { name: 'Leather gloves',     stack: 1, icon: 'leather_gloves',     equip: 'gloves',     armor: 5, tier: 1, durability: 50,  armorMat: 'leather', coldResist: 0.08, heatResist: -0.05, strength: 1.25, desc: '' },
-  [ITEM.IRON_HELMET]:        { name: 'Iron helmet',        stack: 1, icon: 'iron_helmet',        equip: 'helmet',     armor: 10, tier: 3, durability: 165, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
-  [ITEM.IRON_CHESTPLATE]:    { name: 'Iron chestplate',    stack: 1, icon: 'iron_chestplate',    equip: 'chestplate', armor: 30, tier: 3, durability: 240, armorMat: 'iron',    moveSpeed: -0.03, desc: '' },
-  [ITEM.IRON_LEGGINGS]:      { name: 'Iron leggings',      stack: 1, icon: 'iron_leggings',      equip: 'leggings',   armor: 25, tier: 3, durability: 225, armorMat: 'iron',    moveSpeed: -0.025, desc: '' },
-  [ITEM.IRON_BOOTS]:         { name: 'Iron boots',         stack: 1, icon: 'iron_boots',         equip: 'boots',      armor: 10, tier: 3, durability: 195, armorMat: 'iron',    moveSpeed: -0.01, desc: '' },
+  [ITEM.IRON_HELMET]:        { name: 'Iron helmet',        stack: 1, icon: 'iron_helmet',        equip: 'helmet',     armor: 10, tier: 3, durability: 165, armorMat: 'iron',    moveSpeed: -0.005, desc: '' },
+  [ITEM.IRON_CHESTPLATE]:    { name: 'Iron chestplate',    stack: 1, icon: 'iron_chestplate',    equip: 'chestplate', armor: 30, tier: 3, durability: 240, armorMat: 'iron',    moveSpeed: -0.015, desc: '' },
+  [ITEM.IRON_LEGGINGS]:      { name: 'Iron leggings',      stack: 1, icon: 'iron_leggings',      equip: 'leggings',   armor: 25, tier: 3, durability: 225, armorMat: 'iron',    moveSpeed: -0.0125, desc: '' },
+  [ITEM.IRON_BOOTS]:         { name: 'Iron boots',         stack: 1, icon: 'iron_boots',         equip: 'boots',      armor: 10, tier: 3, durability: 195, armorMat: 'iron',    moveSpeed: -0.005, desc: '' },
   // gloves have no preview overlay sheet yet — the preview only draws the four body pieces
-  [ITEM.IRON_GLOVES]:        { name: 'Iron gloves',        stack: 1, icon: 'iron_gloves',        equip: 'gloves',     armor: 5, tier: 3, durability: 150, armorMat: 'iron',    moveSpeed: -0.005, strength: 3.75, desc: '' },
+  [ITEM.IRON_GLOVES]:        { name: 'Iron gloves',        stack: 1, icon: 'iron_gloves',        equip: 'gloves',     armor: 5, tier: 3, durability: 150, armorMat: 'iron',    moveSpeed: -0.0025, strength: 3.75, desc: '' },
   [ITEM.GOLDEN_HELMET]:      { name: 'Golden helmet',      stack: 1, icon: 'golden_helmet',      equip: 'helmet',     armor: 10, tier: 3, durability: 77,  armorMat: 'golden',  desc: '' },
   [ITEM.GOLDEN_CHESTPLATE]:  { name: 'Golden chestplate',  stack: 1, icon: 'golden_chestplate',  equip: 'chestplate', armor: 25, tier: 3, durability: 112, armorMat: 'golden',  desc: '' },
   [ITEM.GOLDEN_LEGGINGS]:    { name: 'Golden leggings',    stack: 1, icon: 'golden_leggings',    equip: 'leggings',   armor: 15, tier: 3, durability: 105, armorMat: 'golden',  desc: '' },
@@ -293,8 +309,24 @@ for (const [hoe, pick] of [[ITEM.FLINT_HOE, ITEM.FLINT_PICKAXE], [ITEM.STONE_HOE
 const TOOL_DURABILITY_MUL = 1.2;
 for (const p of Object.values(ITEM_PROPS))
   if (p && p.durability && (p.tool || p.ranged || p.shield)) p.durability = Math.round(p.durability * TOOL_DURABILITY_MUL);
+/* Armor wear (0.8443): a helmet, leggings, boots and gloves last exactly as long as the chestplate of their material
+   (leather 80, iron 240, golden 112, diamond 528, cloth 60). A piece saved with the wear it had keeps that number. */
+{
+  const chest = {};
+  for (const p of Object.values(ITEM_PROPS)) if (p && p.armorMat && p.equip === 'chestplate' && p.durability) chest[p.armorMat] = p.durability;
+  for (const p of Object.values(ITEM_PROPS)) if (p && p.armor && p.armorMat && chest[p.armorMat]) p.durability = chest[p.armorMat];
+}
 // every meat leaves rotten flesh behind when it turns, cooked or raw (0.7992)
 for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK,
                   ITEM.COD, ITEM.COOKED_COD, ITEM.SALMON, ITEM.COOKED_SALMON,          // fish too (0.805)
                   ITEM.PIKE, ITEM.COOKED_PIKE, ITEM.CATFISH, ITEM.COOKED_CATFISH])
   if (ITEM_PROPS[id]) ITEM_PROPS[id].spoilInto = ITEM.ROTTEN_FLESH;
+/* ...and fruit and plant food leaves a fiber (0.8445): apples, the melon and cantaloupe slices, every berry, the
+   pumpkin and the grilled mushrooms (those two are blocks: their clocks are in PROPS). Baked and cooked dishes
+   (bread, pies, the stew) still leave nothing but their bowl or bucket. */
+for (const id of [ITEM.APPLE, ITEM.MELON_SLICE, ITEM.CANTALOUPE_SLICE, ITEM.BERRIES, ITEM.BLUE_BERRIES,
+                  ITEM.BLACKBERRIES, ITEM.YELLOW_BERRIES, ITEM.WHITE_BERRIES])
+  if (ITEM_PROPS[id]) ITEM_PROPS[id].spoilInto = ITEM.FIBER;
+for (const id of [B.PUMPKIN, B.GRILLED_RED_MUSHROOM, B.GRILLED_BROWN_MUSHROOM, B.GRILLED_BLUE_MUSHROOM,
+                  B.GRILLED_BLACK_MUSHROOM, B.GRILLED_WHITE_MUSHROOM, B.GRILLED_YELLOW_MUSHROOM])
+  if (id != null && PROPS[id]) PROPS[id].spoilInto = ITEM.FIBER;

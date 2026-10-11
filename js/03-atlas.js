@@ -15,6 +15,8 @@
 const ART_PX = 128;                               // the size every block tile is normalised to (0.808)
 const OAK_LEAF_TINT = 'rgb(104,158,64)';          // the grey oak leaf art, multiplied by this leaf green (0.809)
 const BIRCH_LEAF_TINT = 'rgb(128,167,85)';        // birch's paler, yellower green (0.8093)
+const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the oak leaf art gone very pale and dry (0.8411)
+const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green (0.8445)
 /* ================================================================================================ */
 
 /* ---- texture quality (0.752; array 0.809) ----
@@ -178,7 +180,12 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'packed_ice'                                            // 0.835 (T 376)
                      ,'water_flow_fast', 'water_fall'                         // 0.835491 (T 377-378): the flow art, faster
                      // 0.836: rime wood (T 379-384)
-                     ,'rime_log', 'rime_log_top', 'stripped_rime_log', 'stripped_rime_log_top', 'rime_planks', 'rime_leaves'];
+                     ,'rime_log', 'rime_log_top', 'stripped_rime_log', 'stripped_rime_log_top', 'rime_planks', 'rime_leaves'
+                     // 0.84: palm wood and sapling, the dry plants (T 385-395); the tall dry grass split in two below
+                     ,'palm_log', 'palm_log_top', 'stripped_palm_log', 'stripped_palm_log_top', 'palm_planks', 'palm_leaves'
+                     ,'palm_sapling', 'dry_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top', 'dry_bush'
+                     // 0.8411: the Dryland's pale grass block and its dry leaves (T 396-398), built below, never fetched
+                     ,'grass_block_top_dry', 'grass_block_side_dry', 'dry_leaves'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -250,7 +257,12 @@ function loadImage(name, url) {
 const MESH_TEXTURES = ['oak_door',
                        'bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow',      // 0.8342
                        ...Object.keys(TEXTURES).filter(n => n.startsWith('chest_')),   // wood, metal, double halves (0.809)
-                       'wool', 'oak_planks', 'birch_planks', 'spruce_planks'];         // planks: a chest's wood colour (0.809)
+                       'wool', 'oak_planks', 'birch_planks', 'spruce_planks',          // planks: a chest's wood colour (0.809)
+                       // 0.842: every door material's art, each door's look is drawn from it (27-doors.js), its looks too
+                       // 0.843: ...and the metal chest's, its body drawn from the iron, copper or gold block (30-chest.js)
+                       ...new Set([...PROPS.flatMap((p, id) => p?.shapes?.door ? [ATLAS_TILES[p.faces[4] ?? p.faces[0]]] : []),
+                                   ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])]
+                                       .filter(n => n && TEXTURES[n] && n !== 'oak_planks' && n !== 'birch_planks' && n !== 'spruce_planks'))];
 // name -> url for everything in this group; MESH_TEXTURES resolve through TEXTURES like block art
 const _gameArtSources = () => ({
   ...ITEM_TEXTURES, ...EQUIP_TEXTURES,
@@ -396,12 +408,12 @@ function _checkTileOrder() {
 /* 0.812: every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
    the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
    its segments stay joined; the upper half of tall grass carries on from the lower (3). */
-const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2 };   // rime leaves are frozen stiff (0.836)
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2 };   // rime leaves are frozen stiff (0.836); palm 0.84; dry 0.8411
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
   if (p.torch || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;   // every torch (0.834)
-  const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER ? 3 : 1;
+  const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER || id === B.DRY_TALL_UPPER ? 3 : 1;   // dry 0.84
   for (const t of [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || [])])   // cane pieces 0.829
     if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
@@ -508,9 +520,11 @@ async function buildAtlas() {
 
   // tall_grass.png is one 2-tall sprite (e.g. 60x120): split it into a top and bottom half so
   // each of the two stacked blocks samples the correct portion instead of the whole squished image
-  if (IMAGES.tallgrass) {
-    const src = IMAGES.tallgrass, hw = src.width, hh = src.height / 2;
-    for (const [name, sy] of [['tallgrass_bottom', hh], ['tallgrass_top', 0]]) {
+  // ...and the tall dry grass the same way (0.84)
+  for (const [sheet, bot, top] of [['tallgrass', 'tallgrass_bottom', 'tallgrass_top'], ['dry_tall_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top']]) {
+    if (!IMAGES[sheet]) continue;
+    const src = IMAGES[sheet], hw = src.width, hh = src.height / 2;
+    for (const [name, sy] of [[bot, hh], [top, 0]]) {
       const c = document.createElement('canvas'); c.width = hw; c.height = hh;
       c.getContext('2d').drawImage(src, 0, sy, hw, hh, 0, 0, hw, hh);
       IMAGES[name] = c;
@@ -568,6 +582,12 @@ async function buildAtlas() {
     IMAGES.grass_block_side_warm = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', warmRGB);
     IMAGES.grass_block_side_cold = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', coldRGB);
   }
+  /* The Dryland's grass (0.8411): very pale and dry, beyond the warm one. Its own tiles, so the climate never moves it. */
+  const dryRGB = mixRGB(grassRGB, [222, 210, 150], 0.82), dryTint = rgbStr(dryRGB);
+  if (IMAGES.grass_side_base && IMAGES.grass_side_overlay)
+    IMAGES.grass_block_side_dry = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', dryRGB);
+  IMAGES.grass_block_top_dry = IMAGES.grass_block_top;
+  IMAGES.dry_leaves = IMAGES.oak_leaves;                // the grey oak leaves, tinted pale below (before the oak's own tint)
   IMAGES.grass_block_top_warm = IMAGES.grass_block_top_cold = IMAGES.grass_block_top;
   IMAGES.tallgrass_bottom_warm = IMAGES.tallgrass_bottom_cold = IMAGES.tallgrass_bottom;
   IMAGES.tallgrass_top_warm = IMAGES.tallgrass_top_cold = IMAGES.tallgrass_top;
@@ -607,7 +627,8 @@ async function buildAtlas() {
   for (const [name, col] of [['tallgrass_bottom', tint], ['tallgrass_top', tint], ['oak_leaves', OAK_LEAF_TINT],
                              ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],   // 0.823
                              ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', coldTint],
-                             ['birch_leaves', BIRCH_LEAF_TINT]]) {
+                             ['birch_leaves', BIRCH_LEAF_TINT], ['dry_leaves', DRY_LEAF_TINT],     // dry 0.8411
+                             ['palm_leaves', PALM_LEAF_TINT]]) {                                    // palm 0.8445
     const src = IMAGES[name];
     if (!src) continue;
     const c = document.createElement('canvas');
@@ -648,7 +669,7 @@ async function buildAtlas() {
     ctx.globalAlpha = 1;
     // opaque tile: multiply tint (rich); the warm and cold tops their own (0.823)
     const topTint = name === 'grass_block_top' ? tint : name === 'grass_block_top_warm' ? warmTint
-                  : name === 'grass_block_top_cold' ? coldTint : null;
+                  : name === 'grass_block_top_cold' ? coldTint : name === 'grass_block_top_dry' ? dryTint : null;   // dry 0.8411
     if (topTint) {
       ctx.globalCompositeOperation = 'multiply';
       ctx.fillStyle = topTint;

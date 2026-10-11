@@ -71,7 +71,7 @@ function _feedBump(el) {
    a warning at the file's own pitch, a critical one low. Rate shifts pitch here (see playSound's
    `pitch`). The same row cannot chime more than once in FEED_CHIME_GAP, so drowning's hit every second
    is a steady pulse rather than a pile-up. */
-const FEED_CHIME_RATE = { level: 1.26, warn: 1.0, crit: 0.72 };
+const FEED_CHIME_RATE = { level: 1.26, warn: 1.0, crit: 0.72, craft: 1.5 };   // craft (0.8444): a station's order done, higher still
 const FEED_CHIME_GAP = 900;      // ms
 /* A gold row's chime is capped across ALL of them (0.7992): finishing a quest that also levels you up,
    or two quests at once, used to ring two or three times over each other. One ring, then a pause. */
@@ -127,6 +127,31 @@ function _feedPush(key, cls, html) {
 /* ---------------------------------- item events ----------------------------------
    `delta` is signed: positive for what you gained, negative for what left. `reason` is how it
    happened, and is part of the stacking key. */
+/* How many of it the player now carries, in front of the amount (0.8442): "[41] +11 Stick". Counted over the hotbar,
+   the bags and a worn backpack, AFTER the frame's work is done: some callers tell the feed before they change the
+   slot (a placed block), others after (a pickup), so the count waits for the dust to settle. The seat's own grids are
+   kept from the call, as by then another seat's may be the ones installed (split screen). */
+const _feedHaveQ = new Map();    // row -> [id, hotbar, bags, backpack, how much of it is open]
+let _feedHaveDue = false;
+function _feedHaveSoon(row, id) {
+  if (typeof HOTBAR === 'undefined' || typeof invSlots === 'undefined') return;
+  const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+  _feedHaveQ.set(row, [id, HOTBAR, invSlots, typeof invSlots2 !== 'undefined' ? invSlots2 : null, packN]);
+  if (_feedHaveDue) return;
+  _feedHaveDue = true;
+  Promise.resolve().then(() => {
+    _feedHaveDue = false;
+    for (const [r, [rid, hot, inv, inv2, pn]] of _feedHaveQ) {
+      let n = 0;
+      for (const s of hot) if (s && s.id === rid) n += s.count;
+      for (const s of inv) if (s && s.id === rid) n += s.count;
+      if (inv2) for (let i = 0; i < pn && i < inv2.length; i++) { const s = inv2[i]; if (s && s.id === rid) n += s.count; }
+      const el = r.el && r.el.querySelector('.fHave');
+      if (el) el.textContent = '[' + n + ']';
+    }
+    _feedHaveQ.clear();
+  });
+}
 function feedItem(id, delta, reason) {
   if (id == null || !delta) return;
   if (typeof PROPS === 'undefined') return;
@@ -136,10 +161,11 @@ function feedItem(id, delta, reason) {
   const src = typeof renderBlockIcon === 'function' ? renderBlockIcon(id) : '';
   const row = _feedPush(key, sign > 0 ? 'gain' : 'loss',
     `<span class="fIcon">${src ? `<img class="i3d" src="${src}" alt="">` : FEED_INFO_SVG}</span>` +
-    '<span class="fTxt"><b class="fAmt"></b> <span class="fName"></span></span>' +
+    '<span class="fTxt"><span class="fHave"></span> <b class="fAmt"></b> <span class="fName"></span></span>' +
     `<span class="fWhy">${_feedEsc(reason || '')}</span>`);
   if (!row) return;
   row.amt += Math.abs(delta);
+  _feedHaveSoon(row, id);                          // [how many you carry now] (0.8442)
   row.el.querySelector('.fAmt').textContent = (sign > 0 ? '+' : '−') + row.amt;
   row.el.querySelector('.fName').textContent = _feedName(id);
   /* The icon can come back empty while a block's mesh art is still loading (renderBlockIcon does
@@ -173,6 +199,17 @@ const feedCrit = (msg) => feedInfo(msg, 'crit');   // you are losing health righ
 const FEED_STAR_SVG =
   '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">' +
   '<path d="M8 1.2l2.05 4.3 4.7.6-3.45 3.25.88 4.65L8 11.75 3.82 14l.88-4.65L1.25 6.1l4.7-.6z" fill="currentColor"/></svg>';
+/* A station's order finished (0.8444, updateBenchWork in 25-crafting.js): a yellow-gold row of its own (.craft in
+   style.css) with its own chime, a step above the level-up's, so it is heard apart from a warning or a level. */
+function feedCraft(text) {
+  const t = String(text == null ? '' : text);
+  if (!t) return;
+  const row = _feedPush('craft:' + t, 'craft',
+    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b></span>`);
+  if (!row) return;
+  row.el.querySelector('.fAmt').textContent = t;
+  if (!row.fresh) _feedBump(row.el);
+}
 function feedLevel(level) {
   const row = _feedPush('lvl', 'level',
     `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Reached level <b class="fAmt"></b></span>`);

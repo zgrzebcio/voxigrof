@@ -7,8 +7,12 @@
             edges of the view
      FLASH  lightning close by whites the view out for a moment, more the nearer it struck (cameraFilterLightning)
      FIRE   on fire, flames lick up from the bottom of the view
-   Under water nothing sits on the lens. The canvas is hidden whenever there is nothing on it. Sizes are shares of the
-   view's height, so a split-screen quarter looks the same as a whole window. */
+   Under water no drop or flake sits on the lens, but the view takes the wet lens's own blue (0.8444, CF_UNDER_*): the
+   same sheen as just out of the water, a little stronger, easing in as you go under and off as you come up. The
+   canvas is hidden whenever there is nothing on it. Sizes are shares of the view's height, so a split-screen quarter
+   looks the same as a whole window. */
+const CF_UNDER_TOP = 0.14, CF_UNDER_BOTTOM = 0.36;    // the under-water sheen's strength at the top and bottom of the view
+const CF_UNDER_IN_S = 0.25, CF_UNDER_OUT_S = 0.5;     // how fast it comes and goes
 const CF_RES = 0.5;                                   // canvas pixels per CSS pixel: soft is fine, and cheap
 const CF_RAIN_PER_S = 7, CF_SNOW_PER_S = 4, CF_BLIZ_PER_S = 26, CF_SPLASH_DROPS = 46;
 const CF_MAX_DROPS = 140, CF_MAX_FLAKES = 320;
@@ -100,7 +104,7 @@ function _cfStep(f, p, pane, dt) {
   if (dt < 0 || !p.spawned || p.dead || (typeof _fxScale === 'number' && _fxScale <= 0)) {
     // the title, a dead seat or the particles off: nothing on the lens
     if (f.shown) { f.c.style.display = 'none'; f.shown = false; }
-    f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = 0;
+    f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = f.under = 0;
     return;
   }
   const w = Math.max(1, Math.round(pane.clientWidth * CF_RES)), h = Math.max(1, Math.round(pane.clientHeight * CF_RES));
@@ -132,6 +136,8 @@ function _cfStep(f, p, pane, dt) {
     } else f.snowAcc = 0;
   }
   f.wasUnder = under;
+  // the water over the lens (0.8444): eased, so it does not snap on at the surface
+  f.under = (f.under || 0) + ((under ? 1 : 0) - (f.under || 0)) * (1 - Math.exp(-dt / (under ? CF_UNDER_IN_S : CF_UNDER_OUT_S)));
   // a blizzard's frost round the edges, creeping in and slowly going
   const frostAim = !under && f.open ? pr.blizzard : 0;
   f.frost += (frostAim - f.frost) * (1 - Math.exp(-dt / (frostAim > f.frost ? CF_FROST_IN_S : CF_FROST_OUT_S)));
@@ -154,10 +160,17 @@ function _cfStep(f, p, pane, dt) {
     if (d.y - d.r > h) f.drops.splice(i, 1);
   }
   for (let i = f.flakes.length - 1; i >= 0; i--) if ((f.flakes[i].life -= dt) <= 0) f.flakes.splice(i, 1);
-  const any = f.drops.length || f.flakes.length || f.wet > 0.01 || f.frost > 0.01 || f.flash > 0.01 || f.fire > 0.01;
+  const any = f.drops.length || f.flakes.length || f.wet > 0.01 || f.frost > 0.01 || f.flash > 0.01 || f.fire > 0.01 || f.under > 0.01;
   if (!any) { if (f.shown) { g.clearRect(0, 0, w, h); f.c.style.display = 'none'; f.shown = false; } return; }
   if (!f.shown) { f.c.style.display = 'block'; f.shown = true; }
   g.clearRect(0, 0, w, h);
+  // under water: the wet lens's colours over the whole view (0.8444)
+  if (f.under > 0.01) {
+    const u = g.createLinearGradient(0, 0, 0, h);
+    u.addColorStop(0, `rgba(170,200,225,${(CF_UNDER_TOP * f.under).toFixed(3)})`);
+    u.addColorStop(1, `rgba(120,160,200,${(CF_UNDER_BOTTOM * f.under).toFixed(3)})`);
+    g.fillStyle = u; g.fillRect(0, 0, w, h);
+  }
   // the wet lens just out of the water
   if (f.wet > 0.01) {
     const s = g.createLinearGradient(0, 0, 0, h);

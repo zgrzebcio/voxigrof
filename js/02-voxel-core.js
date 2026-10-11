@@ -40,8 +40,17 @@ function VOXEL_CORE() {
   const TINTED = new Uint8Array(1024);
   for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL]) TINTED[t] = 1;
   // the climate sampler (climAt, 55-biomes.js): the worker sets it from its world's generator; icons have none
-  let _climAt = null;
-  const setTintSampler = (fn) => { _climAt = fn || null; };                                                       // 0.804                                                  // 0.801                                                 // 0.7947
+  let _climAt = null, _dryAt = null;
+  /* The Dryland's dry grass (0.8442): the grass block's top and sides fade to their pale dry look (T.GRASS_TOP_DRY,
+     T.GRASS_SIDE_DRY) by a second value per vertex, 0 green .. 1 dry, from the generator's own field (dryAt, 55), so the
+     two colours meet over tens of blocks and not block by block. It rides in the `dark` attribute, which only water
+     used (its depth shade): the opaque pass's vertex shader reads it as dryness (04). In a world chunk the block's own
+     GRASS_DRY variant no longer picks its tile; icons and drops (no sampler) still show it by that. */
+  const DRY_TILE = new Uint8Array(1024);
+  DRY_TILE[T.GRASS_TOP] = 1; DRY_TILE[T.GRASS_SIDE] = 1;
+  // ...and the grass PLANTS since 0.8444: short and tall grass pale by the same dryness at their foot (the shader, 04)
+  DRY_TILE[T.GRASS_PLANT] = 1; DRY_TILE[T.TALL_BOT] = 1; DRY_TILE[T.TALL_TOP] = 1;
+  const setTintSampler = (fn, dry) => { _climAt = fn || null; _dryAt = dry || null; };                                                     // 0.804                                                  // 0.801                                                 // 0.7947
   const CX = 16, CY = 250, CZ = 16;
   /* Flat ("superflat") worlds: a 25-block slab — 1 bedrock, 19 stone, 4 dirt, 1 grass — with a
      matching low water level so lakes and ponds still carve into it. Everything else about the
@@ -107,6 +116,12 @@ function VOXEL_CORE() {
     };
   }
 
+  /* A wild berry bush's growth stage from a roll 0..1 (0.8441): ripe, with its fruit, 20% more often than the even sixth it
+     was (BERRY_RIPE_SHARE 0.2), the other five stages sharing the rest evenly. New chunks only, any world (no seam to see). */
+  const BERRY_RIPE_SHARE = 0.2;
+  const wildBerryStage = (r) => r < BERRY_RIPE_SHARE ? BERRY_STAGE.GROWN
+    : Math.min(BERRY_STAGE.GROWN - 1, ((r - BERRY_RIPE_SHARE) / (1 - BERRY_RIPE_SHARE) * BERRY_STAGE.GROWN) | 0);
+
   /* ---------- terrain generator ---------- */
   /* biomeRev (0.819): 1 for worlds made before 0.819, so their unexplored land still joins what they already have;
      2 gives bigger snow and desert biomes (see `temp` below). Fixed per world at creation (w.biomeRev). */
@@ -118,6 +133,9 @@ function VOXEL_CORE() {
     const SPIKES = biomeRev >= 9;                     // 0.835: the Ice Spikes biome and the snow's icebergs
     const BIG_BERGS = biomeRev >= 10;                 // 0.8351: about a third of the icebergs big and high
     const SHROOMS2 = biomeRev >= 20;                  // 0.837: 30% more mushrooms, by the kind of tree over them
+    const FOSSIL2 = biomeRev >= 24;                   // 0.8442: 70% fewer skeletons in the Dryland
+    const LAVA2 = biomeRev >= 25;                     // 0.8444: 20% more surface lava ponds in warm plains and the Dryland
+    const PALM2 = biomeRev >= 26;                     // 0.8445: shore palms only where the land is level +1 or warmer
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
     const seedInt = seedFn();
@@ -140,7 +158,17 @@ function VOXEL_CORE() {
     biome's name (biomeAt) and the sub-biome masks — live in 55-biomes.js since 0.823 (BIOME_CORE, shipped into the
     worker beside this core). */
     const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
-    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2 } = bio;
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND } = bio;
+    /* The desert update (0.84, rev 21, 55-biomes.js): the Deep Desert's rock is banded sandstone from DD_ROCK_FROM up,
+       a band of red every DD_BAND layers (ddStrata: `off` wobbles the bands by column). Rev 22 (0.841) by its half,
+       `kind`: 1 the Deep Desert, sandstone with a thin red band every DD_BAND_Y; 2 the Deep Red Desert, red sandstone
+       with a pale band every DD_BAND; 0 rev 21's. */
+    const DD_ROCK_FROM = 80, DD_BAND = 9, DD_BAND_Y = 13;
+    const ddStrata = (y, off, kind = 0) => {
+      if (kind === 1) return (((y + off) % DD_BAND_Y) + DD_BAND_Y) % DD_BAND_Y === 0 ? B.RED_SANDSTONE : B.SANDSTONE;
+      const k = (((y + off) % DD_BAND) + DD_BAND) % DD_BAND;
+      return kind === 2 ? (k < 2 ? B.SANDSTONE : B.RED_SANDSTONE) : (k < 2 ? B.RED_SANDSTONE : B.SANDSTONE);
+    };
     /* 0.837 (rev 20): how much of 0.836's rime trees and ice shapes the Coldest Deep Snow keeps, in its Forest half
        (`rimeW` > 0.5) and in the open half (left for building) */
     const rimeKeep = (ti) => !RIME2 ? 1 : ti.rimeW > 0.5 ? 0.5 : 0.12;
@@ -248,6 +276,103 @@ function VOXEL_CORE() {
       return m;
     }
 
+    /* Mountain caves (0.841, biomeRev 22; carved in genChunk): in most MT_CELL squares of high land (MT_HIGH and over: the
+       mountains, the hills' tops, the desert's mesas and crags) a hall inside the mass, 10-22 across, a third to a half of
+       the way up; a tunnel from it out to the slope the way the ground falls soonest (now and then a second the other way,
+       so it runs through), and a winding shaft from its floor down into the deep caves. Halls of neighbouring squares are
+       joined by the rooms' tunnels. A pure function of the cell, kept for the generator's life like the rooms. */
+    const MT_CELL = 64, MT_HIGH = 128, _mtCaves = new Map();
+    function mtCaveOf(gx, gz) {
+      const k = gx + ',' + gz;
+      if (_mtCaves.has(k)) return _mtCaves.get(k);
+      let cv = null;
+      const rr = (n) => hash2(gx * 1301 + n * 97 + 7, gz * 1709 - n * 131 - 3);
+      if (DESERT3 && !FLAT && rr(0) < 0.85) {
+        const x = (gx + 0.2 + 0.6 * rr(1)) * MT_CELL, z = (gz + 0.2 + 0.6 * rr(2)) * MT_CELL, ti = terrainInfo(x, z);
+        if (ti.h >= MT_HIGH && ti.h >= ti.wl + 6) {
+          const r = 5 + 6 * rr(3), ry = r * 0.55;
+          const y = Math.min(ti.h - 9 - ry, 100 + (ti.h - 100) * (0.3 + 0.2 * rr(4)));
+          // the ways out: from the hall, along each of 8 ways, how far before the ground is under the tunnel's roof
+          const reach = [];
+          for (let a = 0; a < 8; a++) {
+            const ca = Math.cos(a * Math.PI / 4), sa = Math.sin(a * Math.PI / 4);
+            let d = 0;
+            for (let s = r + 4; s <= 64 && !d; s += 4) if (terrainInfo(x + ca * s, z + sa * s).h < y + 3) d = s;
+            reach.push(d || 999);
+          }
+          let best = 0;
+          for (let a = 1; a < 8; a++) if (reach[a] < reach[best]) best = a;
+          const exits = [];
+          const exitPath = (a, d, seed) => {
+            const ca = Math.cos(a * Math.PI / 4), sa = Math.sin(a * Math.PI / 4), pts = [], fl = y - ry * 0.5 + 1.6;
+            let px = x, pz = z, ang = 0;
+            for (let s = 0; s <= d + 5; s += 0.8) {
+              ang += (hash2(seed * 13 + s * 7, gz * 11 - s) - 0.5) * 0.12;
+              const c2 = Math.cos(ang), s2 = Math.sin(ang);
+              px = x + (ca * c2 - sa * s2) * s; pz = z + (ca * s2 + sa * c2) * s;
+              const g = terrainInfo(px, pz).h;
+              pts.push([px, fl, pz, g >= fl + 4.5 ? 2 : 0]);               // open (roof 0) where the slope comes down to it
+              if (g < fl - 1) break;                                         // out in the open
+            }
+            return pts;
+          };
+          if (reach[best] < 999) {
+            exits.push(exitPath(best, reach[best], 1));
+            // the other side too, now and then, so it runs right through the mountain
+            const opp = (best + 4) % 8;
+            if (rr(5) < 0.45 && reach[opp] < 999) exits.push(exitPath(opp, reach[opp], 2));
+          }
+          // the deep shaft: winding down from the hall's floor to the deep caves
+          const deep = [], bottom = 18 + 22 * rr(6);
+          let dx = x + (rr(7) - 0.5) * r, dz = z + (rr(8) - 0.5) * r, da = rr(9) * Math.PI * 2;
+          for (let dy = y - ry * 0.4; dy > bottom; dy -= 0.7) {
+            da += (hash2(gx * 17 + dy * 3, gz * 19 - dy) - 0.5) * 0.5;
+            dx += Math.cos(da) * 0.55; dz += Math.sin(da) * 0.55;
+            if (Math.hypot(dx - x, dz - z) > 14) { dx -= Math.cos(da) * 1.1; dz -= Math.sin(da) * 1.1; }
+            deep.push([dx, dy, dz]);
+          }
+          cv = { x, y, z, r, ry, exits, deep, dr: 1.6 + 0.8 * rr(10) };
+        }
+      }
+      _mtCaves.set(k, cv);
+      return cv;
+    }
+    /* Mine shafts (0.841, biomeRev 22; dug in genChunk): in a desert's hills (mostly the red desert's), from the foot of a
+       face dropping 6+ over 7, a tunnel 3 wide and 3 tall straight into the hill, framed in oak every 4 (fence posts and
+       a beam), then a shaft down 8-16 with a ladder to a room with a side tunnel. Burnt-out torches, cobwebs, a few
+       collapsed frames and gravel; gold showing in the red desert's walls. No chest. One per MS_CELL square at most. */
+    const MS_CELL = 80, _mines = new Map();
+    function mineOf(gx, gz) {
+      const k = gx + ',' + gz;
+      if (_mines.has(k)) return _mines.get(k);
+      let m = null;
+      const rr = (n) => hash2(gx * 3301 + n * 61 + 17, gz * 2203 - n * 89 - 41);
+      const c = DESERT3 && !FLAT ? terrainInfo((gx + 0.5) * MS_CELL, (gz + 0.5) * MS_CELL) : null;
+      if (c && c.fDesert > 0.5 && !(c.oas > 0.5) && rr(0) < (c.fRed > 0.5 && !(c.fDeepD > 0.5 && c.ddRed <= 0.5) ? 0.6 : 0.15)) {
+        let best = 5, pick = null;
+        for (let i = 0; i < 9; i++) {
+          const px = (gx + 0.2 + 0.6 * (i % 3) / 2) * MS_CELL, pz = (gz + 0.2 + 0.6 * ((i / 3) | 0) / 2) * MS_CELL, t = terrainInfo(px, pz);
+          if (!(t.fDesert > 0.5) || t.h < t.wl) continue;
+          for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const f = terrainInfo(px - dx * 7, pz - dz * 7), drop = t.h - f.h;   // the foot, 7 out from the high point
+            if (drop > best && f.h > WATER_LEVEL && f.h >= f.wl && f.fDesert > 0.5) { best = drop; pick = [Math.floor(px - dx * 7), Math.floor(pz - dz * 7), f.h, dx, dz]; }
+          }
+        }
+        if (pick) {
+          const [fx, fz, g, dx, dz] = pick, len = 13 + Math.floor(rr(1) * 10);
+          // the hill must stand over the tunnel's middle and end, or it would be a trench
+          const mid = terrainInfo(fx + dx * (len >> 1), fz + dz * (len >> 1)).h, end = terrainInfo(fx + dx * len, fz + dz * len).h;
+          if (mid >= g + 6 && end >= g + 6) {
+            const depth = 8 + Math.floor(rr(2) * 9);
+            m = { fx, fz, y: g + 1, dx, dz, len, depth: Math.min(depth, g + 1 - 12), side: rr(3) < 0.5 ? 1 : -1, sideLen: 5 + Math.floor(rr(4) * 5),
+                  red: c.fRed > 0.5 };
+          }
+        }
+      }
+      _mines.set(k, m);
+      return m;
+    }
+
     /* Generate one chunk of voxels. Column layout (top -> bottom):
        air/water | 1 grass (sand near water) | 5 dirt (or sand) | stone | 2 bedrock.
        Trees are stamped from a 2-block margin so canopies cross chunk borders seamlessly
@@ -268,6 +393,10 @@ function VOXEL_CORE() {
       const CLF = new Float32Array(400);                       // a rocky coast, 0..1 (0.8356, cliffAt in 55)
       const RIM = new Uint8Array(400);                         // the Coldest Deep Snow (0.836, fRime in 55)
       const RIMF = new Float32Array(400);                      // ...how far into it, 0..1 (its canyons fade out)
+      const DDS = new Uint8Array(400);                         // the Deep Desert (0.84, fDeepD in 55)
+      const OAS = new Uint8Array(400);                         // an oasis's land and water (0.84, oas in 55): not desert
+      const DDK = new Uint8Array(400);                         // the Deep Desert's half, ddStrata's kind (0.841)
+      const DRYF = new Float32Array(400);                      // how far into the Dryland, 0..1 (0.8411, fDry in 55)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
       // ocean 4..8 blocks, river/lake 2..4. WW cells: 0 dry, 1 ocean, 2 river/lake.
       // (WG x WG with a WM margin since 0.83547: 32 and 8 before rev 14)
@@ -295,9 +424,13 @@ function VOXEL_CORE() {
             WLV[i] = ti.wl;
             FDV[i] = ti.fd || 0;
             FFV[i] = ti.ff ? 1 : 0;
-            DES[i] = ti.fDesert > 0.5 ? 1 : 0;
-            RED[i] = ti.fRed > 0.5 ? 1 : 0;
-            ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
+            OAS[i] = DESERT2 && ti.oas > 0.5 ? 1 : 0;
+            DDS[i] = DESERT2 && ti.fDeepD > 0.5 ? 1 : 0;
+            DES[i] = ti.fDesert > 0.5 && !OAS[i] ? 1 : 0;        // an oasis is green, not sand (0.84)
+            DDK[i] = DDS[i] && DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0;
+            DRYF[i] = DRYLAND ? ti.fDry : 0;
+            RED[i] = ti.fRed > 0.5 && DDK[i] !== 1 ? 1 : 0;      // the (yellow) Deep Desert's half is not red (0.841)
+            ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5 && !OAS[i]) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
             SNO[i] = ti.fSnow > 0.5 ? 1 : 0;
             DSNO[i] = ti.fDeepSnow > 0.5 ? 1 : 0;
             WARM[i] = LADDER ? ti.warm : ti.fDesert;              // on the ladder the warm plains' beaches (0.8232)
@@ -434,7 +567,7 @@ function VOXEL_CORE() {
               const dist = Math.sqrt(minD2), w = shoreWidth(wx, wz, hitType);
               // the cliff and the ledge at its foot (no wider for the wider beaches, 0.83547)
               if (hitType === 1 && CLF[gi] > 0.45 && hitWl === WATER_LEVEL) rock = h <= shoreTop && dist < (HILLS ? Math.min(w, 5) : w) + 2;
-              else if (h <= hitWl + 3 && h >= hitWl && dist < w) { nearWater = true; shore = shoreKindAt(wx, wz); }
+              else if (h <= hitWl + 3 && h >= hitWl && dist < w) { nearWater = true; shore = OAS[gi] ? 1 : shoreKindAt(wx, wz); }   // an oasis's shore sand (0.84)
             } else if (hitType) {
               const bn = (fbm(wx * 0.007 + 217.3, wz * 0.007 - 803.7, 2) + 1) * 0.5;
               const width = hitType === 1 ? 2 + bn * 2 : bn * 0.4;
@@ -482,7 +615,7 @@ function VOXEL_CORE() {
             topB = underB = clay ? B.CLAY : oceanDirt ? B.DIRT : oceanGravel ? B.GRAVEL
                           : RED[gi] ? B.RED_SAND
                           /* a warm beach (0.822): near a desert but not in one, at and just under the waterline, in patches */
-                          : (PINK_BEACHES && !DES[gi] && WARM[gi] > 0.2 && h >= wl - 2
+                          : (PINK_BEACHES && !DES[gi] && !OAS[gi] && WARM[gi] > 0.2 && h >= wl - 2
                              && fbm(wx * 0.03 + 71.3, wz * 0.03 - 455.1, 2) > 0.1) ? B.PINK_SAND : B.SAND;   // -0.1 before 0.8233: about half as much
             if (shore === 2 && !submerged && !DES[gi]) topB = underB = B.GRAVEL;   // a gravel beach (0.8356)
             if (beachy && under === 2) topB = underB = B.GRAVEL;
@@ -504,6 +637,19 @@ function VOXEL_CORE() {
             underB = B.DIRT; snowCap = true;
           } else {
             topB = B.GRASS; underB = B.DIRT;
+            /* the Dryland (0.8411): pale dry grass (dithered over its edge, so no hard line), bare dry earth in patches */
+            if (DRYF[gi] > 0.3 && DRYF[gi] > 0.5 + (hash2(wx * 3 + 811, wz * 7 - 233) - 0.5) * 0.4) {
+              topB = fbm(wx * 0.05 + 6121.3, wz * 0.05 - 2333.1, 2) > 0.38 ? B.DIRT : B.GRASS | (V.GRASS_DRY << 8);
+            }
+          }
+          /* The Deep Desert (0.84): a column standing 3+ over a side is a bare crag of its banded rock, top to foot, and a
+             little of that rock shows through the sand of the flats too */
+          let ddBare = false, ddOff = 0;
+          if (DDS[gi] && h >= wl) {
+            ddOff = Math.round(fbm(wx * 0.013 + 401.7, wz * 0.013 - 233.9, 2) * 3);
+            let low = 1e4;
+            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) low = Math.min(low, H[n]);
+            ddBare = h - low >= 3 || fbm(wx * 0.05 - 1313.7, wz * 0.05 + 977.1, 2) > 0.45;
           }
           if (FLAT) {
             // 1 bedrock / 19 stone / 4 dirt / 1 grass. A pond column has h below FLAT_TOP, so
@@ -516,10 +662,20 @@ function VOXEL_CORE() {
           } else {
           data[idx(x, 0, z)] = B.BEDROCK;
           data[idx(x, 1, z)] = B.BEDROCK;
-          const dirtFrom = Math.max(2, h - 5);
-          for (let y = 2; y < dirtFrom; y++) data[idx(x, y, z)] = B.STONE;
-          for (let y = dirtFrom; y < h; y++) data[idx(x, y, z)] = underB;
-          if (h >= 2) data[idx(x, h, z)] = topB;
+          /* rev 21 (0.84): dry desert land is 5 sand deep (the top block and 4 under it) over 5 of sandstone, red under
+             red sand, then stone; in the Deep Desert the banded rock from DD_ROCK_FROM up instead, bare on a crag */
+          const tb = topB & 255;
+          const sandy = DESERT2 && DES[gi] && h >= wl && (tb === B.SAND || tb === B.RED_SAND);
+          const dirtFrom = Math.max(2, h - (sandy ? 4 : 5)), ssFrom = sandy ? Math.max(2, h - 9) : dirtFrom;
+          const sstone = tb === B.RED_SAND ? B.RED_SANDSTONE : B.SANDSTONE;
+          const ddk = DDK[gi];
+          for (let y = 2; y < ssFrom; y++) data[idx(x, y, z)] = DDS[gi] && y >= DD_ROCK_FROM ? ddStrata(y, ddOff, ddk) : B.STONE;
+          for (let y = ssFrom; y < dirtFrom; y++) data[idx(x, y, z)] = DDS[gi] ? ddStrata(y, ddOff, ddk) : sstone;
+          if (ddBare) for (let y = dirtFrom; y <= h; y++) data[idx(x, y, z)] = ddStrata(y, ddOff, ddk);
+          else {
+            for (let y = dirtFrom; y < h; y++) data[idx(x, y, z)] = underB;
+            if (h >= 2) data[idx(x, h, z)] = topB;
+          }
           }
           // a snowy beach, gravel or rock shore lies under one layer of snow (0.8356): the snow's own cover stops at them
           if (SHORES && SNO[gi] && !snowCap && h >= wl && h + 1 <= CY - 1) {
@@ -630,6 +786,32 @@ function VOXEL_CORE() {
               if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
               if ((data[idx(bx, by, bz)] & 255) !== B.STONE) continue;
               data[idx(bx, by, bz)] = oreId;
+              placed++;
+              front.push([bx+1,by,bz],[bx-1,by,bz],[bx,by+1,bz],[bx,by-1,bz],[bx,by,bz+1],[bx,by,bz-1]);
+            }
+          }
+        }
+        /* Red desert gold (0.841, rev 22): under the red sand (the Red Sand, its hills and the Deep Red Desert) gold lies at
+           any height, from the deep rock up into the hills and crags just under the surface, in stone or sandstone. Up to
+           RG_TRIES veins a chunk, 3-7 ore each, on top of the usual deep gold. */
+        if (DESERT3) {
+          const RG_TRIES = 9, RG_ROCK = new Set([B.STONE, B.SANDSTONE, B.RED_SANDSTONE]);
+          for (let ai = 0; ai < RG_TRIES; ai++) {
+            const lx = (hash3(cx * 61 + 900 + ai, 13, cz * 67 + 900 + ai) * 16) | 0;
+            const lz = (hash3(cx * 71 + 900 + ai * 3, 19, cz * 73 + 900 + ai) * 16) | 0;
+            const gi = (lx + 2) + (lz + 2) * 20, top = H[gi] - 2;
+            if (!RED[gi] || top < 10) continue;
+            const ly = 5 + ((hash3(cx * 79 + ai, 23, cz * 83 + ai) * (top - 5)) | 0);
+            const count = 3 + ((hash3(cx + ai + 900, ly, cz + ai + 900) * 5) | 0);
+            let lcg = (Math.imul(cx * 37 + lx + 900, 374761393) ^ Math.imul(ly * 7 + ai, 668265263) ^ (cz * 41 + lz)) | 0;
+            const nlcg = () => { lcg = Math.imul(lcg, 1664525) + 1013904223 | 0; return (lcg >>> 0) / 4294967296; };
+            const front = [[lx, ly, lz]];
+            let placed = 0;
+            while (front.length && placed < count) {
+              const [bx, by, bz] = front.splice((nlcg() * front.length) | 0, 1)[0];
+              if (bx < 0 || bx > 15 || bz < 0 || bz > 15 || by < 2 || by > CY - 2) continue;
+              if (!RG_ROCK.has(data[idx(bx, by, bz)] & 255)) continue;
+              data[idx(bx, by, bz)] = B.GOLD_ORE;
               placed++;
               front.push([bx+1,by,bz],[bx-1,by,bz],[bx,by+1,bz],[bx,by-1,bz],[bx,by,bz+1],[bx,by,bz-1]);
             }
@@ -932,6 +1114,33 @@ function VOXEL_CORE() {
             if (!m || m.x + REACH < X0 || m.x - REACH > X0 + 15 || m.z + REACH < Z0 || m.z - REACH > Z0 + 15) continue;
             for (const [x, y, z, roof] of m.path) blob(x, y, z, m.rad, roof);
           }
+        // the mountains' halls, their ways out and their deep shafts, and tunnels between neighbouring halls (0.841, rev 22)
+        if (DESERT3) {
+          const MR = 80;
+          for (let gz = Math.floor((Z0 - MR) / MT_CELL); gz <= Math.floor((Z0 + 15 + MR) / MT_CELL); gz++)
+            for (let gx = Math.floor((X0 - MR) / MT_CELL); gx <= Math.floor((X0 + 15 + MR) / MT_CELL); gx++) {
+              const cv = mtCaveOf(gx, gz);
+              if (!cv) continue;
+              const R = cv.r * 1.25 + 1;
+              if (cv.x + R >= X0 && cv.x - R <= X0 + 15 && cv.z + R >= Z0 && cv.z - R <= Z0 + 15)
+                for (let gz2 = Math.floor(cv.z - R); gz2 <= cv.z + R; gz2++)
+                  for (let gx2 = Math.floor(cv.x - R); gx2 <= cv.x + R; gx2++) {
+                    if (gx2 < X0 || gx2 > X0 + 15 || gz2 < Z0 || gz2 > Z0 + 15) continue;
+                    const dx = (gx2 + 0.5 - cv.x) / cv.r, dz = (gz2 + 0.5 - cv.z) / cv.r, d2 = dx * dx + dz * dz;
+                    if (d2 > 1.56) continue;
+                    for (let gy = Math.floor(cv.y - cv.ry * 0.7); gy <= cv.y + cv.ry * 1.3; gy++) {
+                      const dy = (gy + 0.5 - cv.y) / cv.ry;
+                      if (dy < -0.5) continue;                                      // a flat floor
+                      const wob = 1 + 0.22 * vnoise3(gx2 * 0.18, gy * 0.2, gz2 * 0.18);
+                      if (d2 + dy * dy <= wob * wob) dig(gx2, gy, gz2, -1);
+                    }
+                  }
+              for (const ex of cv.exits) for (const [x, y, z, roof] of ex) blob(x, y, z, 1.7, roof);
+              for (const [x, y, z] of cv.deep) blob(x, y, z, cv.dr, -1);
+              if (hash2(gx * 41 + 3, gz * 43 - 3) < 0.6) { const e = mtCaveOf(gx + 1, gz); if (e) tube(cv, e, gx * 97 + gz * 101 + 5); }
+              if (hash2(gx * 47 - 3, gz * 53 + 3) < 0.6) { const s = mtCaveOf(gx, gz + 1); if (s) tube(cv, s, gx * 103 - gz * 107 + 6); }
+            }
+        }
         // overhangs: along some cliffs (a drop of 6+ to a side) the face is cut back under its lip, two columns deep in places
         for (let z = 0; z < 16; z++)
           for (let x = 0; x < 16; x++) {
@@ -1026,7 +1235,9 @@ function VOXEL_CORE() {
           if (d2 > PR2) continue;
           const ci = centerInfo(gcx, gcz);
           const isDesertC = ci.fDesert > 0.5, isSnowC = ci.fSnow > 0.5;
-          const chance = isSnowC ? 0.0002 : isDesertC ? 0.01 : 0.002;
+          // 0.8444 (LAVA2, new worlds): a fifth more in warm land short of the desert (warm plains, the Dryland)
+          const isWarmC = LAVA2 && !isDesertC && (ci.lvl || 0) >= 0.5;
+          const chance = isSnowC ? 0.0002 : isDesertC ? 0.01 : isWarmC ? 0.0024 : 0.002;
           if (hash2(gcx * 41 + 7001, gcz * 43 + 7101) > chance) continue;
           const rimY = ci.h;
           if (rimY <= WATER_LEVEL + 3 || rimY <= ci.wl + 3) continue;    // no ocean/beach altitude, no lake up in the land
@@ -1408,6 +1619,62 @@ function VOXEL_CORE() {
             if (hash2(wx + ox * 71 - 3, wz + oz * 73 + 3) < 0.3) putSoft(tx + ox, h + 2, tz + oz, B.ICE);
           }
       }
+      /* Palms (0.84, rev 21): a slim trunk 7-11 tall leaning out up to 2.5 as it rises (the lean grows with the square of
+         the height), on a root of dirt. Its crown (palmCrown) is four long fronds, each on a hidden rib of thin palm wood
+         two out from the top so every leaf lies within the leaves' reach of wood (isLeavesConnected, 22-main-loop.js), out
+         flat and drooping in steps, and now and then a short one between them. 22-main-loop.js grows the same from a sapling. */
+      const PALM_W0 = 20, PALM_W1 = 14, PALM_RIB_W = 4;
+      // `log(x, y, z, val)` and `leaf(x, y, z)` place; `rnd(k)` is 0..1 for the k-th roll of this tree
+      function palmCrown(cx0, cy0, cz0, log, leaf, rnd) {
+        leaf(cx0, cy0 + 1, cz0);
+        for (let d = 0; d < 4; d++) {
+          const dx = [1, -1, 0, 0][d], dz = [0, 0, 1, -1][d], axis = dx ? 1 : 2;
+          for (let s = 1; s <= 2; s++) { log(cx0 + dx * s, cy0, cz0 + dz * s, B.PALM_LOG | ((axis | (PALM_RIB_W << 2)) << 8)); leaf(cx0 + dx * s, cy0 + 1, cz0 + dz * s); }
+          // out flat from the rib, then down a step and out, and down again: 3-5 long past the rib
+          const L = 3 + ((rnd(10 + d) * 3) | 0);
+          const cells = [[3, 0], [4, 0], [4, -1], [5, -1], [5, -2]].slice(0, L);
+          for (const [u, v] of cells) leaf(cx0 + dx * u, cy0 + v, cz0 + dz * u);
+          // a short frond between this one and the next (60%)
+          if (rnd(20 + d) < 0.6) {
+            const ex = [1, -1, -1, 1][d], ez = [1, 1, -1, -1][d];
+            leaf(cx0 + ex, cy0 + 1, cz0 + ez); leaf(cx0 + ex * 2, cy0, cz0 + ez); leaf(cx0 + ex * 2, cy0, cz0 + ez * 2);
+            if (rnd(30 + d) < 0.5) leaf(cx0 + ex * 2, cy0 - 1, cz0 + ez * 2);
+          }
+        }
+      }
+      function palmTree(tx, tz, h, gcx, gcz) {
+        const rnd = (k) => hash2(gcx * 41 + k * 7 + 3, gcz * 67 - k * 13 + 5);
+        const th = 7 + ((rnd(1) * 5) | 0), a = rnd(2) * Math.PI * 2, lean = 0.8 + rnd(3) * 1.7, ca = Math.cos(a), sa = Math.sin(a);
+        put(tx, h, tz, B.DIRT, true);
+        let px = 0, pz = 0;
+        for (let k = 1; k <= th; k++) {
+          const t = (k - 1) / (th - 1), c = t * t * lean;
+          const nx = Math.round(ca * c), nz = Math.round(sa * c), v = B.PALM_LOG | ((Math.round(PALM_W0 - (PALM_W0 - PALM_W1) * t) << 2) << 8);
+          if (nx !== px || nz !== pz) {                                   // the bend's step joined below, both ways
+            put(tx + nx, h + k - 1, tz + nz, v, true);
+            if (nx !== px && nz !== pz) put(tx + nx, h + k - 1, tz + pz, v, true);
+          }
+          put(tx + nx, h + k, tz + nz, v, true);
+          px = nx; pz = nz;
+        }
+        palmCrown(tx + px, h + th, tz + pz, (x, y, z, v) => put(x, y, z, v, true), (x, y, z) => put(x, y, z, B.PALM_LEAVES, false), rnd);
+      }
+      /* A big dry bush (0.8411, the Dryland): a mound of dry leaves on the ground, no wood. Small (45%: one block, now and then
+         two high), medium (35%: about 3 across, 2 high) or big (20%: about 5 across, 3 high), narrower up top, ragged. */
+      function dryBush(tx, tz, h, gcx, gcz) {
+        const rnd = (k) => hash2(gcx * 53 + k * 11 - 7, gcz * 71 - k * 5 + 9), s = rnd(1);
+        const R = s < 0.45 ? 0.6 : s < 0.8 ? 1.4 : 2.3, H2 = s < 0.45 ? 1 + (rnd(2) < 0.4 ? 1 : 0) : s < 0.8 ? 2 : 3, ri = Math.ceil(R);
+        for (let oy = 0; oy < H2; oy++) {
+          const rr = R * (1 - oy / (H2 + 0.6));
+          for (let oz = -ri; oz <= ri; oz++)
+            for (let ox = -ri; ox <= ri; ox++) {
+              const d2 = ox * ox + oz * oz;
+              if (d2 > rr * rr + 0.3) continue;
+              if (d2 > 1 && d2 > (rr - 0.8) * (rr - 0.8) && hash2(gcx * 97 + ox * 13 + oy * 7, gcz * 89 + oz * 17 - oy) < 0.3) continue;
+              put(tx + ox, h + 1 + oy, tz + oz, B.DRY_LEAVES, false);
+            }
+        }
+      }
       // At most one tree per 5x5 world-grid cell, at a hash-jittered position 1..3 inside the
       // cell — trunks are therefore always >=3 blocks apart (no touching twin trees), while
       // remaining a pure function of world position so chunk borders agree.
@@ -1424,6 +1691,26 @@ function VOXEL_CORE() {
           // only cover chunk+2 margin, but our widened tree loop reaches further.
           const ti = terrainInfo(wx, wz);
           const h = ti.h;
+          /* palms (0.84, rev 21): thick in an oasis's ring of grass; very rarely on a warm shore by the sea, on its turf (a turf
+             coast, or behind the beach's sand), never on the sand itself */
+          if (DESERT2 && h > WATER_LEVEL && h >= ti.wl + 1 && h < CY - 20) {
+            if (ti.oas > 0.5) { if (r < 0.32) palmTree(tx, tz, h, gcx, gcz); continue; }
+            // 0.8445 (PALM2, new worlds): from level +1 on, not from half way into it: none in a plain or cold land's edge
+            if (r < 0.03 && !(ti.fDesert > 0.5) && h <= WATER_LEVEL + 4 && ti.lvl >= (PALM2 ? 1 : 0.5) && !(ti.cliff > 0.45)) {
+              let d = 0;
+              for (let rr = 1; rr <= 9 && !d; rr++)
+                for (let k = 0; k < 8; k++) {
+                  const t2 = terrainInfo(wx + Math.round(Math.cos(k * Math.PI / 4) * rr), wz + Math.round(Math.sin(k * Math.PI / 4) * rr));
+                  if (t2.h < t2.wl && t2.wl === WATER_LEVEL && !(t2.rT > 0.3 || t2.lk > 0.3)) { d = rr; break; }
+                }
+              if (d && (shoreKindAt(wx, wz) === 0 || d > shoreWidth(wx, wz, 1) + 0.5)) { palmTree(tx, tz, h, gcx, gcz); continue; }
+            }
+          }
+          // the Dryland (0.8411, rev 23): no trees, big dry bushes instead (one in 14 cells)
+          if (DRYLAND && ti.fDry > 0.5) {
+            if (r < 0.07 && h > WATER_LEVEL && h >= ti.wl + 1 && h < CY - 6) dryBush(tx, tz, h, gcx, gcz);
+            continue;
+          }
           if (h <= WATER_LEVEL + 1 || h < ti.wl + 1 || h > (DIVIDE ? 199 : 146) || ti.fDesert > 0.5) continue;   // none in a lake up in the land (0.83548)
           // rev 18 (0.835491): over 146, up to 199, a few small oaks on the mountains (none in their snow)
           const isRime = RIME && ti.fRime > 0.5;                  // the Coldest Deep Snow's frozen trees (0.836)
@@ -1839,7 +2126,7 @@ function VOXEL_CORE() {
               data[idx(x, y + 1, z)] = B.LAVA_MUSHROOM;
             // a yellow berry bush, in any stage, on the cave's dirt (0.8271; rarely on any floor in 0.827): it glows as it ripens
             else if (cave && floor === B.DIRT && hash3(cx * 1193 + x, y + 3200, cz * 953 + z) < CAVE_YELLOW_BUSH)
-              data[idx(x, y + 1, z)] = B.YELLOWBERRY_BUSH | ((((hash3(cx * 1197 + x, y + 3300, cz * 959 + z) * BERRY_STAGES) | 0) % BERRY_STAGES) << 8);
+              data[idx(x, y + 1, z)] = B.YELLOWBERRY_BUSH | (wildBerryStage(hash3(cx * 1197 + x, y + 3300, cz * 959 + z)) << 8);   // ripe 20% more often (0.8441)
           }
           // surface under leaves: air at h+1 with leaves within 2..5 blocks above
           if (h > WATER_LEVEL && h < 120) {
@@ -2071,22 +2358,25 @@ function VOXEL_CORE() {
           const meadow = isPlains && fbm(wx * 0.006 + 6006, wz * 0.006 - 3003, 2) > 0.32;
           const r = hash3(cx * 97 + lx + 5500, 71, cz * 83 + lz + 5500);
           // flowers cut ~95%: forest tiny, plains small, meadows the main place they gather
-          const flowerCh = (meadow ? 0.02 : isPlains ? 0.0015 : 0.0003) * 0.15;  // 70% fewer flowers (0.799), half again (0.819)
+          let flowerCh = (meadow ? 0.02 : isPlains ? 0.0015 : 0.0003) * 0.15;    // 70% fewer flowers (0.799), half again (0.819)
           // short grass thins with altitude (full at y100, ~1/4 at y200) but never disappears
           const alt = Math.min(1, Math.max(0, (h - 100) / 100));
-          const grassCh  = 0.22 * (1 - alt * 0.75);
+          let grassCh  = 0.22 * (1 - alt * 0.75);
           // two-block tall grass: a slice of the short-grass budget, plains-heavier, needs 2 air
-          const tallCh   = (isPlains ? 0.05 : 0.015) * (1 - alt * 0.75);
+          let tallCh   = (isPlains ? 0.05 : 0.015) * (1 - alt * 0.75);
           /* Berry bushes are scattered thinly and land in a RANDOM growth stage, so a fresh world
              already has some ripe and some bare — the regrow timer takes over from there. */
-          const berryCh = (isPlains ? 0 : 0.0045) * (1 - alt * 0.75);             // forests only since 0.8233; 25% more 0.826 (0.003), 20% more 0.8272
+          let berryCh = (isPlains ? 0 : 0.0045) * (1 - alt * 0.75);               // forests only since 0.8233; 25% more 0.826 (0.003), 20% more 0.8272
+          // the Dryland (0.8411): half the green grass and no flowers or berries; its dry plants come in the pass below
+          // ...a quarter since 0.8442 (half before): half the grass of every kind in the Dryland and the desert
+          if (DRYF[gi] > 0.5) { grassCh *= 0.25; tallCh *= 0.25; flowerCh = 0; berryCh = 0; }
           if (r < flowerCh) {
             data[idx(lx, h + 1, lz)] = hash3(cx * 31 + lx + 12, 19, cz * 29 + lz + 7) < 0.5 ? B.POPPY : B.ORCHID;
           } else if (r < flowerCh + berryCh) {
             /* Stage and KIND are rolled from two independent hashes, so a fresh world already has
                sprouts, bare bushes and ripe ones of both bushes — the regrow timer takes over from
                there. The stage numbers are the growth order, so the roll is just 0..3. */
-            const stage = Math.min(BERRY_STAGE.GROWN, (hash3(cx * 41 + lx + 909, 37, cz * 43 + lz + 606) * BERRY_STAGES) | 0);
+            const stage = wildBerryStage(hash3(cx * 41 + lx + 909, 37, cz * 43 + lz + 606));   // ripe 20% more often (0.8441)
             /* Which bush, by what the place is like (0.827; red 40%, blue 40%, black 20% anywhere before): white in
                a birch wood, black in a spruce one, blue by water, red the higher up, yellow now and then in a deep
                (dark) forest. Each is a weight, so a mixed place grows a mix. */
@@ -2107,6 +2397,55 @@ function VOXEL_CORE() {
             data[idx(lx, h + 1, lz)] = B.TALLGRASS;
           }
         }
+
+      /* ---- dry plants (0.84, rev 21): dry grass, tall dry grass and dry bushes. On the desert's open sand a medium amount,
+         the grass in stands with bare sand between and never on a dune (the dunes pass below piles sand where its noise
+         says, and a plant there would stand in a pit); the Deep Desert has fewer grasses and more bushes. Rare on the warm
+         plains' turf, among the green grass. ---- */
+      if (DESERT2)
+        for (let lz = 0; lz < CZ; lz++)
+          for (let lx = 0; lx < CX; lx++) {
+            const gi = (lx + 2) + (lz + 2) * 20, h = H[gi];
+            if (h <= WATER_LEVEL || h > CY - 3 || h < WLV[gi]) continue;
+            if ((data[idx(lx, h + 1, lz)] & 255) !== B.AIR) continue;
+            const top = data[idx(lx, h, lz)] & 255, wx = cx * 16 + lx, wz = cz * 16 + lz;
+            let gCh, tCh, bCh;
+            if (DES[gi] && (top === B.SAND || top === B.RED_SAND)) {
+              const dune = fbm(wx * 0.035 + 811.3, wz * 0.035 - 377.9, 2) + (hash2(wx * 13 + 71, wz * 7 - 19) - 0.5) * 0.06;
+              if (Math.floor((dune - 0.08) * 16) >= 1) continue;
+              const stand = smooth01(fbm(wx * 0.02 + 5151.3, wz * 0.02 - 1717.9, 2), -0.25, 0.35);
+              // half the dry grass and tall dry grass since 0.8442 (0.012 / 0.04 and 0.003 / 0.01 before); the bushes as they were
+              gCh = (DDS[gi] ? 0.006 : 0.02) * stand; tCh = (DDS[gi] ? 0.0015 : 0.005) * stand; bCh = DDS[gi] ? 0.008 : 0.005;
+            } else if ((top === B.GRASS || top === B.DIRT) && DRYF[gi] > 0.5) {
+              // the Dryland (0.8411): a lot of them, about twice the green grass left beside them; half of it since 0.8442 (0.26, 0.06)
+              gCh = 0.13; tCh = 0.03; bCh = 0.014;
+            } else if (top === B.GRASS && !DES[gi] && !SNO[gi] && !OAS[gi] && TREE[gi] < 0.5 && Math.round(LVL[gi]) === 1) {
+              gCh = 0.006; tCh = 0.0015; bCh = 0.0008;
+            } else continue;
+            const r = hash3(cx * 89 + lx + 6100, 53, cz * 97 + lz + 6100);
+            if (r < bCh) data[idx(lx, h + 1, lz)] = B.DRY_BUSH;
+            else if (r < bCh + tCh && (data[idx(lx, h + 2, lz)] & 255) === B.AIR) {
+              data[idx(lx, h + 1, lz)] = B.DRY_TALL_LOWER;
+              data[idx(lx, h + 2, lz)] = B.DRY_TALL_UPPER;
+            } else if (r < bCh + tCh + gCh) data[idx(lx, h + 1, lz)] = B.DRY_GRASS;
+          }
+      /* ---- sugar cane by an oasis's water (0.84): its lake stands over the sea, so the shore pass below never sees it. In
+         stands on about a quarter of its shore, starting at the bank's top block as the sea's cane does. ---- */
+      if (DESERT2)
+        for (let z = 0; z < CZ; z++)
+          for (let x = 0; x < CX; x++) {
+            const gi = (x + 2) + (z + 2) * 20, h = H[gi];
+            if (!OAS[gi] || h < WLV[gi] || h > CY - 4) continue;
+            const top = data[idx(x, h, z)] & 255;
+            if ((top !== B.GRASS && top !== B.SAND && top !== B.RED_SAND) || (data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
+            let bank = false;
+            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && WLV[n] === h - 1) { bank = true; break; }
+            if (!bank) continue;
+            const wx = cx * 16 + x, wz = cz * 16 + z;
+            if (smooth01(fbm(wx * 0.15 + 3131.7, wz * 0.15 - 1919.3, 2), 0.05, 0.25) * 0.8 < hash3(wx * 7 + 6200, 4545, wz * 5 - 6200)) continue;
+            const tall = 1 + Math.floor(hash3(wx, 9393, wz) * 3);
+            for (let k = 0; k < tall; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
+          }
 
       /* ---- canyons: rare winding ravines. A low-freq region mask gates them (deserts get a
          much higher chance); inside a region, a ridge line |noise|≈0 cuts a V-shaped gorge up
@@ -2637,6 +2976,279 @@ function VOXEL_CORE() {
             }
           }
       }
+      /* ---- the Deep Desert's hoodoos and bones (0.84, biomeRev 21) ----
+         Hoodoos: a column of the banded rock 5-16 tall, now and then wider at the foot, under a cap of red sandstone
+         wider than its neck (a balanced rock), or tapering to a point; one in a third of HD_CELL squares.
+         Bones: the skeletons of great beasts half buried in the sand, of four kinds and every size: a ribcage under an
+         arched spine with its skull and tusks, a serpent's long winding spine, a lone horned skull, and a scatter of loose
+         bones. One in BN_KEEP of BN_CELL squares. Both are pure functions of their cell, drawn by every chunk they reach.
+         Bone goes only into air, loose sand layers or a dry plant: what dips under the sand stays buried. A bone block lies
+         along its bone (its axis bits, as a log's). */
+      if (DESERT2 && !FLAT) {
+        const x0 = cx * 16, z0 = cz * 16;
+        const sandLayer = (b) => { const t = b & 255; return (t === B.SAND || t === B.RED_SAND) && layerCount(b) > 0; };
+        // ...and the green grass too, in the Dryland (0.8411)
+        const dryPlant = (b) => { const t = b & 255; return t === B.DRY_GRASS || t === B.DRY_BUSH || t === B.DRY_TALL_LOWER || t === B.DRY_TALL_UPPER
+                                                        || t === B.TALLGRASS || t === B.TALL_LOWER || t === B.TALL_UPPER; };
+        const soft = (b) => b === B.AIR || sandLayer(b) || dryPlant(b);
+        const setSoft = (x, y, z, v) => {
+          const lx = x - x0, lz = z - z0;
+          if (lx < 0 || lx > 15 || lz < 0 || lz > 15 || y < 2 || y > CY - 2) return;
+          const i = idx(lx, y, lz);
+          if (!soft(data[i])) return;
+          const t = data[i] & 255;
+          if ((t === B.DRY_TALL_LOWER || t === B.TALL_LOWER) && y + 1 < CY) data[idx(lx, y + 1, lz)] = B.AIR;
+          if (t === B.DRY_TALL_UPPER || t === B.TALL_UPPER) data[idx(lx, y - 1, lz)] = B.AIR;
+          data[i] = v;
+        };
+        // never on a canyon's line (the canyons pass, desert gate) nor, for bones, across a cliff: nothing hangs in the air
+        const onCanyon = (x, z) => fbm(x * 0.0015 + 555, z * 0.0015 - 333, 2) > 0.10 &&
+          (Math.abs(fbm(x * 0.008 + 911, z * 0.008 - 477, 2)) < 0.15 || Math.abs(fbm(x * 0.0035 + 911, z * 0.011 - 477, 2)) < 0.10 ||
+           Math.abs(fbm(x * 0.011 + 911, z * 0.0035 - 477, 2)) < 0.10);
+        // hoodoos
+        const HD_CELL = 14, HD_REACH = 4;
+        for (let gcz = Math.floor((z0 - HD_REACH) / HD_CELL); gcz <= Math.floor((z0 + 15 + HD_REACH) / HD_CELL); gcz++)
+          for (let gcx = Math.floor((x0 - HD_REACH) / HD_CELL); gcx <= Math.floor((x0 + 15 + HD_REACH) / HD_CELL); gcx++) {
+            const rr = (k) => hash2(gcx * 5303 + k * 71 + 9, gcz * 4127 - k * 311 - 7);
+            if (rr(0) > 0.33) continue;
+            const ax = gcx * HD_CELL + 2 + Math.floor(rr(1) * (HD_CELL - 4)), az = gcz * HD_CELL + 2 + Math.floor(rr(2) * (HD_CELL - 4));
+            if (ax < x0 - HD_REACH || ax > x0 + 15 + HD_REACH || az < z0 - HD_REACH || az > z0 + 15 + HD_REACH) continue;
+            const ti = terrainInfo(ax, az);
+            if (!(ti.fDeepD > 0.5) || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
+            const g = ti.h, hgt = 5 + Math.floor(rr(3) * 12), off = Math.round(rr(4) * 8), capped = rr(5) < 0.55;
+            const kind = DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0, capB = kind === 1 ? B.SANDSTONE : B.RED_SANDSTONE;   // by its half (0.841)
+            const neck = 0.7 + rr(6) * 0.9, foot = neck + (rr(7) < 0.5 ? 1 : 0.3);
+            for (let y = g - 2; y <= g + hgt + (capped ? 1 : 0); y++) {
+              const t = (y - g) / hgt, cap = capped && y > g + hgt - 1;
+              const rad = cap ? neck + 1.3 : capped ? Math.max(0.5, foot + (neck - foot) * Math.min(1, Math.max(0, t) * 1.6))
+                                                    : Math.max(0.4, foot * (1 - Math.max(0, t)) + 0.4);
+              const ri = Math.ceil(rad);
+              for (let dz = -ri; dz <= ri; dz++)
+                for (let dx = -ri; dx <= ri; dx++) {
+                  if (dx * dx + dz * dz > rad * rad + 0.25) continue;
+                  setSoft(ax + dx, y, az + dz, cap ? capB : ddStrata(y, off, kind));
+                }
+            }
+          }
+        // bones
+        const BN_CELL = 40, BN_KEEP = 0.4, BN_REACH = 40;
+        const boneVal = (dx, dy, dz) => {                              // a bone block lying along (dx, dy, dz)
+          const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+          return B.BONE_BLOCK | ((ay >= ax && ay >= az ? 0 : ax >= az ? 1 : 2) << 8);
+        };
+        // a ball of bone about a point (at least the cell it is in, so a thin bone never breaks)
+        const ball = (px, py, pz, r, v) => {
+          const ri = Math.ceil(r), bx = Math.round(px), by = Math.round(py), bz = Math.round(pz), r2 = Math.max(0.76, r * r + 0.3);
+          if (bx + ri < x0 || bx - ri > x0 + 15 || bz + ri < z0 || bz - ri > z0 + 15) return;
+          for (let dy = -ri; dy <= ri; dy++)
+            for (let dz = -ri; dz <= ri; dz++)
+              for (let dx = -ri; dx <= ri; dx++) {
+                const ex = bx + dx - px, ey = by + dy - py, ez = bz + dz - pz;
+                if (ex * ex + ey * ey + ez * ez <= r2) setSoft(bx + dx, by + dy, bz + dz, v);
+              }
+        };
+        // a bone along a curve p(t), t 0..1, about `len` long, radius r(t); each piece lies along the curve there
+        const bone = (p, len, r) => {
+          const n = Math.max(2, Math.ceil(len * 2.4));
+          for (let k = 0; k <= n; k++) {
+            const t = k / n, c = p(t), c2 = p(Math.min(1, t + 0.02)), c1 = p(Math.max(0, t - 0.02));
+            ball(c[0], c[1], c[2], r(t), boneVal(c2[0] - c1[0], c2[1] - c1[1], c2[2] - c1[2]));
+          }
+        };
+        // a hollow egg along (ca2, sa2), radii ra along, ry up, rs across, its shell from `inner` out; hole(u, v, w) left open
+        const egg = (px, py, pz, ca2, sa2, ra, ry, rs, inner, hole) => {
+          const ri = Math.ceil(Math.max(ra, ry, rs)), bx = Math.round(px), by = Math.round(py), bz = Math.round(pz);
+          if (bx + ri < x0 || bx - ri > x0 + 15 || bz + ri < z0 || bz - ri > z0 + 15) return;
+          for (let dy = -ri; dy <= ri; dy++)
+            for (let dz = -ri; dz <= ri; dz++)
+              for (let dx = -ri; dx <= ri; dx++) {
+                const ex = bx + dx - px, ey = by + dy - py, ez = bz + dz - pz;
+                const u = (ex * ca2 + ez * sa2) / ra, v = ey / ry, w = (-ex * sa2 + ez * ca2) / rs, qq = u * u + v * v + w * w;
+                if (qq > 1 || qq < inner * inner || (hole && hole(u, v, w))) continue;
+                setSoft(bx + dx, by + dy, bz + dz, B.BONE_BLOCK);
+              }
+        };
+        // a skull facing (fc, fs): a hollow egg with eye and nose holes, a jaw under it, horns or tusks out of its sides
+        const skull = (kx, ky, kz, fc, fs, sc, horns) => {
+          egg(kx, ky, kz, fc, fs, 3.3 * sc, 2.4 * sc, 2.6 * sc, 0.62, (u, v, w) =>
+            (u > 0.3 && v > 0.05 && v < 0.62 && Math.abs(Math.abs(w) - 0.45) < 0.24) || (u > 0.6 && Math.abs(w) < 0.16 && v > -0.4 && v < 0.05));
+          egg(kx + fc * 0.9 * sc, ky - 1.8 * sc, kz + fs * 0.9 * sc, fc, fs, 2.9 * sc, 0.9 * sc, 2.1 * sc, 0.45, (u, v) => v > 0.25);
+          for (const side of [1, -1]) {
+            const bx = kx - fs * side * 2.2 * sc, by = ky + (horns ? 1.2 * sc : -0.8 * sc), bz = kz + fc * side * 2.2 * sc;
+            if (horns)   // up and out, curling forward
+              bone((t) => [bx - fs * side * 2.6 * sc * Math.sin(t * 1.4) + fc * 2.2 * sc * t * t, by + 4.2 * sc * Math.sin(t * 1.2),
+                           bz + fc * side * 2.6 * sc * Math.sin(t * 1.4) + fs * 2.2 * sc * t * t], 7 * sc, (t) => 0.85 * sc * (1 - t) + 0.35);
+            else         // tusks: forward and curving up
+              bone((t) => [bx + fc * 4 * sc * t - fs * side * 1.4 * sc * Math.sin(t * 1.6), by + 3.6 * sc * t * t,
+                           bz + fs * 4 * sc * t + fc * side * 1.4 * sc * Math.sin(t * 1.6)], 6 * sc, (t) => 0.8 * sc * (1 - t) + 0.35);
+          }
+        };
+        for (let gcz = Math.floor((z0 - BN_REACH) / BN_CELL); gcz <= Math.floor((z0 + 15 + BN_REACH) / BN_CELL); gcz++)
+          for (let gcx = Math.floor((x0 - BN_REACH) / BN_CELL); gcx <= Math.floor((x0 + 15 + BN_REACH) / BN_CELL); gcx++) {
+            const rr = (k) => hash2(gcx * 6113 + k * 197 + 31, gcz * 7019 - k * 541 + 17);
+            if (rr(0) > BN_KEEP) continue;
+            const ax = gcx * BN_CELL + 6 + Math.floor(rr(1) * (BN_CELL - 12)), az = gcz * BN_CELL + 6 + Math.floor(rr(2) * (BN_CELL - 12));
+            if (ax < x0 - BN_REACH || ax > x0 + 15 + BN_REACH || az < z0 - BN_REACH || az > z0 + 15 + BN_REACH) continue;
+            const ti = terrainInfo(ax, az);
+            // the Deep Desert, and the Dryland half as often (0.8411)
+            const dryland = DRYLAND && ti.fDry > 0.5;
+            if (!(ti.fDeepD > 0.5 || dryland) || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
+            // ...and 70% fewer again in worlds made since 0.8442 (rev 24; a whole skeleton or none, so not in older worlds)
+            if (dryland && rr(0) > BN_KEEP * 0.5 * (FOSSIL2 ? 0.3 : 1)) continue;
+            let lo = ti.h, hi = ti.h;
+            for (let k = 0; k < 8; k++) {
+              const hh = terrainInfo(ax + Math.cos(k * Math.PI / 4) * 10, az + Math.sin(k * Math.PI / 4) * 10).h;
+              lo = Math.min(lo, hh); hi = Math.max(hi, hh);
+            }
+            if (hi - lo > 5) continue;                                     // a cliff or a crag: no room to lie
+            const g = ti.h + 1, kind = rr(3), sz = 0.55 + rr(4) * rr(4) * 1.35;   // most middling, now and then a giant
+            const a = rr(5) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+            let nk = 10;
+            const q = () => rr(nk++);
+            if (kind < 0.35) {
+              /* a great beast fallen on its belly or rolled to its side: an arched spine with its ribs in hoops under it (a few
+                 broken short), its tail running into the sand, its skull at the front; sunk 1-3 into the sand */
+              const L = Math.min(28, (12 + q() * 8) * sz), Rm = Math.min(7, (2.6 + q() * 1.8) * sz), tilt = (q() - 0.5) * 0.9, sink = 1 + q() * 2;
+              const ux = -sa * Math.sin(tilt), uy = Math.cos(tilt), uz = ca * Math.sin(tilt);
+              const sx = -sa * Math.cos(tilt), sy = -Math.sin(tilt), sz2 = ca * Math.cos(tilt);
+              const env = (s) => Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (s - 0.04) / 0.86))), 0.7);
+              const lift = (s) => s > 0.95 ? Math.max(0.2, 1.2 - (s - 0.95) * 5) : 1.2 + 1.5 * Rm * env(s);
+              const P = (s) => { const al = (s - 0.5) * L, l = lift(s) - sink; return [ax + ca * al + ux * l, g + uy * l, az + sa * al + uz * l]; };
+              bone((t) => P(-0.02 + t * 1.22), L * 1.25, (t) => (t * L * 1.22) % 1.4 < 0.5 ? 1.05 : 0.6);
+              for (let s = 0.17; s <= 0.8; s += 2.1 * Math.max(0.8, sz) / L) {
+                const Rr = Rm * env(s) * (0.85 + 0.3 * q()), c = P(s);
+                const hx = c[0] - ux * Rr, hy = c[1] - uy * Rr, hz = c[2] - uz * Rr;
+                for (const side of [1, -1]) {
+                  const tm = q() < 0.2 ? 0.9 + q() * 0.9 : 2.5;
+                  bone((t) => { const th = t * tm, cu = Rr * Math.cos(th), su = side * Rr * 1.1 * Math.sin(th);
+                                return [hx + ux * cu + sx * su, hy + uy * cu + sy * su, hz + uz * cu + sz2 * su]; },
+                       Rr * tm * 1.1, (t) => 0.55 + 0.2 * (1 - t));
+                }
+              }
+              const sc = Rm / 4.5, hd = L * 0.5 + 2.6 * sc;
+              skull(ax - ca * hd, g + 1.6 * sc - sink, az - sa * hd, -ca, -sa, sc, q() < 0.4);
+            } else if (kind < 0.55) {
+              // a serpent: a long spine winding through the sand, rising out of it and diving back, short ribs along it
+              const L = Math.min(56, (26 + q() * 18) * sz), wv = 2 + q() * 2, amp = (3 + q() * 3) * Math.min(1.4, sz), ph = q() * 6;
+              const P = (t) => { const al = (t - 0.5) * L, sw = Math.sin(t * wv * Math.PI * 2 + ph) * amp, up = Math.sin(t * Math.PI * (wv + 1)) * 1.6 * sz - 0.8;
+                                 return [ax + ca * al - sa * sw, g + up, az + sa * al + ca * sw]; };
+              bone(P, L * 1.3, () => Math.max(0.55, 0.75 * Math.min(1.4, sz)));
+              for (let t = 0.04; t < 0.94; t += 1.6 / L) {
+                const c = P(t), c2 = P(t + 0.01), tx = c2[0] - c[0], tz = c2[2] - c[2], tl = Math.hypot(tx, tz) || 1;
+                const nx = -tz / tl, nz = tx / tl, rl = 1.2 + 1.3 * Math.min(1.4, sz) * Math.sin(Math.PI * t);
+                for (const side of [1, -1])
+                  bone((u) => [c[0] + nx * side * rl * u, c[1] - u * u * 1.2, c[2] + nz * side * rl * u], rl, () => 0.5);
+              }
+              skull(P(0)[0] - ca * 1.5, P(0)[1] + 0.4, P(0)[2] - sa * 1.5, -ca, -sa, 0.45 * Math.min(1.4, sz), false);
+            } else if (kind < 0.75) {
+              // a lone skull, horned or tusked, half sunk where it fell, tipped a little
+              const sc = 0.7 + 0.9 * sz;
+              skull(ax, g + 0.8 * sc - 1.2, az, ca, sa, sc, q() < 0.6);
+            } else {
+              // loose bones: a few long limb bones lying about, knobbed at both ends, and a broken rib or two
+              const n = 3 + ((q() * 4) | 0);
+              for (let k = 0; k < n; k++) {
+                const bx = ax + (q() - 0.5) * 10 * sz, bz = az + (q() - 0.5) * 10 * sz, ba = q() * Math.PI * 2, bl = (3 + q() * 5) * Math.min(1.5, sz);
+                const ex = Math.cos(ba) * bl, ez = Math.sin(ba) * bl, by = g - 0.3 + q() * 0.6, rise = (q() - 0.3) * 1.5;
+                if (q() < 0.7) {
+                  bone((t) => [bx + ex * t, by + rise * t, bz + ez * t], bl, () => 0.45);
+                  ball(bx, by, bz, 0.9, B.BONE_BLOCK); ball(bx + ex, by + rise, bz + ez, 0.9, B.BONE_BLOCK);
+                } else {
+                  const rr2 = bl * 0.6;
+                  bone((t) => [bx + Math.cos(ba + t * 2) * rr2, by + Math.sin(t * Math.PI) * rr2 * 0.8, bz + Math.sin(ba + t * 2) * rr2], rr2 * 2, () => 0.45);
+                }
+              }
+            }
+          }
+      }
+      /* ---- mine shafts (0.841, rev 22): mineOf's plan, dug and framed. Last of the carving, so nothing fills it again. ---- */
+      if (DESERT3 && !FLAT) {
+        const x0 = cx * 16, z0 = cz * 16, MS_REACH = 48;
+        const FENCE = B.PLANKS | (SHAPE_FENCE << 8), BEAM = B.PLANKS | ((SHAPE_SLAB + 1) << 8);   // a post, and a top slab as the beam
+        const inC = (x, z) => x >= x0 && x <= x0 + 15 && z >= z0 && z <= z0 + 15;
+        const get = (x, y, z) => inC(x, z) && y >= 1 && y < CY ? data[idx(x - x0, y, z - z0)] : -1;
+        const set = (x, y, z, v) => { if (inC(x, z) && y >= 2 && y < CY - 1) data[idx(x - x0, y, z - z0)] = v; };
+        // clear a cell (never water, lava or bedrock); a tall plant's other half goes with it
+        const clear = (x, y, z) => {
+          const b = get(x, y, z), t = b & 255;
+          if (b < 0 || t === B.WATER || t === B.LAVA || t === B.BEDROCK) return;
+          if (t === B.DRY_TALL_LOWER || t === B.TALL_LOWER) set(x, y + 1, z, B.AIR);
+          if (t === B.DRY_TALL_UPPER || t === B.TALL_UPPER) set(x, y - 1, z, B.AIR);
+          set(x, y, z, B.AIR);
+        };
+        const solidAt = (x, y, z) => { const b = get(x, y, z); return b > 0 && solidVal(b); };
+        // a roof cell of sand or gravel would fall in: sandstone instead
+        const holdRoof = (x, y, z, red) => { const t = get(x, y, z) & 255; if (t === B.SAND || t === B.RED_SAND || t === B.GRAVEL) set(x, y, z, red ? B.RED_SANDSTONE : B.SANDSTONE); };
+        const torchLean = (wx, wz) => wx > 0 ? 2 : wx < 0 ? 1 : wz > 0 ? 4 : 3;   // a wall torch leans away from its wall (+X wall: -X, 2)
+        for (let gz = Math.floor((z0 - MS_REACH) / MS_CELL); gz <= Math.floor((z0 + 15 + MS_REACH) / MS_CELL); gz++)
+          for (let gx = Math.floor((x0 - MS_REACH) / MS_CELL); gx <= Math.floor((x0 + 15 + MS_REACH) / MS_CELL); gx++) {
+            const m = mineOf(gx, gz);
+            if (!m) continue;
+            const { fx, fz, y, dx, dz, len, depth, side, sideLen, red } = m, px = -dz, pz = dx;
+            const ex = fx + dx * len, ez = fz + dz * len, yb = y - depth;      // the shaft's middle, and the room's floor
+            if (Math.min(fx, ex, ex + px * (sideLen + 4), ex - px * (sideLen + 4)) - 4 > x0 + 15 || Math.max(fx, ex, ex + px * (sideLen + 4), ex - px * (sideLen + 4)) + 4 < x0 ||
+                Math.min(fz, ez, ez + pz * (sideLen + 4), ez - pz * (sideLen + 4)) - 4 > z0 + 15 || Math.max(fz, ez, ez + pz * (sideLen + 4), ez - pz * (sideLen + 4)) + 4 < z0) continue;
+            const h = (a, b) => hash2(gx * 7919 + a * 31 + b, gz * 6007 - a * 17 + b * 3);
+            // a straight run of tunnel from (sx, sz) along (ax, az) for n, floor at fy: dug, floored, roofed, framed every 4
+            const run = (sx, sz, ax, az, n, fy, salt) => {
+              const qx = -az, qz = ax;
+              for (let s = 0; s <= n; s++) {
+                const cx2 = sx + ax * s, cz2 = sz + az * s;
+                for (let o = -1; o <= 1; o++) {
+                  const x = cx2 + qx * o, z = cz2 + qz * o;
+                  for (let yy = fy; yy <= fy + 2; yy++) clear(x, yy, z);
+                  if (get(x, fy - 1, z) === B.AIR) set(x, fy - 1, z, B.PLANKS);   // over a dip or a cave: a plank floor
+                  holdRoof(x, fy + 3, z, red);
+                }
+                if (s >= 2 && s % 4 === 2) {                                     // a frame
+                  const broken = h(salt + s, 1) < 0.18;
+                  for (const o of [-1, 1]) {
+                    if (broken && h(salt + s, 2 + o) < 0.5) continue;           // a post gone
+                    set(cx2 + qx * o, fy, cz2 + qz * o, FENCE); set(cx2 + qx * o, fy + 1, cz2 + qz * o, FENCE);
+                  }
+                  for (let o = -1; o <= 1; o++) if (!broken || h(salt + s, 5 + o) < 0.4) set(cx2 + qx * o, fy + 2, cz2 + qz * o, BEAM);
+                  if (broken) {                                                  // what came down: a little gravel on the floor
+                    const o = h(salt + s, 9) < 0.5 ? 1 : -1;
+                    if (get(cx2 + qx * o, fy, cz2 + qz * o) === B.AIR) set(cx2 + qx * o, fy, cz2 + qz * o, layerVal(B.GRAVEL, 2 + ((h(salt + s, 10) * 3) | 0)));
+                  }
+                } else if (s % 4 === 0 && s > 0) {
+                  // cobwebs in the upper corners now and then, a burnt-out torch on a wall
+                  for (const o of [-1, 1])
+                    if (h(salt + s, 11 + o) < 0.3 && solidAt(cx2 + qx * (o * 2), fy + 2, cz2 + qz * (o * 2))) set(cx2 + qx * o, fy + 2, cz2 + qz * o, B.COBWEB);
+                  if (s % 8 === 4) {
+                    const o = h(salt + s, 15) < 0.5 ? 1 : -1;
+                    if (solidAt(cx2 + qx * o * 2, fy + 1, cz2 + qz * o * 2)) set(cx2 + qx * o, fy + 1, cz2 + qz * o, B.TORCH_UNLIT | (torchLean(qx * o, qz * o) << 8));
+                  }
+                }
+              }
+            };
+            run(fx, fz, dx, dz, len + 1, y, 0);
+            // the shaft: 3x3 from the room's ceiling up to the tunnel's floor, a ladder on its far wall
+            for (let yy = yb; yy < y; yy++)
+              for (let a = -1; a <= 1; a++)
+                for (let b = -1; b <= 1; b++) clear(ex + dx * a + px * b, yy, ez + dz * a + pz * b);
+            const lx = ex + dx, lz = ez + dz, ladder = B.LADDER | ((dx > 0 ? 3 : dx < 0 ? 2 : dz > 0 ? 1 : 0) << 8);
+            for (let yy = yb; yy <= y; yy++) if (solidAt(lx + dx, yy, lz + dz)) set(lx, yy, lz, ladder);
+            // the room at the bottom: 7x7 and 3 high, with a frame on each side of the ladder, and the side tunnel out of it
+            for (let a = -3; a <= 3; a++)
+              for (let b = -3; b <= 3; b++) {
+                const x = ex + dx * a + px * b, z = ez + dz * a + pz * b;
+                if (Math.abs(a) === 3 && Math.abs(b) === 3) continue;             // rounded corners
+                if (a === 2 && b === 0) continue;                                  // the rock the ladder hangs on, down to the floor
+                for (let yy = yb; yy <= yb + 2; yy++) clear(x, yy, z);
+                if (get(x, yb - 1, z) === B.AIR) set(x, yb - 1, z, B.PLANKS);
+                holdRoof(x, yb + 3, z, red);
+                // gold in the red desert's walls, the odd stone of it showing
+                if (red) for (let yy = yb; yy <= yb + 3; yy++)
+                  for (const [ox, oz] of [[dx, dz], [-dx, -dz], [px, pz], [-px, -pz]]) {
+                    const t = get(x + ox, yy, z + oz) & 255;
+                    if ((t === B.STONE || t === B.SANDSTONE || t === B.RED_SANDSTONE) && h(x * 3 + yy, z * 5 + ox * 7 + oz) < 0.04) set(x + ox, yy, z + oz, B.GOLD_ORE);
+                  }
+              }
+            for (const b of [-2, 2]) { set(ex + px * b, yb, ez + pz * b, FENCE); set(ex + px * b, yb + 1, ez + pz * b, FENCE); set(ex + px * b, yb + 2, ez + pz * b, BEAM); }
+            run(ex + px * side * 3, ez + pz * side * 3, px * side, pz * side, sideLen, yb, 50);
+          }
+      }
       /* waterfalls (0.83549, rev 17): where water stands 2+ over the water beside it (a river's fall, a lake's outlet, a
          river reaching the sea off a cliff), the falling water hangs down the face as a sheet in the lower column, from
          its surface up to the higher one, its top running the upper water's way */
@@ -2725,11 +3337,14 @@ function VOXEL_CORE() {
     const climateAt = (x, z) => {
       const t = terrainInfo(x, z);
       // air: on the climate ladder (0.8232) the level's own warmth or cold in degrees (CLIMATE_LADDER), else null
-      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), red: t.fRed || 0, h: t.h, air: t.air,   // red: the sandstorm's colour (0.825)
+      // red: the sandstorm's colour (0.825); not over the (yellow) Deep Desert's half (0.841)
+      return { snow: t.fSnow || 0, hot: Math.max(t.fDesert || 0, t.fRed || 0), red: (t.fRed || 0) * (1 - (t.fDeepD || 0) * (1 - (t.ddRed ?? 1))), h: t.h, air: t.air,
                inland: Math.max(t.rT || 0, t.lk || 0) > 0.3,     // a river or a lake, not the sea (0.8351, the ice)
-               rime: t.rimeAir || 0 };                           // how far into the Coldest Deep Snow's cold (0.836)
+               rime: t.rimeAir || 0,                             // how far into the Coldest Deep Snow's cold (0.836)
+               dd: t.ddAir || 0 };                               // ...and the Deep Desert's heat (0.84)
     };
-    return { genChunk, heightAt, biomeAt, climateAt, climAt, rimeOpenAt: bio.rimeOpenAt };   // rimeOpenAt: castle sites (0.8393)
+    return { genChunk, heightAt, biomeAt, climateAt, climAt, rimeOpenAt: bio.rimeOpenAt,     // rimeOpenAt: castle sites (0.8393)
+             dryAt: bio.dryAt };                                                              // the Dryland's grass colour (0.8442)
   }
 
   /* ---------- greedy mesher ----------
@@ -2770,6 +3385,7 @@ function VOXEL_CORE() {
   const DIR_SHADE = [   255,      140,      178,      178,      216,      216  ]; // baked light
   const mask = new Int32Array(16 * CY);      // reused across sweeps (max plane size)
   const maskL = new Uint16Array(16 * CY);    // parallel mask of per-face block-light level (with its colour bit, 0.834)
+  const maskD = new Uint16Array(16 * CY);    // ...and of a grass face's dryness key (0.8442, dryKey): faces merge only when it matches too
   /* Light COLOUR (0.834): a packed light is block light (bits 0-3) | sky light (4-7) | LIGHT_COLD (bit 8), set where the
      brightest block light reaching the cell is a cold one (crystal torch, glowcrystal block, glow vine). The shader (04)
      tints that light blue. Two lights joined per nibble keep the colour of the brighter block light. */
@@ -2794,6 +3410,7 @@ function VOXEL_CORE() {
     if (!p || !(v & 255)) return 0;
     if (p.model === 'log') return 3;
     if (p.model !== 'cube' || layerCount(v)) return 0;            // snow and leaf layers stay out: a skin, not a block
+    if (shapeOfVal(v) === 'door') return 0;                         // a door is drawn as its own mesh (0.842)
     if ((v & 255) === B.WATER || (v & 255) === B.LAVA) return 1;
     return p.opaque ? 3 : (shapeOfVal(v) ? 3 : 2);                 // a slab or stairs counts as its full block
   }
@@ -2879,6 +3496,34 @@ function VOXEL_CORE() {
       const a = clim[i] + (clim[i + 1] - clim[i]) * fx, b = clim[i + 17] + (clim[i + 18] - clim[i + 17]) * fx;
       return Math.round((a + (b - a) * fz) * 127);
     }
+    /* The Dryland's dryness at the same corners, 0..255 (0.8442, DRY_TILE above); null where the chunk has none, which
+       is nearly every chunk: nine corners are looked at first, and the field is far too slow to hide between them. */
+    let dry = null;
+    const dryField = ox != null && !!_dryAt;      // a world chunk: the grass's dry colour is the field's, not its variant's
+    if (dryField) {
+      let some = false;
+      for (let z = 0; z <= 16 && !some; z += 8) for (let x = 0; x <= 16; x += 8) if (_dryAt(ox + x, oz + z) > 0.002) { some = true; break; }
+      if (some) {
+        dry = new Uint8Array(289);
+        for (let z = 0; z <= 16; z++) for (let x = 0; x <= 16; x++) dry[x + z * 17] = Math.round(_dryAt(ox + x, oz + z) * 255);
+      }
+    }
+    function dryOf(x, z) {
+      x = x < 0 ? 0 : x > 16 ? 16 : x; z = z < 0 ? 0 : z > 16 ? 16 : z;
+      const ix = Math.min(15, x | 0), iz = Math.min(15, z | 0), fx = x - ix, fz = z - iz, i = ix + iz * 17;
+      const a = dry[i] + (dry[i + 1] - dry[i]) * fx, b = dry[i + 17] + (dry[i + 18] - dry[i + 17]) * fx;
+      return Math.round(a + (b - a) * fz);
+    }
+    /* What keeps a grass face from merging with its neighbours in the greedy sweep: 0 or its one dryness when every
+       corner of the face has the same (those merge as ever), else a number of its own, so each block's face keeps its
+       four corners and the colour runs smoothly through them. `d` the sweep's axis, (x, z) the cell, e the face's plane. */
+    function dryKey(d, x, z, e) {
+      let a, b, c, f;
+      if (d === 1) { a = dry[x + z * 17]; b = dry[x + 1 + z * 17]; c = dry[x + (z + 1) * 17]; f = dry[x + 1 + (z + 1) * 17]; }
+      else if (d === 0) { a = c = dry[e + z * 17]; b = f = dry[e + (z + 1) * 17]; }
+      else { a = c = dry[x + e * 17]; b = f = dry[x + 1 + e * 17]; }
+      return a === b && a === c && a === f ? a : 256 + x + z * 16;
+    }
 
     // neighbour-aware voxel read (y out of world: below = stone so bottom faces cull, above = air)
     function gb(x, y, z) {
@@ -2918,6 +3563,11 @@ function VOXEL_CORE() {
     function pushClim(g, tile, c0, c1, c2, c3) {
       if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
       else g.clim.push(0, 0, 0, 0);
+      // a grass face's dryness at its corners (0.8442), in `dark`, padded with 0 up to here as quadW does
+      if (dry && DRY_TILE[tile]) {
+        const a = dryOf(c0[0], c0[2]), b = dryOf(c1[0], c1[2]), c = dryOf(c2[0], c2[2]), d = dryOf(c3[0], c3[2]);
+        if (a | b | c | d) { while (g.dark.length < g.v) g.dark.push(0); g.dark.push(a, b, c, d); }
+      }
     }
 
     function quad(pass, c0, c1, c2, c3, u0, u1, u2, u3, tile, shade, lite) {
@@ -2985,7 +3635,7 @@ function VOXEL_CORE() {
           for (let u = 0; u < us; u++) {
             pos[d] = n; pos[ua] = u; pos[va] = v;
             const a = data[pos[0] + (pos[2] << 4) + (pos[1] << 8)];
-            let m = 0, ml = 0;
+            let m = 0, ml = 0, md = 0;
             if (a !== 0 && P[a & 255] && P[a & 255].model === 'cube' && (a & 255) !== B.WATER && (a & 255) !== B.LAVA
                 && !(((a >> 8) & 255) && P[a & 255].shapes && (shapeOfVal(a) || slabMixed(a)))) {   // a chiseled cube emits with the models below (0.783), a mixed slab too (0.8263)   // non-cube models emit separately; water/lava handled by emitWater/emitLava
               npos[0] = pos[0]; npos[1] = pos[1]; npos[2] = pos[2]; npos[d] += s;
@@ -3007,25 +3657,32 @@ function VOXEL_CORE() {
                 // a faint glow of its own (ores, 0.765), so it can be spotted in a pitch-black cave
                 const sg = P[a & 255].selfGlow;
                 if (sg && (ml & 15) < sg) ml = (ml & 0xF0) | sg;
+                /* Grass in a world chunk (0.8442): its dry colour comes from the field, so a GRASS_DRY block is the grass
+                   block here (and merges with it), and where the dryness changes across a face it stands alone (dryKey) */
+                if (dryField && (a & 255) === B.GRASS) {
+                  if (((a >> 8) & 255) === V.GRASS_DRY) m = B.GRASS;
+                  if (dry && dir !== 1) md = dryKey(d, pos[0], pos[2], n + (s > 0 ? 1 : 0));
+                }
               }
             }
             mask[u + v * us] = m;
             maskL[u + v * us] = ml;
+            maskD[u + v * us] = md;
           }
         }
         if (!any) continue;
 
-        // ---- greedy rectangle expansion (faces merge only when tile AND light match) ----
+        // ---- greedy rectangle expansion (faces merge only when tile AND light match; a grass face's dryness too) ----
         for (let v = 0; v < vsE; v++) {
           for (let u = 0; u < us;) {
-            const val = mask[u + v * us], lv = maskL[u + v * us];
+            const val = mask[u + v * us], lv = maskL[u + v * us], dv2 = maskD[u + v * us];
             if (!val) { u++; continue; }
             let w = 1;
-            while (u + w < us && mask[u + w + v * us] === val && maskL[u + w + v * us] === lv) w++;
+            while (u + w < us && mask[u + w + v * us] === val && maskL[u + w + v * us] === lv && maskD[u + w + v * us] === dv2) w++;
             let h = 1;
             outer: while (v + h < vsE) {
               for (let k = 0; k < w; k++)
-                if (mask[u + k + (v + h) * us] !== val || maskL[u + k + (v + h) * us] !== lv) break outer;
+                if (mask[u + k + (v + h) * us] !== val || maskL[u + k + (v + h) * us] !== lv || maskD[u + k + (v + h) * us] !== dv2) break outer;
               h++;
             }
             emit(dir, n, u, v, w, h, val, lv);
@@ -3047,6 +3704,8 @@ function VOXEL_CORE() {
         // driven by the variant byte, set wherever a snow block sits on grass.
         if (id === B.GRASS && varb === V.GRASS_SNOWY && faceIdx !== 2 && faceIdx !== 3)
           tile = T.GRASS_SNOW_SIDE;
+        // the Dryland's pale grass (0.8411): its own top and sides, never moved by the climate colour
+        if (id === B.GRASS && varb === V.GRASS_DRY && faceIdx !== 3) tile = faceIdx === 2 ? T.GRASS_TOP_DRY : T.GRASS_SIDE_DRY;
         // TNT lit-blink variant: every face flashes white over its OWN picture — the top keeps the top (0.804)
         if (id === B.TNT && (varb & 1)) tile = faceIdx === 2 ? T.TNT_TOP_LIT : faceIdx === 3 ? T.TNT_BOTTOM : T.TNT_LIT;
         // lying log: ring texture on the faces along the log's axis (1 = X, 2 = Z)
@@ -3190,6 +3849,7 @@ function VOXEL_CORE() {
           if (!PROPS[vid]) continue;                           // an id this build does not know
           const lc = layerCount(val);                          // a layer stack (0.785)
           const shapeBoxes = lc ? null : shapeBoxesAt(gb, x, y, z, val);   // a chiseled slab or stairs (0.783)
+          if (shapeBoxes && shapeOfVal(val) === 'door') continue;      // a door is its own swinging mesh (0.842, 27-doors.js)
           /* The furnace's chimney (0.8041): a 6px stub standing proud of its top, drawn only — no
              hitbox, it never blocks a placement. Emitted in the cell above so the open air lights it.
              Since 0.809 it is 6px tall (furnace_*.json) in its rock's own chimney art, the whole picture
@@ -3631,8 +4291,17 @@ function VOXEL_CORE() {
       // still frames on a calm top, the flow animation on the sides and on anything running (0.8093)
       const tile = T.LAVA, flow = T.LAVA_FLOW, topTile = level === 0 ? tile : flow;
       const lite = 255;   // emissive: always full brightness
-      if ((gb(x, y + 1, z) & 255) !== B.LAVA)
-        quad(3, [x0,y+frac,z0],[x0,y+frac,z1],[x1,y+frac,z1],[x1,y+frac,z0], [0,0],[0,1],[1,1],[1,0], topTile, level === 0 ? 255 : 240, lite);
+      if ((gb(x, y + 1, z) & 255) !== B.LAVA) {
+        // flowing lava's top runs its way, as water's does (0.844: bits 3-6, set as it spreads, makeFluidSim)
+        const fdir = (val >> 11) & 15;
+        let uv = [[0, 0], [0, 1], [1, 1], [1, 0]];
+        if (level && fdir >= 1 && fdir <= 8) {
+          const a = (fdir - 1) * Math.PI / 4, fx = Math.cos(a), fz = Math.sin(a);
+          const uvAt = (px, pz) => [0.5 - (px - 0.5) * fz + (pz - 0.5) * fx, 0.5 - ((px - 0.5) * fx + (pz - 0.5) * fz)];
+          uv = [uvAt(0, 0), uvAt(0, 1), uvAt(1, 1), uvAt(1, 0)];
+        }
+        quad(3, [x0,y+frac,z0],[x0,y+frac,z1],[x1,y+frac,z1],[x1,y+frac,z0], uv[0], uv[1], uv[2], uv[3], topTile, level === 0 ? 255 : 240, lite);
+      }
       const belowId = gb(x, y - 1, z) & 255;
       if (belowId !== B.LAVA && !(P[belowId] && P[belowId].opaque))
         quad(3, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,0],[1,0],[1,1],[0,1], tile, 140, lite);
@@ -3693,7 +4362,242 @@ function VOXEL_CORE() {
     return { passes: out, minY: Math.min(minY, maxY), maxY: Math.max(maxY, 2) };
   }
 
+  /* ================================================================================================
+     FLUIDS (0.844): water and lava flowing, a cell at a time on a schedule. One simulation, run in the fluid thread
+     (WORKER_MAIN below, reading the chunks' cells in shared memory) or, without shared memory, on the main thread
+     (61-fluids.js). It only READS the world through `get` (-1: a chunk not loaded, taken as rock) and hands back what it
+     would change, [x, y, z, was, now] each, which the main thread writes through setBlock while the cell is still `was`.
+     A fluid cell's variant: bits 0-2 its level (0 a source, full; 1-7 flowing, thinner each), 3-6 the way it runs (1-8,
+     an eighth turn each from +x, what the flow art follows: emitWater), 7 a river's fast stretch.
+       - A source never moves and never dries. Flowing fluid is FED: by its own kind above it (it is falling), or by a
+         neighbour beside it that stands on a floor and spreads no thinner than it; unfed it dries, and that runs on.
+       - It falls first: into air or a plant (washed away), or onto flowing fluid of its kind, which falls too. Falling
+         fluid is never a source; it spreads again from where it lands, at level 1 (lava 2).
+       - With a floor under it, it spreads beside it a step thinner (lava two), as far as its last level; where some of
+         those cells have a drop under them, only into those.
+       - Water meets lava: flowing water turns to stone; a lava source to obsidian; flowing lava turns water to cobble.
+     Finite: nothing ever makes a new source. */
+  const FLUID = {
+    [B.WATER]: { step: 1, max: 7, delay: 0.4, dry: 0.16 },   // seconds a block at random tick speed 3 (as before 0.8245)
+    [B.LAVA]:  { step: 2, max: 6, delay: 2.0, dry: 0.8 },    // five times slower, three blocks out
+  };
+  const FL_SLOT = 0.05;                                       // the schedule's grain: one sim tick (s)
+  const FL_OFF = 2097152, FL_SPAN = 4194304;                  // a cell's key: x and z in -2^21 .. 2^21, y 0..255
+  const flKey = (x, y, z) => ((x + FL_OFF) * FL_SPAN + (z + FL_OFF)) * 256 + y;
+  const flChunkKey = (cx, cz) => (cx + 131072) * 262144 + (cz + 131072);
+  const FL_DX = [1, -1, 0, 0], FL_DZ = [0, 0, 1, -1], FL_FD = [1, 5, 3, 7];   // +x -x +z -z, and each one's way (fd)
+  const FL_NX = [1, -1, 0, 0, 0, 0], FL_NY = [0, 0, 1, -1, 0, 0], FL_NZ = [0, 0, 0, 0, 1, -1];
+  function makeFluidSim(get) {
+    const due = new Map();                  // cell key -> the slot it is due in (the earliest asked)
+    const slots = new Map();                // slot -> cell keys
+    const parked = new Map();               // chunk key -> cell keys waiting outside the sim range
+    let parkedN = 0, nowSlot = 0, factor = 1, steps = 0;
+    const ov = new Map(), was = new Map();  // this step's writes, and what those cells held before it
+    const rd = (x, y, z) => {
+      if (y < 0) return -1;                 // under the world: rock
+      if (y > CY - 1) return 0;
+      if (ov.size) { const v = ov.get(flKey(x, y, z)); if (v !== undefined) return v; }
+      return get(x, y, z);
+    };
+    const wr = (x, y, z, v) => { const k = flKey(x, y, z); if (!was.has(k)) was.set(k, get(x, y, z)); ov.set(k, v); };
+    const lvl = (v) => (v >> 8) & 7;
+    const isF = (v, f) => v >= 0 && (v & 255) === f;
+    const isFluid = (v) => v >= 0 && ((v & 255) === B.WATER || (v & 255) === B.LAVA);
+    // room for a fluid: air, or a plant it washes away
+    const open = (v) => v >= 0 && ((v & 255) === B.AIR || (!!PROPS[v & 255] && PROPS[v & 255].model === 'cross'));
+    // can fluid f at (x, y, z) go down: air or a plant under it, or its own kind flowing
+    const canDrop = (x, y, z, f) => { if (y <= 0) return false; const b = rd(x, y - 1, z); return open(b) || (isF(b, f) && lvl(b) > 0); };
+    // the level f at (x, y, z) spreads beside it at, or 99 where it does not (no floor, or as thin as it goes)
+    const outLevel = (x, y, z, v, f) => {
+      if (canDrop(x, y, z, f)) return 99;
+      const n = (isF(rd(x, y + 1, z), f) ? 0 : lvl(v)) + FLUID[f].step;
+      return n <= FLUID[f].max ? n : 99;
+    };
+    const slotIn = (delay) => nowSlot + Math.max(1, Math.round(delay / factor / FL_SLOT));
+    function queueKey(k, s) {
+      const d = due.get(k);
+      if (d !== undefined && d <= s) return;
+      due.set(k, s);
+      let a = slots.get(s);
+      if (!a) slots.set(s, a = []);
+      a.push(k);
+    }
+    // a cell, when it holds a fluid, due in `delay` s (its own step when not given)
+    function queue(x, y, z, delay) {
+      const v = rd(x, y, z);
+      if (!isFluid(v)) return;
+      queueKey(flKey(x, y, z), slotIn(delay == null ? FLUID[v & 255].delay : delay));
+    }
+    // the fluid cells round one, at their step or (dry) at their drying pace
+    function queueAround(x, y, z, dry) {
+      for (let d = 0; d < 6; d++) {
+        const ax = x + FL_NX[d], ay = y + FL_NY[d], az = z + FL_NZ[d], v = rd(ax, ay, az);
+        if (isFluid(v)) queueKey(flKey(ax, ay, az), slotIn(dry ? FLUID[v & 255].dry : FLUID[v & 255].delay));
+      }
+    }
+    // from the game: 0 the cell itself, 1 the cells round it, 2 the cells round it drying (a source taken away)
+    function touch(x, y, z, mode) {
+      if (mode === 0) queue(x, y, z);
+      else queueAround(x, y, z, mode === 2);
+    }
+    // a fluid cell that may move: any flowing one, or a source with room under or beside it, or the other fluid touching it
+    function loose(x, y, z, v) {
+      if (lvl(v) > 0) return true;
+      const f = v & 255, other = f === B.WATER ? B.LAVA : B.WATER;
+      if (y > 0) { const b = rd(x, y - 1, z); if (open(b) || (isF(b, f) && lvl(b) > 0) || isF(b, other)) return true; }
+      if (isF(rd(x, y + 1, z), other)) return true;
+      for (let d = 0; d < 4; d++) { const n = rd(x + FL_DX[d], y, z + FL_DZ[d]); if (open(n) || isF(n, other)) return true; }
+      return false;
+    }
+    /* A chunk arriving: every loose fluid cell in it is queued (the world's own water too: a lake over a cave, a fall's
+       curtain), from y0 to y1; with `edges` also the cells of the four chunks beside it along the shared sides, which
+       could not see across before. Returns how many it queued. */
+    function scanChunk(cx, cz, y0 = 0, y1 = CY - 1, edges = true) {
+      const x0 = cx * 16, z0 = cz * 16;
+      let n = 0;
+      const look = (x, y, z) => { const v = rd(x, y, z); if (isFluid(v) && loose(x, y, z, v)) { queue(x, y, z); n++; } };
+      for (let y = y0; y <= y1; y++)
+        for (let z = 0; z < 16; z++)
+          for (let x = 0; x < 16; x++) { const v = get(x0 + x, y, z0 + z); if (isFluid(v) && loose(x0 + x, y, z0 + z, v)) { queue(x0 + x, y, z0 + z); n++; } }
+      if (edges)
+        for (let y = 0; y < CY; y++)
+          for (let k = 0; k < 16; k++) { look(x0 - 1, y, z0 + k); look(x0 + 16, y, z0 + k); look(x0 + k, y, z0 - 1); look(x0 + k, y, z0 + 16); }
+      return n;
+    }
+    // a chunk let go: what waited in it is dropped (it is looked over again when it comes back)
+    function forget(cx, cz) {
+      const ck = flChunkKey(cx, cz), p = parked.get(ck);
+      if (p) { parkedN -= p.length; parked.delete(ck); }
+    }
+    function clear() { due.clear(); slots.clear(); parked.clear(); parkedN = 0; }
+    // one cell's turn
+    function cell(x, y, z) {
+      const v = rd(x, y, z);
+      if (!isFluid(v)) return;
+      const f = v & 255, c = FLUID[f], other = f === B.WATER ? B.LAVA : B.WATER;
+      let L = lvl(v);
+      // water and lava meet
+      let hit = false;
+      for (let d = 0; d < 6 && !hit; d++) hit = isF(rd(x + FL_NX[d], y + FL_NY[d], z + FL_NZ[d]), other);
+      if (hit) {
+        if (f === B.WATER) {
+          if (L > 0) { wr(x, y, z, B.STONE); queueAround(x, y, z, true); return; }
+          // a still water source waits for the lava's own turn
+        } else if (L === 0) { wr(x, y, z, B.OBSIDIAN); queueAround(x, y, z, true); return; }
+        else for (let d = 0; d < 6; d++) {
+          const ax = x + FL_NX[d], ay = y + FL_NY[d], az = z + FL_NZ[d];
+          if (isF(rd(ax, ay, az), B.WATER)) { wr(ax, ay, az, B.COBBLE); queueAround(ax, ay, az, true); }
+        }
+      }
+      // flowing: fed, and how thin
+      if (L > 0) {
+        let want = 99, from = -1;
+        if (isF(rd(x, y + 1, z), f)) want = c.step;               // falling
+        else for (let d = 0; d < 4; d++) {
+          const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
+          if (!isF(nv, f)) continue;
+          const o = outLevel(nx, y, nz, nv, f);
+          if (o < want) { want = o; from = d; }
+        }
+        if (want > c.max) { wr(x, y, z, B.AIR); queueAround(x, y, z, true); return; }
+        if (want !== L) {
+          // it runs away from the side feeding it (that side's way turned round); a falling cell has no way
+          wr(x, y, z, f | (want << 8) | ((from >= 0 ? FL_FD[from ^ 1] : 0) << 11));
+          queueAround(x, y, z, false);
+          L = want;
+        }
+      }
+      // down first
+      if (canDrop(x, y, z, f)) {
+        const fall = f | (c.step << 8);
+        if (rd(x, y - 1, z) !== fall) { wr(x, y - 1, z, fall); queue(x, y - 1, z); }
+        // what it spread beside it may have lost its feed now: they look again
+        for (let d = 0; d < 4; d++) {
+          const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
+          if (isF(nv, f) && lvl(nv) > 0) queue(nx, y, nz, c.dry);
+        }
+        return;
+      }
+      // then beside it
+      const out = (isF(rd(x, y + 1, z), f) ? 0 : L) + c.step;
+      if (out > c.max) return;
+      let holed = false;
+      const cand = [];
+      for (let d = 0; d < 4; d++) {
+        const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
+        if (open(nv)) {
+          const h = canDrop(nx, y, nz, f);
+          if (h && !holed) { holed = true; cand.length = 0; }
+          if (h || !holed) cand.push(d);
+        } else if (isF(nv, f) && lvl(nv) > out) queue(nx, y, nz);   // a thinner one beside it fills up on its turn
+      }
+      for (const d of cand) {
+        const nx = x + FL_DX[d], nz = z + FL_DZ[d];
+        wr(nx, y, nz, f | (out << 8) | (FL_FD[d] << 11));
+        queue(nx, y, nz);
+      }
+    }
+    /* One step at sim time `now` (s): first the game's touches since the last ([x, y, z, mode] x n, see touch), then every
+       cell due by now, up to `maxCells` cells or `maxChanges` changes (the rest next step); `speed` the world's tick speed
+       factor; `inRange(cx, cz)` whether a chunk is in the sim range (a cell out of it waits, parked, and goes on when a
+       player comes back near). Returns the changes, [x, y, z, was, now] x n. */
+    function step(now, speed, inRange, touches = null, maxCells = 4000, maxChanges = 1500) {
+      const t0 = performance.now();
+      factor = speed > 0 ? speed : 1;
+      nowSlot = Math.floor(now / FL_SLOT);
+      ov.clear(); was.clear();
+      if (touches) for (let i = 0; i + 3 < touches.length; i += 4) touch(touches[i], touches[i + 1], touches[i + 2], touches[i + 3]);
+      if ((++steps & 7) === 0 && parkedN)                       // parked chunks a player came back to
+        for (const [ck, keys] of parked) {
+          const cx = Math.floor(ck / 262144) - 131072, cz = ck % 262144 - 131072;
+          if (!inRange(cx, cz)) continue;
+          for (const k of keys) queueKey(k, nowSlot);
+          parkedN -= keys.length;
+          parked.delete(ck);
+        }
+      const ready = [];
+      for (const s of slots.keys()) if (s <= nowSlot) ready.push(s);
+      ready.sort((a, b) => a - b);
+      let n = 0, full = false, rcx = 1e9, rcz = 1e9, rin = false;
+      for (const s of ready) {
+        const list = slots.get(s);
+        slots.delete(s);
+        for (let i = 0; i < list.length; i++) {
+          const k = list[i];
+          if (due.get(k) !== s) continue;                         // asked again earlier, and done then
+          if (full) { due.delete(k); queueKey(k, nowSlot + 1); continue; }
+          due.delete(k);
+          const y = k % 256, t = (k - y) / 256, zz = t % FL_SPAN, z = zz - FL_OFF, x = (t - zz) / FL_SPAN - FL_OFF;
+          const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+          if (cx !== rcx || cz !== rcz) { rcx = cx; rcz = cz; rin = inRange(cx, cz); }
+          if (!rin) {
+            if (get(x, y, z) < 0) continue;                       // not even loaded: looked over again when it comes
+            const ck = flChunkKey(cx, cz);
+            let p = parked.get(ck);
+            if (!p) parked.set(ck, p = []);
+            p.push(k); parkedN++;
+            continue;
+          }
+          cell(x, y, z);
+          if (++n >= maxCells || ov.size >= maxChanges) full = true;
+        }
+      }
+      const out = [];
+      for (const [k, v] of ov) {
+        const w = was.get(k);
+        if (w === v || w < 0) continue;                           // no change, or into a chunk not loaded
+        const y = k % 256, t = (k - y) / 256, zz = t % FL_SPAN;
+        out.push((t - zz) / FL_SPAN - FL_OFF, y, zz - FL_OFF, w, v);
+      }
+      ov.clear(); was.clear();
+      return { changes: new Float64Array(out), cells: n, ms: performance.now() - t0 };
+    }
+    const stats = () => ({ queued: due.size, parked: parkedN });
+    return { queue, queueAround, touch, scanChunk, forget, clear, step, stats };
+  }
+
   return { setTintSampler, setFastLeaves, B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
+           makeFluidSim, flChunkKey,                                                                         // fluids 0.844
            SHAPE_MASK, ROT_MASK, shapeOfVal,
            HOLLOW_FILLS, opaqueVal, lightDim, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK,
@@ -3912,6 +4816,36 @@ function WORKER_MAIN() {
                        made: made.map((e) => ({ key: e.key, lid: e.lid, light: e.light })) });
   };
 
+  /* ---- the fluid thread (0.844, with shared memory; 61-fluids.js starts it) ----
+     The main thread registers each chunk as it is finished (`freg`, its cells in shared memory, looked over for loose
+     fluid) and forgets it on unload; every sim tick with nothing of the last answer left to write it sends `fstep`: the
+     time, the tick speed, where the players are and the game's touches since. The answer is the changes to write. The
+     simulation never writes the world: what it reads is always what the main thread has written. */
+  const FREG = new Map();                    // flChunkKey -> the chunk's cells
+  let fsim = null, fcx = 1e9, fcz = 1e9, fent = null;
+  const fget = (x, y, z) => {
+    const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+    if (cx !== fcx || cz !== fcz) { fcx = cx; fcz = cz; fent = FREG.get(CORE.flChunkKey(cx, cz)) || null; }
+    return fent ? fent[(x & 15) + ((z & 15) << 4) + (y << 8)] : -1;
+  };
+  const fluidMsg = (m) => {
+    if (m.type === 'freset') { FREG.clear(); fcx = 1e9; fsim = CORE.makeFluidSim(fget); return; }
+    if (!fsim) fsim = CORE.makeFluidSim(fget);
+    if (m.type === 'freg') {
+      FREG.set(CORE.flChunkKey(m.cx, m.cz), m.data); fcx = 1e9;
+      fsim.scanChunk(m.cx, m.cz);
+    } else if (m.type === 'fforget') {
+      FREG.delete(CORE.flChunkKey(m.cx, m.cz)); fcx = 1e9;
+      fsim.forget(m.cx, m.cz);
+    } else if (m.type === 'fstep') {
+      const P = m.players, r2 = m.r2;
+      const inRange = (cx, cz) => { for (let i = 0; i < P.length; i += 2) { const dx = cx - P[i], dz = cz - P[i + 1]; if (dx * dx + dz * dz <= r2) return true; } return false; };
+      const r = fsim.step(m.now, m.speed, inRange, m.touch);
+      const s = fsim.stats();
+      self.postMessage({ type: 'fdone', gen: m.gen, changes: r.changes, cells: r.cells, ms: r.ms, queued: s.queued, parked: s.parked }, [r.changes.buffer]);
+    }
+  };
+
   // a made (or cached) chunk back to the main thread with its light emitters and, with the light settings, its own sky
   const sendChunk = (cx, cz, buf, fromSave) => {
     const d = new Uint32Array(buf), emit = emittersOf(d), sky = L ? skyOf(d) : null;
@@ -3919,12 +4853,38 @@ function WORKER_MAIN() {
     if (sky) { msg.sky = sky.buffer; tr.push(sky.buffer); }
     self.postMessage(msg, tr);
   };
+  /* A PLAYER'S EDIT JUMPS THE QUEUE (0.8444). A worker took its messages strictly in order, so the re-mesh of a chunk
+     you had just dug into waited behind every generation job already handed over — several of them when the frame
+     rate is low and the queues are kept deep — and for that long the hole or the new block was not drawn. Jobs (gen,
+     prep, scan, mesh, probe) are now kept in a list here and run one at a time with the event loop let through in
+     between, so a mesh job marked `rush` that arrives while another job runs is taken next, ahead of the rest. It
+     never passes a message that is not a job (init, opts...): those keep their place in line. A worker that gets no
+     jobs (the light thread, the fluid thread) answers every message at once, as before. */
+  const JOBS = { gen: 1, prep: 1, scan: 1, mesh: 1, probe: 1 };
+  const jobQ = [];
+  let jobKick = null, jobBusy = false;
+  const jobNext = () => {
+    let at = 0;
+    for (let i = 0; i < jobQ.length && JOBS[jobQ[i].type]; i++) if (jobQ[i].type === 'mesh' && jobQ[i].rush) { at = i; break; }
+    handle(jobQ.splice(at, 1)[0]);
+    if (jobQ.length) jobKick(); else jobBusy = false;
+  };
+  if (typeof MessageChannel === 'function') {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = jobNext;
+    jobKick = () => ch.port2.postMessage(0);
+  } else jobKick = () => setTimeout(jobNext, 0);
   self.onmessage = (e) => {
     const m = e.data;
+    if (!jobQ.length && !JOBS[m.type]) { handle(m); return; }
+    jobQ.push(m);
+    if (!jobBusy) { jobBusy = true; jobKick(); }
+  };
+  const handle = (m) => {
     try {
       if (m.type === 'init') {
         gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1);   // biome sizes by world (0.819)
-        CORE.setTintSampler(gen.climAt);                                   // the grass and water climate colour (0.8231)
+        CORE.setTintSampler(gen.climAt, gen.dryAt);                        // the grass and water climate colour (0.8231), the Dryland's dry grass (0.8442)
         L = m.light || null;                                               // 0.8383
         if (m.pack) PK = m.pack;                                           // how light packs for the mesher (0.8386)
       } else if (m.type === 'opts') {
@@ -3940,6 +4900,8 @@ function WORKER_MAIN() {
         if (m.pack) PK = m.pack;
       } else if (m.type === 'lbox' || m.type === 'ladd') {
         lightJob(m);
+      } else if (m.type === 'freset' || m.type === 'freg' || m.type === 'fforget' || m.type === 'fstep') {
+        fluidMsg(m);                                                       // the fluid thread (0.844)
       } else if (m.type === 'probe') {
         // a few places' biome and ground (0.8393, the snow castle's sites, 60-bosses.js): milliseconds each, so not on the game's thread
         const names = [], heights = [];
@@ -3983,6 +4945,12 @@ const LEGACY_SHAPE = {
   121: [B.SANDSTONE, 0], 122: [B.SANDSTONE, 1], 123: [B.RED_SANDSTONE, 0], 124: [B.RED_SANDSTONE, 1],
 };
 function migrateLegacyVal(v) {
+  /* the old oak door (B.DOOR, until 0.842; variant bits 0-3 as the door shape's, bit 4 hinged right) is an oak planks door
+     shape now: same place, facing, open and hinge */
+  if (typeof v === 'number' && (v & 255) === B.DOOR) {
+    const va = (v >> 8) & 255;
+    return (B.PLANKS | ((((va & 16) ? BLOCKS.SHAPE_DOOR_R : BLOCKS.SHAPE_DOOR) | (va & 15)) << 8)) >>> 0;
+  }
   const m = typeof v === 'number' ? LEGACY_SHAPE[v & 255] : null;
   if (!m) return v;
   if (!m[0]) return 0;
@@ -4063,6 +5031,7 @@ for (const id of STORAGE_BLOCK_IDS) MINE_REQ[id] = { tool: 'pick', tier: 1 };
 // 0.769: topaz ore needs iron like the other gems; sandstone any pickaxe
 MINE_REQ[B.TOPAZ_ORE] = { tool: 'pick', tier: 4 };   // bronze, like the other gems (0.774)
 MINE_REQ[B.SANDSTONE] = MINE_REQ[B.RED_SANDSTONE] = MINE_REQ[B.PINK_SANDSTONE] = { tool: 'pick', tier: 1 };   // pink 0.822
+MINE_REQ[B.METAL_CHEST] = { tool: 'pick', tier: 1 };   // any pickaxe takes an opened one home (0.843)
 MINE_REQ[B.ADOBE] = { tool: 'pick', tier: 1 };   // a flint pickaxe keeps it (0.8097)   // 0.8096: flint keeps crafted blocks, not natural rock
 /* 0.8095: stone, cobblestone, the rocks, sandstone, terracotta and the furnace keep nothing for a flint pickaxe —
    it still breaks them, but only stone (tier 2) and up brings them home. Stone pebbles are the way round it. */
@@ -4082,19 +5051,22 @@ const TOOL_BLOCKS = {
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
-                   B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE]),   // pink 0.822
+                   B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE,   // pink 0.822
+                   B.METAL_CHEST]),                                               // 0.843
   hatchet: new Set([B.LOG, B.PLANKS, B.BIRCH_LOG, B.BIRCH_PLANKS, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG, B.SPRUCE_PLANKS,
                     B.RIME_LOG, B.STRIPPED_RIME_LOG, B.RIME_PLANKS,   // 0.836
-                    B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.DOOR, B.CACTUS, B.CHEST, B.BED,
+                    B.PALM_LOG, B.STRIPPED_PALM_LOG, B.PALM_PLANKS,   // 0.84
+                    B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.CACTUS, B.CHEST, B.BED,   // the old door left in 0.842
                     B.CARVED_PUMPKIN, B.JACK_O_LANTERN]),   // chest and bed 0.7992, cantaloupe 0.8091, carved 0.824
-  hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.HAY]),
+  hoe:    new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES, B.HAY]),   // palm 0.84; dry 0.8411
   // shears are the wool tool; they also snip plant matter cleanly
-  shears: new Set([B.WOOL, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
-                   B.POPPY, B.ORCHID, B.SUGAR_CANE]),
+  shears: new Set([B.WOOL, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
+                   B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH]),   // dry 0.84
   // a blade cuts soft, fibrous things fast — plants, leaves, melons, cane and webbing-like props
-  sword:  new Set([B.COBWEB, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
+  sword:  new Set([B.COBWEB, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES, B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
                    B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM,     // 0.8091, yellow 0.821
                    B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
+                   B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH, B.PALM_SAPLING,      // 0.84
                    B.OAK_SAPLING, B.BIRCH_SAPLING, B.SPRUCE_SAPLING, B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };
 // variant blocks (0.7941) mine exactly like the block each plays like: same tool, same drop gate
@@ -4161,7 +5133,7 @@ function isWrongTool(heldId, blockId) {
    hand; every solid block needs a tool in hand before the crack even starts. That is what makes
    the flint tier a real gate rather than a convenience — and it is why the flint recipes cost no
    wood, since a log is on the far side of this rule. */
-const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES]);   // rime 0.836
+const LEAF_BLOCKS = new Set([B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES]);   // rime 0.836; palm 0.84; dry 0.8411
 /* Loose blocks (0.786): they fall, land as a pile of 8 walk-through layers (pouring into a pile below), and
    a layer of one breaks away to nothing. */
 const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK,   // not ash: a whole ash block stands, its layers fall (0.8193)

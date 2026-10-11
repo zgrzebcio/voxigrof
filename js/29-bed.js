@@ -265,8 +265,12 @@ function bedItemNode(wood = 0) {
     const inner = new THREE.Group();
     inner.add(bedMesh(wood).mesh);
     inner.position.set(-0.5, -BED_H / 2, -1);
+    // turned half round about its middle (0.8446): held or dropped, the pillow is at the far end, not against the hand
+    const turn = new THREE.Group();
+    turn.rotation.y = Math.PI;
+    turn.add(inner);
     _bedItemProto[wood] = new THREE.Group();
-    _bedItemProto[wood].add(inner);
+    _bedItemProto[wood].add(turn);
     _bedItemProto[wood].scale.setScalar(0.62);   // 2 cells long — shrink so it reads in the hand
   }
   return _bedItemProto[wood].clone();
@@ -356,10 +360,10 @@ function bedBroken(x, y, z, oldVal) {
 // and the head one cell further along the facing.
 // bits (0.8342): the variant bar's pick, the frame's wood (BED_WOOD_SHIFT)
 function tryPlaceBed(px, py, pz, bits = 0) {
-  // Facing points foot -> head, and the bed reads correctly when the head lands on the player's
-  // side — same block-toward-player convention the door and chest use. Measuring player -> block
-  // instead put the whole bed the other way round.
-  const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
+  /* Facing points foot -> head. 0.8446: the head, the pillow's end, lies AWAY from you: the foot goes in the cell you
+     aimed at and the head one cell beyond it, the way a bed is set down in front of you. (It was the other way round:
+     the pillow on the player's side, the bed reaching back toward your feet.) */
+  const ddx = (px + 0.5) - player.pos.x, ddz = (pz + 0.5) - player.pos.z;
   const facing = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
   const d = BED_DIR[facing];
   const hx = px + d[0], hz = pz + d[1];
@@ -443,6 +447,8 @@ function trySleep(x, y, z) {
     camView = 1;                                   // over the shoulder
   }
   if (rec) rec.occupant = player;
+  // the bedding as you lie down on it (0.8445): the wool's own sound, soft and a little low
+  if (typeof playSound === 'function') playSound('wool', { gain: 0.6, rate: 0.85, pos: { x: pose.x, y: pose.y, z: pose.z } });
   /* Sleeping here makes this your respawn point, and the bed is REMEMBERED (0.7341) — break it
      and you go back to where the world first put you, rather than respawning at a bed that is no
      longer there. `homeSpawn` is that original point, captured the first time anyone spawns. */
@@ -509,7 +515,7 @@ function updateBed(dt) {
     // tint by world light at the bed cell (same approximation the doors use)
     const bl = getLightWorld(b.x, b.y, b.z) / 15;
     const sky = getSkyWorld(b.x, b.y, b.z) / 15;
-    const skyF = 0.276 + 0.724 * sky * sky;   // must track the chunk shader in 04-materials.js (0.8242)
+    const skyF = SKY_FLOOR + (1 - SKY_FLOOR) * sky * sky;   // must track the chunk shader in 04-materials.js (0.8242; SKY_FLOOR 0.8442)
     const sun = sharedUniforms.uAmbient.value + sharedUniforms.uDirect.value;
     const br = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
     if (Math.abs(br - b.lastB) > 0.02) {

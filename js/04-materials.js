@@ -60,6 +60,10 @@ const sharedUniforms = {
   // the water's warm and cold colour as a multiple of its usual one (0.8231, WATER_TINT in 03-atlas.js)
   uWaterWarm:  { value: new THREE.Vector3(...WATER_TINT.warm.map((v, i) => v / WATER_TINT.base[i])) },
   uWaterCold:  { value: new THREE.Vector3(...WATER_TINT.cold.map((v, i) => v / WATER_TINT.base[i])) },
+  // the Dryland's dry grass (0.8442): the grass top and side tiles, and the dry tiles they fade to by a face's dryness (vDry)
+  uDryTiles:   { value: new THREE.Vector4(CORE.T.GRASS_TOP, CORE.T.GRASS_SIDE, CORE.T.GRASS_TOP_DRY, CORE.T.GRASS_SIDE_DRY) },
+  // the grass plants' tiles (short, tall bottom, tall top): they pale in dry and warm land (0.8444, FSH)
+  uDryPlants:  { value: new THREE.Vector3(CORE.T.GRASS_PLANT, CORE.T.TALL_BOT, CORE.T.TALL_TOP) },
 };
 /* The haze of the sky in a direction (0.817): added to the fog colour, so it is the same on the sky dome, the
    clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
@@ -84,6 +88,8 @@ const GLOW_LEVEL = 14;   // glowstone emission (light reaches this many blocks t
    The same functions draw the clouds (52-clouds.js) and shade the ground beneath them (FSH below). */
 const CLOUD_Y0 = 208, CLOUD_H = 7, CLOUD_N = 256, CLOUD_WX_N = 8;   // 4 tall until 0.816; y 208-215 since 0.83542 (175 before 0.83541), over the taller land
 const CLOUD_SHADE = 0.2;     // light a white cloud takes; a dark one takes 75%
+// ...and both halved since 0.8444 (a white cloud 10%, a dark one 37.5%): a cloudy day read as too dark
+const CLOUD_SHADOW_MUL = 0.5;
 const CLOUD_GLSL = /* glsl */`
   uniform float uCloudOn;
   uniform highp sampler2D uCloudNoise;
@@ -112,7 +118,7 @@ const CLOUD_GLSL = /* glsl */`
     vec2 at = wp.xz + uCloudSun.xz / max(uCloudSun.y, 0.2) * (CLOUD_Y0 - wp.y);   // up the ray to the light
     vec3 wx = cloudWx(at);
     float cov = smoothstep(wx.x - 0.03, wx.x + 0.01, cloudN(at - uCloudOff));
-    return 1.0 - cov * mix(${CLOUD_SHADE}, 0.75, wx.y);
+    return 1.0 - cov * mix(${CLOUD_SHADE}, 0.75, wx.y) * ${CLOUD_SHADOW_MUL.toFixed(2)};
   }`;
 
 const VSH = /* glsl */`
@@ -127,6 +133,10 @@ const VSH = /* glsl */`
   uniform float uTime;
   uniform float uFade;                       // a chunk fading in: plants grow up with it (0.8196)
   in float clim;                             // the climate colour, -1 cold .. 1 warm (0.8231)
+  /* A grass face's dryness at this corner, 0 green .. 1 the Dryland's pale grass (0.8442, the mesher's DRY_TILE). It
+     comes in the attribute water uses for its depth shade; a mesh with none of it reads 0. */
+  in float dark;
+  out float vDry;
   out float vClim;
   out vec2 vUv;
   flat out float vTile;
@@ -140,7 +150,7 @@ const VSH = /* glsl */`
     /* Fast leaves (0.8386, FAST_LEAF_TILE in 02): the tile's top bit says "a solid leaf block": its holes are filled
        (FSH) and it does not sway, which would open slits against the faces it now hides. */
     float fillF = step(32767.5, tile), tileId = tile - fillF * 32768.0;
-    vUv = uv; vTile = tileId; vShade = shade; vClim = clim; vFill = fillF;
+    vUv = uv; vTile = tileId; vShade = shade; vClim = clim; vFill = fillF; vDry = dark;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;                      // flood-filled block-light level (0..15) for this face
     vec4 wp = modelMatrix * vec4(position, 1.0);
     /* The wind (0.81): plants bend from the foot the way it blows, leaves drift a touch. Every term is a
@@ -194,6 +204,9 @@ const FSH = /* glsl */`
   uniform vec3 uGlowColor, uColdGlowColor;
   uniform float uTime;
   uniform vec3 uWaterWarm, uWaterCold;              // water's warm and cold colour over its usual blue (0.8231)
+  uniform vec4 uDryTiles;                           // grass top, grass side, and their dry tiles (0.8442)
+  uniform vec3 uDryPlants;                          // short grass, tall grass bottom and top (0.8444)
+  in float vDry;
   in float vClim;
   in vec2 vUv;
   flat in float vTile;
@@ -234,6 +247,25 @@ const FSH = /* glsl */`
       // water takes it about twice as strongly (0.835491): a cool plain's river is clearly colder, a warm one's cyan
       if (tt.r > 1.5) tex.rgb *= mix(vec3(1.0), vClim > 0.0 ? uWaterWarm : uWaterCold, min(1.0, abs(vClim) * 1.8));
       else if (tt.r > 0.5) tex = mix(tex, texture(map, vec3(vUv, vClim > 0.0 ? tt.g : tt.b)), k);
+    }
+    /* The Dryland's dry grass (0.8442): a grass top or side fades into its dry tile by the face's dryness, blended
+       between its corners, so the pale grass comes in over the Dryland's whole edge. Eased, so it starts and ends softly. */
+    if (vDry > 0.004) {
+      float dryT = abs(vTile - uDryTiles.x) < 0.5 ? uDryTiles.z : abs(vTile - uDryTiles.y) < 0.5 ? uDryTiles.w : -1.0;
+      if (dryT >= 0.0) {
+        float dl = texelFetch(uTileLayer, ivec2(int(dryT + 0.5), 0), 0).r;
+        tex = mix(tex, texture(map, vec3(vUv, dl)), smoothstep(0.0, 1.0, vDry));
+      }
+    }
+    /* Grass plants pale with the land (0.8444): short and tall grass take a dry, pale green by the dryness at their
+       foot, and a little of it in any warm land (the climate colour from a warm plain on), so they no longer stand
+       bright green on pale ground. The pale colour keeps the texel's own brightness. */
+    if (abs(vTile - uDryPlants.x) < 0.5 || abs(vTile - uDryPlants.y) < 0.5 || abs(vTile - uDryPlants.z) < 0.5) {
+      float pale = max(smoothstep(0.0, 1.0, vDry) * 0.7, clamp((vClim - 0.25) * 1.2, 0.0, 0.3));
+      if (pale > 0.004) {
+        float lum = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+        tex.rgb = mix(tex.rgb, lum * vec3(1.16, 1.14, 0.66), pale);
+      }
     }
     /* A river's top (0.835492): ripples run downstream across it. Its UVs are turned so v falls downstream (02 emitWater),
        so the way downstream in the world is against v's slope over the surface, worked out here from the screen-space
@@ -285,7 +317,8 @@ const FSH = /* glsl */`
     // quadratic falloff, but off a higher floor: unlit faces now bottom out at 24% of daylight
     // instead of 12%, so shadowed sides and cave mouths stay readable rather than near-black
     // ...and 15% lighter still since 0.8242 (0.24): caves and deep shade less near-black
-    float skyF = 0.276 + 0.724 * sky * sky;
+    // ...and lighter again since 0.8442 (0.276; half as light again in 0.8443): SKY_FLOOR, 00-config.js
+    float skyF = ${SKY_FLOOR.toFixed(3)} + ${(1 - SKY_FLOOR).toFixed(3)} * sky * sky;
     // part-linear curve: light-source edges (low levels) stay visibly bright instead of
     // quadratic-fading to black; peak slightly above the old 1.15
     vec3 block = mix(uGlowColor, uColdGlowColor, coldL) * (bl * 0.45 + bl * bl * 0.85);
@@ -312,6 +345,7 @@ const VSH_WATER = /* glsl */`
      the quad; carried in the light byte (0.835491) it was unpacked bit by bit and blending it drew false glow lines */
   in float dark;
   out float vClim;
+  out float vDry;                            // water has no dry look: its dark attribute is the depth shade (0.8442)
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -321,7 +355,7 @@ const VSH_WATER = /* glsl */`
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   flat out float vFill;                      // never a fast leaf (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim; vFill = 0.0;
+    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim; vFill = 0.0; vDry = 0.0;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Waving surface vertices are marked with shade 253/255 by emitWater; every vertex of one
@@ -376,6 +410,7 @@ const VSH_LAVA = /* glsl */`
   uniform mat4 uShadowMat;
   uniform float uTime;
   out float vClim;
+  out float vDry;                            // 0.8442
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -385,7 +420,7 @@ const VSH_LAVA = /* glsl */`
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   flat out float vFill;                      // never a fast leaf (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade; vClim = 0.0; vFill = 0.0;
+    vUv = uv; vTile = tile; vShade = shade; vClim = 0.0; vFill = 0.0; vDry = 0.0;
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     if (shade > 0.985) {

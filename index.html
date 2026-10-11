@@ -6,7 +6,7 @@
 <title>voxiGrof</title>
 <!-- shared memory for the workers (0.8386): adds the isolation headers GitHub Pages cannot send; first visit reloads once -->
 <script src="coi-sw.js"></script>
-<link rel="stylesheet" href="css/style.css?v=0.8323">
+<link rel="stylesheet" href="css/style.css?v=0.8446">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -18,9 +18,10 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.83941</div>
+<div id="version">alpha 0.84471</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
+<div id="progRing"></div>
 <div id="interact"></div>
 <div id="blockname"></div>
 <div id="feed"></div>
@@ -227,6 +228,12 @@
       <label>Mouse sensitivity (%)
         <input id="sensInput" type="number" min="10" max="400" step="10">
       </label>
+      <label title="On: the mouse's own movement, without the system's pointer acceleration, so a fast stroke turns exactly as far as a slow one. Off: the system's pointer speed and acceleration apply. Changing it may need a new sensitivity.">Raw mouse input
+        <select id="rawMouseSel">
+          <option value="on">on</option>
+          <option value="off">off</option>
+        </select>
+      </label>
     </div>
     <div class="opts optGroup" data-g="video">
       <label>Frame rate limit (FPS)
@@ -411,6 +418,7 @@ window.THREE = THREE;
 <script defer src="js/56-torches.js"></script>   <!-- torches and glow blocks burning out (0.834) -->
 <script defer src="js/57-camera-filter.js"></script>   <!-- rain, water, snow, lightning and fire on the lens (0.837) -->
 <script defer src="js/60-bosses.js"></script>   <!-- bosses: the Frozen King (0.839) -->
+<script defer src="js/61-fluids.js"></script>   <!-- water and lava flowing, in a thread of their own (0.844) -->
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

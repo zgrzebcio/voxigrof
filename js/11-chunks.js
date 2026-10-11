@@ -120,6 +120,7 @@ function rebuildQueues() {
       chunks.delete(k);                     // (edits are kept in editStore)
       _chunkCacheClear();                   // 0.83851
       lightForget(c.cx, c.cz);              // 0.8386
+      if (typeof fluidForget === 'function') fluidForget(c.cx, c.cz);   // 0.844
     } else if (d2 > R * R) {
       retireChunkMeshes(c);                 // data ring beyond render radius: keep data only (fading out, 0.8195)
     } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
@@ -460,6 +461,8 @@ function dispatchMesh(worker, c) {
   const nw = getChunk(c.cx - 1, c.cz), ne = getChunk(c.cx + 1, c.cz);
   const nn = getChunk(c.cx, c.cz - 1), ns = getChunk(c.cx, c.cz + 1);
   c.meshing = true; c.queuedMesh = false; c.dirty = false; c.rev++;
+  c.meshOut = (c.meshOut | 0) + 1;            // jobs out for this chunk: a player's edit may send one over another (0.8447)
+  c.meshSentAt = performance.now();
   c.lod = chunkLod(chunkDist2ToPlayers(c.cx, c.cz), c.lod | 0);   // its level of detail (0.8092)
   /* 0.8386 (MultithreadPlan C10): the worker packs the light itself (block light low nibble, capped at 15, its cold bit
      at 8; sky high nibble: `packLight` in WORKER_MAIN), which was a 102,400-cell loop here for every mesh job. With
@@ -467,7 +470,8 @@ function dispatchMesh(worker, c) {
      without, the chunk's three arrays are copied here and the neighbours' border planes cut out. */
   const msg = { type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
                 layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks (0.785)
-                lod: c.lod };
+                lod: c.lod,
+                rush: !!c.editRush };                                         // a player's edit: the worker takes it next (0.8444)
   if (SHARED_OK && c.data.buffer instanceof SharedArrayBuffer) {
     const arrs = (n) => ({ data: n.data, light: n.light || null, sky: n.sky || null });
     msg.shared = true;
@@ -516,6 +520,23 @@ function dispatchMesh(worker, c) {
    The world-loading screen is exempt — the player is waiting on exactly this work. */
 let _genInflight = 0;
 let _lastGenAt = 0;
+/* ---- the stream under stress (0.8443) ----
+   Everything above and in runWorldTick (22) was sized PER FRAME: one new generation job each time pump ran (it runs when
+   a worker answers and once a frame, and answers that waited out a long frame all come in the same instant), two jobs a
+   worker, 5 ms of finishing and uploading a frame. So the lower the frame rate fell, the less land arrived each SECOND —
+   at 10 fps about a sixth of what 60 fps got — exactly when the land was already behind, and the workers sat idle
+   through most of every long frame. Now the clock is what counts:
+     frameMsAvg    a frame's real length, eased (frame(), 22)
+     _genTokens    generation jobs the pacing has let through: `gap` ms each on the clock, however often pump runs
+     in flight     as many as a frame's worth of that pacing, and a worker holds more jobs the longer the frame is
+     streamBehind  land is waiting near a player (runWorldTick): background work that can wait does (the season scans
+                   51, fluid writes 61), and the stream takes a bigger share of the frame (22). */
+var frameMsAvg = 16.7, streamBehind = false;
+let _genTokens = 1;
+const STREAM_NEAR_D2 = 36;                  // "near": within 6 chunks of a player
+// the stream's slice of a frame (runWorldTick, 22): its share of the frame's length, more while land is waiting; the most
+// it ever takes; how far the per-frame counts may grow; and the part of the slice the mesh uploads always keep
+const STREAM_SHARE = 0.2, STREAM_SHARE_BEHIND = 0.35, STREAM_MS_MAX = 45, STREAM_COUNT_MAX = 8, STREAM_UPLOAD_KEEP = 0.33;
 function _genThrottle() {
   /* The loading screen and the title panorama both get an exemption. Neither is "play": the
      player is looking straight at the work and waiting for it, and the panorama is a fixed
@@ -529,16 +550,42 @@ function _genThrottle() {
   return { max: 2, gap: 40 };                          // far horizon: ~25/sec, steady and cool
 }
 function noteGenDone() { if (_genInflight > 0) _genInflight--; }
-function resetGenThrottle() { _genInflight = 0; _lastGenAt = 0; }
+function resetGenThrottle() { _genInflight = 0; _lastGenAt = 0; _genTokens = 1; }
 
 // hand queued jobs to idle workers — meshing near chunks beats generating far ones
 function pump() {
   const thr = _genThrottle();
   const now = performance.now();
+  /* 0.8443 (the note above _genThrottle): at 60 fps every number here is what it was — two jobs a worker, `max` in
+     flight, one job a `gap`. A long frame gets a frame's worth: a worker holds up to 4 jobs, and as many generations
+     may be out as the gap would have started in that time (one worker slot always left for meshing). */
+  const slow = Math.max(1, frameMsAvg / 16.7);
+  const depth = slow >= 3 ? 4 : slow >= 2 ? 3 : 2;
+  const genMax = thr.gap > 0 ? Math.min(workers.length * depth - 1, Math.max(thr.max, Math.ceil(frameMsAvg / thr.gap)))
+                             : thr.max;        // no gap = the loading screen or the title: as many as it ever took
+  _genTokens = thr.gap > 0 ? Math.min(genMax, _genTokens + (now - _lastGenAt) / thr.gap) : genMax;
+  _lastGenAt = now;
+  /* A PLAYER'S EDIT FIRST (0.8444). The re-mesh of a chunk you just dug into or built on (editRush; markDirty puts it
+     at the head of the queue) used to wait for a worker with a free place, and then behind whatever that worker
+     already held: under stress, several frames in which the hole or the new block was simply not drawn. It goes out
+     at once now, to whichever worker holds the least, over the usual limit of jobs a worker may hold, and the worker
+     takes it ahead of its other jobs (WORKER_MAIN's job list, 02). */
+  while (meshQueue.length) {
+    const m = meshQueue[0], c = getChunk(m.cx, m.cz);
+    if (!c || !c.editRush) break;
+    meshQueue.shift();
+    // ...even over a mesh of it already out (0.8447, markDirty): this one is newer, that one's answer will be dropped
+    if (c.data && c.queuedMesh && neighborsReady(c)) {
+      let w = workers[0];
+      for (const o of workers) if (o.busy < w.busy) w = o;
+      w.busy++;
+      dispatchMesh(w, c);
+    } else c.queuedMesh = false;
+  }
   for (const w of workers) {
-    while (w.busy < 2) {
-      // gen is allowed only while under the concurrency cap and past the pacing gap
-      const genOk = _genInflight < thr.max && (now - _lastGenAt) >= thr.gap;
+    while (w.busy < depth) {
+      // gen is allowed only while under the concurrency cap and the pacing has one to give
+      const genOk = _genInflight < genMax && _genTokens >= 1;
       let job = null, kind = null;
       while (meshQueue.length || (genQueue.length && genOk)) {
         const m = meshQueue[0], g = genOk ? genQueue[0] : null;
@@ -555,7 +602,7 @@ function pump() {
       }
       if (!job) return;
       w.busy++;
-      if (kind === 'gen') { _genInflight++; _lastGenAt = now; }
+      if (kind === 'gen') { _genInflight++; _genTokens -= 1; }
       if (kind === 'gen') {
         job.generating = true;
         if (currentWorld && !menuScene) {
@@ -638,6 +685,8 @@ function finishChunkGen(c) {
   trySpawnEntitiesInChunk(c.cx, c.cz);
   // night mobs roll on EVERY load instead, so dusk repopulates ground the player already knows
   trySpawnNightMobsInChunk(c.cx, c.cz);
+  // the fluid simulation may read it now, and looks it over for water and lava that can move (0.844, 61-fluids.js)
+  if (typeof fluidRegister === 'function') fluidRegister(c);
   // this chunk (and each neighbour that was waiting on it) may be meshable now
   const R2 = drawDist() * drawDist();       // the far ring too (0.8193)
   for (const [dx, dz] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
@@ -693,9 +742,13 @@ function onWorkerMessage(m) {
     if (c && typeof seasonScanResult === 'function') seasonScanResult(c, m);
   } else if (m.type === 'mesh') {
     if (!c) return;
-    c.meshing = false;
+    c.meshOut = Math.max(0, (c.meshOut | 0) - 1);      // still meshing while another job of it is out (0.8447)
+    c.meshing = c.meshOut > 0;
     if (m.rev === c.rev) { m.rush = !!c.editRush; meshResults.push(m); }   // stale revs are discarded
-    if (c.dirty) tryQueueMesh(c, 0, true);
+    // changed again meanwhile: mesh it again — and for an edit still settling, without waiting on an older job still out
+    if (c.dirty) { if (c.meshing && c.editRush) _rushOver(c); else tryQueueMesh(c, 0, true); }
+    // a player's edit is shown as soon as its mesh is back, not at the next frame's turn (0.8444): the rush group only
+    if (m.rush && m.rev === c.rev) applyMeshResults(0, 0);
   }
 }
 
@@ -744,7 +797,8 @@ function applyOneMesh(m) {
     const c = getChunk(m.cx, m.cz);
     if (!c || m.rev !== c.rev) return false;
     { const r = shadowR / 16 + 2; if (chunkDist2ToPlayers(m.cx, m.cz) <= r * r) _shadowTouched = true; }   // inside the shadow maps (0.8196)
-    c.editRush = false;
+    // still a rush while a follow-up of the same edit waits its turn (0.8447, markDirty's EDIT_FOLLOW_MS)
+    c.editRush = !!c.queuedMesh && performance.now() - (c.editAt || -1e9) < EDIT_FOLLOW_MS;
     _regionTouch(c);                        // its far region (if built) comes apart first (0.8386)
     if (!MESH_REUSE) disposeChunkMeshes(c);
     // first shown now, or still fading in from its first showing: the new meshes fade on from there (0.8195)
@@ -798,12 +852,14 @@ function blockBoxes(x, y, z) {
   { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, true); if (sb) return sb; }
   if (prop.boxesOf) return prop.boxesOf(val);      // variant too wide to index (layered carpet)
   if (prop.boxesByVar) { const b = prop.boxesByVar[(val >> 8) & 255]; if (b) return b; }
-  // loose ground gives underfoot (0.8244): a whole sand, gravel or snow block stops your feet 30% down into it
-  if (SINK_BLOCKS.has(val)) return SINK_BOX;
+  // loose ground gave underfoot (0.8244: a whole sand, gravel or snow block stopped your feet 30% down into it). Sand and
+  // gravel stand full height since 0.8444, snow since 0.8445: SINK_BLOCKS is empty, and kept for a block that should sink
+  if (SINK_BLOCKS.size && SINK_BLOCKS.has(val)) return SINK_BOX;
   return prop.boxes || FULL_BOX;
 }
 const SINK_BOX = [[0, 0, 0, 1, 0.7, 1]];
-const SINK_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.SNOW]);   // by value: whole blocks only
+// 0.8444: sand and gravel stand full height again (they were here too); 0.8445: snow as well
+const SINK_BLOCKS = new Set();   // by value: whole blocks only
 // raycast / selection / crack box list for the block at (x,y,z) — same corner logic, honouring
 // rayBoxesByVar (doors) where present. Returns falsy for full cubes so callers fall back to 1×1×1.
 function rayBoxesAt(x, y, z) {
@@ -817,6 +873,9 @@ function rayBoxesAt(x, y, z) {
 }
 
 let editRushing = false;   // true while a player edit runs: marks its re-meshes for grouped apply
+/* true while 61-fluids.js writes what the fluid simulation decided (0.844): setBlock's fluid hooks keep quiet (the
+   simulation queued what follows itself), and its re-meshes are not a player's, so they never jump the queue */
+let fluidApplying = false;
 // set by 34-structures.js around bulk stamping; see the lighting note inside setBlock
 let structBulkLight = false;
 function setBlock(x, y, z, val) {
@@ -824,7 +883,7 @@ function setBlock(x, y, z, val) {
   const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
   const c = getChunk(cx, cz);
   if (!c || !c.data) return;
-  editRushing = true;
+  editRushing = !fluidApplying;                        // a fluid's flowing is no player edit (0.844)
   const lx = x & 15, lz = z & 15;
   const i = lx + (lz << 4) + (y << 8);
   if (c.data[i] === val) return;
@@ -893,17 +952,20 @@ function setBlock(x, y, z, val) {
   if ((newId === B.WATER || newId === B.LAVA) && y > 0 && _plainGrass(getBlock(x, y - 1, z)))
     setBlock(x, y - 1, z, B.DIRT);
   // water source destroyed (replaced by anything non-water): dry every flowing cell it fed
-  if (oldId === B.WATER && ((oldVal >> 8) & 15) === 0 && newId !== B.WATER) dryWaterFrom(x, y, z);
+  // (the level is bits 0-2; 3-6 are a river's way, 0.844 reads & 7, 15 took a river's top for flowing)
+  if (oldId === B.WATER && ((oldVal >> 8) & 7) === 0 && newId !== B.WATER) dryWaterFrom(x, y, z);
   // same rule for lava sources
-  if (oldId === B.LAVA && ((oldVal >> 8) & 15) === 0 && newId !== B.LAVA) dryLavaFrom(x, y, z);
+  if (oldId === B.LAVA && ((oldVal >> 8) & 7) === 0 && newId !== B.LAVA) dryLavaFrom(x, y, z);
   // furnace removed/replaced: spill its contents and drop the state
   if (oldId === B.FURNACE && newId !== B.FURNACE) furnaceBroken(x, y, z);
   // door half removed: take the other half + the animated mesh with it
-  if (oldId === B.DOOR && newId !== B.DOOR) doorBroken(x, y, z, oldVal);
+  // a door is a shape of its material since 0.842; a new one's mesh comes up as its bottom half is set
+  if (BLOCKS.isDoorVal(oldVal) && !BLOCKS.isDoorVal(val)) doorBroken(x, y, z, oldVal);
+  else if (BLOCKS.isDoorVal(val) && !((val >> 8) & 8)) registerDoor(x, y, z, val);
   // bed half removed: take the other half + the mesh with it
   if (oldId === B.BED && newId !== B.BED) bedBroken(x, y, z, oldVal);
   // chest removed/replaced: spill its contents and drop the mesh
-  if (oldId === B.CHEST && newId !== B.CHEST) chestBroken(x, y, z, oldVal);
+  if (isChestId(oldId) && newId !== oldId) chestBroken(x, y, z, oldVal);   // wooden or metal (0.843)
   // crafting bench removed: its order (finished and unfinished) spills on the floor (0.76)
   if (oldId === B.CRAFTING_BENCH && newId !== B.CRAFTING_BENCH) benchBroken(x, y, z);
   if (PROPS[oldId]?.mortar && newId !== oldId) benchBroken(x, y, z);          // a mortar's order spills too (0.771; any variant 0.7945)
@@ -923,17 +985,19 @@ function setBlock(x, y, z, val) {
   // tall grass: breaking the UPPER half removes the lower half too (whole plant goes)
   if (newId === B.AIR && oldId === B.TALL_UPPER && (getBlock(x, y - 1, z) & 255) === B.TALL_LOWER)
     setBlock(x, y - 1, z, B.AIR);
+  if (newId === B.AIR && oldId === B.DRY_TALL_UPPER && (getBlock(x, y - 1, z) & 255) === B.DRY_TALL_LOWER)   // the dry one (0.84)
+    setBlock(x, y - 1, z, B.AIR);
   /* Door / bed support: both need solid ground under them, so digging out any ONE of the cells
      they stand on drops the whole thing. Each block's own break hook then takes its other half,
      so only the cell directly above has to be handled here. Guarded on the new block not being
      solid, otherwise swapping dirt for stone under a door would demolish it. */
   if (!CORE.solidVal(val) && y + 1 <= WORLD_TOP) {
     const upVal = getBlock(x, y + 1, z), upId = upVal & 255;
-    const isDoorBottom = upId === B.DOOR && !((upVal >> 8) & 8);
+    const isDoorBottom = BLOCKS.isDoorVal(upVal) && !((upVal >> 8) & 8);   // a door of any material (0.842)
     if (isDoorBottom || upId === B.BED) {
       setBlock(x, y + 1, z, B.AIR);
       if (!player.canFly)
-        for (const d of blockDrop(upId)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);
+        for (const d of isDoorBottom ? doorDropOf(upVal) : blockDrop(upId)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);
     }
   }
   /* Wall torches (0.7451) hang off the SIDE of a block. When that block goes, any torch mounted on
@@ -1015,8 +1079,16 @@ function setBlock(x, y, z, val) {
     const below = getBlock(x, y - 1, z);
     if ((below & 255) === B.AIR || (CORE.layerCount(val) && canStackLayer(below, newId))) scheduleFall(x, y, z);
   }
+  /* a player's edit: its re-mesh goes to a worker now, not when a worker next answers or the frame comes round (0.8444).
+     Only while a player is digging or building (notePlayerEdit, from tickPlayer): the world's own changes (growth,
+     seasons, a structure going up) come many to a chunk, and are better meshed once after the lot. */
+  const rushed = editRushing;
   editRushing = false;
+  if (rushed && !structBulkLight && meshQueue.length && performance.now() - _playerEditAt < PLAYER_EDIT_MS) pump();
 }
+let _playerEditAt = -1e9;
+const PLAYER_EDIT_MS = 40;
+function notePlayerEdit() { _playerEditAt = performance.now(); }
 /* ---- layer stacks (0.785) ----
    Carpets are a shape now: a cell of layers is its TOP block's id with the layer count in the variant. A
    stack that mixes blocks keeps its list here, beside the chunk — so the world array stays 32 bits a cell
@@ -1131,10 +1203,30 @@ function remeshAllChunks() {
   }
   pump();
 }
+/* 0.8447, a player's edit seen at once (with pump's fast lane and the worker's, 0.8444):
+     - it does not wait for a mesh of this chunk that is ALREADY out. That one was asked for before the edit, usually
+       as an ordinary job deep in a worker's queue, and the edit used to sit behind it: the block you broke stayed
+       drawn, or the hole where you built showed, until it came back. Now a new job goes out over it (`meshOut` counts
+       the jobs out; the old one's answer is a stale revision and is dropped);
+     - what follows the edit on this chunk for EDIT_FOLLOW_MS — the light coming back from its thread, a neighbour's
+       border — is the same edit still settling, and is rushed the same way. */
+const EDIT_FOLLOW_MS = 1500;
 function markDirty(c) {
   if (!c || !c.data) return;
-  if (editRushing) c.editRush = true;       // player edit: apply this re-mesh grouped with siblings
-  if (c.meshing) c.dirty = true;
-  else tryQueueMesh(c, 0, true);
+  const now = performance.now(), byPlayer = editRushing && now - _playerEditAt < PLAYER_EDIT_MS;
+  if (byPlayer) c.editAt = now;
+  if (editRushing || now - (c.editAt || -1e9) < EDIT_FOLLOW_MS) c.editRush = true;   // applied grouped with its siblings
+  if (c.meshing) {
+    c.dirty = true;
+    // the edit itself goes out at once; its follow-ups only over a job that has been out a while (an old, slow one)
+    if (c.editRush && (byPlayer || now - (c.meshSentAt || 0) > RUSH_OVER_MS)) _rushOver(c);
+  } else tryQueueMesh(c, 0, true);
+}
+const RUSH_OVER_MS = 120;
+// queue a rushed mesh of a chunk that is still meshing: pump's fast lane sends it over the job already out
+function _rushOver(c) {
+  if (!c.lit || c.queuedMesh || !neighborsReady(c)) return;
+  c.queuedMesh = true;
+  meshQueue.unshift({ cx: c.cx, cz: c.cz, d2: 0 });
 }
 

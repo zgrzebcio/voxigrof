@@ -41,6 +41,33 @@ const radialCtx = radialEl.getContext('2d');
    device you last touched — swap from keyboard to pad mid-game and the glyph follows on the next
    frame. `lastInputDevice` is maintained in 17-input.js. */
 var interactEl = document.getElementById('interact');
+/* ---- the progress ring (0.8446) ----
+   A ring round the crosshair that fills as anything you HOLD for runs its course: eating and drinking, milking a cow,
+   working a bench's order (E held) and cancelling one (the right button held). Mining has its cracks and is not on
+   it. One per pane like the crosshair (36-splitscreen.js); it is a conic gradient cut to a ring in style.css, and only
+   its --p changes here, in hundredths, so a held frame costs nothing. */
+var progRingEl = document.getElementById('progRing');
+function interactProgress() {
+  if (player.dead || menuScene || !playing) return 0;
+  if (player._milkProg > 0) return player._milkProg;
+  if (player._eatProg > 0) return player._eatProg;                      // a meal or a drink
+  if (player._drawProg > 0) return Math.min(1, player._drawProg);       // a bow being drawn (0.8447)
+  if (typeof BENCH_CANCEL_HOLD !== 'undefined' && player._benchRmbT > BENCH_TAP_TIME && !player._benchRmbDone)
+    return Math.min(1, player._benchRmbT / BENCH_CANCEL_HOLD);          // the right button held on a busy bench
+  if (player._benchWork && typeof BENCHES !== 'undefined') {
+    const b = BENCHES.get(player._benchWork), r = b && typeof recipeAt === 'function' ? recipeAt(b.ri) : null;
+    if (r && r.timeToCraft > 0) return Math.min(1, b.t / r.timeToCraft);
+  }
+  return 0;
+}
+function updateProgressRing() {
+  if (!progRingEl) return;
+  const p = Math.round(Math.max(0, Math.min(1, interactProgress())) * 100);
+  if (progRingEl._p === p) return;
+  progRingEl._p = p;
+  progRingEl.style.display = p > 0 ? 'block' : 'none';
+  if (p > 0) progRingEl.style.setProperty('--p', (p / 100).toFixed(2));
+}
 // North face button: Y on an Xbox pad, Triangle on a PlayStation one
 function padNorthLabel() {
   const g = typeof getPad === 'function' ? getPad() : null;

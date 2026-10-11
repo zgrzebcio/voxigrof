@@ -19,51 +19,56 @@ const _req = (items, need = 1) => ({ items: Array.isArray(items) ? items : [item
 // a requirement that counts anything matching a test rather than a fixed list (0.7992)
 const _reqAny = (test, need, label) => ({ test, need, label });
 const QUESTS = [
-  { name: 'Gather fiber',           hint: 'Hold E on grass, wheat or bushes',        reqs: [_req(ITEM.FIBER, 5)],  xp: 10 },
-  { name: 'Find sticks',            hint: 'Break leaves',                            reqs: [_req(ITEM.STICK, 3)],  xp: 10 },
+  { name: 'Gather fiber',           hint: 'Hold E on grass, wheat or bushes',        reqs: [_req(ITEM.FIBER, 5)],  xp: 5 },
+  { name: 'Find sticks',            hint: 'Break leaves',                            reqs: [_req(ITEM.STICK, 3)],  xp: 5 },
   { name: 'Pick up flint',          hint: 'Hold E on a flint pebble, or dig gravel', reqs: [_req(ITEM.FLINT, 4)],  xp: 10 },   // 4, the hatchet's worth (0.8095)
   // 20 since 0.8272 (15), and wheat and raw mushrooms count too: things that become food
   { name: 'Gather food',            hint: 'Berries, apples, meat, wheat, mushrooms — anything edible counts',
-    reqs: [_reqAny((id) => !!foodPropsOf(id) || id === ITEM.CANTALOUPE_SLICE || id === ITEM.WHEAT || (id < 256 && PROPS[id]?.shroom != null), 20, 'food')], xp: 15 },
+    reqs: [_reqAny((id) => !!foodPropsOf(id) || id === ITEM.CANTALOUPE_SLICE || id === ITEM.WHEAT || (id < 256 && PROPS[id]?.shroom != null), 20, 'food')], xp: 25 },
   // the flint pickaxe left the chain in 0.8095: it breaks stone but keeps none
-  { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 15 },
+  { name: 'Craft a flint hatchet',  hint: 'Open the inventory (Tab) and craft it. It cuts logs', reqs: [_req(ITEM.FLINT_HATCHET)], xp: 40 },
   { name: 'Chop wood',              hint: 'Use the hatchet on a tree',
-    reqs: [_req([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG], 4)], xp: 15 },   // rime 0.836
-  { name: 'Make planks',            hint: 'A log makes 3 planks',                    reqs: [_req([B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS], 10)], xp: 10 },
-  { name: 'Build a crafting bench', hint: '5 planks and 5 fiber',                    reqs: [_req(B.CRAFTING_BENCH)], xp: 20 },
+    reqs: [_req([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.RIME_LOG, B.PALM_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG, B.STRIPPED_RIME_LOG, B.STRIPPED_PALM_LOG], 4)], xp: 50 },   // rime 0.836; palm 0.84
+  { name: 'Make planks',            hint: 'A log makes 3 planks',                    reqs: [_req([B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS], 10)], xp: 75 },
+  { name: 'Build a crafting bench', hint: '10 planks and 10 fiber',                    reqs: [_req(B.CRAFTING_BENCH)], xp: 100 },
   /* The way into the stone age (0.8095): a flint pickaxe keeps no stone, so the first five come from stone
      pebbles (five make a stone at the bench) — enough for a stone pickaxe, which then mines the rest. */
   { name: 'Stone for a pickaxe',    hint: 'Hold E on stone pebbles; 5 make a stone at the bench',
-    reqs: [_req([B.STONE, B.COBBLE], 5)], xp: 15 },
-  { name: 'Craft a stone pickaxe',  hint: '5 stone, 3 sticks and 10 fiber, at the bench', reqs: [_req(ITEM.STONE_PICKAXE)], xp: 20 },
+    reqs: [_req([B.STONE, B.COBBLE], 5)], xp: 90 },
+  { name: 'Craft a stone pickaxe',  hint: '5 stone, 3 sticks and 10 fiber, at the bench', reqs: [_req(ITEM.STONE_PICKAXE)], xp: 130 },
   { name: 'Mine stone',             hint: 'Only a stone pickaxe or better keeps what it breaks',
-    reqs: [_req([B.STONE, B.COBBLE], 10)], xp: 15 },
+    reqs: [_req([B.STONE, B.COBBLE], 10)], xp: 155 },
   { name: 'Stone tools',            hint: 'Hatchet, shovel, hoe and sword, at the bench',
-    reqs: [ITEM.STONE_HATCHET, ITEM.STONE_SHOVEL, ITEM.STONE_HOE, ITEM.STONE_SWORD].map(id => _req(id)), xp: 30 },
-  { name: 'Build a furnace',        hint: '12 cobblestone, at the bench',            reqs: [_req(B.FURNACE)], xp: 25 },
-  { name: 'Smelt iron',             hint: 'Raw iron in the furnace, fuel under it',  reqs: [_req(ITEM.IRON_INGOT)], xp: 30 },
-  { name: 'Make a bucket',          hint: 'It takes 3 iron ingots',                  reqs: [_req(ITEM.BUCKET)], xp: 20 },
-  { name: 'Get milk',               hint: 'Use the bucket on a cow. It keeps 10 minutes', reqs: [_req(ITEM.MILK_BUCKET)], xp: 20 },
+    reqs: [ITEM.STONE_HATCHET, ITEM.STONE_SHOVEL, ITEM.STONE_HOE, ITEM.STONE_SWORD].map(id => _req(id)), xp: 250 },
+  { name: 'Build a furnace',        hint: '12 cobblestone, at the bench',            reqs: [_req(B.FURNACE)], xp: 300 },
+  // `added` (0.8444): put into the chain later; an older save's place skips over it (restoreQuests)
+  { name: 'Get coal or charcoal',   hint: 'Mine coal ore, or smelt a log into charcoal: fuel for the furnace',
+    reqs: [_req([ITEM.COAL, ITEM.CHARCOAL])], xp: 300, added: true },
+  { name: 'Smelt iron',             hint: 'Raw iron in the furnace, fuel under it',  reqs: [_req(ITEM.IRON_INGOT)], xp:400 },
+  { name: 'Make a bucket',          hint: 'It takes 3 iron ingots',                  reqs: [_req(ITEM.BUCKET)], xp: 500 },
+  // `mark: 'cow'` (0.8442): a marker over the nearest female cow while this is the quest you are on (syncBossHud, 60-bosses.js)
+  { name: 'Get milk',               hint: 'Hold the bucket on a female cow for 2 seconds, both standing still: follow the marker. Milk keeps 10 minutes', reqs: [_req(ITEM.MILK_BUCKET)], xp: 1000, mark: 'cow' },
+  { name: 'Make glass',             hint: 'Smelt sand in the furnace: 4 glass blocks', reqs: [_req(B.GLASS, 4)], xp: 750, added: true },   // 0.8444
   { name: 'Leather and cloth',      hint: 'Leather comes off cows, cloth is woven from fiber',
-    reqs: [_req(ITEM.LEATHER, 10), _req(ITEM.CLOTH, 10)], xp: 30 },
-  { name: 'Build a mortar',         hint: '20 granite, a bone, 2 flint and a fiber block', reqs: [_req(B.MORTAR)], xp: 30 },
-  { name: 'Wheat and flour',        hint: 'Grind 3 wheat into each flour in the mortar', reqs: [_req(ITEM.WHEAT, 5), _req(ITEM.FLOUR, 3)], xp: 25 },
+    reqs: [_req(ITEM.LEATHER, 10), _req(ITEM.CLOTH, 10)], xp: 1200 },
+  { name: 'Build a mortar',         hint: '20 granite, a bone, 2 flint and a fiber block', reqs: [_req(B.MORTAR)], xp: 1500 },
+  { name: 'Wheat and flour',        hint: 'Grind 3 wheat into each flour in the mortar', reqs: [_req(ITEM.WHEAT, 5), _req(ITEM.FLOUR, 3)], xp: 1350 },
   { name: 'Bake a pumpkin pie',     hint: 'Craft the pie, then bake it in the furnace',
-    reqs: [_req([ITEM.PUMPKIN_PIE, ITEM.COOKED_PUMPKIN_PIE])], xp: 30 },
-  { name: 'Get a backpack',         hint: 'Leather and cloth, at the bench. Worn on the back', reqs: [_req(ITEM.BACKPACK)], xp: 40 },
+    reqs: [_req([ITEM.PUMPKIN_PIE, ITEM.COOKED_PUMPKIN_PIE])], xp: 2500 },
+  { name: 'Get a backpack',         hint: 'Leather and cloth, at the bench. Worn on the back', reqs: [_req(ITEM.BACKPACK)], xp: 2000 },
   { name: 'Golden apple and saddle', hint: 'Gold for the apple, leather for the saddle',
-    reqs: [_req(ITEM.GOLDEN_APPLE), _req(ITEM.SADDLE)], xp: 60 },
-  { name: 'Craft a bronze pickaxe', hint: 'Copper and tin powder smelt into bronze', reqs: [_req(ITEM.BRONZE_PICKAXE)], xp: 50 },
+    reqs: [_req(ITEM.GOLDEN_APPLE), _req(ITEM.SADDLE)], xp: 3750 },
+  { name: 'Craft a bronze pickaxe', hint: 'Copper and tin powder smelt into bronze', reqs: [_req(ITEM.BRONZE_PICKAXE)], xp: 3900 },
   { name: 'Every gem',              hint: 'Gem clusters grow in caves. You need a bronze pickaxe',
-    reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 100 },
+    reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 5500 },
   /* The last (0.839): the first boss. Done once its kind is in your feats (60-bosses.js), so beating it before you got
      here counts too. A marker over the nearest Frozen King shows the way while it is the quest you are on. Its 2000
      XP is paid as written (`fixedXp`), and after the kill's boss boost has landed, so the boost already counts. */
   { name: 'Defeat the Frozen King', hint: 'Follow the crown marker. Keep moving: close to him you cannot mine',
-    reqs: [{ boss: 'frozen_king', need: 1 }], xp: 2000, fixedXp: true },
+    reqs: [{ boss: 'frozen_king', need: 1 }], xp: 10000, fixedXp: true },
 ];
 // every quest pays half as much again since 0.8281 (the numbers above are the old ones: 10 -> 15, 100 -> 150)
-const QUEST_XP_MUL = 1.5 * 1.5;            // +50% in 0.8281, and again in 0.831
+const QUEST_XP_MUL = 2.5           // +50% in 0.8281, and again in 0.831
 for (const q of QUESTS) if (!q.fixedXp) q.xp = Math.round(q.xp * QUEST_XP_MUL);
 
 var questEl = document.getElementById('quest');   // one per split-screen pane (36-splitscreen.js)
@@ -108,17 +113,49 @@ function updateQuests(dt) {
     player._questT = 0;
     return;
   }
-  const key = questIndex() + ':' + have;
+  /* A quest that wants DIFFERENT things (0.8443: leather and cloth, wheat and flour, every stone tool, every gem) says
+     how far each one is, a line apiece, instead of one sum that hid which was missing. A quest with one requirement
+     keeps its single count beside the name, an "any of these" one too (stone or cobblestone, any log): those count
+     together, so there is nothing to tell apart. */
+  const split = q.reqs.length > 1 && q.reqs.every(r => !r.boss);
+  const counts = split ? q.reqs.map(r => Math.min(r.need, _questCount(r))) : null;
+  const key = questIndex() + ':' + (split ? counts.join(',') : have);
   if (questEl._key === key) return;
   questEl._key = key;
   const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let lines = '';
+  if (split) q.reqs.forEach((r, i) => {
+    lines += `<div class="qReq${counts[i] >= r.need ? ' done' : ''}">${esc(_questReqName(r))} <b>${counts[i]}/${r.need}</b></div>`;
+  });
   questEl.innerHTML =
     `<div class="qHead">Quest ${questIndex() + 1}/${QUESTS.length} <span class="qXp">+${q.xp} XP</span></div>` +
-    `<div class="qName">${esc(q.name)} <b>${have}/${need}</b></div>` +
+    `<div class="qName">${esc(q.name)}${split ? '' : ` <b>${have}/${need}</b>`}</div>` +
+    lines +
     `<div class="qHint">${esc(q.hint)}</div>`;
   questEl.style.display = 'block';
 }
+// what a requirement is called on its own line (0.8443): its label, else its first item's name
+function _questReqName(r) {
+  if (r.label) return r.label[0].toUpperCase() + r.label.slice(1);
+  const id = r.items && r.items[0];
+  return (id == null ? '' : (id >= 256 ? ITEM_PROPS[id]?.name : PROPS[id]?.name)) || 'item';
+}
 
 // saved in each player's record beside the skills (16-worlds.js for player one, 36-splitscreen.js for the rest)
-const serializeQuests = (p) => (p && p.questIdx) | 0;
-const restoreQuests = (v) => Math.max(0, Math.min(QUESTS.length, (+v) | 0));
+/* 0.8444: two quests were put INTO the chain (`added`), so a place saved before them would point one or two quests
+   back. A save now carries QUEST_SAVE_MARK on top of its place; one without it is from before, and its place is
+   counted along the quests that were there then, landing on the same quest it was on (the new ones before it are
+   skipped, not asked for). */
+const QUEST_SAVE_MARK = 1000;
+const serializeQuests = (p) => ((p && p.questIdx) | 0) + QUEST_SAVE_MARK;
+function restoreQuests(v) {
+  let i = (+v) | 0;
+  if (i >= QUEST_SAVE_MARK) return Math.max(0, Math.min(QUESTS.length, i - QUEST_SAVE_MARK));
+  i = Math.max(0, i);
+  for (let k = 0, old = 0; k < QUESTS.length; k++) {
+    if (QUESTS[k].added) continue;
+    if (old === i) return k;
+    old++;
+  }
+  return QUESTS.length;                                // it had finished the chain
+}

@@ -8,7 +8,7 @@
    VITALS. Health, food, thirst, stamina, energy, fruit, vegetables, protein and oxygen all run 0..100.
    Health and food were out of 20 (ten hearts) until 0.82: VITAL_K is that step, and every hit and heal is
    written in the new scale. Food, thirst, energy, fruit, vegetables and protein each carry an OVER-STAT of up
-   to MAX_OVER on top of the bar: a buffer that drains first, three times as fast — what food's saturation
+   to MAX_OVER on top of the bar: a buffer that drains first, 1.5 times as fast (3 until 0.8441) — what food's saturation
    always was (food's keeps the name `saturation`, so saves and callers still read it).
      - Sprinting, jumping and climbing a wall use STAMINA, not food. It comes back while you rest (20% faster
        sneaking; not while mining, sprinting, in the air or climbing), and that is paid in food and thirst.
@@ -33,7 +33,10 @@ const MAX_HP = 100, MAX_FOOD = 100, MAX_THIRST = 100, MAX_STAMINA = 200, MAX_ENE
       MAX_NUTRIENT = 100, MAX_AIR = 200;
 const MAX_OVER = 50;                                 // every over-stat's ceiling
 const MAX_SATURATION = MAX_OVER;                     // food's over-stat, under its old name
-const OVER_DRAIN_MUL = 3;                            // an over-stat drains 3x as fast as its bar would
+// 3x until 0.8441: healing alone emptied over-food in about 13 s
+const OVER_DRAIN_MUL = 1.5;                          // an over-stat drains 1.5x as fast as its bar would
+// over-food from eating (0.8443): half of what a food's `foodSat` / `foodSatFull` says (22 updateEating, and the tooltip)
+const OVER_FOOD_GAIN = 0.5;
 // the player field each bar keeps its over-stat in
 const OVER_KEY = { food: 'saturation', thirst: 'thirstO', energy: 'energyO', fruit: 'fruitO', veg: 'vegO', protein: 'proteinO',
                    stamina: 'staminaO' };   // stamina's since 0.821
@@ -87,9 +90,10 @@ const STAMINA_EMPTY_MUL = 1.4, STAMINA_FULL_MUL = 1;
 const AIR_RAMP_S = 4, AIR_RAMP_MAX = 2;
 const regenRamp = (t, span, max) => 1 + (max - 1) * Math.max(0, Math.min(1, (t - REGEN_RAMP_DELAY) / span));
 // energy: 75 min from full (50 until 0.831), almost four days without sleep (DAY_LEN is 20 min); sleep fills it (0.821)
-const ENERGY_IDLE_PER_S  = 1 / 45;
-const ENERGY_PER_STAMINA = 0.025;           // per point of stamina used (0.04 until 0.831)
-const ENERGY_PER_HP      = 0.07;            // per point of health lost (0.1 until 0.831)
+// 0.8441: every energy cost halved: 150 min from full standing, half for stamina used and health lost
+const ENERGY_IDLE_PER_S  = 1 / 90;          // 1/45 until 0.8441
+const ENERGY_PER_STAMINA = 0.0125;          // per point of stamina used (0.04 until 0.831, 0.025 until 0.8441)
+const ENERGY_PER_HP      = 0.035;           // per point of health lost (0.1 until 0.831, 0.07 until 0.8441)
 /* TIRED (0.832): at TIRED_AT energy or less (20%) you are tired, the more so the emptier it gets (tiredness 0..1, from
    20 down to 0): regen up to TIRED_REGEN less (health, and energy from food), every bar's depletion up to
    TIRED_DEPLETION more, and you move up to TIRED_SLOW slower. A night in bed fills energy whatever the regen. */
@@ -333,16 +337,17 @@ function tickStats(dt) {
     p._stamRestT = Math.max(0, (p._stamRestT || 0) - dt);
     const busy = (typeof mining !== 'undefined' && mining.active) || (!grounded && !inWater);
     if (p.stamina >= MAX_STAMINA) p._stamRegenT = 0;   // a hop or a step down only pauses the ramp (0.8321)
-    if (!busy && p._stamRestT <= 0 && p.stamina < MAX_STAMINA) {
-      const fed = p.food > 0 && p.thirst > 0;       // on an empty stomach or throat it still comes, at half
+    // 0.8444: on an empty stomach or throat it does not come back at all (at half speed before), as health does not
+    const fed = p.food > 0 && p.thirst > 0;
+    if (!busy && fed && p._stamRestT <= 0 && p.stamina < MAX_STAMINA) {
       p._stamRegenT = (p._stamRegenT || 0) + dt;    // rest ramp (0.829)
       const ramp = regenRamp(p._stamRegenT, STAMINA_RAMP_S, STAMINA_RAMP_MAX);   // after 2 s, +50% over 6 s (0.8321)
       const left = Math.max(0, Math.min(1, p.stamina / MAX_STAMINA));
       const need = STAMINA_EMPTY_MUL + (STAMINA_FULL_MUL - STAMINA_EMPTY_MUL) * left;
-      const rate = STAMINA_REGEN_PER_S * ramp * need * (p.sneaking ? STAMINA_SNEAK_MUL : 1) * (fed ? 1 : 0.5) * hsm.stamina;   // heatstroke (0.825)
+      const rate = STAMINA_REGEN_PER_S * ramp * need * (p.sneaking ? STAMINA_SNEAK_MUL : 1) * hsm.stamina;   // heatstroke (0.825)
       const gain = Math.min(MAX_STAMINA - p.stamina, rate * dt);
       p.stamina += gain;
-      if (fed) { foodCost += gain * STAMINA_FOOD_COST; thirstCost += gain * STAMINA_THIRST_COST; }
+      foodCost += gain * STAMINA_FOOD_COST; thirstCost += gain * STAMINA_THIRST_COST;
     }
   }
   if (p._tired && p.stamina >= STAMINA_BACK) p._tired = false;
@@ -482,7 +487,11 @@ function _tickWet(p, dt) {
 /* MINING SPEED (0.8323), a stat: how fast you break blocks, 100% to start; effects and gear may carry `miningSpeed`,
    vegetable sickness takes up to 25% (off for now). Never under 0. */
 const playerMiningSpeedMul = () => Math.max(0, 1 + _effectSum('miningSpeed') + (typeof _equipSum === 'function' ? _equipSum('miningSpeed') : 0)
-  - SICK_VEG_MINING * sickness('veg'));
+  - SICK_VEG_MINING * sickness('veg')) * (playerUnderwater() ? 1 - UNDERWATER_MINING : 1);
+/* UNDER WATER (0.8444): with your head under (the same test as the oxygen, _tickOxygen) you break blocks
+   UNDERWATER_MINING slower. Shown as the Underwater effect while it lasts (stateEffects) and in the mining speed stat. */
+const UNDERWATER_MINING = 0.75;
+const playerUnderwater = (p = player) => !!p._eyeUnder && !p.flying && !p.canFly && !p.dead;
 // how strongly fog and sand cloud your sight: Clear Eyes 30% less (0.828), vegetable sickness up to 25% more (0.8323, off)
 const playerSightMul = () => (typeof skillSightMul === 'function' ? skillSightMul() : 1) * (1 + SICK_VEG_SIGHT * sickness('veg'));
 
@@ -534,11 +543,28 @@ const TEMP_MEAN = 11, TEMP_SWING = 13;             // about -2 in mid January, 2
 const SNOW_BIOME_MEAN = -10, SNOW_BIOME_SWING = 4, SNOWFALL_CHILL = 4;   // 0.8323 (airTempAt)
 const DEEP_SNOW_CHILL = 1.5;                       // how much colder the deep snow is, per degree its level is past the snow's: about -22°C (0.836; 0.5, -14 before)
 const RIME_MEAN = -60, RIME_SWING = 3;             // the Coldest Deep Snow (0.836)
+// the Deep Desert (0.84): this much hotter than the red sand round it, by day and night alike, eased in over its edge (c.dd)
+const DEEP_DESERT_HEAT = 8;
 const TEMP_FLOOR = -75;                            // the coldest the air ever reads (-50 before 0.836)
 const TEMP_PEAK_DAY = 6.5 * MONTH_DAYS;            // mid July, in days from 1 January
 const TEMP_SNOW = -16, TEMP_HOT = 14;              // deep inside a snow biome, a desert
 const TEMP_DAY_AMP = 5;                            // the day's swing either way; a desert doubles it by day
-const TEMP_DESERT_NIGHT = 3.5;                     // ...and its night falls 4.5x as far: dry air loses its heat (0.8245)
+/* A desert's night (0.8443). 0.8245 made the night's swing 4.5x as deep, but on the day's own curve, which only turns
+   cold at 21:00 and bottoms out at 03:00: ten at night in April still read 19°C. Now the dark itself does it: over
+   DESERT_COOL_H hours from sunset the desert's share of the air falls to DESERT_NIGHT_T — 5°C in April, DESERT_NIGHT_SWING
+   either way with the year (15 in July, -5 in January) — whatever the day's heat was, DESERT_NIGHT_DIP lower at the
+   coldest hour, and warms back over DESERT_WARM_H after sunrise. The Deep Desert keeps DEEP_NIGHT_KEEP of its extra
+   heat. Under a roof or cloud it cools less, as the day's swing does. */
+const DESERT_NIGHT_T = 5, DESERT_NIGHT_SWING = 10, DESERT_NIGHT_DIP = 3;
+const DESERT_COOL_H = 1.5, DESERT_WARM_H = 1.5, DEEP_NIGHT_KEEP = 0.4;
+// how far into the night it is at this time of day, 0 by day .. 1 (sunTimes, 07-sky.js: worldTime 0 = 06:00)
+function nightDepth(dayFrac) {
+  if (typeof sunTimes !== 'function') return 0;
+  const { rise, set } = sunTimes(), u = dayFrac > 0.75 ? dayFrac - 1 : dayFrac;   // u: -0.25 (00:00) .. 0.75
+  if (u >= set) return Math.min(1, (u - set) * 24 / DESERT_COOL_H);
+  if (u < rise) return Math.min(1, (u + 1 - set) * 24 / DESERT_COOL_H);
+  return Math.max(0, 1 - (u - rise) * 24 / DESERT_WARM_H);
+}
 const TEMP_LAPSE_FROM = 110, TEMP_LAPSE = 0.12;    // colder by this a block above that height
 /* A cave's air (0.831; a flat 12°C before): cold near the surface, TEMP_CAVE, and a little warmer the deeper under
    the ground you are, TEMP_CAVE_DEEP_PER a block past TEMP_CAVE_DEEP_FROM, up to TEMP_CAVE_DEEP_MAX more. */
@@ -597,14 +623,22 @@ function airTempAt(x, y, z, open = 1) {
     t += (snowT - t) * snowy;
   }
   if (c.rime > 0) t += (RIME_MEAN + RIME_SWING * yearCos - t) * c.rime;
+  if (c.dd > 0) t += DEEP_DESERT_HEAT * c.dd;                                       // 0.84
   const w = weatherAt(x + 0.5, z + 0.5, y);
   if (typeof precipAt === 'function') t -= SNOWFALL_CHILL * precipAt(x + 0.5, z + 0.5, y).snow * open;   // 0.8323
   const overcast = !(w.type === 'clear' || w.type === 'sunny' || w.type === 'windy');
   const hour = (6 + dayFrac * 24) % 24;
-  /* A desert's night is cold (0.8245): about 0°C in spring, 15°C in July, -10°C in January at the coldest hour
-     (03:00) under a clear sky. Its day stays as it was. */
+  /* The day's swing: warmest at 15:00, a desert's twice as far by day. A desert's night is cold from dusk (0.8443, the
+     constants above; 0.8245 had it cold only in the small hours): in the dark its share of the air goes to nightT. */
   const cyc = Math.cos(2 * Math.PI * (hour - 15) / 24);
-  t += TEMP_DAY_AMP * (1 + c.hot * (cyc < 0 ? TEMP_DESERT_NIGHT : 1)) * (overcast ? 0.5 : 1) * (0.4 + 0.6 * open) * cyc;
+  let swing = TEMP_DAY_AMP * (1 + (cyc > 0 ? c.hot : 0)) * cyc;
+  const dn = c.hot > 0 ? c.hot * nightDepth(dayFrac) : 0;
+  if (dn > 0) {
+    const nightT = DESERT_NIGHT_T + DESERT_NIGHT_SWING * yearCos + DEEP_DESERT_HEAT * DEEP_NIGHT_KEEP * (c.dd || 0)
+                 - DESERT_NIGHT_DIP * Math.max(0, -cyc);
+    swing += (nightT - t - swing) * dn;
+  }
+  t += swing * (overcast ? 0.5 : 1) * (0.4 + 0.6 * open);
   t += ((TEMP_WEATHER[w.type] || 0) - Math.max(0, w.speed - 10) * 0.1) * open;   // wind chill past 10 km/h
   const high = t - Math.max(0, y - TEMP_LAPSE_FROM) * TEMP_LAPSE;
   if (typeof snowlineY === 'function' && y >= snowlineY(x, z)) t = Math.min(high, 0);
@@ -657,6 +691,7 @@ function _sampleExposure(p) {
   p._roofed = sky < 12;
   const c = mainGen && mainGen.climateAt ? mainGen.climateAt(x, z) : null;
   p._hsDesert = c ? Math.min(1, c.hot) : 0;
+  p._hsDeep = c ? c.dd || 0 : 0;                     // the Deep Desert (0.84)
   p._sandAim = typeof sandstormAt === 'function' ? sandstormAt(p.pos.x, p.pos.z) : 0;
   // a storm or hail overhead, for the weathering XP (0.8282)
   p._wxHarsh = !p._roofed && ((w.mix && (w.mix.storm || 0) >= 0.5) || (typeof hailAt === 'function' && hailAt(p.pos.x, p.pos.z) > 0.3));
@@ -674,6 +709,7 @@ function _sampleExposure(p) {
      70%  a slow loss of health                    90%  mirages: water on the ground ahead (19-vitals.js)
      100% you collapse and die. */
 const HS_FULL_S = 240, HS_FROM = 35, HS_REF_OVER = 13;
+const HS_DEEP_DESERT = 0.6;                          // it builds 60% faster again in the Deep Desert's sun (0.84)
 const HS_COOL_OUT_S = 1200, HS_COOL_ROOF_S = 600, HS_COOL_WATER_S = 300;
 const HS_THIRST_AT = 20, HS_FOOD_AT = 30, HS_BLUR_AT = 40, HS_TIRED_AT = 50, HS_HURT_AT = 70, HS_MIRAGE_AT = 90;
 const HS_BLUR_MAX = 6;                               // CSS px of blur at 100%
@@ -708,7 +744,8 @@ function _tickHeatstroke(dt) {
   const line = heatstrokeLine();
   if (p._hsSun > 0 && typeof t === 'number' && t > line) {
     const k = Math.min(1.5, 0.25 + 0.75 * (t - line) / HS_REF_OVER);
-    hs += 100 / HS_FULL_S * k * p._hsSun * (0.5 + 0.5 * (p._hsDesert || 0)) * (1 - playerHeatstrokeResist()) * dt;
+    hs += 100 / HS_FULL_S * k * p._hsSun * (0.5 + 0.5 * (p._hsDesert || 0)) * (1 + HS_DEEP_DESERT * (p._hsDeep || 0))
+        * (1 - playerHeatstrokeResist()) * dt;
   } else if (hs > 0) {
     hs -= 100 / (p._inWater ? HS_COOL_WATER_S : p._roofed ? HS_COOL_ROOF_S : HS_COOL_OUT_S) * dt;
   }
@@ -790,7 +827,10 @@ function _tickNightXP(p, dt) {
   if (!n) return;
   p._night = null;
   if (n.t < 120 || n.out < n.t * 0.5 || typeof addXP !== 'function') return;
-  const xp = n.blood ? XP_BLOOD_MOON : XP_NIGHT;
+  /* 0.8446: times the days this life has lasted (the death screen's clock, aliveT, in whole days, 1 at least), so the
+     tenth night you live through pays ten times the first. A death starts the count over. */
+  const days = Math.max(1, Math.round((p.aliveT || 0) / (typeof DAY_LEN !== 'undefined' && DAY_LEN > 0 ? DAY_LEN : 1200)));
+  const xp = (n.blood ? XP_BLOOD_MOON : XP_NIGHT) * days;
   addXP(xp);
   if (typeof feedFeat === 'function') feedFeat(n.blood ? 'Lived through the blood moon outside' : 'Lived through the night outside', xp);
 }
@@ -820,8 +860,12 @@ const playerStormMoveMul = (p = player) => p.canFly ? 1 : 1 - SAND_SLOW * (p._sa
 const EXHAUST_SLOW = 0.2, EXHAUST_SAND_SLOW = 0.2, EXHAUST_HURT_DPS = 0.3;
 const EXHAUST_HURT_AFTER = 10;   // 5 until 0.826, when the rest before stamina comes back grew to 5 s once exhausted
 const exhaustedSlow = (p = player) => playerTired(p) ? EXHAUST_SLOW + EXHAUST_SAND_SLOW * Math.min(1, p._sandFelt || 0) : 0;
+/* 0.8444: the health it costs is for what KEEPS you exhausted against your will — a sandstorm on you, or heatstroke
+   slowing your stamina — as the note above always said. Plain exertion (a jump, a sprint, a swim, a climb that ran
+   you dry), or an empty stomach that stops your stamina coming back, only leaves you slow: its clock does not run. */
 function _tickExhausted(p, dt) {
-  if (!playerTired(p) || p.dead) { p._exhaustT = 0; p._exhaustAcc = 0; return; }
+  const kept = (p._sandFelt || 0) > 0.05 || (p.heatstroke || 0) >= 1;
+  if (!playerTired(p) || p.dead || !kept) { p._exhaustT = 0; p._exhaustAcc = 0; return; }
   p._exhaustT = (p._exhaustT || 0) + dt;
   if (p._exhaustT < EXHAUST_HURT_AFTER) return;
   if (p._exhaustT - dt < EXHAUST_HURT_AFTER && typeof feedCrit === 'function') feedCrit('Exhausted: losing health, stop and rest under a roof');
@@ -836,7 +880,7 @@ function _tickExhausted(p, dt) {
    Crosshair on water within DRINK_REACH, main hand empty, not already full: hold E (pad North) for DRINK_TIME
    and you drink to full. The arm lifts as for eating (the progress rides on _eatProg, 22-main-loop.js), water
    drips, and the feed says how much went down. */
-const DRINK_TIME = 1.1, DRINK_REACH = 4;
+const DRINK_TIME = 1.1, DRINK_REACH = 2;   // reach halved in 0.8445 (4): you bend to the water, you do not drink from across the bank
 const _drinkDir = new THREE.Vector3();
 function _waterAimed() {
   const p = player;
@@ -910,7 +954,7 @@ function vitalModifiers(key) {
   const dep = playerDepletionMul(), st = tempStress(p), hs = p.heatstroke || 0, hsm = heatstrokeMuls(hs);
   const stName = st ? EFFECT_DEFS[st.kind].name : '';
   if (key === 'hp') {
-    if (hasSkill('thickSkin')) out.push(['Thick Skin', `+${THICK_SKIN_HP} health, 10% less damage`]);
+    if (hasSkill('thickSkin')) out.push(['Thick Skin', `+${THICK_SKIN_HP} health`]);   // health only since 0.8446
     const rm = playerRegenMul();
     if (Math.abs(rm - 1) > 0.005) out.push(['regen', `heals at ${Math.round(rm * 100)}%`]);   // the regen stat (0.832)
     if (playerHasEffect('poisonDps')) out.push(['Poison', 'no healing, loses health']);
@@ -995,7 +1039,7 @@ function playerHeatResist() { return _resPct('heatResist'); }
    through nearestElement in 20-inventory-ui.js. Keyed by the line's label as the panel prints it. */
 const STAT_TIPS = {
   'defense':         'Protection from the armor you wear, out of 100. Every point takes 0.8% off the damage you take, up to 80%.',
-  'damage reduced':  'How much of each hit is stopped: 0.8% per armor point up to 80%, plus 10% from Thick Skin.',
+  'damage reduced':  'How much of each hit is stopped: 0.8% per armor point up to 80%.',   // Thick Skin's 10% went in 0.8446
   'move speed':      'How fast you walk. Heavy armor slows you down; some food effects speed you up.',
   'strength':        'Bonus damage added to every hit you land.',
   'attack speed':    'How quickly you can swing again. Above 100% the wait between swings is shorter.',
@@ -1088,6 +1132,8 @@ const EFFECT_DEFS = {
   fruitSick:    { name: 'Fruit sickness',   good: false, icon: '🍎', lasts: `Lasts while your fruit is ${SICK_AT} or less: eat fruit or berries`, hurts: 'wasted away' },
   vegSick:      { name: 'Vegetable sickness', good: false, icon: '🥕', lasts: `Lasts while your vegetables are ${SICK_AT} or less` },
   wet:          { name: 'Wet', good: false, icon: '💧', lasts: 'Dries a second a second; faster near a fire, lava, a torch, in a desert or warm' },   // 0.8323
+  // head under water (0.8444): shown with the oxygen left
+  underwater:   { name: 'Underwater', good: false, icon: '🫧', lasts: 'Lasts while your head is under water' },
   // salt among your food (0.832): shown with how long the salt in use keeps it
   salted:       { name: 'Salted', good: true, icon: '🧂', lasts: 'Lasts while the salt in use lasts; the next salt you carry goes in when it runs out' },
   /* what you are doing (0.8243): shown while it lasts, like the temperature (stateEffects) */
@@ -1110,7 +1156,9 @@ function stateEffects(p = player) {
     desc: `You walk ${Math.round(SAND_SLOW * p._sandFelt * 100)}% slower and lose ${((p._movingH > 0.001 ? SAND_STAMINA_MOVING_PER_S : SAND_STAMINA_PER_S) * p._sandFelt).toFixed(1)} stamina a second.` +
           (playerSandResist() ? ` ${Math.round(playerSandResist() * 100)}% resisted.` : '') });
   if (playerTired(p)) out.push({ id: 'exhausted', desc: `You move ${Math.round(exhaustedSlow(p) * 100)}% slower and cannot sprint, jump or climb.` +
-    (p._exhaustT >= EXHAUST_HURT_AFTER ? ` You lose ${EXHAUST_HURT_DPS} health a second.` : ` After ${EXHAUST_HURT_AFTER} s of it you lose health too.`) });   // 0.82501
+    (p._exhaustT >= EXHAUST_HURT_AFTER ? ` You lose ${EXHAUST_HURT_DPS} health a second.`
+      : ` In a sandstorm or with heatstroke, ${EXHAUST_HURT_AFTER} s of it costs health too.`) +
+    (p.food > 0 && p.thirst > 0 ? '' : ' Stamina does not come back without food and water.') });   // 0.82501; 0.8444
   // low on energy (0.832)
   const tr = tiredness(p);
   if (tr > 0) out.push({ id: 'tired', label: Math.round(p.energy) + '', desc: `Regen ${Math.round(TIRED_REGEN * tr * 100)}% slower, ` +
@@ -1133,6 +1181,9 @@ function stateEffects(p = player) {
     label: p._wetT > 0 ? (p._wetT >= 60 ? Math.ceil(p._wetT / 60) + 'm' : Math.ceil(p._wetT) + 's') : Math.round(w * 100) + '%',
     desc: `Soaked ${Math.round(w * 100)}%` + (p._wetT > 0 ? ` for ${Math.ceil(p._wetT)} s more` : '') + `: jump strength ${(WET_JUMP * w * 100).toFixed(1)}% less, ` +
           `effects last ${Math.round(WET_EFFECT_TIME * w * 100)}% shorter, cold resistance ${Math.round(WET_COLD_RES * w * 100)}% less.` }); }
+  // head under water (0.8444): mining slowed, the oxygen left on the icon
+  if (playerUnderwater(p)) out.push({ id: 'underwater', label: Math.round(p.air ?? 0) + '',
+    desc: `Mining speed -${Math.round(UNDERWATER_MINING * 100)}%. Your oxygen is running down: ${Math.round(p.air ?? 0)} left.` });
   // the salt keeping your food (0.832, 44-spoil.js): its time left, minutes past one
   if (p._saltT > 0) out.push({ id: 'salted', label: p._saltT >= 60 ? Math.ceil(p._saltT / 60) + 'm' : Math.ceil(p._saltT) + 's',
     desc: `Food you carry spoils ${Math.round(SALT_SLOW * 100)}% slower while it lasts (${Math.ceil(p._saltT / 60)} min).` });

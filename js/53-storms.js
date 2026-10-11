@@ -348,13 +348,16 @@ const FIRE_PLANT_SPREAD = 0.06;              // a tick's chance to catch a plant
 const _BURN = new Map();
 const _WOOD = new Set([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
                        B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,
-                       B.RIME_LOG, B.STRIPPED_RIME_LOG, B.HOLLOW_RIME_LOG]);   // 0.836
+                       B.RIME_LOG, B.STRIPPED_RIME_LOG, B.HOLLOW_RIME_LOG,     // 0.836
+                       B.PALM_LOG, B.STRIPPED_PALM_LOG]);                      // 0.84
 /* 0.8241: fire runs through wood and leaves. Logs and planks pass it on as readily as each other (planks 0.15 before),
    everything a little more, and a burnt log, plank or leaf block leaves the fire standing where it was (_BURN_INTO). */
 for (const id of _WOOD) _BURN.set(id, [9, 0.3]);
-for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES]) _BURN.set(id, [3.5, 0.5]);
-for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS]) _BURN.set(id, [8, 0.3]);
-const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS]);
+for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES]) _BURN.set(id, [3.5, 0.5]);
+_BURN.set(B.DRY_LEAVES, [2, 0.7]);           // the Dryland's dry bushes go up fast and pass it on (0.8411)
+for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS]) _BURN.set(id, [8, 0.3]);
+const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES,
+                            B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS]);   // palm 0.84
 for (const id of [B.HAY, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
 _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blades go, the block turns to dirt
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }

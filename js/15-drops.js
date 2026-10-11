@@ -89,7 +89,7 @@ function buildDropGeom(id, variant = 0) {
   // Chest has no chunk-mesh model, but unlike the door and bed it IS a full 3D shape — a flat
   // chest_front sprite in the hand looked like a painting. Hand it the real lid-and-body mesh
   // (the same one 05-icons.js renders) as a node the caller adds directly.
-  if (id === B.CHEST) return [{ node: chestItemNode(chestWoodOf(variant)) }];   // in its wood (0.809)
+  if (isChestId(id)) return [{ node: chestItemNode(chestLookOf(id | (variant << 8))) }];   // in its wood (0.809) or metal (0.843)
   // as an item a log is a full 64-unit block, not whatever width it happened to grow at
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;
@@ -324,6 +324,33 @@ function _pickupBulk(id, n, meta) {
   if (hot) { saveHotbar(); buildHotbar(); }
   if (inv) { saveInv(); if (invOpen) buildInventory(); }
   return n - left;
+}
+/* Stacks made to fit (0.8442). A stack bigger than it may be now (every stack got smaller in 0.8442; and what Pack Rat
+   let you carry needs the skill) is cut to its size, and what came off goes into the other stacks of it and the empty
+   slots, hotbar, bags, then backpack; what finds no room falls at your feet. Run once for each seat as its world is
+   joined (tickPlayer, 22: `player._restacked`). Returns how many items fell. */
+function restackInventory() {
+  if (player.canFly) return 0;
+  const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
+  const over = [];
+  for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length], [invSlots2, packN]])
+    for (let i = 0; i < len; i++) {
+      const s = arr[i];
+      if (!s || s.dur != null) continue;                 // a tool is one to a slot whatever it says
+      const cap = stackSize(s.id);
+      if (s.count > cap) { over.push([s.id, s.count - cap, slotMeta(s)]); s.count = cap; }
+    }
+  if (!over.length) return 0;
+  let fell = 0;
+  const px = Math.floor(player.pos.x), py = Math.floor(player.pos.y + 0.5), pz = Math.floor(player.pos.z);
+  for (const [id, extra, meta] of over) {
+    const left = extra - _pickupBulk(id, extra, meta);
+    if (left > 0) { spawnDrop(id, px, py, pz, null, undefined, null, meta, 0, left); fell += left; }
+  }
+  saveAll(); buildHotbar();
+  if (invOpen) buildInventory();
+  if (fell && typeof feedWarn === 'function') feedWarn(`Stacks are smaller now: ${fell} item${fell > 1 ? 's' : ''} did not fit and fell at your feet`);
+  return fell;
 }
 function _tryPickupInto(id, dur, meta = null) {
   const fresh = meta ? meta.fresh ?? null : null;

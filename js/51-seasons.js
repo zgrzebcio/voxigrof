@@ -97,7 +97,7 @@ function regionKind(rx, rz) {
   let v = _regionKind.get(k);
   if (v == null) {
     const b = typeof mainGen !== 'undefined' && mainGen ? mainGen.biomeAt(rx * REGION_BLOCKS + REGION_BLOCKS / 2, rz * REGION_BLOCKS + REGION_BLOCKS / 2) : '';
-    v = /Desert|Red Sand/.test(b) ? 'warm' : /Snow/.test(b) ? 'snow' : /Ocean/.test(b) ? 'ocean' : '';
+    v = /Desert|Red Sand|Oasis/.test(b) ? 'warm' : /Snow/.test(b) ? 'snow' : /Ocean/.test(b) ? 'ocean' : '';   // the Deep Desert and the Oasis too (0.84)
     _regionKind.set(k, v);
   }
   return v;
@@ -393,8 +393,12 @@ function _openTop(x, z, y0) {
   }
   return null;
 }
+/* Never on what you work at (0.8445): a bench, a mortar, a furnace or a chest needs its top clear, and a layer of snow
+   on it stopped it working until it was swept off. Falling snow and the snowline's cover both leave them bare. */
+const NO_SNOW_ON = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.METAL_CHEST]);
 function _laySnow(x, y, z, v, ids, max) {
   if (ids) { if (ids.length < Math.min(max, LAYER_MAX - 1)) setLayerStack(x, y, z, [...ids, B.SNOW]); return; }
+  if (NO_SNOW_ON.has(v & 255)) return;
   if (y >= WORLD_TOP - 1 || !CORE.solidVal(v) || CORE.shapeOfVal(v) || !PROPS[v & 255]?.opaque) return;   // whole, solid, opaque tops only
   if (!getBlock(x, y + 1, z)) setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1));
 }
@@ -472,6 +476,7 @@ function _snowlineChunk(c) {
     // on bare, solid, open ground only: not on leaves, snow already there, sand, or a plant
     const tid = top & 255;
     if (!CORE.solidVal(top) || CORE.layerCount(top) || tid === B.SNOW || tid === B.SAND || tid === B.RED_SAND || tid === B.PINK_SAND) continue;
+    if (NO_SNOW_ON.has(tid)) continue;                             // a station, a furnace, a chest (0.8445)
     if (_skyAt(c, li + ((y + 1) << 8)) < 15) continue;
     if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._snowCol = col; return false; }
     _seasonOps++;
@@ -641,6 +646,10 @@ function updateSeasonGrowth(dt) {
 function updateSeasonScan(dt) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   if (typeof currentWorld !== 'undefined' && !currentWorld) return;
+  /* Land is waiting near a player (0.8443, streamBehind in 11-chunks.js): the season's look at each chunk can wait an
+     hour of the world's time, a hole in the world cannot — these passes take the same main thread and the same
+     workers the new chunks need. */
+  if (typeof streamBehind !== 'undefined' && streamBehind) return;
   _seasonOps = 0;
   _seasonListT -= dt;
   if (_seasonListT <= 0 || _seasonCursor >= _seasonKeys.length) { _seasonKeys = [...chunks.keys()]; _seasonCursor = 0; _seasonListT = 5; }
@@ -722,6 +731,11 @@ const wheatGrow = new Map();
 const WHEAT_STAGE_LIFE = 0.35, WHEAT_STAGE_JITTER = 0.3;    // in-game days per stage
 const _wheatLife = () => (WHEAT_STAGE_LIFE + Math.random() * WHEAT_STAGE_JITTER) * _dayLen();
 let _wheatTimer = 0, _wheatSweep = 0;
+// a ripe wheat picked (0.8443, harvestAtPlayer in 13-actions.js): the plant stays, cut back to its first stage, and grows again
+function wheatRegrow(x, y, z) {
+  setBlock(x, y, z, B.WHEAT | (1 << 8));
+  wheatGrow.set(x + ',' + y + ',' + z, _wheatLife());
+}
 function updateWheatGrow(dt) {
   _wheatSweep += dt;
   if (_wheatSweep >= 5) {
@@ -1102,7 +1116,8 @@ function iceDressChunk(c) {
   let edges = 0, froze = 0;                                       // which borders it froze along: -X 1, +X 2, -Z 4, +Z 8
   for (let col = 0; col < 256; col++) {
     const lx = col & 15, lz = col >> 4, i = _iceTop(data, lx + (lz << 4));
-    if (i < 0 || (data[i] & 255) !== B.WATER) continue;
+    // still water only: flowing water frozen would thaw into a source, and water is finite (0.844)
+    if (i < 0 || (data[i] & 255) !== B.WATER || ((data[i] >> 8) & 7)) continue;
     const x = wx0 + lx, z = wz0 + lz, y = i >> 8;
     if (!_iceFreezes(x, y, z, _iceKindAt(x, z, _iceDepth(data, i)), d, season) || (heat && iceHeatNear(x, y, z))) continue;
     data[i] = B.ICE | (ICE_FROM_WATER << 8);                     // ice that was water (0.833)
@@ -1128,6 +1143,7 @@ function _iceChunk(c) {
     if (id !== B.WATER && id !== B.ICE) continue;
     const x = wx0 + lx, z = wz0 + lz, y = i >> 8, kind = _iceKindAt(x, z, _iceDepth(data, i));
     if (id === B.WATER) {
+      if ((data[i] >> 8) & 7) continue;                            // flowing water never freezes (0.844, iceDressChunk)
       if (!_iceFreezes(x, y, z, kind, d, season) || (heat && iceHeatNear(x, y, z))) continue;
       if (_seasonOps >= SEASON_OPS_PER_FRAME) return;
       _seasonOps++;

@@ -69,7 +69,7 @@ const _STATION_TAB = { furnace: 'Furnace', chest: 'Chest', struct: 'Structure' }
 // the tab row for the top of a panel, `current` lit; null when there would be only one tab
 function invTabsEl(current) {
   const tabs = [], st = invStation();
-  if (st) tabs.push([st, st === 'chest' && activeChest2 ? 'Large Chest' : _STATION_TAB[st]]);
+  if (st) tabs.push([st, st === 'chest' ? chestTabName() : _STATION_TAB[st]]);   // "Large Iron Chest" (0.843, 30-chest.js)
   if (!player.canFly) tabs.push(['equip', 'Equipment']);
   const free = !player.canFly && typeof skillPointsFree === 'function' ? skillPointsFree() : 0;
   if (!player.canFly && typeof openSkillTree === 'function') tabs.push(['skills', free ? `Skill tree (${free})` : 'Skill tree']);
@@ -99,6 +99,13 @@ function cycleInvTab(dir) {
   const i = Math.max(0, keys.indexOf(player._skillView ? 'skills' : invRightTab()));
   pickInvTab(keys[(i + dir + keys.length) % keys.length]);
 }
+/* While the skill tree is up every other panel stays hidden (0.8445): a panel's builder asks this first, hides itself
+   and builds nothing if so. They are all built again when the tree closes (closeSkillTree rebuilds the inventory). */
+function invPanelHeld(panel) {
+  if (typeof skillViewOn !== 'function' || !skillViewOn()) return false;
+  if (panel) panel.style.display = 'none';
+  return true;
+}
 // put the tab row on top of a right-hand panel
 function addInvTabs(panel, current) {
   const t = invTabsEl(current);
@@ -107,10 +114,12 @@ function addInvTabs(panel, current) {
 
 function buildInventory() {
   // hide both side panels first; the right one is rebuilt below
+  /* ...but not a panel that is coming straight back with a scrolling list in it (0.8443): the crafting list in
+     survival, the furnace with its book. Hidden even for this one pass, a list lets go of where it was scrolled to. */
   const cpEl = invPanel('craftPanel');
-  if (cpEl) cpEl.style.display = 'none';
+  if (cpEl && player.canFly) cpEl.style.display = 'none';
   const fpEl = invPanel('furnacePanel');
-  if (fpEl) fpEl.style.display = 'none';
+  if (fpEl && invRightTab() !== 'furnace') fpEl.style.display = 'none';
   const chpEl = invPanel('chestPanel');
   if (chpEl) chpEl.style.display = 'none';
   const eqpEl = invPanel('equipPanel');
@@ -170,8 +179,7 @@ function buildInventory() {
       const label = document.createElement('div');
       label.className = 'ctitle packHead';
       label.textContent = ITEM_PROPS[backpackItemId()]?.name || 'Backpack';
-      // with a chest open, Pull all is the chest's; otherwise the pack gets its own beside its name
-      if (invRightTab() !== 'chest') label.appendChild(invButton('Pull all', 'Take everything out of your backpack', pullAll));
+      // no Pull all of its own any more (0.8443): the pack is only more room in your inventory, not a store beside it
       invEl.appendChild(label);
       invEl.appendChild(mkGrid(invSlots2, 'inv2', cap));
     }
@@ -248,7 +256,14 @@ function slotDescriptors() {
       const region = g.dataset.region, gs = g.querySelectorAll('.slot');
       for (let i = 0; i < gs.length; i++) out.push({ region, i, el: gs[i] });
     }
-  return out;
+  // a slot scrolled out of its box (a large metal chest, the creative palette) is no target: its rect lies over the tabs (0.843)
+  return out.filter(d => !_slotClipped(d.el));
+}
+function _slotClipped(el) {
+  const box = el.closest && el.closest('.chestScroll, .invScroll');
+  if (!box) return false;
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), cy = (r.top + r.bottom) / 2;
+  return cy < b.top || cy > b.bottom;
 }
 function slotAtPoint(x, y) {
   for (const d of slotDescriptors()) {
@@ -302,7 +317,7 @@ function _blockFormsHTML(id) {
   }
   return html;
 }
-function itemTooltipHTML(id, dur, fresh, wm) {
+function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's (0.842)
   if (id == null) return '';
   const isItem = id >= 256;
   const p = isItem ? ITEM_PROPS[id] : PROPS[id];
@@ -389,25 +404,42 @@ function itemTooltipHTML(id, dur, fresh, wm) {
     if (typeof hasSkill === 'function' && hasSkill('dismantle') && typeof dismantleText === 'function')
       rows.push(['dismantles to', _tipEsc(dismantleText(id, dur) || 'nothing')]);
   }
+  // a key (0.842): blank, or the door it is bound to (one whose door was broken is blank again)
+  if (p.key && typeof keyBoundCode === 'function') {
+    const code = keyBoundCode(lock != null ? { lock } : null), at = code != null ? keyDoorPos(code) : null;
+    // ...or the chest (0.843): the lock map holds both
+    const what = at && typeof isChestId === 'function' && isChestId(getBlock(at[0], at[1], at[2]) & 255) ? 'a chest' : 'a door';
+    rows.push(['lock', at ? `${what} at ${at[0]}, ${at[1]}, ${at[2]}` : 'blank: right-click a door or a chest to lock it']);
+  }
   if (p.food != null) {
     rows.push(['food', _tipNum(p.food)]);
     // saturation is food's over-stat since 0.82
-    if (p.foodSat != null) rows.push(['over-food', _tipNum(p.foodSat)]);
-    if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull)]);
+    // ...shown as what eating really gives: half the table's number since 0.8443 (OVER_FOOD_GAIN, 54)
+    const og = typeof OVER_FOOD_GAIN === 'number' ? OVER_FOOD_GAIN : 1;
+    if (p.foodSat != null) rows.push(['over-food', _tipNum(p.foodSat * og)]);
+    if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull * og)]);
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
     // what else it fills (0.82, FOOD_NUTRITION in 54-stats-effects.js)
     for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein'], ['energy', 'energy']])   // energy 0.832
       if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst (0.827)
     if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
-    /* How long this food has left before one of it spoils, against how long it keeps from fresh
-       (0.7891). A recipe icon has no instance behind it, so it shows the full shelf life. */
+  }
+  {
+    /* How long this has left before one of it spoils, against how long it keeps from fresh (0.7891). A recipe
+       icon has no instance behind it, so it shows the full shelf life. 0.8443: for anything with a clock, not
+       only what you can eat as it is — a pumpkin spoils too, and never said so. */
     const maxF = typeof spoilMax === 'function' ? spoilMax(id) : 0;
     /* the food's own clock (0.8321): it counts down at the spoil speed, so salt and Preserver make the seconds go
        visibly slower (it was shown in real seconds, which always ticked one a second) */
     const rate = typeof spoilRate === 'function' ? spoilRate() : 1;
     if (maxF) rows.push(['spoils in', `${_tipTime(fresh != null ? fresh : maxF)} / ${_tipTime(maxF)}`]);
     if (maxF && Math.abs(rate - 1) > 0.005) rows.push(['spoil speed', Math.round(rate * 100) + '%']);
+    // what one of it leaves behind when it goes off (0.8447): rotten flesh, a fiber, its bucket
+    if (maxF && p.spoilInto != null) {
+      const ip = p.spoilInto >= 256 ? ITEM_PROPS[p.spoilInto] : PROPS[p.spoilInto];
+      if (ip && ip.name) rows.push(['spoils into', _tipEsc(ip.name)]);
+    }
   }
   if (rows.length) {
     html += '<div class="tipStats">';
@@ -623,6 +655,12 @@ function cancelDrag() {                          // return the held item to any 
         dragHeld.count -= arr[i].count;
       }
     }
+  /* 0.8445: what found no room is thrown out in front of you — it used to be simply gone (the inventory shut with a
+     stack on the cursor and every slot full). Creative has no drops: there it goes back to nothing, as before. */
+  if (dragHeld.count > 0 && !player.canFly && typeof throwFromPlayer === 'function') {
+    throwFromPlayer(dragHeld.id, dragHeld.count, dragHeld.dur ?? null, slotMeta(dragHeld));
+    if (typeof feedItem === 'function') feedItem(dragHeld.id, -dragHeld.count, 'dropped');
+  }
   dragHeld = null; dragFrom = null;
   refreshSlotsUI();
 }
@@ -751,8 +789,9 @@ function _destsFor(region, id) {
 /* ---- inventory buttons: sort, transfer all, pull all, quick stack (0.755) ----
    A row under the slots. SORT merges stacks and orders the main grid and a worn backpack by name, as
    one list; the hotbar is left exactly as you set it. The other three move stacks between you and a
-   TARGET: an open chest (both halves of a double one) against your main grid and backpack, or, with
-   no chest open, a worn backpack against the main grid. With neither they are greyed out.
+   TARGET: an open chest (both halves of a double one) against your main grid and backpack. With no chest
+   open they are greyed out. (Until 0.8443 a worn backpack was a target too, against the main grid; it is only
+   more room in your inventory, so nothing is transferred into it or pulled out of it any more.)
      Transfer all  everything from your side into the target (never the hotbar)
      Pull all      everything out of the target: main grid, then backpack, then hotbar
      Quick stack   only what the target already holds some of
@@ -766,8 +805,7 @@ function _stashTarget() {
     if (activeChest2 && CHESTS.get(activeChest2)) grids.push(CHESTS.get(activeChest2).slots);
     return { kind: 'chest', grids, mine: packN > 0 ? [invSlots, invSlots2] : [invSlots] };
   }
-  if (packN > 0) return { kind: 'pack', grids: [invSlots2], mine: [invSlots] };
-  return null;
+  return null;                                // a backpack alone is no target (0.8443)
 }
 // one stack into a list of grids: partial stacks first, then empty slots. Returns how many are left.
 function _moveStack(s, grids) {
@@ -891,8 +929,8 @@ function _invActionBar() {
   const bar = document.createElement('div');
   bar.className = 'invActions';
   const t = _stashTarget();
-  const where = t ? (t.kind === 'chest' ? 'the chest' : 'your backpack') : null;
-  const off = 'Open a chest, or wear a backpack';
+  const where = t ? 'the chest' : null;
+  const off = 'Open a chest';
   const mk = (label, title, fn, enabled) => {
     const b = document.createElement('button');
     b.className = 'invBtn';
@@ -998,6 +1036,43 @@ function instantTransfer(region, i) {           // shove the whole stack across 
    and hand itself back to whoever is still in their inventory when that player closes. A plain
    counter: bigger means more recent. `_invSeq` is per seat (swapped); the counter is not. */
 let _invSeqNext = 0;
+/* The crafting list and the furnace book, back at their tops (0.8443): where a list was scrolled to is kept while the
+   inventory is open, through every rebuild, and forgotten when it closes. Done once the panel is on screen: a hidden
+   list cannot be scrolled, and some browsers hand a list its old place back when it is shown again. */
+function resetInvListScroll() {
+  if (typeof _craftScroll !== 'undefined') _craftScroll = 0;
+  if (typeof _furnBookScroll !== 'undefined') _furnBookScroll = 0;
+  for (const sel of ['#craftList', '#furnacePanel .fbList']) {
+    const el = invWrapEl.querySelector(sel);
+    if (el) el.scrollTop = 0;
+  }
+}
+/* Rebuild `host` from `html`, but leave the element matching `keepSel` — a scrolling list — where it is and only swap
+   what is in it (0.8443). A list taken out of the page and put back as a new element starts from the top, and "put it
+   back where it was" can only know where it was when the frame began: whatever the wheel scrolled since is lost, which
+   at a low frame rate is most of it, so the list kept jumping back up. Kept in place, the browser never lets go of it.
+   The kept element's ancestors up to `host` stay too (their classes are taken from the new html). Falls back to a plain
+   innerHTML when there is no such list yet, or the new html has none, or has it somewhere else. Returns the list. */
+function swapHtmlKeeping(host, html, keepSel) {
+  const old = host.querySelector(keepSel);
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  const neu = t.content.querySelector(keepSel);
+  const depth = (n, top) => { let d = 0; while (n && n !== top) { n = n.parentNode; d++; } return n ? d : -1; };
+  if (!old || !neu || depth(old, host) !== depth(neu, t.content)) { host.innerHTML = html; return host.querySelector(keepSel); }
+  old.replaceChildren(...neu.childNodes);
+  for (let ko = old, kn = neu; ko !== host; ko = ko.parentNode, kn = kn.parentNode) {
+    const po = ko.parentNode, pn = kn.parentNode;
+    const before = [], after = [];
+    let seen = false;
+    for (const n of [...pn.childNodes]) { if (n === kn) seen = true; else (seen ? after : before).push(n); }
+    for (const n of [...po.childNodes]) if (n !== ko) n.remove();
+    for (const n of before) po.insertBefore(n, ko);
+    for (const n of after) po.appendChild(n);
+    if (po !== host && pn.nodeType === 1) po.className = pn.className;
+  }
+  return old;
+}
 function toggleInventory(open, mode) {
   if (open === undefined) open = !invOpen;
   if (open === invOpen && mode === undefined) return;
@@ -1016,6 +1091,7 @@ function toggleInventory(open, mode) {
   invWrapEl.style.display = open ? 'flex' : 'none';
   if (open) {
     alignInvWrap();                             // needs the panel laid out, so after display:flex
+    resetInvListScroll();                       // a newly opened inventory starts every list from its top (0.8443)
     if (document.pointerLockElement) document.exitPointerLock();   // free the cursor
     const r = invEl.getBoundingClientRect();
     invCursor.x = r.left + r.width / 2; invCursor.y = r.top + r.height / 2;
@@ -1111,7 +1187,7 @@ function updateInvCursorVisual(dt) {
   if (dragHeld) {
     ctipEl.style.display = 'none';
   } else if (hovSlot) {
-    showTooltip(itemTooltipHTML(hovSlot.id, hovSlot.dur, hovSlot.fresh, hovSlot.wm));
+    showTooltip(itemTooltipHTML(hovSlot.id, hovSlot.dur, hovSlot.fresh, hovSlot.wm, hovSlot.lock));
   } else if (ne && (ne.type === 'craft' || ne.type === 'book') && ne.dist < tipR && ne.title && _inClip(ne.clip)) {
     // recipe icons get the same full panel as a real slot (no durability — it isn't an instance)
     showTooltip(Number.isFinite(ne.id) ? itemTooltipHTML(ne.id, null, null)

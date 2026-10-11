@@ -1050,6 +1050,18 @@ function syncBossHud() {
     if (near && (nd <= BOSS_BAR_R || !castle || nd < castle.d)) mark = { x: near.x, y: near.y + FK.BOX[1] + 0.6, z: near.z, d: nd, txt: near.name };
     else if (castle) mark = { x: castle.x, y: castle.y, z: castle.z, d: castle.d, txt: "Frozen King's castle" };
   }
+  /* The milk quest's marker (0.8442, `mark: 'cow'` in QUESTS): the nearest female cow there is, one whose milk is ready
+     before one still waiting. Only cows the game is carrying, so none shows until some are near enough to exist. */
+  if (!mark && live && !p.canFly && q && q.mark === 'cow') {
+    let cow = null, cd = Infinity;
+    for (const e of ENTITIES) {
+      if (e.kind !== 'cow' || e.gender !== 'F' || e.hp <= 0) continue;
+      const d = Math.hypot(e.x - p.pos.x, e.y - p.pos.y, e.z - p.pos.z) + (e.milkCd > 0 ? 1e4 : 0);
+      if (d < cd) { cd = d; cow = e; }
+    }
+    if (cow) mark = { x: cow.x, y: cow.y + 1.9, z: cow.z, d: cd % 1e4, icon: '🐄',
+                      txt: cow.milkCd > 0 ? 'Cow (milk not ready)' : 'Cow to milk' };
+  }
   const el = ui.mark;
   if (!mark) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
   const W = st.pane.clientWidth, H = st.pane.clientHeight;
@@ -1066,7 +1078,7 @@ function syncBossHud() {
     const k = Math.min(hx / Math.max(1e-6, Math.abs(dx)), hy / Math.max(1e-6, Math.abs(dy)));
     x = W / 2 + dx * k; y = H / 2 + dy * k;
   }
-  const txt = `👑 ${mark.txt} · ${Math.round(mark.d)} m`;
+  const txt = `${mark.icon || '👑'} ${mark.txt} · ${Math.round(mark.d)} m`;
   if (el._txt !== txt) { el._txt = txt; el.textContent = txt; }
   el.style.display = 'block';
   el.style.left = x.toFixed(1) + 'px';

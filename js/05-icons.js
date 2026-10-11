@@ -82,9 +82,10 @@ function _renderIconScene(scene, cam) {
    when that used to happen. So these three declare what they need, and an icon whose art is not
    ready yet is neither drawn nor cached: the next call renders it properly. */
 const ICON_MESH_ART = {
-  [B.CHEST]: ['chest_front', 'chest_side', 'chest_top', 'chest_bottom',
-              'chest_front_metal', 'chest_side_metal', 'chest_top_metal',
+  [B.CHEST]: ['chest_wood', 'chest_metal',                                   // one sheet each since 0.843
               'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js; rime 0.8392)
+  // the metal chest (0.843): its body is the iron, copper or gold block's art
+  [B.METAL_CHEST]: ['chest_wood', 'chest_metal', ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])],
   [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342
   [B.DOOR]:  ['oak_door'],
 };
@@ -102,9 +103,9 @@ function renderBlockIcon(id, variant) {
   const key = id + ':' + variant;
   if (ICON3D[key]) return ICON3D[key];
   if (!iconArtReady(id)) return '';               // art still loading — ask again, don't cache
-  if (id === B.CHEST) {                   // chest has no chunk-mesh model — render its real mesh
+  if (isChestId(id)) {                    // chest has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
-    const m = buildChestMesh(chestWoodOf(variant));   // its wood, picked on the variant bar (0.809)
+    const m = buildChestMesh(chestLookOf(id | (variant << 8)));   // its wood (0.809) or metal (0.843), picked on the variant bar
     m.group.position.set(-0.5, -0.5, -0.5);   // centre the cell on the origin
     scene.add(m.group);
     const cam = new THREE.OrthographicCamera(-0.95, 0.95, 0.95, -0.95, 0.1, 10);

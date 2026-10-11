@@ -85,6 +85,78 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 - **Mushrooms (0.821):** one 256x128 sheet per kind (`MUSHROOM_KINDS`, `MUSHROOM_LAYOUT` in 01), cut into part tiles at atlas
   build (`CROP_TILES`, 03). Variant bits 0-2 = grown size, 3-7 = steps left to grow (`emitShroom` 02; growth, life and
   autumn spawning `_shroomChunk`/`updateShroomGrow` in 51). Grilled mushrooms are BLOCKS that are food: use `foodPropsOf` (54).
+- **Desert update (0.84, biomeRev 21 `DESERT2`):** Deep Desert = `fDeepD` (temp from `DD_FROM`, inside the red sand; mesas,
+  cracks, ridges in terrainInfo; `ddAir` -> climateAt `dd` -> +`DEEP_DESERT_HEAT`, `HS_DEEP_DESERT` in 54); its own
+  biomeBase name (no desert village). Oasis = `_oasisAt` (55, one per `OASIS_CELL` maybe; only for non-bare terrainInfo),
+  `oas`; genChunk `OAS`/`DDS`, banded rock `ddStrata`, palms (`palmTree`/`palmCrown`, ribs of thin palm log keep fronds
+  within leaf reach; sapling copy `_growPalm` in 22), dry plants pass, hoodoos and bones pass. Desert sand 5 over 5
+  sandstone. Palm B 219-223, dry plants B 224-227 (`DRY_TALL_*` like the tall grass: `TALL_UPPER_OF`/`TALL_LOWER_OF` in
+  13), T 385-395. Lone prefabs may set spawn `sink` and `pillar` [top, deep] (34). `ITEM.BONE_ASH` 410.
+- **Red desert and mountains (0.841, biomeRev 22 `DESERT3`):** `ddRed` (55) splits the Deep Desert into it and the Deep
+  Red Desert (`DDK` in genChunk, `ddStrata(y, off, kind)`); red desert gold veins at any height (ore section);
+  `mtCaveOf` halls/exits/deep shafts in high land (drawn in the UPLAND carve section); `mineOf` mine shafts (dug last).
+- **Dryland (0.8411, biomeRev 23 `DRYLAND`):** `fDry` (55, hot side of level 1); grass variant `V.GRASS_DRY` 2 with its own
+  tiles (T 396-397, built in 03, mesher `emit` in 02; spread keeps it, 22); `B.DRY_LEAVES` 228 (T 398, oak art tinted
+  `DRY_LEAF_TINT`) as bushes (`dryBush` in the tree loop), in LEAF_BLOCKS (sticks) but not `_isLeaf` (no decay).
+- **Doors (0.842):** a door is the SHAPE 'door' of its material (`SHAPE_DOOR` 0xA0 / `SHAPE_DOOR_R` 0xB0 = hinge, low
+  nibble facing|open 4|upper 8; `SHAPE_BLOCKS.door`); use `BLOCKS.isDoorVal(v)`, never `B.DOOR` (old id, converted by
+  `migrateLegacyVal`). 27-doors.js: `doorDv`/`doorValOf`, meshes made by setBlock's hook (11) from the bottom half, looks
+  drawn from the material's art (`_doorArt`; its art loaded via MESH_TEXTURES in 03), `DOOR_LOCKS` + key slot meta `lock`.
+- **Chests (0.843, 30-chest.js):** art is 4 sheets (`CHEST_SHEET`: chest_wood/_metal single, *_double halves). `B.METAL_CHEST`
+  229 (bits 4-5 metal, `CHEST_METALS`; 64 `CHEST_SEALED`); use `isChestId(id)`, never `B.CHEST` alone; a chest's look is
+  `chestLookOf(val)` (0-3 wood, 4+ metal). Locks share `DOOR_LOCKS` (chest cells as keys, both halves); `chestLocked` =
+  sealed or keyed: broken gives nothing. Sealed chests: `trySpawnWorldChest` (from 34's per-chunk roll), loot
+  `DEFAULT_LOOT.<metal>_chest`; keys from mobs `_mobDropKey` (28). 0.8442: one spacing for every supply chest
+  (`SUPPLY_CELL` 175, `supplySiteOf`): wood = the `supply_crate` prefab (no lone roll any more), else a sealed metal one.
+- **0.8442.** Stacks: items 79, blocks 50 (`DEFAULT_STACK`), specials 10 less, in the registries; Pack Rat by stack size
+  (`_packRatRoom`, 13); a saved slot over its stack is kept and split on join (`restackInventory`, 15; `player._restacked`).
+  Dry grass colour: per-vertex dryness from `dryAt` (55) in the `dark` attribute of the opaque pass (`DRY_TILE`, `dryKey`,
+  `maskD` in 02; `vDry`/`uDryTiles` in 04); in a world chunk `V.GRASS_DRY` no longer picks the tile. Darkness floor
+  `SKY_FLOOR` + `NIGHT_LIGHTEN` (00-config; shader and the JS that tracks it read them). biomeRev 24 `FOSSIL2`: 70% fewer
+  Dryland skeletons. Death marks: `player._deathMarks` (up to 5, own timers; `#deathMark` is their holder). Feed rows
+  show `[carried]` (`_feedHaveSoon`, 42). Quest `mark: 'cow'` (47, drawn in `syncBossHud`). NEVER put a backtick or a
+  `${` in a comment inside a shader template string (04), and never a `//` comment before code on the same line.
+- **0.8447.** Player edits and meshing (11): a chunk may have MORE than one mesh job out (`c.meshOut`; `c.meshing` =
+  any out); `markDirty` sends a player's edit over a job already out (`_rushOver`, stale answers are dropped by `rev`),
+  and treats what follows on that chunk within `EDIT_FOLLOW_MS` as the same edit. Skill ids `nimble` = Work Fingers
+  (+10% craft speed, walk penalty -25%: `craftMoveMul`), `walkWork` = Precise Focus (`benchFocusMul`,
+  `player._benchHoldT`, stations only); a bench's `speedPc` is drawn on its tag. `spoilInto` shows in the tooltip.
+- **0.8446.** Milking is a hold: `tryMilkCow` starts `player._milk`, `updateMilking(dt, rawRmb)` (39, from tickPlayer)
+  runs it; it locks the controls like bench work (`benching` in tickPlayer, the mousemove gate in 17), freezes the cow
+  (`e._milkHold`, `_updateGrazer`) and leaves `_milkLatch` until the button is let go. The progress ring: `#progRing`
+  per pane, `interactProgress()` / `updateProgressRing()` (18): a new hold-to-do action adds its 0..1 there. A bed's
+  head lies away from the player (`tryPlaceBed`); the item model is turned half round (`bedItemNode`). `ARMOR_CAP` is
+  per face `[keep, vTop, vBottom]`. Night XP is `XP_NIGHT` x days lived (`aliveT`). Treasure Nose keys
+  (`TREASURE_KEYS`, 34). Thick Skin is health only.
+- **0.8445.** `registerChest(x, y, z, facing, val)`: pass the cell's value when the chunk may not be loaded (a world
+  loading); a chest record keeps `look`/`half`/`checked`, and `updateChests` rebuilds a model that does not match its
+  cell the first time the chunk is there. `chestCovered` (a block that is not a chest on top: no opening; a double
+  needs one clear half). `waterFlowVec(x, y, z, out, river)` reads a river's `fd` bits first (`RIVER_PUSH`); fish
+  pass `river` false. `invPanelHeld(panel)` first in every inventory panel builder (the skill tree hides them).
+  `_armorPiece(..., cap)` + `ARMOR_CAP` (the cloth bandana: front strip, no underside). `NO_SNOW_ON` (51).
+  `LOOT.orePebble`. Plant food `spoilInto` fiber (59). Palm leaves are grey art tinted `PALM_LEAF_TINT` (03).
+  biomeRev 26 `PALM2`. `SINK_BLOCKS` is empty. The temperature dial is drawn mirrored (hot on top, 19).
+- **0.8444.** Sealed chests: `chestSealed(val)` is true for a WOODEN chest too (bit 64; the supply crate's, sealed in
+  its placement's `onDone`); what opens one is `chestSealOf(val)` (a blank `ITEM.WOODEN_KEY` for wood). `SUPPLY_KINDS`
+  no longer sums to 1: a square may be empty (`supplySiteOf().kind` null). Worker jobs (gen/prep/scan/mesh/probe) run
+  from a list in WORKER_MAIN (`jobQ`), a `rush` mesh first: a new job type must be added to `JOBS` there, anything
+  else is answered at once. Player edits: `notePlayerEdit()` (tickPlayer) makes setBlock pump at once; pump sends
+  `editRush` chunks straight to the least busy worker; a rush result is applied on arrival. Gravity blocks also wake
+  from `_fallUnderFeet` and `_fallWakeBeside` (22). Quests put into the chain later carry `added: true`; the saved
+  place carries `QUEST_SAVE_MARK` (47). `playerUnderwater()` / `UNDERWATER_MINING`, the `underwater` state effect
+  (54), the lens sheen `f.under` (57). `feedCraft` (42). Grass PLANTS pale by `dark` (dryness) and `vClim` in FSH
+  (`uDryPlants`, 04; `DRY_TILE` now marks the plant tiles too). `CLOUD_SHADOW_MUL` (04). biomeRev 25 `LAVA2`.
+  `SINK_BLOCKS` is snow only. Exhaustion costs health only while a sandstorm or heatstroke keeps it (`_tickExhausted`).
+- **0.8443.** Scrolling lists in the inventory: NEVER recreate the scrolling element on a rebuild (it loses what was
+  scrolled during the frame): keep it and swap its children (`buildCraftPanel` 25; `swapHtmlKeeping(host, html, keepSel)`
+  20, used by the furnace book), and do not hide a panel that is coming straight back (`buildInventory`). Lists go to
+  the top on open (`resetInvListScroll`). Chunk stream paces by the clock, not the frame: `frameMsAvg`, `_genTokens`,
+  worker depth in `pump` (11), the slice in `runWorldTick` (22, `STREAM_*`); `streamBehind` = land waiting near a
+  player: deferrable background work checks it (season scans 51, fluid writes 61). Hold-E past `BUSH_TAP_S` takes only
+  ready plants (`findBushPickup(readyOnly)`, 13); ripe wheat regrows (`wheatRegrow`, 51). Soft blocks (hardness 0) drop
+  through the instant-break path in tickPlayer (22). Desert night: `nightDepth` + `DESERT_NIGHT_*` (54). Armor pieces take
+  their chestplate's durability (pass in 59). `OVER_FOOD_GAIN` (54). `rawMouse` (00-config; Options > Gameplay "Raw mouse input", `vg_rawmouse`). A backpack is not a
+  `_stashTarget` (20). Quest lines per requirement (`_questReqName`, 47).
 - **Mushrooms (0.8091)** are box models (`SHROOM_MODEL`, `emitShroom` in 02) but keep model `'cross'` so plant
   rules still apply. Their sheets (`MUSHROOM_NATIVE`, 03) sit unstretched in a layer's corner at 8 texels a
   model pixel, and the mesher maps them 1:1 (1 model px = 1/16 UV).
@@ -136,7 +208,7 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   crystals, shards, penitentes; `RI_CELL`), no canyons inside it (`RIMF`), fallen rime logs;
   20 (0.837) `RIME2`: the Coldest Deep Snow split by `rimeW` (55) into its Forest (trees and ice at half) and the open
   Coldest Deep Snow (`calm`: hills, snowy hills and mountains eased away, `rimeKeep` 0.12 trees/ice; castle land for
-  0.838); `SHROOMS2`: surface mushrooms under any tree by its kind, white beside trees, 30% more (genChunk)
+  0.838); `SHROOMS2`: surface mushrooms under any tree by its kind, white beside trees, 30% more (genChunk); 21 (0.84) `DESERT2`: the Deep Desert, oases, palms, dry plants, desert sandstone, hoodoos and bones; 22 (0.841) `DESERT3`: the Deep Red Desert half, mountain halls and tunnels, red desert gold, mine shafts; 23 (0.8411) `DRYLAND`: the Dryland
   — new worlds), so old worlds' new chunks still match their old ones.
 - **Rime wood (0.836):** B 214-218 (log, stripped, planks, leaves, hollow), T 379-384. No sapling yet: leaves drop sticks
   only (50). Rime planks recipe is APPENDED to RECIPES_ADVANCED with `basic: true, after:` (25 `_basicRecipes`): recipe
@@ -203,8 +275,13 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
   (world if loaded, else `mainGen.heightAt`); paths = Dijkstra on a village grid (footprints walls), widened by `pathWidth`, plank bridges on water.
   Prefab fields (0.82422): `entry` [x,z] path start, `sink` layers below ground, `weight` pick odds; no `group` = the group its id starts with
   (`_groupOf`); a 2-high gap in the ground-floor wall counts as a doorway. Groups: village, desert_village (grass paths, sand carpets swept).
-- **Fluid flow is OFF (0.8245):** `FLUID_FLOW` (00-config) gates `queueWaterAt`/`queueLavaAt`/`updateFluids` (22). Shadows off:
-  the chunk shader uses sky light as the shadow (`sS`, 04), so caves stay dark.
+- **Fluids (0.844):** flow is back on (`FLUID_FLOW`, 00-config). The rules are ONE simulation, `makeFluidSim(get)` in
+  VOXEL_CORE (02): it only reads (`get`, -1 = chunk not loaded) and returns changes [x, y, z, was, now]; finite (falling
+  fluid is level 1/2, never a source); levels are variant bits 0-2 (read `& 7`, never `& 15`: bits 3-6 are the way it runs,
+  `fd`). 61-fluids.js runs it in its own worker with shared memory (`fluidRegister`/`fluidForget` from 11, `fstep` each
+  simTick) or here without; writes go through setBlock (CAS on `was`) under `fluidApplying` (11: fluid hooks quiet, no
+  rushed remesh). `queueWaterAt`/`queueWaterAround`/`dryWaterFrom` (and lava) are touches now. F3 line `fluidDebugLine`.
+  Shadows off: the chunk shader uses sky light as the shadow (`sS`, 04), so caves stay dark.
 - **Heatstroke and sandstorm (0.825, 54):** `p.heatstroke` 0..100 (`_tickHeatstroke`, `heatstrokeMuls`, saved as `vit.hs`;
   death after the armor soak in 19); exposure sampled with temperature (`_sampleExposure`: `_hsSun`, `_roofed`, `_sandAim`).
   Sandstorm = desert region's 'windy' (`sandstormAt` 51); body `p._sandFelt`, fog per eye `_sandAround` (52), sand `_fxSandstorm` (49).
@@ -316,5 +393,6 @@ loads `js/NN-*.js` as ordinary scripts in number order, so they all share global
 | 55-biomes | the land's shape and biome names, moved out of makeGen (0.823): BIOME_CORE / BIOMES.makeBiomes (`terrainInfo`, `biomeAt`, `birchAt`, `snowForestAt`, climate colour `climAt`), `biomeBase` (Deep/Warm/Cold stripped, for biome-keyed lists). Stringified into the worker before VOXEL_CORE (10-workers) and loaded BEFORE 02 in index.html; self-contained like VOXEL_CORE |
 | 56-torches | torches and glow blocks burning out (0.834): `BURNS`, `updateBurns`, rain dousing, held burn `tickHeldBurn`, relighting `tryLightTorch` (flint / glow crystal) |
 | 57-camera-filter | (0.837) what lands on each seat's lens, a canvas first in its pane (so never assume the pane's first child is `.hudScale`; 36 finds it by class, 0.8372): rain drops that run, drops out of water, snow that melts, blizzard frost, lightning flash (`cameraFilterLightning`), fire; `updateCameraFilter` from the frame loop |
+| 61-fluids | (0.844) water and lava flowing: the fluid thread (`fluidThreadStart`), chunk register/forget, touches (`queueWaterAt`...), `updateFluids` (simTick), writing the changes (`_fluidWrite`), F3 `fluidDebugLine`; the rules are `makeFluidSim` in 02 |
 | 60-bosses | (0.839) bosses: the Frozen King (`FK` numbers, `buildFrozenKing`, `spawnFrozenKing`, `updateBoss`, shield `_bossShieldTick`, curse `_bossCurseTick`, attacks `_bossAct` -> fireball / spikes / fly + carpets / beams in `BOSS_FX`), boss boost (`bossXpMul`), boss bar and quest marker (`syncBossHud`), F8 summon (`bossDebugSummon`) |
 | 54-stats-effects | ALL player stats and effects (0.82): vital caps (`MAX_HP`... out of 100, `VITAL_K` = 5 from the old 20), over-stats (`OVER_KEY`, `gainStat`/`drainStat`), `tickStats` (stamina, thirst, energy, nutrients, oxygen), `ambientTemp`, drinking (`updateDrinking`), `FOOD_NUTRITION`, save (`serializeVitals`/`restoreVitals`), stat getters + `STAT_TIPS`, `EFFECT_DEFS` and the effect bar |

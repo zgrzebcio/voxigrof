@@ -6,6 +6,7 @@ const fpsSel = document.getElementById('fpsSel');
 const distInput = document.getElementById('distInput');
 const simInput  = document.getElementById('simInput');
 const sensInput = document.getElementById('sensInput');
+const rawMouseSel = document.getElementById('rawMouseSel');   // Options > Gameplay (0.8443)
 const shadowSel = document.getElementById('shadowSel');
 const splitDirSel = document.getElementById('splitDirSel');
 let playing = false;
@@ -55,10 +56,26 @@ function tryPointerLock() {
     return;
   }
   lockTries++;
+  /* Raw mouse first (0.8443, `rawMouse` in 00-config.js, a setting): `unadjustedMovement` hands over the mouse's own counts, without
+     the system's pointer acceleration — with it a fast stroke turns further than the same stroke made slowly, and a low
+     frame rate is exactly when strokes get fast and long. A browser without it refuses with NotSupportedError: the
+     ordinary lock is asked for at once, and from then on. */
   let p = null;
-  try { p = canvas.requestPointerLock(); } catch { scheduleLockRetry(); }
-  if (p && p.catch) p.catch(scheduleLockRetry);
+  const raw = rawMouse && _rawMouseOk;
+  try { p = raw ? canvas.requestPointerLock({ unadjustedMovement: true }) : canvas.requestPointerLock(); }
+  catch { scheduleLockRetry(); }
+  if (p && p.catch) p.catch((err) => {
+    if (raw && err && err.name === 'NotSupportedError') {
+      _rawMouseOk = false;
+      let q = null;
+      try { q = canvas.requestPointerLock(); } catch { scheduleLockRetry(); }
+      if (q && q.catch) q.catch(scheduleLockRetry);
+      return;
+    }
+    scheduleLockRetry();
+  });
 }
+let _rawMouseOk = true;                     // false once the browser has said it has no raw mouse
 // Chrome refuses re-locks for ~1.3s after ESC — wait out the cooldown and try again
 function scheduleLockRetry() { lockTimer = setTimeout(tryPointerLock, 1400); }
 document.addEventListener('pointerlockerror', () => { if (playing) scheduleLockRetry(); });
@@ -99,6 +116,14 @@ function applySettings() {
   sensInput.value = sv;
   sens = sv / 100;
   localStorage.setItem('vg_sens', sv);
+  /* raw mouse (0.8443): the mouse is free while this menu is up, so the next lock, on the way back in, is simply asked
+     for the new way. Switched on again, a browser that refused it once is asked once more. */
+  const rm = rawMouseSel.value !== 'off';
+  if (rm !== rawMouse) {
+    rawMouse = rm;
+    if (rm) _rawMouseOk = true;
+    try { localStorage.setItem('vg_rawmouse', rm ? 'on' : 'off'); } catch {}
+  }
   const d = clampi(+distInput.value || viewDist, 4, 32);
   distInput.value = d;
   if (d !== viewDist) { viewDist = d; applyViewDist(); rebuildQueues(); }
@@ -144,7 +169,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // 0.837, fixed at creation: off = always noon / a clear sky / no clouds / no animals / no monsters
               dayNight: !!newDayNightChk.checked, weather: !!newWeatherChk.checked, clouds: !!newCloudsChk.checked,
               animals: !!newAnimalsChk.checked, monsters: !!newMonstersChk.checked,
-              biomeRev: 20,                         // 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind (0.837); 19: the Coldest Deep Snow, rime trees and ice shapes (0.836); 9: the Ice Spikes biome and the snow's icebergs (0.835); 10: Snowy Hills, bigger icebergs (0.8351); 11: oceans 3x bigger, rivers that flow to the sea (0.8353); 12: taller land, mountains to ~240 (0.8354); 13: shores of turf, sand, gravel and rock (0.8356); 14: hills, crags, cliffs, no puddles, beaches to 10 wide (0.83547); 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs (0.83548); 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores (0.835481); 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms (0.83549); 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks (0.835491)                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232), every biome twice as big (0.833); older worlds keep theirs
+              biomeRev: 26,                         // 24: 70% fewer skeletons in the Dryland (0.8442); 23: the Dryland (0.8411); 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts (0.841); 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos (0.84); 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind (0.837); 19: the Coldest Deep Snow, rime trees and ice shapes (0.836); 9: the Ice Spikes biome and the snow's icebergs (0.835); 10: Snowy Hills, bigger icebergs (0.8351); 11: oceans 3x bigger, rivers that flow to the sea (0.8353); 12: taller land, mountains to ~240 (0.8354); 13: shores of turf, sand, gravel and rock (0.8356); 14: hills, crags, cliffs, no puddles, beaches to 10 wide (0.83547); 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs (0.83548); 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores (0.835481); 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms (0.83549); 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks (0.835491)                          // bigger snow and desert biomes (0.819), fewer desert hills (0.8193), pink beaches (0.822), bigger biomes, deep and spruce forests, fewer oceans (0.823, 55-biomes.js), tall spruce forest trees (0.8231), the climate ladder (0.8232), every biome twice as big (0.833); older worlds keep theirs
               createdVersion: APP_VERSION, lastVersion: APP_VERSION,   // the game's alpha number (0.837)
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);
@@ -203,6 +228,8 @@ canvas.addEventListener('click', () => {
 });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = document.pointerLockElement === canvas;
+  // a lock asked for a moment before the game was paused lands over the menu: let it go at once (0.8444)
+  if (pointerLocked && !playing) { clearTimeout(lockTimer); document.exitPointerLock(); return; }
   if (pointerLocked) clearTimeout(lockTimer);
   else {
     for (const k in keys) keys[k] = false;
@@ -222,7 +249,7 @@ document.addEventListener('mousemove', (e) => {
   // holding Q with a chisel worn: the mouse aims its shape radial instead of the camera (0.78),
   // with or without pointer lock (0.7844)
   if (typeof chiselMouseAim === 'function' && chiselMouseAim(e.movementX, e.movementY)) return;
-  if (!pointerLocked || player.dead || worldJoining() || player._benchWork) return;
+  if (!pointerLocked || player.dead || worldJoining() || player._benchWork || player._milk) return;   // milking holds the view too (0.8446)
   if (e.movementX || e.movementY) lastInputDevice = 'kbd';
   player.yaw   -= e.movementX * 0.0022 * sens;
   player.pitch -= e.movementY * 0.0022 * sens;
@@ -287,9 +314,11 @@ document.addEventListener('keydown', (e) => {
      pause, no inventory, no hotbar, no dropping — so there is no way to act from the grave. The
      pad does the same in pollPad, and movement was already frozen in the frame loop. */
   if (playing && player.dead) { e.preventDefault(); return; }
-  if (e.code === 'Backquote' && playing && currentWorld) {  // ~ toggles pause without releasing mouse
-    if (invOpen) toggleInventory(false);
-    setPlaying(!playing);
+  if (e.code === 'Backquote' && playing && currentWorld) {  // ~ opens the pause menu
+    /* 0.8444: the inventory is NOT closed here first. Closing it while still playing asked for the mouse back, and
+       that lock landed a moment later, over the pause menu: its cursor was caught and nothing could be clicked.
+       setPlaying(false) closes every seat's inventory itself, after the game has stopped, so no lock is asked for. */
+    setPlaying(false);
     return;
   }
   if (e.code === 'Escape') {                // inventory first, then menu toggle / panel back

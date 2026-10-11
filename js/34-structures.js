@@ -61,6 +61,58 @@ const DEFAULT_LOOT = {
       { id: 'B:LOG',          min: 1, max: 5, chance: 0.45 },
     ],
   },
+  /* The sealed metal chests found about the world (0.843, trySpawnWorldChest in 30-chest.js), rolled when a key opens
+     one: copper the commonest, gold the rarest and richest. */
+  copper_chest: {
+    name: 'copper chest', rolls: [4, 7], xp: [6, 12],
+    entries: [
+      { id: 'COPPER_INGOT',   min: 2, max: 6,  chance: 0.70 },
+      { id: 'RAW_COPPER',     min: 2, max: 5,  chance: 0.50 },
+      { id: 'TIN_INGOT',      min: 1, max: 4,  chance: 0.45 },
+      { id: 'COAL',           min: 3, max: 8,  chance: 0.60 },
+      { id: 'BREAD',          min: 1, max: 3,  chance: 0.50 },
+      { id: 'APPLE',          min: 1, max: 3,  chance: 0.40 },
+      { id: 'STRING',         min: 1, max: 4,  chance: 0.35 },
+      { id: 'ARROW',          min: 3, max: 8,  chance: 0.30 },
+      { id: 'FLINT',          min: 1, max: 3,  chance: 0.30 },
+    ],
+  },
+  iron_chest: {
+    name: 'iron chest', rolls: [5, 8], xp: [10, 20],
+    entries: [
+      { id: 'IRON_INGOT',     min: 2, max: 6,  chance: 0.70 },
+      { id: 'RAW_IRON',       min: 2, max: 5,  chance: 0.50 },
+      { id: 'IRON_NUGGET',    min: 3, max: 9,  chance: 0.40 },
+      { id: 'COPPER_INGOT',   min: 2, max: 5,  chance: 0.40 },
+      { id: 'COAL',           min: 4, max: 10, chance: 0.50 },
+      { id: 'GUNPOWDER',      min: 1, max: 3,  chance: 0.35 },
+      { id: 'BREAD',          min: 2, max: 4,  chance: 0.50 },
+      { id: 'COOKED_BEEF',    min: 1, max: 3,  chance: 0.40 },
+      { id: 'ARROW',          min: 4, max: 10, chance: 0.35 },
+      { id: 'GLOW_CRYSTAL',   min: 1, max: 3,  chance: 0.25 },
+      { id: 'BUCKET',         min: 1, max: 1,  chance: 0.15 },
+      { id: 'SADDLE',         min: 1, max: 1,  chance: 0.10 },
+    ],
+  },
+  gold_chest: {
+    name: 'gold chest', rolls: [6, 10], xp: [20, 40], minKinds: 4,
+    entries: [
+      { id: 'GOLD_INGOT',     min: 2, max: 6,  chance: 0.70 },
+      { id: 'RAW_GOLD',       min: 2, max: 5,  chance: 0.45 },
+      { id: 'GOLD_NUGGET',    min: 4, max: 12, chance: 0.50 },
+      { id: 'IRON_INGOT',     min: 3, max: 8,  chance: 0.50 },
+      { id: 'BRONZE_INGOT',   min: 2, max: 5,  chance: 0.35 },
+      { id: 'GOLDEN_APPLE',   min: 1, max: 2,  chance: 0.30 },
+      { id: 'DIAMOND',        min: 1, max: 2,  chance: 0.20 },
+      { id: 'EMERALD',        min: 1, max: 3,  chance: 0.25 },
+      { id: 'RUBY',           min: 1, max: 2,  chance: 0.20 },
+      { id: 'SAPPHIRE',       min: 1, max: 2,  chance: 0.20 },
+      { id: 'TOPAZ',          min: 1, max: 2,  chance: 0.20 },
+      { id: 'COOKED_BEEF',    min: 2, max: 5,  chance: 0.45 },
+      { id: 'GLOW_CRYSTAL',   min: 2, max: 4,  chance: 0.35 },
+      { id: 'SADDLE',         min: 1, max: 1,  chance: 0.20 },
+    ],
+  },
 };
 
 /* Entries name their contents rather than hardcoding numbers, so a prefab stays valid when block
@@ -169,6 +221,7 @@ function rollLootExtra(slots, table) {
   slots[free[Math.floor(Math.random() * free.length)]] = mkSlot(id, Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1))));
   return true;
 }
+const TREASURE_KEY_CHANCE = 0.01, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose (0.8446)
 function fillPendingLoot(x, y, z, slots) {
   const k = lootKey(x, y, z);
   const rec = PENDING_LOOT.get(k);
@@ -179,6 +232,13 @@ function fillPendingLoot(x, y, z, slots) {
   /* Treasure Nose (0.79): one chest in four holds one item more. Chance ignored on the extra roll,
      the same way the empty-chest guarantee below ignores it — "one more" should mean one more. */
   if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < 0.25) rollLootExtra(slots, table);
+  /* ...and one chest in a hundred holds a key (0.8446): a wooden, copper, iron or golden one, each as likely, in a
+     free slot. The only other way to a wooden key is the bench; the metal ones drop from monsters. */
+  if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < TREASURE_KEY_CHANCE) {
+    const free = [];
+    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
+    if (free.length) slots[free[Math.floor(Math.random() * free.length)]] = mkSlot(TREASURE_KEYS[Math.floor(Math.random() * TREASURE_KEYS.length)], 1);
+  }
   awardLootXP(table, lootXpMul(prefab)); // finding the chest is the achievement, not its contents
   return true;
 }
@@ -476,7 +536,7 @@ function captureStructure(bx, by, bz, size, name) {
         if (id === B.AIR || id === B.STRUCTURE_BLOCK) continue;
         blocks.push([dx, dy, dz, id, (val >> 8) & 255]);
         // every captured container is wired to the default table; edit the JSON to retarget it
-        if (id === B.CHEST) loot[dx + ',' + dy + ',' + dz] = '1';
+        if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too (0.843)
       }
   return {
     id: name,
@@ -524,9 +584,8 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;
     setBlock(x, y, z, id | ((variant & 255) << 8));
-    if (id === B.CHEST) registerChest(x, y, z, variant & 3);
-    if (id === B.DOOR && !((variant >> 3) & 1))
-      registerDoor(x, y, z, variant & 3, !!(variant & 4), !!(variant & DOOR_HINGE_R));
+    if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind (0.843)
+    // a door's mesh comes up with its bottom half in setBlock (0.842: doors are shapes of their material)
     if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342
   }
   return end;
@@ -572,8 +631,9 @@ function _structHash(cx, cz, salt) {
    across the countryside. */
 function _spawnCandidates() {
   const out = [];
+  // ...nor the supply crate (0.8442): it is the wooden supply chest now, placed on the chests' own spacing (30-chest.js)
   for (const p of STRUCTURES.values())
-    if (!_groupOf(p) && p.spawn && (p.spawn.chance || 0) > 0) out.push(p);
+    if (!_groupOf(p) && p.spawn && (p.spawn.chance || 0) > 0 && p.id !== SUPPLY_CRATE) out.push(p);
   return out;
 }
 
@@ -941,7 +1001,8 @@ function _prefabDoor(p) {
   // a prefab can name its path's start itself (0.82422): `"entry": [x, z]`, e.g. beside the foot of a stair
   if (Array.isArray(p.entry)) return (p._door = { dx: p.entry[0] | 0, dz: p.entry[1] | 0, out: [0, 0] });
   for (const b of p.blocks || []) {
-    if (!Array.isArray(b) || b[3] !== B.DOOR || ((b[4] | 0) & 8)) continue;          // the lower half only
+    // the lower half only; a door is a shape of its material since 0.842 (old oak doors are converted on load)
+    if (!Array.isArray(b) || !BLOCKS.isDoorVal(b[3] | ((b[4] | 0) << 8)) || ((b[4] | 0) & 8)) continue;
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
     for (const c of p.blocks) if (Array.isArray(c) && c[1] === b[1]) {
       if (c[0] < x0) x0 = c[0]; if (c[0] > x1) x1 = c[0]; if (c[2] < z0) z0 = c[2]; if (c[2] > z1) z1 = c[2];
@@ -1413,6 +1474,7 @@ function trySpawnStructureInChunk(cx, cz) {
   const ck = structChunkKey(cx, cz);
   if (_structPlaced.has(ck)) return;
   _structPlaced.add(ck);            // one attempt per chunk either way — never retried on reload
+  trySpawnWorldChest(cx, cz);       // a sealed metal chest, now and then (0.843, 30-chest.js)
 
   /* Settlements first, each kind apart from its own (0.82425); then one lone prefab, which may stand beside a
      settlement of another kind — only not on the ground inside a village (a crate in the square). */
@@ -1489,7 +1551,11 @@ function trySpawnStructureInChunk(cx, cz) {
     if (mode === 'embed') {
       // sit on the LOWEST ground so no column can overhang, then carve the hill out of the walls
       if (fp.hi - fp.lo > 10) continue;                     // a cliff, not a slope
-      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1, oz: az, w, h, l, blend: true });
+      /* `pillar` (0.84): [top, deep] block ids to prop it up with instead of dirt and stone (the desert ruins: sand over
+         sandstone); `sink`: layers of it set into the ground, so it stands half buried */
+      const sink = s.sink | 0, o = { from: sink };
+      if (Array.isArray(s.pillar)) { o.top = s.pillar[0] | 0; o.deep = s.pillar[1] | 0; }
+      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1 - sink, oz: az, w, h, l, blend: true, blendOpts: o });
       return;
     }
 

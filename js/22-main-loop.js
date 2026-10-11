@@ -26,6 +26,19 @@ function scheduleFall(x, y, z) {
   if (!_fallOpen(below & 255) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
   fallingBlocks.set(`${x},${y},${z}`, val);        // keep the variant: carpets carry layer count
 }
+/* 0.8444. Gravity blocks only ever fell when something beside them was edited, so sand or gravel the world made over a
+   cave hung there for good, and held you up. Two more things wake them now:
+     - your feet: the loose blocks you stand on look under themselves every frame (_fallUnderFeet, from tickPlayer);
+     - a neighbour going: the four cells beside a block that falls look too (_fallWakeBeside), so a hanging roof
+       comes down along its whole length, a few blocks a tick, instead of one block out of the middle. */
+function _fallWakeBeside(x, y, z) {
+  scheduleFall(x + 1, y, z); scheduleFall(x - 1, y, z); scheduleFall(x, y, z + 1); scheduleFall(x, y, z - 1);
+}
+function _fallUnderFeet() {
+  const p = player.pos, r = player.R, y = Math.floor(p.y - 0.01);
+  const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r), z0 = Math.floor(p.z - r), z1 = Math.floor(p.z + r);
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) scheduleFall(x, y, z);
+}
 let _fallTimer = 0;
 /* A single fall is TWO setBlocks, and clearing an opaque block re-floods sky light through the
    column — measured at ~4ms apiece for gravel. The old budget of 192 meant a tick could cost
@@ -169,6 +182,7 @@ function processFalling(dt) {
     setBlock(x, y, z, B.AIR);
     if (ids) setLayerStack(x, y - 1, z, ids);
     else setBlock(x, y - 1, z, val);             // variant travels with it
+    _fallWakeBeside(x, y, z);                    // 0.8444
   }
   if (starts.length) {
     const now = [];
@@ -177,6 +191,7 @@ function processFalling(dt) {
         setBlock(x, y, z, B.AIR);
         const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
         if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) now.push([x, _landingY(x, y, z), z, val]);
+        _fallWakeBeside(x, y, z);                // its neighbours may hang over the same hole (0.8444)
       }
     });
     if (now.length) _landBlocks(now);
@@ -341,12 +356,13 @@ function updateSimWake() {
 const leavesDecayQueue = new Set();
 const DECAY_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 
-const _isLeaf = (id) => id === B.LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES || id === B.RIME_LEAVES;   // rime 0.836
+const _isLeaf = (id) => id === B.LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES || id === B.RIME_LEAVES || id === B.PALM_LEAVES;   // rime 0.836; palm 0.84
 // a real leaf block, by value: leaf litter is the leaf block's own id with layers, and must never decay as canopy (0.785)
 const _isLeafVal = (v) => _isLeaf(v & 255) && !((v >> 8) & 255);
 // stripped logs count as support: a half-chopped tree must not shed its canopy while you work
 const _isLog  = (id) => id === B.LOG || id === B.BIRCH_LOG || id === B.SPRUCE_LOG ||
                         id === B.STRIPPED_SPRUCE_LOG || id === B.RIME_LOG || id === B.STRIPPED_RIME_LOG ||   // rime 0.836
+                        id === B.PALM_LOG || id === B.STRIPPED_PALM_LOG ||                                  // palm 0.84
                         id === B.STRIPPED_LOG || id === B.STRIPPED_BIRCH_LOG;
 function scheduleLeavesCheck(cx, cy, cz) {
   const R = 5;
@@ -442,7 +458,8 @@ function processGrassSpread(dt) {
     const tx = x + (Math.random() * 3 | 0) - 1, ty = y + (Math.random() * 3 | 0) - 1, tz = z + (Math.random() * 3 | 0) - 1;
     if (getBlock(tx, ty, tz) !== B.DIRT) continue;                  // plain dirt only: a dirt cover stays one (0.787)
     if (CORE.opaqueVal(getBlock(tx, ty + 1, tz))) continue;         // target needs light too
-    setBlock(tx, ty, tz, B.GRASS);
+    // the Dryland's pale grass spreads as itself (0.8411)
+    setBlock(tx, ty, tz, ((getBlock(x, y, z) >> 8) & 255) === V.GRASS_DRY ? B.GRASS | (V.GRASS_DRY << 8) : B.GRASS);
   }
   // age the covered-grass timers; convert after 24h dark, drop entries that got uncovered/changed
   for (const [k, t] of _darkGrass) {
@@ -498,7 +515,7 @@ function processHollowMushrooms(dt) {
 
 /* ---- throwing ---- */
 // blocks whose right-click opens a GUI or actuates something; throwing must yield to them
-const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.DOOR, B.BED,
+const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.METAL_CHEST, B.DOOR, B.BED,   // metal chest 0.843
                                   B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR,   // mortar variants 0.7945
                                   B.DOLOMITE_MORTAR]);   // 0.822
 function tryThrow() {
@@ -508,7 +525,7 @@ function tryThrow() {
   /* A right-click aimed at something that OPENS must interact, not throw — otherwise a stack of
      snowballs in hand locks you out of your own furnace. doPlace() handles these same ids. */
   const aimed = currentRay();
-  if (aimed && THROW_BLOCKED_BY.has(aimed.id)) return false;
+  if (aimed && (THROW_BLOCKED_BY.has(aimed.id) || BLOCKS.isDoorVal(getBlock(aimed.x, aimed.y, aimed.z)))) return false;   // a door of any material (0.842)
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   spawnProjectile(slot.id,
     player.pos.x + fwd.x * 0.3,
@@ -539,12 +556,12 @@ function updateEating(dt, wantPlace) {
     if (_eatTimer >= eatDur) {
       _eatTimer = 0;
       const foodAmt = fp.food || 0;
-      const foodSat = fp.foodSat || 0;
+      const foodSat = (fp.foodSat || 0) * OVER_FOOD_GAIN;              // half the table's number (0.8443)
       if (player.food < MAX_FOOD) {
         player.food = Math.min(MAX_FOOD, player.food + foodAmt);
         player.saturation = Math.min(MAX_SATURATION, player.saturation + foodSat);
       } else {
-        const fullSat = fp.foodSatFull ?? foodSat;
+        const fullSat = fp.foodSatFull != null ? fp.foodSatFull * OVER_FOOD_GAIN : foodSat;
         player.saturation = Math.min(MAX_SATURATION, player.saturation + fullSat);
       }
       // ...and thirst, fruit, vegetables, protein (0.82, FOOD_NUTRITION in 54-stats-effects.js)
@@ -605,186 +622,8 @@ function updateEating(dt, wantPlace) {
 let randomTickSpeed = 3;
 const tickFactor = () => Math.max(0.05, randomTickSpeed / 3);
 
-/* ---- fluid flow simulation ----
-   Cells are scheduled INDIVIDUALLY, not batch-throttled: the queue is a Map of
-   "x,y,z" -> the sim time at which that cell may act. A cell that spreads schedules its
-   children one STEP later, so the visible advance rate is exactly one block per STEP along
-   each branch regardless of how many cells are pending. (The old global batch cap made a
-   large settled pool starve the actual flow frontier, which stalled flat spreads.) */
-let _fluidClock = 0;
-const _waterQueue = new Map();
-const WATER_STEP = 0.4;                   // seconds per block of advance (at random tick 3)
-const DRY_SPEEDUP = 2.5;                  // drying propagates this much faster than flowing
-const waterStep = () => WATER_STEP / tickFactor();
-const waterDry  = () => WATER_STEP / (tickFactor() * DRY_SPEEDUP);
-
-// schedule a water cell; `delay` defaults to one full step. An earlier pending time wins.
-function queueWaterAt(x, y, z, delay = waterStep()) {
-  if (!FLUID_FLOW) return;                              // flow off (0.8245, 00-config.js)
-  if ((getBlock(x, y, z) & 255) !== B.WATER) return;
-  const k = `${x},${y},${z}`, t = _fluidClock + delay;
-  const prev = _waterQueue.get(k);
-  if (prev === undefined || t < prev) _waterQueue.set(k, t);
-}
-function queueWaterAround(x, y, z, delay = waterStep()) {
-  for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
-    queueWaterAt(x + dx, y + dy, z + dz, delay);
-}
-// a flowing cell survives only if still fed: water directly above, or a horizontal neighbour
-// one level fuller. Sources (level 0) always stay — so oceans/lakes never drain.
-function _waterFed(x, y, z, level) {
-  if (level === 0) return true;
-  if ((getBlock(x, y + 1, z) & 255) === B.WATER) return true;
-  for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-    const nb = getBlock(x + dx, y, z + dz);
-    if ((nb & 255) === B.WATER && ((nb >> 8) & 15) < level) return true;
-  }
-  return false;
-}
-// A source was removed: seed the scheduler at the hole. The per-cell tick drops every cell that
-// has lost its feed and re-seeds its own neighbours, so the flow recedes one ring per dry step
-// instead of vanishing in a single frame.
-function dryWaterFrom(sx, sy, sz) {
-  queueWaterAround(sx, sy, sz, waterDry());
-}
-const WATER_MAX_PER_TICK = 256;           // safety valve only; timing comes from per-cell schedule
-// "x,y,z" key -> is that cell inside the simulation radius? (cheap: only the two horizontal parts)
-function _keyInSimRange(k) {
-  const i = k.indexOf(','), j = k.lastIndexOf(',');
-  return inSimRange(+k.slice(0, i), +k.slice(j + 1));
-}
-/* A cell outside the radius keeps its place in the queue AND its due time, but it must not sit
-   at the front costing a scan every single frame — walk a few thousand blocks and the drain loop
-   would be stepping over ten thousand frozen entries before reaching a live one. Deleting and
-   re-inserting moves it to the BACK of the map's insertion order, so the front always advances
-   and the scan stays bounded. Nothing is lost: same key, same due time. */
-function _deferFluid(q, k, t) { q.delete(k); q.set(k, t); }
-const FLUID_SCAN_LIMIT = 1024;            // entries stepped over per tick before we give up
-// Water must always tick before lava in a frame: lava is the slower fluid and its
-// water-contact rule (obsidian/stone) has to see water's moves from this same frame, not the
-// previous one. updateFluids() enforces that order and owns the shared clock.
-function updateFluids(dt) {
-  if (!FLUID_FLOW) { _waterQueue.clear(); _lavaQueue.clear(); return; }   // anything restored from a save, too (0.8245)
-  _fluidClock += dt;
-  updateWaterFlow();
-  updateLavaFlow();
-}
-function updateWaterFlow() {
-  if (_waterQueue.size === 0) return;
-  const todo = [];
-  const defer = [];
-  let scanned = 0;
-  for (const [k, t] of _waterQueue) {
-    if (++scanned > FLUID_SCAN_LIMIT) break;
-    if (t > _fluidClock) continue;
-    // outside the simulation radius: not acted on, pushed to the back of the queue instead.
-    // Walk back into range and the flow picks up exactly where it left off.
-    if (!_keyInSimRange(k)) { defer.push([k, t]); continue; }
-    todo.push(k);
-    if (todo.length >= WATER_MAX_PER_TICK) break;
-  }
-  for (const [k, t] of defer) _deferFluid(_waterQueue, k, t);
-  for (const k of todo) _waterQueue.delete(k);
-  for (const key of todo) {
-    const [x, y, z] = key.split(',').map(Number);
-    const val = getBlock(x, y, z);
-    if ((val & 255) !== B.WATER) continue;
-    const level = (val >> 8) & 15;
-    // flowing cell that lost its feed (source removed or path cut by a placed block) dries up,
-    // and the dry-out propagates outward so no orphaned puddle is left behind
-    if (!_waterFed(x, y, z, level)) { setBlock(x, y, z, B.AIR); queueWaterAround(x, y, z, waterDry()); continue; }
-    // funnel retract: any upstream neighbour (lower level, same y) that is draining downward
-    // means this cell is a wasted sideways branch and must dry back. Chains outward one cell
-    // per tick, so a hole opened anywhere upstream collapses the whole horizontal spread.
-    if (level > 0) {
-      let retract = false;
-      for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nv = getBlock(x + dx, y, z + dz);
-        if ((nv & 255) !== B.WATER) continue;
-        if (((nv >> 8) & 15) >= level) continue;                       // must be upstream
-        if (!_hasFluidFloor(B.WATER, x + dx, y, z + dz)) { retract = true; break; }
-      }
-      if (retract) { setBlock(x, y, z, B.AIR); queueWaterAround(x, y, z, waterDry()); continue; }
-    }
-    // Fluid reactions are owned by whichever fluid is MOVING — the new block lands on the cell
-    // that was standing still. Here that means only FLOWING water reacts on its own cell (it
-    // runs into lava and freezes to stone). A resting source is left alone: the lava tick
-    // handles that pairing so the cobblestone appears on the water, not on the lava.
-    if (level > 0 && _hasFluidFloor(B.WATER, x, y, z)) {
-      let touched = false;
-      for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
-        if ((getBlock(x + dx, y + dy, z + dz) & 255) === B.LAVA) { touched = true; break; }
-      }
-      if (touched) { setBlock(x, y, z, B.STONE); continue; }
-    }
-    // ALWAYS flow down before considering sideways. A cell whose own floor is open (or holds
-    // thinner water it can top up) drops and does nothing else this tick. When it drops it also
-    // retracts any downstream (higher-level) horizontal sibling — those sideways branches only
-    // existed because there was no downward path; now there is, so they're wasted and must dry.
-    if (y > 0) {
-      const bVal = getBlock(x, y - 1, z), bId = bVal & 255;
-      const openBelow = bId === B.AIR || _isFluidPassable(bId);
-      const thinBelow = bId === B.WATER && ((bVal >> 8) & 15) > level;
-      if (openBelow || thinBelow) {
-        if (openBelow && bId !== B.AIR) _breakBillboard(x, y - 1, z, bId);
-        setBlock(x, y - 1, z, B.WATER | (level << 8));
-        queueWaterAt(x, y - 1, z);
-        for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-          const nx = x + dx, nz = z + dz;
-          const nv = getBlock(nx, y, nz);
-          if ((nv & 255) === B.WATER && ((nv >> 8) & 15) > level) {
-            setBlock(nx, y, nz, B.AIR);
-            queueWaterAround(nx, y, nz, waterDry());
-          }
-        }
-        continue;
-      }
-    }
-    // horizontal spread at level+1 (capped at 7). Requires a real floor: a cell standing on
-    // air/plants/its own fluid is still draining and must never creep sideways.
-    // Funnel priority: if any candidate has an open cell below (would drop), spread ONLY into
-    // those — prevents fluid from overflowing a plateau when a hole is right next to it.
-    if (level < 7 && _hasFluidFloor(B.WATER, x, y, z)) {
-      const cands = [];
-      for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nx = x + dx, nz = z + dz;
-        const nb = getBlock(nx, y, nz);
-        const nbId = nb & 255;
-        if (nbId !== B.AIR && !_isFluidPassable(nbId) && !(nbId === B.WATER && level + 1 < ((nb >> 8) & 15))) continue;
-        const bv = getBlock(nx, y - 1, nz), below = bv & 255;
-        const holed = below === B.AIR || _isFluidPassable(below)
-                   || (below === B.WATER && ((bv >> 8) & 15) > level + 1);
-        cands.push({ nx, nz, nbId, holed });
-      }
-      const anyHoled = cands.some(c => c.holed);
-      for (const c of cands) {
-        if (anyHoled && !c.holed) continue;
-        if (c.nbId !== B.AIR && _isFluidPassable(c.nbId)) _breakBillboard(c.nx, y, c.nz, c.nbId);
-        setBlock(c.nx, y, c.nz, B.WATER | ((level + 1) << 8));
-        queueWaterAt(c.nx, y, c.nz);
-      }
-      // re-check self later: if a neighbouring edit opens the floor under this cell, it must
-      // fall rather than keep creeping sideways
-      if (cands.length) queueWaterAt(x, y, z);
-    }
-  }
-}
-// A fluid cell may only spread sideways when it stands on a REAL floor. Air and sweepable
-// billboards are obviously not floors — but neither is the same fluid: a cell sitting on its
-// own kind is still draining downward, and letting it creep sideways is what made water walk
-// past a hole that had just been opened under it.
-function _hasFluidFloor(fluidId, x, y, z) {
-  if (y <= 0) return true;
-  const bId = getBlock(x, y - 1, z) & 255;
-  if (bId === B.AIR || _isFluidPassable(bId) || bId === fluidId) return false;
-  return true;
-}
-// billboards (cross model — plants, flowers, torches, saplings, cane, sulfur tips) get swept
-// away by advancing fluids. Excludes cactus (solid stack) and non-cross things.
-function _isFluidPassable(id) {
-  const p = PROPS[id];
-  return !!p && p.model === 'cross';
-}
+/* ---- fluid flow ----
+   Water and lava flowing live in 61-fluids.js since 0.844 (the simulation itself: makeFluidSim, 02-voxel-core.js). */
 /* What one layer gives when it is dug off (0.8244: moved out of the mining tick, which now also takes whole stacks). */
 function _dropLayer(L, x, y, z) {
   if (L === B.SNOW) {
@@ -826,132 +665,6 @@ function _breakBillboard(x, y, z, id) {
     for (const d of blockDrop(id, true)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
 }
 
-/* ---- lava flow simulation (same as water but much slower, max spread level 4) ---- */
-const _lavaQueue = new Map();
-const LAVA_STEP = WATER_STEP * 5;             // 5× slower than water, per block of advance
-const lavaStep = () => LAVA_STEP / tickFactor();
-const lavaDry  = () => LAVA_STEP / (tickFactor() * DRY_SPEEDUP);
-
-function queueLavaAt(x, y, z, delay = lavaStep()) {
-  if (!FLUID_FLOW) return;                              // flow off (0.8245, 00-config.js)
-  if ((getBlock(x, y, z) & 255) !== B.LAVA) return;
-  const k = `${x},${y},${z}`, t = _fluidClock + delay;
-  const prev = _lavaQueue.get(k);
-  if (prev === undefined || t < prev) _lavaQueue.set(k, t);
-}
-function queueLavaAround(x, y, z, delay = lavaStep()) {
-  for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]])
-    queueLavaAt(x + dx, y + dy, z + dz, delay);
-}
-function _lavaFed(x, y, z, level) {
-  if (level === 0) return true;
-  if ((getBlock(x, y + 1, z) & 255) === B.LAVA) return true;
-  for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-    const nb = getBlock(x + dx, y, z + dz);
-    if ((nb & 255) === B.LAVA && ((nb >> 8) & 15) < level) return true;
-  }
-  return false;
-}
-// mirror of dryWaterFrom: seed the scheduler so lava recedes at its own (slower) dry rate
-function dryLavaFrom(sx, sy, sz) {
-  queueLavaAround(sx, sy, sz, lavaDry());
-}
-const LAVA_MAX_PER_TICK = 128;            // safety valve only; timing comes from per-cell schedule
-function updateLavaFlow() {
-  // clock is advanced by updateFluids(), which runs water first
-  if (_lavaQueue.size === 0) return;
-  const todo = [];
-  const defer = [];
-  let scanned = 0;
-  for (const [k, t] of _lavaQueue) {
-    if (++scanned > FLUID_SCAN_LIMIT) break;
-    if (t > _fluidClock) continue;
-    if (!_keyInSimRange(k)) { defer.push([k, t]); continue; }   // frozen out of range, as water
-    todo.push(k);
-    if (todo.length >= LAVA_MAX_PER_TICK) break;
-  }
-  for (const [k, t] of defer) _deferFluid(_lavaQueue, k, t);
-  for (const k of todo) _lavaQueue.delete(k);
-  for (const key of todo) {
-    const [x, y, z] = key.split(',').map(Number);
-    const val = getBlock(x, y, z);
-    if ((val & 255) !== B.LAVA) continue;
-    const level = (val >> 8) & 15;
-    // funnel retract: mirror of the water rule, kills wasted sideways branches as soon as any
-    // upstream neighbour starts draining downward
-    if (level > 0) {
-      let retract = false;
-      for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nv = getBlock(x + dx, y, z + dz);
-        if ((nv & 255) !== B.LAVA) continue;
-        if (((nv >> 8) & 15) >= level) continue;
-        if (!_hasFluidFloor(B.LAVA, x + dx, y, z + dz)) { retract = true; break; }
-      }
-      if (retract) { setBlock(x, y, z, B.AIR); queueLavaAround(x, y, z, lavaDry()); continue; }
-    }
-    // Lava meets water. A lava SOURCE quenches into obsidian in place. FLOWING lava is the
-    // moving side, so the reaction lands on the standing water instead: every water cell it has
-    // reached chills into cobblestone and the lava itself keeps going.
-    {
-      const hits = [];
-      for (const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
-        const wx = x + dx, wy = y + dy, wz = z + dz;
-        if ((getBlock(wx, wy, wz) & 255) === B.WATER) hits.push([wx, wy, wz]);
-      }
-      if (hits.length) {
-        if (level === 0) { setBlock(x, y, z, B.OBSIDIAN); continue; }
-        for (const [wx, wy, wz] of hits) {
-          setBlock(wx, wy, wz, B.COBBLE);
-          queueWaterAround(wx, wy, wz, waterDry());
-        }
-        queueLavaAt(x, y, z);
-        continue;
-      }
-    }
-    if (!_lavaFed(x, y, z, level)) { setBlock(x, y, z, B.AIR); queueLavaAround(x, y, z, lavaDry()); continue; }
-    // ALWAYS flow down before sideways (see the water version for the rationale + retract rule)
-    if (y > 0) {
-      const bVal = getBlock(x, y - 1, z), bId = bVal & 255;
-      const openBelow = bId === B.AIR || _isFluidPassable(bId);
-      const thinBelow = bId === B.LAVA && ((bVal >> 8) & 15) > level;
-      if (openBelow || thinBelow) {
-        if (openBelow && bId !== B.AIR) _breakBillboard(x, y - 1, z, bId);
-        setBlock(x, y - 1, z, B.LAVA | (level << 8));
-        queueLavaAt(x, y - 1, z);
-        for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-          const nx = x + dx, nz = z + dz;
-          const nv = getBlock(nx, y, nz);
-          if ((nv & 255) === B.LAVA && ((nv >> 8) & 15) > level) {
-            setBlock(nx, y, nz, B.AIR);
-            queueLavaAround(nx, y, nz, lavaDry());
-          }
-        }
-        continue;
-      }
-    }
-    if (level < 4 && _hasFluidFloor(B.LAVA, x, y, z)) {
-      const cands = [];
-      for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nx = x + dx, nz = z + dz;
-        const nb = getBlock(nx, y, nz);
-        const nbId = nb & 255;
-        if (nbId !== B.AIR && !_isFluidPassable(nbId) && !(nbId === B.LAVA && level + 1 < ((nb >> 8) & 15))) continue;
-        const bv = getBlock(nx, y - 1, nz), below = bv & 255;
-        const holed = below === B.AIR || _isFluidPassable(below)
-                   || (below === B.LAVA && ((bv >> 8) & 15) > level + 1);
-        cands.push({ nx, nz, nbId, holed });
-      }
-      const anyHoled = cands.some(c => c.holed);
-      for (const c of cands) {
-        if (anyHoled && !c.holed) continue;
-        if (c.nbId !== B.AIR && _isFluidPassable(c.nbId)) _breakBillboard(c.nx, y, c.nz, c.nbId);
-        setBlock(c.nx, y, c.nz, B.LAVA | ((level + 1) << 8));
-        queueLavaAt(c.nx, y, c.nz);
-      }
-      if (cands.length) queueLavaAt(x, y, z);
-    }
-  }
-}
 
 /* ---- TNT: fuse tick, blinking, explosion ----
    Placed TNT blocks live in TNTS with a countdown timer + a blink phase. The block ID stays
@@ -984,7 +697,8 @@ function explodeAt(cx, cy, cz, R) {
         const id = val & 255;
         if (id === B.AIR || id === B.BEDROCK || id === B.WATER || id === B.LAVA) continue;
         if (id === B.TNT && !(x === cx && y === cy && z === cz)) chained.push([x, y, z]);
-        if (survival && id !== B.TNT && Math.random() < 0.5) {
+        // a locked or sealed chest blown up gives nothing back, itself included (0.843)
+        if (survival && id !== B.TNT && !(isChestId(id) && chestLocked(x, y, z, val)) && Math.random() < 0.5) {
           for (const drop of blockDrop(id, false))
             for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
         }
@@ -1037,7 +751,36 @@ function _putSoft(x, y, z, id) {
   const cur = getBlock(x, y, z) & 255;
   if (_isLeaf(cur) || cur === B.AIR) setBlock(x, y, z, id);
 }
+/* A palm from its sapling (0.84): the slim leaning trunk and the crown of four fronds on hidden ribs the world generator
+   builds (palmTree/palmCrown in 02-voxel-core.js), a little shorter */
+function _growPalm(x, y, z) {
+  const th = 6 + Math.floor(Math.random() * 4), a = Math.random() * Math.PI * 2, lean = 0.6 + Math.random() * 1.4;
+  const ca = Math.cos(a), sa = Math.sin(a), W0 = 20, W1 = 14, RIB_W = 4;
+  let px = 0, pz = 0;
+  for (let k = 0; k < th; k++) {
+    const t = k / Math.max(1, th - 1), c = t * t * lean;
+    const nx = Math.round(ca * c), nz = Math.round(sa * c), val = B.PALM_LOG | ((Math.round(W0 - (W0 - W1) * t) << 2) << 8);
+    if (k > 0 && (nx !== px || nz !== pz)) {
+      _putSoft(x + nx, y + k - 1, z + nz, val);
+      if (nx !== px && nz !== pz) _putSoft(x + nx, y + k - 1, z + pz, val);
+    }
+    if (k === 0) setBlock(x, y, z, val); else _putSoft(x + nx, y + k, z + nz, val);
+    px = nx; pz = nz;
+  }
+  const cx = x + px, cy = y + th - 1, cz = z + pz;
+  _putSoft(cx, cy + 1, cz, B.PALM_LEAVES);
+  for (const [dx, dz, ex, ez] of [[1, 0, 1, 1], [-1, 0, -1, 1], [0, 1, -1, -1], [0, -1, 1, -1]]) {
+    const axis = dx ? 1 : 2;
+    for (let s = 1; s <= 2; s++) { _putSoft(cx + dx * s, cy, cz + dz * s, B.PALM_LOG | ((axis | (RIB_W << 2)) << 8)); _putSoft(cx + dx * s, cy + 1, cz + dz * s, B.PALM_LEAVES); }
+    const L = 3 + Math.floor(Math.random() * 3);
+    for (const [u, v] of [[3, 0], [4, 0], [4, -1], [5, -1], [5, -2]].slice(0, L)) _putSoft(cx + dx * u, cy + v, cz + dz * u, B.PALM_LEAVES);
+    if (Math.random() < 0.6) {
+      _putSoft(cx + ex, cy + 1, cz + ez, B.PALM_LEAVES); _putSoft(cx + ex * 2, cy, cz + ez, B.PALM_LEAVES); _putSoft(cx + ex * 2, cy, cz + ez * 2, B.PALM_LEAVES);
+    }
+  }
+}
 function _growTree(x, y, z, species) {
+  if (species === B.PALM_SAPLING) { _growPalm(x, y, z); return; }   // 0.84
   const isBirch = species === B.BIRCH_SAPLING, isSpruce = species === B.SPRUCE_SAPLING;
   const LOG  = isSpruce ? B.SPRUCE_LOG : isBirch ? B.BIRCH_LOG : B.LOG;
   const LEAF = isSpruce ? B.SPRUCE_LEAVES : isBirch ? B.BIRCH_LEAVES : B.LEAVES;
@@ -1108,10 +851,24 @@ function updateSaplings() {
    (all level 0) produce no current. Result normalized into `out`; false = still water. */
 const _flowV = { x: 0, z: 0 };
 const _uwTint = new THREE.Color(0x0a2438);   // underwater murk color
-function waterFlowVec(x, y, z, out) {
+/* 0.8445: a RIVER carries you too. A river's water is all source cells, so the gradient below found nothing in it; but
+   its top cell knows which way it runs (variant bits 3-6, 1-8 round the compass from +x by eighths; bit 7 = a fast
+   stretch: genChunk's FDV, and the flowing fluid writes the same bits). That way is used first, read from this cell or
+   the surface up to RIVER_FLOW_UP cells over it, at RIVER_PUSH of the old push (RIVER_PUSH_FAST on a fast stretch), so
+   you can still swim against an ordinary river. `river` false (fish) keeps to the gradient: they hold their place. */
+const RIVER_PUSH = 0.6, RIVER_PUSH_FAST = 1.0, RIVER_FLOW_UP = 3;
+function waterFlowVec(x, y, z, out, river = true) {
   out.x = 0; out.z = 0;
   const val = getBlock(x, y, z);
   if ((val & 255) !== B.WATER) return false;
+  if (river)
+    for (let k = 0, v = val; k <= RIVER_FLOW_UP && (v & 255) === B.WATER; k++, v = getBlock(x, y + k, z)) {
+      const va = (v >> 8) & 255, fd = (va >> 3) & 15;
+      if (fd < 1 || fd > 8) continue;
+      const a = (fd - 1) * Math.PI / 4, s = (va & 128) ? RIVER_PUSH_FAST : RIVER_PUSH;
+      out.x = Math.cos(a) * s; out.z = Math.sin(a) * s;
+      return true;
+    }
   const level = (val >> 8) & 7;
   let fx = 0, fz = 0;
   for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
@@ -1178,6 +935,7 @@ function frame(now) {
   _perfFrameStart(now);                     // F3 timings (0.83851)
   const tFrame = perfNow();
   const realDt = Math.max(0, (now - lastT) / 1000);
+  frameMsAvg += (Math.min(250, realDt * 1000) - frameMsAvg) * 0.1;   // a frame's real length, eased: the chunk stream paces by it (0.8443, 11-chunks.js)
   // a frame's own time: capped at FRAME_DT_MAX with the fixed tick (0.8378; 0.05 before, slow motion under 20 fps)
   const dt = Math.min(SIM_FIXED ? FRAME_DT_MAX : 0.05, realDt);
   lastT = now;
@@ -1341,7 +1099,8 @@ function tickPlayer(dt, now, slot) {
   const _preYaw = player.yaw, _prePitch = player.pitch;
   const gp = pollGamepad(dt);
   const joining = worldJoining();           // world still loading in: frozen like the dead (0.759)
-  const benching = !!player._benchWork;     // holding E at a crafting bench: nothing else answers (0.76)
+  // ...and the same while a cow is being milked (0.8446, updateMilking in 39-taming.js): you stand still for it
+  const benching = !!player._benchWork || !!player._milk;     // holding E at a crafting bench: nothing else answers (0.76)
   if (player.dead || joining || benching) {             // dead: no look (mouse gated in input, pad undone here),
     player.yaw = _preYaw; player.pitch = _prePitch;   // no movement, no fly/jump input
     gp.mx = gp.mz = 0; gp.up = gp.dn = false;
@@ -1379,6 +1138,8 @@ function tickPlayer(dt, now, slot) {
   const grounded = onGround();
   const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
   player._inWater = inWater;               // exposed for fall damage + hand animation
+  // loose ground with nothing under it gives way as you step on it (0.8444, _fallUnderFeet)
+  if (grounded && !player.flying && player.spawned && !player.dead && !menuScene && !joining) _fallUnderFeet();
   // never in the inventory (0.8243), unless you were crouched as it opened (0.826)
   player.sneaking = !player.flying && !inWater && grounded && !player.dead
     && ((dnHeld && !invOpen && !player._sneakLatch) || !!player._sneakKeep);
@@ -1572,7 +1333,8 @@ function tickPlayer(dt, now, slot) {
         // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
         player.aliveT = +pr.aliveT || 0; player.dead = !!pr.dead; player._dmgCause = pr.cause || null;
         player._deathDay = typeof pr.deathDay === 'number' ? pr.deathDay : null;
-        player._deathMark = restoreDeathMark(pr.deathMark);   // 0.827
+        player._deathMarks = restoreDeathMark(pr.deathMark);   // 0.827; a list since 0.8442
+        player._restacked = false;                            // stacks fitted once the inventory is back (0.8442)
         player._feats = restoreFeats(pr.feats);               // 0.8283
         player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
         if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_SLOTS) {
@@ -1630,7 +1392,8 @@ function tickPlayer(dt, now, slot) {
   // in bed you can look around and nothing else — no swinging, no placing, no eating
   const climbing = !!player._climbAnim;      // both hands on the wall or the ladder (0.804)
   const wantBreak = !lying && !joining && !benching && !climbing && ((mouseBreak && pointerLocked) || act.padBreak);
-  const wantPlace = !lying && !joining && !benching && !climbing && ((mousePlace && pointerLocked) || act.padPlace);
+  // ...nor while the button that just milked a cow is still down (0.8446, _milkLatch in 39-taming.js)
+  const wantPlace = !lying && !joining && !benching && !climbing && !player._milkLatch && ((mousePlace && pointerLocked) || act.padPlace);
   // selection highlight
   updateInvCursorVisual(dt);                 // this seat's cursor / drag ghost / hover / tooltip
   if (typeof updateSkillHold === 'function') updateSkillHold(dt);   // a skill being held to learn (0.804)
@@ -1666,15 +1429,21 @@ function tickPlayer(dt, now, slot) {
   /* Crafting bench (0.76): E works the bench you are looking at, a tap takes what is finished, holding
      the right button cancels its order. Runs before bush pickup, which it replaces while aimed at one. */
   const _eHeld = (playing && !invOpen && !menuScene && !joining) && ((kbOwner && !!keys['KeyE']) || act.padPick);
-  updateBenchWork(dt, _eHeld, (playing && !invOpen && !menuScene) && ((mousePlace && pointerLocked) || act.padPlace));
+  const _rmbRaw = (playing && !invOpen && !menuScene) && ((mousePlace && pointerLocked) || act.padPlace);
+  updateBenchWork(dt, _eHeld, _rmbRaw);
+  // milking (0.8446): the right button held on a cow for MILK_TIME; read raw, since the hold locks the controls
+  if (typeof updateMilking === 'function') updateMilking(dt, _rmbRaw);
   // drinking (0.82): crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs
   player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim);
   // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
-  updateBushPickup(dt, _eHeld && !player._benchAim && !(player._drinkProg > 0));
+  // ...and not while eating or drawing a bow (0.8444): both take two hands, and foraging needs them free
+  updateBushPickup(dt, _eHeld && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
 
   // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
   const _didThrow = (wantPlace && !act.place) ? tryThrow() : false;
 
+  // a hand on the world (0.8444, 11-chunks.js): block changes made now are meshed at once, ahead of everything else
+  if (wantMine || wantPlace) notePlayerEdit();
   // Creative: instant break with 240ms repeat. Survival: progressive mining vs. hardness.
   const survivalMining = !player.canFly;
   if (survivalMining) {
@@ -1693,9 +1462,14 @@ function tickPlayer(dt, now, slot) {
         setBlock(hit.x, hit.y, hit.z, B.AIR);
         queueWaterAround(hit.x, hit.y, hit.z);
         queueLavaAround(hit.x, hit.y, hit.z);
-
-
-          for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, hit.x, hit.y, hit.z);
+        /* What it leaves (0.8443: the two lines that asked blockDrop were lost long ago, and the loop left behind read a
+           `drop` that was never set: every soft block broken by hand — a mushroom, a torch, a flower — threw an error and
+           gave nothing). A mushroom broken gives itself, with no Lucky Hands (that is for picking, E); one still too
+           small to pick gives nothing, as it gives nothing picked. */
+        const tooSmall = typeof shroomTooSmall === 'function' && shroomTooSmall(minedId, (minedVal >> 8) & 255);
+        if (!tooSmall)
+          for (const drop of blockDrop(minedId, false))
+            for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, hit.x, hit.y, hit.z);
         act.lastBreak = now;
         }
       }
@@ -1789,14 +1563,22 @@ function tickPlayer(dt, now, slot) {
           inf.apply();
           if (dropsOk) _dropLayer(inf.layerId, mx, my, mz);
         } else {
+          const lockedChest = isChestId(minedId) && chestLocked(mx, my, mz, mval);
           // broken ice leaves its water behind (0.8321) — only ice that froze from water (0.833); creative just clears it
           setBlock(mx, my, mz, minedId === B.ICE && !player.canFly && ((mval >> 8) & 255) === ICE_FROM_WATER ? B.WATER : B.AIR);
           queueWaterAround(mx, my, mz);
           queueLavaAround(mx, my, mz);
           if (_isLog(minedId)) scheduleLeavesCheck(mx, my, mz);
-          if (dropsOk) {
-            const drops = blockDrop(minedId, false);
-            if (drops.length) drops[0].count += skillOreBonus(minedId);   // Prospector (0.79)
+          // a locked or sealed chest broken gives nothing back, itself included (0.843; asked before setBlock let go of its lock)
+          if (dropsOk && !lockedChest) {
+            // a door gives back the blocks it was made of (0.842: three, as the block a look belongs to)
+            const drops = BLOCKS.isDoorVal(mval) ? doorDropOf(mval) : blockDrop(minedId, false);
+            if (drops.length && !BLOCKS.isDoorVal(mval)) drops[0].count += skillOreBonus(minedId);   // Prospector (0.79)
+            // ...and a roll of its own for one more of the ore's stone pebbles (0.8445, LOOT.orePebble)
+            if (drops.length && typeof ORE_BLOCKS !== 'undefined' && ORE_BLOCKS.has(minedId)) {
+              const more = skillOreBonus(minedId), peb = more ? drops.find(d => d.id === ITEM.STONE_PEBBLE) : null;
+              if (peb) peb.count += more; else if (more) drops.push({ id: ITEM.STONE_PEBBLE, count: more });
+            }
             for (const drop of drops)
               for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
           }
@@ -1883,11 +1665,18 @@ function tickPlayer(dt, now, slot) {
   if (!menuScene && typeof syncEffectBar === 'function') syncEffectBar();     // running effects beside the hotbar (0.797)
   if (typeof updateQuests === 'function') updateQuests(dt);                   // the starter quest, top right (0.798)
   if (typeof syncBossHud === 'function') syncBossHud();                       // a boss's bar, the last quest's marker (0.839)
+  /* stacks made to fit, once as this seat's world is joined (0.8442, 15-drops.js): on loaded ground, alive and in
+     survival, so what does not fit can fall at their feet; `_restacked` is cleared when a world or a record loads */
+  if (!player._restacked && !menuScene && !joining && player.spawned && !player.dead && !player.canFly && _hereC && _hereC.data) {
+    player._restacked = true;
+    restackInventory();
+  }
   // food rots in your hands, a second at a time (0.789, 44-spoil.js); with the fixed tick in simTick (0.8379)
   if (!SIM_FIXED && !menuScene && typeof tickSpoilage === 'function') tickSpoilage(dt);
   if (!menuScene && !joining && _hereC && _hereC.data) updateVitals(dt);
   else player._statsLive = false;           // the bars wait with the vitals (0.8379, simTick)
   updateXPBar(dt);
+  if (typeof updateProgressRing === 'function') updateProgressRing();   // the ring round the crosshair (0.8446, 18-hud.js)
   updateCraftQueue(dt);                     // this player's crafting queue, and its HUD strip (0.76)
   updateHands(dt, wantBreak, wantPlace, eatProg, drawProg);
   updateShield(dt, wantPlace);              // offhand arm + blocking state (40-shield.js)
@@ -1937,12 +1726,24 @@ function runWorldTick(dt, now) {
      look at than a frame that ran a few milliseconds long. */
   const _rush = _loadingWorld || menuScene;   // nothing to stutter; the player is waiting on this
   const _catchUp = genFinishQueue.length > 6 || meshResults.length > 12;
-  const _streamDeadline = performance.now() + (_rush ? 30 : _catchUp ? 12 : 5);
+  /* UNDER STRESS (0.8443). These budgets were per frame, so a low frame rate starved the stream: at 10 fps a second of
+     play got a sixth of the finishing and uploading 60 fps gets, and the world stayed full of holes and half-built
+     chunks just when it was hardest to keep up. Now the slice is also never less than a SHARE of the frame's real
+     length — STREAM_SHARE of it, STREAM_SHARE_BEHIND while land is waiting, up to STREAM_MS_MAX — and the counts grow
+     with the frame the same way, so a second finishes and shows about as much land at 10 fps as at 60. At 60 fps the
+     numbers are what they were. The frame rate pays for it while the land catches up: a hole in the world is the worse
+     thing to look at. `streamBehind` (11-chunks.js) tells the work that can wait to wait. */
+  // land waiting = finished chunks piling up, or one still to be made near a player (a re-mesh after an edit is not it)
+  streamBehind = !_rush && (_catchUp || (genQueue.length > 0 && genQueue[0].d2 <= STREAM_NEAR_D2));
+  const _slow = _rush ? 1 : Math.min(STREAM_COUNT_MAX, Math.max(1, frameMsAvg / 16.7));
+  const _streamMs = _rush ? 30 : Math.min(STREAM_MS_MAX, Math.max(_catchUp ? 12 : 5, frameMsAvg * (streamBehind ? STREAM_SHARE_BEHIND : STREAM_SHARE)));
+  const _streamDeadline = performance.now() + _streamMs;
   tp = perfLap('stream', tp);
-  processGenFinish(_rush ? 8 : _catchUp ? 6 : 2, _streamDeadline);
+  processGenFinish(Math.round((_rush ? 8 : _catchUp ? 6 : 2) * _slow), _streamDeadline);
   tp = perfLap('chunk finish', tp);
   updateChunkFades(dt);                     // chunks fading in and out (0.8195)
-  applyMeshResults(_rush ? 48 : _catchUp ? 32 : 12, _streamDeadline);
+  // the uploads keep at least a third of the slice to themselves, however long the finishing took (0.8443)
+  applyMeshResults(Math.round((_rush ? 48 : _catchUp ? 32 : 12) * _slow), Math.max(_streamDeadline, performance.now() + _streamMs * STREAM_UPLOAD_KEEP));
   tp = perfLap('mesh upload', tp);
   updateFarRegions();                       // settled far chunks drawn 4x4 to a mesh (0.8386, C8)
   tp = perfLap('far regions', tp);
@@ -2216,6 +2017,7 @@ function paintDebugHud() {
     // what this seat is actually listening to — the quickest answer to "is my controller detected"
     `input ${escapeHtml(inputLabelFor(activePlayerSlot()))}<br>` +
     `draws ${info.calls} &middot; tris ${(info.triangles / 1000).toFixed(0)}k &middot; creatures ${ENTITIES.length} &middot; drops ${DROPS.length}` +
-    (_perfLine ? `<br>${_perfLine}` : '');      // where the time goes (0.83851, MultithreadPlan C1)
+    (_perfLine ? `<br>${_perfLine}` : '') +     // where the time goes (0.83851, MultithreadPlan C1)
+    (typeof fluidDebugLine === 'function' && fluidDebugLine() ? `<br>${fluidDebugLine()}` : '');   // the fluids' work (0.844, 61-fluids.js)
 }
 

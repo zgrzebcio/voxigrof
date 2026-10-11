@@ -34,9 +34,9 @@ function BIOME_CORE() {
     { lvl: -2, to: -0.27, air: -16, biomes: 'Snow, Snow Forest, Snowy Mountains, Ice Spikes (0.835), Snowy Hills (0.8351)' },
     { lvl: -1, to: -0.10, air: -7,  biomes: 'Cold Plains, Spruce Forest' },
     { lvl:  0, to:  0.10, air: 0,   biomes: 'Plains, Forest, Birch Forest, Mountains' },
-    { lvl:  1, to:  0.27, air: 6,   biomes: 'Warm Plains' },
+    { lvl:  1, to:  0.27, air: 6,   biomes: 'Warm Plains, Dryland (0.8411, its hot side by the desert)' },
     { lvl:  2, to:  0.51, air: 14,  biomes: 'Desert, Desert Hills' },
-    { lvl:  3,            air: 20,  biomes: 'Red Sand, Red Sand Hills' },
+    { lvl:  3,            air: 20,  biomes: 'Red Sand, Red Sand Hills, Deep Desert (0.84, its hottest heart) and Deep Red Desert (0.841, the other half of it); an Oasis now and then in a desert' },
   ];
   const LADDER_LO = CLIMATE_LADDER[0].lvl, LADDER_HI = CLIMATE_LADDER[CLIMATE_LADDER.length - 1].lvl;
   // the temperature field as a smooth level: a level's own band runs from lvl - 0.5 to lvl + 0.5
@@ -119,6 +119,22 @@ function BIOME_CORE() {
        stand (half as thick as 0.836 had them everywhere), and the open Coldest Deep Snow, gently rolling, its hills and
        mountains mostly smoothed away (RIME_CALM), with only the odd tree or ice shape: room to build (the snow castle). */
     const RIME2 = biomeRev >= 20, RIME_CALM = 0.8;
+    /* The desert update (0.84, biomeRev 21). The Deep Desert is the hot heart of the deserts, where the temperature field
+       is highest (from DD_FROM, inside the red sand, about 5% of the land): mesas cut into terraces and shattered by
+       cracks, jagged broken ridges between them (terrainInfo), sandstone crags, hoodoos and the bones of great beasts
+       (genChunk, 02). Hotter than the desert (`ddAir`, from DD_AIR_FROM, so the heat comes on before the biome does;
+       54-stats-effects.js). An Oasis (_oasisAt) is a rare lake in a ring of grass out in the open desert, under palms.
+       genChunk also lays the desert's sand 5 deep over 5 of sandstone, grows dry plants and the odd palm on a warm shore. */
+    const DESERT2 = biomeRev >= 21, DD_FROM = 0.55, DD_TO = 0.59, DD_AIR_FROM = 0.5, DD_TERRACE = 5;
+    /* The red desert and mountains update (0.841, biomeRev 22): a slow noise splits the Deep Desert into two halves side
+       by side, the Deep Desert (yellow sand, sandstone) and the Deep Red Desert (red sand, red sandstone): `ddRed`.
+       genChunk (02) also hollows all high land with halls, tunnels out to the slopes and deep shafts, lays gold at any
+       height under the red sand, and digs small mine shafts into the desert hills, mostly the red ones. */
+    const DESERT3 = biomeRev >= 22;
+    /* The Dryland (0.8411, biomeRev 23): the hot side of the warm plains, beside the desert (from DRY_FROM of a level, with
+       a wobble of its own so it is not a ring), `fDry`. Pale dry grass, many dry plants and half the green ones, big dry
+       bushes, no trees, and now and then bones (genChunk, 02). */
+    const DRYLAND = biomeRev >= 23, DRY_FROM = 1.08, DRY_TO = 1.22;
     // two waters that may meet at different heights: one group, or a river and a lake it leaves or enters
     const _kin = (a, b) => a.g === b.g || (!a.lake && b.lake && (a.up === b.g || a.dn === b.g)) || (!b.lake && a.lake && (b.up === a.g || b.dn === a.g));
     // the mountain valleys' depth 0..1 at a place, from the same mask the mountains use (0 outside mountain country)
@@ -524,6 +540,40 @@ function BIOME_CORE() {
       if (best && near) best.near = near;
       return best && best.edge < RIV_INFL ? best : null;
     }
+    /* Oases (0.84, biomeRev 21): one OASIS_CELL square in OASIS_CHANCE may hold one, tried at up to four spots, kept only
+       out in the open desert (not the Deep Desert), where the ground round it lies within 8 and no river runs near. A
+       lake about `r` across the radius (ragged) in a ring of grass out to `R`; the land is eased flat to it over 14 more.
+       The water's top is the ground's level `g`, the grass a block over it. A pure function of its cell, like a lake. */
+    const OASIS_CELL = 448, OASIS_CHANCE = 0.4, _oases = new Map();
+    function _oasisDef(gx, gz) {
+      const key = gx + ',' + gz;
+      if (_oases.has(key)) return _oases.get(key);
+      let def = null;
+      if (_rh(gx, gz, 101) < OASIS_CHANCE)
+        for (let k = 0; k < 4 && !def; k++) {
+          const x = (gx + 0.2 + 0.6 * _rh(gx, gz, 102 + k)) * OASIS_CELL, z = (gz + 0.2 + 0.6 * _rh(gx, gz, 106 + k)) * OASIS_CELL;
+          const c = terrainInfo(x, z, true);
+          if (c.fDesert < 0.9 || (c.fDeepD || 0) > 0.2 || c.h < WATER_LEVEL + 4) continue;
+          const r = 5 + 8 * _rh(gx, gz, 110 + k), R = r + 6 + 6 * _rh(gx, gz, 114 + k);
+          let lo = 1e9, hi = -1e9, ok = true;
+          for (let a = 0; a < 12 && ok; a++) {
+            const t = terrainInfo(x + Math.cos(a * Math.PI / 6) * R, z + Math.sin(a * Math.PI / 6) * R, true);
+            if (t.fDesert < 0.7) ok = false;
+            lo = Math.min(lo, t.h); hi = Math.max(hi, t.h);
+          }
+          if (!ok || hi - lo > 8) continue;
+          if (FLOW) { const rv = _riverAt(x, z); if (rv && rv.edge < R + 40) continue; }
+          def = { x, z, r, R, g: Math.round(Math.min(c.h, (lo + hi) / 2)), d: 2 + 3 * _rh(gx, gz, 118 + k) };
+        }
+      _oases.set(key, def);
+      return def;
+    }
+    // the oasis whose land reaches here (its ring and the eased edge round it), or null; a spot lies 89+ in from its cell's edge
+    function _oasisAt(x, z) {
+      if (!DESERT2) return null;
+      const O = _oasisDef(Math.floor(x / OASIS_CELL), Math.floor(z / OASIS_CELL));
+      return O && Math.hypot(x - O.x, z - O.z) < O.R * 1.2 + 16 ? O : null;
+    }
     // biome-scale noise at two thirds the frequency: 1.5x as big (rev 5); at a third: 3x the old, twice rev 5's (rev 8)
     const BS = BIGGER ? 1 / 3 : REV5 ? 1 / 1.5 : 1;
     const CONT_LIFT = REV5 ? 0.1 : 0;                 // the continents raised: less ocean, and less of it deep
@@ -616,6 +666,13 @@ function BIOME_CORE() {
       // rev 20 (0.837): its forest half, by a slow noise of its own (about half), and how calm the open half lies here
       const rimeW = RIME2 ? smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) : 1;
       const calm = RIME2 ? RIME_CALM * fRime * (1 - rimeW) : 0;
+      // the Deep Desert (0.84, rev 21): the hottest heart of the deserts, and the heat that comes on a little before it
+      const fDeepD = DESERT2 ? smooth01(temp, DD_FROM, DD_TO) * fDesert : 0;
+      const ddAir = DESERT2 ? smooth01(temp, DD_AIR_FROM, DD_TO) * fDesert : 0;
+      // ...and which half of it this is (0.841, rev 22): 1 the Deep Red Desert, 0 the (yellow) Deep Desert; all red before
+      const ddRed = DESERT3 ? smooth01(fbm(x * 0.0017 + 8813.1, z * 0.0017 - 6611.3, 2), -0.06, 0.06) : 1;
+      // the Dryland (0.8411, rev 23): the warm plains' hot side, short of the desert
+      const fDry = DRYLAND && LADDER ? smooth01(lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2), DRY_FROM, DRY_TO) * (1 - fDesert) : 0;
       /* Deep forests (rev 5): their own patches inside forest country, where trees stand denser and grow bigger. */
       const deepF = REV5 ? smooth01(fbm(x * 0.0022 * BS + 3137.1, z * 0.0022 * BS - 1289.3, 2), 0.18, 0.34) : 0;
 
@@ -641,12 +698,12 @@ function BIOME_CORE() {
       // desert hills sub-biome: tall dunes / small sandy mountains with rocky tops
       // rarer dune hills = flatter deserts; biomeRev 3 (0.8193) about 30% fewer again
       const dhN    = fbm(x * 0.0035 * BS + 641.3, z * 0.0035 * BS - 141.7, 2);
-      const dh     = (FEWER_HILLS ? smooth01(dhN, 0.33, 0.68) : smooth01(dhN, 0.25, 0.62)) * fDesert;
+      const dh     = (FEWER_HILLS ? smooth01(dhN, 0.33, 0.68) : smooth01(dhN, 0.25, 0.62)) * fDesert * (1 - fDeepD);   // none in the Deep Desert (0.84)
       // red sand sub-desert: separate low-freq mask splits hot deserts into normal / red zones
       const fRed = (LADDER ? fRedL : smooth01(fbm(x * 0.00065 * BS - 911.7, z * 0.00065 * BS + 617.3, 2), 0.22, 0.36)) * fDesert;   // half freq = 2x patch size
       // red spike hills: narrow ridged spikes (all red sand — no sandstone yet), clustered
       // by their own hill mask so flat red desert and spike fields both exist
-      const rdh = smooth01(fbm(x * 0.0035 * BS + 941.3, z * 0.0035 * BS - 241.7, 2), 0.1, 0.55) * fRed;
+      const rdh = smooth01(fbm(x * 0.0035 * BS + 941.3, z * 0.0035 * BS - 241.7, 2), 0.1, 0.55) * fRed * (1 - fDeepD);
       // snowy hills (0.8351, biomeRev 10): the snow's own rolling hills, in patches as the desert's dunes, up to ~26 high
       const sh = SNOW_HILLS ? smooth01(fbm(x * 0.0035 * BS - 1641.3, z * 0.0035 * BS + 1141.7, 2), 0.28, 0.62) * fSnow : 0;
       let h = 102 + cont * 16 + hills * hillAmp * (1 - 0.6 * calm) + mTerm + dh * 30 + sh * 26 * (1 - calm)   // calm: 0.837
@@ -654,6 +711,24 @@ function BIOME_CORE() {
       if (rdh > 0.01) {
         const sp = 1 - Math.abs(fbm(x * 0.045 + 77.7, z * 0.045 - 55.5, 2));
         h += Math.pow(smooth01(sp, 0.78, 0.97), 2) * 30 * rdh;
+      }
+      /* The Deep Desert's broken land (0.84, rev 21): tables 12-34 high in terraces of DD_TERRACE, shattered into blocks by
+         two sets of cracks (each a noise's zero line) cut nearly to the floor, jagged ridges 8-24 high snaking between the
+         tables, and a rough skin on all of it. Its crags, hoodoos and bones are genChunk's (02). */
+      if (fDeepD > 0.01) {
+        const mesa = smooth01(fbm(x * 0.0055 + 7711.3, z * 0.0055 - 2213.7, 3), -0.02, 0.06);
+        let hm = 0;
+        if (mesa > 0.001) {
+          const top = 12 + 22 * (fbm(x * 0.0021 - 991.1, z * 0.0021 + 3313.3, 2) + 1) * 0.5;
+          const s = mesa * top / DD_TERRACE;
+          hm = DD_TERRACE * (Math.floor(s) + smooth01(s - Math.floor(s), 0.7, 1));
+          const c1 = Math.abs(fbm(x * 0.017 + 311.1, z * 0.017 - 977.7, 2)), c2 = Math.abs(fbm(x * 0.009 - 1511.3, z * 0.026 + 615.9, 2));
+          hm *= 1 - 0.8 * Math.max(1 - smooth01(c1, 0.015, 0.045), 1 - smooth01(c2, 0.012, 0.04));
+        }
+        const rg = 1 - Math.abs(fbm(x * 0.008 + 4421.7, z * 0.008 - 1733.1, 3));
+        const ridge = Math.pow(smooth01(rg, 0.74, 0.97), 1.6) * (8 + 16 * (fbm(x * 0.004 + 2217.9, z * 0.004 - 819.3, 2) + 1) * 0.5) * (1 - mesa);
+        const rough = fbm(x * 0.09 + 55.1, z * 0.09 - 77.3, 2) * 1.6 * Math.max(mesa, smooth01(rg, 0.7, 0.9));
+        h += (hm + ridge + rough) * fDeepD;
       }
       /* Hills and cliffs (rev 14, 0.83547) so no land lies long flat: none on the sea floor or in the mountains (their
          own), less on the plains, little in a desert */
@@ -827,6 +902,25 @@ function BIOME_CORE() {
           if (rv.lake) lk = Math.max(lk, core); else rT = Math.max(rT, core);
         }
       }
+      /* An oasis (0.84, rev 21): the land eased flat to its ground a block over its water, over 14 outside its ragged ring,
+         and its lake cut in, 1 deep at the edge and up to its own depth further in */
+      let oas = 0;
+      if (DESERT2 && !bare && fDesert > 0.5) {
+        const O = _oasisAt(x, z);
+        if (O) {
+          const d = Math.hypot(x - O.x, z - O.z);
+          const R = O.R * (1 + 0.18 * fbm(x * 0.03 + O.x * 0.11, z * 0.03 - O.z * 0.11, 2));
+          const r = O.r * (1 + 0.28 * fbm(x * 0.07 - O.z * 0.13, z * 0.07 + O.x * 0.13, 2));
+          const ease = 1 - smooth01(d, R, R + 14);
+          if (ease > 0) h += (O.g + 1 - h) * ease;
+          if (d < r) {
+            const into = r - d;
+            h = Math.min(h, O.g - 1, O.g - Math.min(O.d, 1 + into * 0.7) + fbm(x * 0.15 + 13.7, z * 0.15 - 41.3, 2) * 0.8);
+            wl = O.g; lk = Math.max(lk, smooth01(into, 0, 0.6));
+          }
+          if (d < R) oas = 1;
+        }
+      }
       /* Seabed relief: broad lumps plus a ridged term for the occasional spike, faded to nothing at the shoreline
          and inside a river or lake bed, and clamped below water so a spike never surfaces as an island. */
       if (h < WATER_LEVEL) {
@@ -842,7 +936,8 @@ function BIOME_CORE() {
       if (!UPLAND) h = capH(h);                        // the peaks ease into the cap, not shorn off on it (0.8354)
       h = Math.min(TALL ? TALL_CAP : 196, Math.max(4, Math.floor(h)));
       return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, warm, cold, fTaiga, deepF,
-               fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW };
+               fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW,
+               fDeepD, ddAir, oas, ddRed, fDry };          // 0.84; ddRed 0.841; fDry 0.8411
     }
     const heightAt = (x, z) => terrainInfo(x, z).h;
 
@@ -858,6 +953,7 @@ function BIOME_CORE() {
     function biomeAt(x, z) {
       const ti = terrainInfo(x, z);
       const { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, fTaiga, deepF, fDeepSnow, sh } = ti;
+      if ((ti.oas || 0) > 0.5) return 'Oasis';                          // its lake too (0.84)
       if (h < ti.wl) {
         if (rT > 0.3 && rT >= lk) return 'River';
         if (lk > 0.3 || ti.wl > WATER_LEVEL) return 'Lake';   // water up in the land is a river's or a lake's (0.83548)
@@ -888,6 +984,8 @@ function BIOME_CORE() {
           if (!SHORES || (shoreKindAt(x, z) !== 0 && !(ti.cliff > SHORE_ROCK))) return 'Beach';
         }
       }
+      // the hot heart of the deserts (0.84), in two halves since 0.841 (rev 22)
+      if ((ti.fDeepD || 0) > 0.5) return DESERT3 && ti.ddRed > 0.5 ? 'Deep Red Desert' : 'Deep Desert';
       if (fRed > 0.5) return rdh > 0.35 ? 'Red Sand Hills' : 'Red Sand';
       if (fDesert > 0.5) return dh > 0.35 ? 'Desert Hills' : 'Desert';
       /* rev 18 (0.835491): Mountains from 150, and only where the ridges make the height rather than the hills; raised land
@@ -905,6 +1003,7 @@ function BIOME_CORE() {
         return snowForestAt(x, z) ? 'Snow Forest' : 'Snow';
       }
       if (mountain) return 'Mountains';
+      if ((ti.fDry || 0) > 0.5) return 'Dryland';                       // 0.8411
       if (fPlains > 0.5) return hilly ? 'Plains Hills' : _clim(ti) + 'Plains';   // warm and cold plains (0.823)
       const deepW = deepF > 0.5 && !hilly ? 'Deep ' : '';               // deep forests (0.823)
       const hl = hilly ? ' Hills' : '';
@@ -927,6 +1026,16 @@ function BIOME_CORE() {
       if (smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow <= 0.5) return false;
       return smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) <= 0.5;
     }
+    /* How dry the grass is here, 0 the usual .. 1 the Dryland's pale grass (0.8442): terrainInfo's own `fDry` from its
+       two fields alone, for the mesher to ask at every column corner like climAt. The grass fades from green to pale
+       over the Dryland's whole edge, tens of blocks, instead of block by block (the dry and green blocks dithered
+       there since 0.8411 read as a checkerboard, the two colours being so far apart). */
+    function dryAt(x, z) {
+      if (!DRYLAND || !LADDER) return 0;
+      const lvl = climateLevel(_temp(x, z));
+      const d = smooth01(lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2), DRY_FROM, DRY_TO);
+      return d <= 0 ? 0 : d * (1 - smooth01(lvl, 1.4, 1.6));           // not where the desert has begun (fDesert)
+    }
     function climAt(x, z) {
       const temp = _temp(x, z);
       // on the ladder (0.8232): half way at warm or cold plains, full in the desert and the snow
@@ -935,11 +1044,12 @@ function BIOME_CORE() {
       return c < -1 ? -1 : c > 1 ? 1 : c;
     }
 
-    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2 };
+    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND };
   }
   // the names every biome-keyed list should treat alike (entity spawns, structures, mushrooms): the base name
   // ...and a forest's or the plains' hills count as that forest or plain (0.835491)
-  const biomeBase = (name) => String(name || '').replace(/^Deep /, '').replace(/^(Warm|Cold) /, '').replace(/^((?:Birch |Spruce )?Forest|Plains) Hills$/, '$1');
+  // ...but the Deep Desert is its own (0.84): no desert village there, and the pyramid will be (0.849); the Deep Red one too (0.841)
+  const biomeBase = (name) => String(name || '').replace(/^Deep (?!(Red )?Desert$)/, '').replace(/^(Warm|Cold) /, '').replace(/^((?:Birch |Spruce )?Forest|Plains) Hills$/, '$1');
   return { makeBiomes, biomeBase, CLIMATE_LADDER };
 }
 const BIOMES = BIOME_CORE();

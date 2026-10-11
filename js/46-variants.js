@@ -65,6 +65,9 @@ for (const gem of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.T
 BLOCK_VARIANTS[B.FURNACE] = FURNACE_ROCKS.slice(1).map((name, i) => ({ id: B.FURNACE, name, bits: (i + 1) << V.FURNACE_ROCK_SHIFT }));
 BLOCK_VARIANTS[B.CRAFTING_BENCH] = BENCH_WOODS.slice(1).map((name, i) => ({ id: B.CRAFTING_BENCH, name, bits: (i + 1) << V.BENCH_WOOD_SHIFT }));
 BLOCK_VARIANTS[B.CHEST] = CHEST_WOODS.slice(1).map((name, i) => ({ id: B.CHEST, name, bits: (i + 1) << CHEST_WOOD_SHIFT }));
+// the metal chest's metal the same way, in the same bits (0.843, CHEST_METALS in 30-chest.js)
+BLOCK_VARIANTS[B.METAL_CHEST] = CHEST_METALS.slice(1).map((m, i) => ({ id: B.METAL_CHEST, name: m.name, bits: (i + 1) << CHEST_WOOD_SHIFT }));
+VARIANT_DEFAULT_NAME[B.METAL_CHEST] = CHEST_METALS[0].name;
 // the bed's frame the same way, its wood in bits 4-5 (0.8342, BED_WOOD_SHIFT in 29-bed.js)
 BLOCK_VARIANTS[B.BED] = BED_WOODS.slice(1).map((name, i) => ({ id: B.BED, name, bits: (i + 1) << BED_WOOD_SHIFT }));
 VARIANT_DEFAULT_NAME[B.BED] = BED_WOODS[0];

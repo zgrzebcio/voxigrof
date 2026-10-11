@@ -12,7 +12,9 @@
   "dungeon_room.json",
   "dungeon_cell.json",
   "igloo.json",
-  "snow_castle.json"
+  "snow_castle.json",
+  "desert_ruins.json",
+  "desert_obelisk.json"
  ],
  "groups": {
   "village": {
@@ -54,7 +56,7 @@
   },
   "desert_village": {
    "type": "village",
-   "chance": 0.0015,
+   "chance": 0.00075,
    "biomes": [
     "Desert"
    ],
@@ -71,7 +73,7 @@
     2,
     3
    ],
-   "_doc": "The desert village (0.82422): same rules as the village, its paths grass (path 1). replace = block swaps for what it builds and its foundations (dirt -> sand). Members: prefabs with group desert_village.",
+   "_doc": "The desert village (0.82422): same rules as the village, its paths grass (path 1). Half as common since 0.84 (0.0015 before), and never in the Deep Desert (its own biome name). replace = block swaps for what it builds and its foundations (dirt -> sand). Members: prefabs with group desert_village.",
    "apart": 640,
    "replace": {
     "2": 7

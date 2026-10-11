@@ -82,7 +82,7 @@ function softBlockMineMul(id) {
    A wider square also reaches one block up and down, so a field on a slope is cut too. Every plant cut
    yields what foraging it by hand yields (short grass one fiber roll, tall grass two) and costs the hoe
    1 durability; the cut stops the moment the hoe breaks. */
-const HOE_GRASS = new Set([B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER]);
+const HOE_GRASS = new Set([B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER]);   // dry 0.84
 const HOE_WIDTH = {
   [ITEM.FLINT_HOE]: 1, [ITEM.STONE_HOE]: 3, [ITEM.IRON_HOE]: 5, [ITEM.GOLDEN_HOE]: 5, [ITEM.DIAMOND_HOE]: 9,
   [ITEM.BRONZE_HOE]: 7,                                            // 0.774
@@ -93,15 +93,18 @@ function heldHoeWidth() {
 }
 const hoeTargetsPlant = (id) => HOE_GRASS.has(id) && heldHoeWidth() > 0;
 // one plant: tall grass goes whole (both halves, two rolls), short grass or a stray top half one roll
+// the dry grass (0.84) the same way, at its own 10% a roll
 function _hoeCutOne(x, y, z, id) {
-  if (id === B.TALL_UPPER && (getBlock(x, y - 1, z) & 255) === B.TALL_LOWER) { y -= 1; id = B.TALL_LOWER; }
-  if (id === B.TALL_LOWER) {
+  const lower = TALL_LOWER_OF[id];
+  if (lower && (getBlock(x, y - 1, z) & 255) === lower) { y -= 1; id = lower; }
+  const ch = id === B.DRY_GRASS || id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER ? DRY_FIBER_CHANCE : HARVEST_FIBER_CHANCE;
+  if (TALL_UPPER_OF[id]) {
     setBlock(x, y + 1, z, B.AIR);
     setBlock(x, y, z, B.AIR);
-    _harvestFiber(x, y, z, 2);
+    _harvestFiber(x, y, z, 2, ch);
   } else {
     setBlock(x, y, z, B.AIR);
-    _harvestFiber(x, y, z, 1);
+    _harvestFiber(x, y, z, 1, ch);
   }
 }
 function hoeCutGrass(cx, cy, cz) {

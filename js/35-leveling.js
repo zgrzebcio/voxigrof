@@ -17,17 +17,18 @@
 
    THE CURVE
    ---------
-   Each level costs THREE TIMES the last: 40, 120, 360, 1080, ... Deliberately steep — a level is
-   meant to be an achievement worth a skill point, not a thing you tick over every few minutes. */
+   Each level costs 2.5 TIMES the last (0.8443; three times before): 30, 75, 188, 469, ... Deliberately steep — a level
+   is meant to be an achievement worth a skill point, not a thing you tick over every few minutes. The total is what is
+   saved, so a world from before simply reads as the level its points make on this curve. */
 
 var playerXP = 0;                  // total experience points earned this world, never spent
 var playerLevel = 0;               // derived from playerXP; cached so the HUD needn't recompute
-var playerXPInLevel = 0, playerXPNeeded = 40;  // progress within the current level
+var playerXPInLevel = 0, playerXPNeeded = 30;  // progress within the current level
 
-const XP_LEVEL_BASE = 30, XP_LEVEL_MUL = 3;   // 40 until 0.7992
+const XP_LEVEL_BASE = 30, XP_LEVEL_MUL = 2;   // 40 until 0.7992; x3 a level until 0.8443
 const XP_LEVEL_MAX = 50;                      // the last level there is (0.7992)
-// points needed to go from `lvl` to `lvl + 1`: 40, 120, 360, 1080, ...
-function xpToNext(lvl) { return XP_LEVEL_BASE * Math.pow(XP_LEVEL_MUL, lvl); }
+// points needed to go from `lvl` to `lvl + 1`: 30, 75, 188, 469, ... (whole points)
+function xpToNext(lvl) { return Math.round(XP_LEVEL_BASE * Math.pow(XP_LEVEL_MUL, lvl)); }
 // recompute level + in-level progress from the running total
 function _recalcLevel() {
   let lvl = 0, rest = playerXP;
@@ -77,44 +78,46 @@ function resetXP() { setXP(0); }
    Ores are far and away the best rate — they are the reason to go down, and the only source that
    makes the ×3 curve climbable at any speed. */
 const XP_BLOCK_DEFAULT = 1;
-const XP_FEED_FROM = 5;            // a block worth this much says so in the feed (0.8284)
+const XP_FEED_FROM = 30;            // a block worth this much says so in the feed (0.8284)
 const XP_BLOCK = {};
-const XP_ORE_MUL = 2;              // 0.831
-const XP_GEM_ORE = 150;            // diamond and every gem ore (0.832)
+const XP_ORE_MUL = 3;              // 0.831
+const XP_GEM_ORE = 250;            // diamond and every gem ore (0.832)
 {
   const set = (id, n) => { XP_BLOCK[id] = n; };
   const ore = (id, n) => set(id, n * XP_ORE_MUL);                          // every ore twice its old worth (0.831)
-  ore(B.COAL_ORE, 14); ore(B.IRON_ORE, 22); ore(B.COPPER_ORE, 18); ore(B.TIN_ORE, 18);
-  ore(B.GOLD_ORE, 35);
+  ore(B.COAL_ORE, 20); ore(B.IRON_ORE, 35); ore(B.COPPER_ORE, 30); ore(B.TIN_ORE, 40);
+  ore(B.GOLD_ORE, 60);
   // diamond and the gems are one class since 0.832: 150 each (diamond 140, the gems 120 in 0.831)
   for (const id of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]) set(id, XP_GEM_ORE);
-  set(B.SULFUR_BLOCK, 8); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 12);
+  set(B.SULFUR_BLOCK, 5); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 0);
   // lightning's glassy sand is rare to come across (0.8281)
-  set(B.GLASSY_SAND, 5); set(B.GLASSY_RED_SAND, 5); set(B.GLASSY_PINK_SAND, 5);
+  set(B.GLASSY_SAND, 20); set(B.GLASSY_RED_SAND, 20); set(B.GLASSY_PINK_SAND, 20);
   // scenery is free — you are not going to grind a level out of grass
   set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
-  set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0); set(B.RIME_LEAVES, 0);
+  set(B.LEAVES, 0); set(B.BIRCH_LEAVES, 0); set(B.SPRUCE_LEAVES, 0); set(B.RIME_LEAVES, 0); set(B.PALM_LEAVES, 0); set(B.DRY_LEAVES, 0);
+  set(B.DRY_GRASS, 0); set(B.DRY_TALL_LOWER, 0); set(B.DRY_TALL_UPPER, 0); set(B.DRY_BUSH, 0);   // 0.84
   set(B.RIME_LOG, 3);                                                  // frozen wood from the far cold (0.836)
+  set(B.PALM_LOG, 2);                                                  // ...and the oases' and warm shores' (0.84)
   set(B.STONE_BRICK, 0);
   /* Built things never grow in the wild, only in villages and by your hand (0.8282: COBBLESTONE was misspelt and
      paid 1): cobblestone, planks, sandstone, adobe, terracotta and hay, every look of each. Breaking a village teaches
      nothing. */
   for (const fam of CORE.VARIANT_FAMILIES) if ([B.COBBLE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.ADOBE, B.BRICKS].includes(fam[0]))
     for (const id of fam) set(id, 0);
-  set(B.PLANKS, 0); set(B.BIRCH_PLANKS, 0); set(B.SPRUCE_PLANKS, 0); set(B.RIME_PLANKS, 0);
+  set(B.PLANKS, 0); set(B.BIRCH_PLANKS, 0); set(B.SPRUCE_PLANKS, 0); set(B.RIME_PLANKS, 0); set(B.PALM_PLANKS, 0);
   // a little more for what is rare or hard to come by (0.8282)
-  set(B.SULFUR_UP_TIP, 4); set(B.SULFUR_DOWN_TIP, 4); set(B.GLOW_VINE, 5); set(B.COBWEB, 3);
-  set(B.SALT_CRUST, 2); set(B.CLAY, 2);                                // salt pays per layer too (22-main-loop.js)
-  set(B.HOLLOW_LOG, 2); set(B.HOLLOW_BIRCH_LOG, 2); set(B.HOLLOW_SPRUCE_LOG, 2); set(B.HOLLOW_RIME_LOG, 3);
+  set(B.SULFUR_UP_TIP, 40); set(B.SULFUR_DOWN_TIP, 40); set(B.GLOW_VINE, 50); set(B.COBWEB, 30);
+  set(B.SALT_CRUST, 20); set(B.CLAY, 30);                                // salt pays per layer too (22-main-loop.js)
+  set(B.HOLLOW_LOG, 6); set(B.HOLLOW_BIRCH_LOG, 30); set(B.HOLLOW_SPRUCE_LOG, 200); set(B.HOLLOW_RIME_LOG, 300);
   // furniture breaks by hand since 0.7442 (see HAND_BREAK_BLOCKS) — moving your own bed or
   // chest is housekeeping, so it pays nothing. Crafting them still pays: each recipe's xpToGive (25-crafting.js).
-  set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.BED, 0); set(B.HAY, 0);
+  set(B.CRAFTING_BENCH, 0); set(B.CHEST, 0); set(B.METAL_CHEST, 0);set(B.BED, 0); set(B.HAY, 0);
 }
 /* A kill (0.831): XP_KILL_MIN to XP_KILL_MAX by how much health the creature has at most (entMaxHp, 28-entities.js),
    from a cod's 20 to a horse's 150 — a zombie about 36, a villager 38 — plus XP_KILL_PER_LEVEL a level (1-50). Was
-   a base by kind (animals 20, villagers 30, monsters 40) plus the level since 0.791. */
+   a base by kind (animals 200, villagers 300, monsters 400) plus the level since 0.791. */
 // ...a monster (a zombie, a skeleton: isNightMob) a flat XP_KILL_MONSTER plus the level (0.832)
-const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 150, XP_KILL_PER_LEVEL = 1, XP_KILL_MONSTER = 60;
+const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 150, XP_KILL_PER_LEVEL = 100, XP_KILL_MONSTER = 600;
 function mobKillXP(ent) {
   if (!ent) return XP_KILL_MIN;
   if (typeof isNightMob === 'function' && isNightMob(ent)) return XP_KILL_MONSTER + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
@@ -122,30 +125,31 @@ function mobKillXP(ent) {
   const f = Math.max(0, Math.min(1, (hp - XP_KILL_HP_LO) / (XP_KILL_HP_HI - XP_KILL_HP_LO)));
   return Math.round(XP_KILL_MIN + (XP_KILL_MAX - XP_KILL_MIN) * f) + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
 }
-const XP_HARVEST = 1;              // a bush pickup that actually yielded something
+const XP_HARVEST = 3;              // a bush pickup that actually yielded something
 /* ...and since 0.8281 one more for every berry, wheat, melon or cantaloupe slice, flint and stone pebble it hands you
    (13-actions.js). A pumpkin is XP_PUMPKIN in all; a carved one or a jack o'lantern picked back up pays nothing, but
    carving a face pays XP_CARVE and putting the torch in XP_LANTERN. */
-const XP_FORAGE_ITEM = 1, XP_PUMPKIN = 4, XP_CARVE = 4, XP_LANTERN = 1;
+const XP_FORAGE_ITEM = 1, XP_PUMPKIN = 20, XP_CARVE = 100, XP_LANTERN = 3;
 /* A mushroom (0.8282) pays by how big it is when picked: one more for every 0.2x of its size (shroomSizeAt,
    51-seasons.js), and XP_SHROOM_GROWN more when it is fully grown. Too small to pick, it pays nothing. */
-const XP_SHROOM_STEP = 0.2, XP_SHROOM_GROWN = 2;
+const XP_SHROOM_STEP = 0.2, XP_SHROOM_GROWN = 50;
 /* Weathering it (0.8282): every XP_WEATHER_S out in the open through a storm, a sandstorm, hail, or a body Cold or
    Hot pays XP_WEATHER (tickStats, 54-stats-effects.js). */
-const XP_WEATHER = 1, XP_WEATHER_S = 30;
+const XP_WEATHER = 10, XP_WEATHER_S = 300;
 /* 0.8283: taming an animal (XP_TAME + its level), shearing and milking, a repair (2 per tier of the tool, 2..10;
    dismantling pays nothing), a sapling you planted growing into a tree, each biome the first time you set foot in
    it, the top and the bottom of the world once each, and a night outside: more than half of it under the open sky
    and alive at dawn (a blood moon instead pays XP_BLOOD_MOON). */
-const XP_TAME = 60, XP_TAME_PER_LEVEL = 2;   // 10 and 1 a level until 0.831
-const XP_SHEAR = 5, XP_MILK = 5, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;
+const XP_TAME = 6000, XP_TAME_PER_LEVEL = 500;   // 10 and 1 a level until 0.831
+const XP_SHEAR = 500, XP_MILK = 500, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;   // milk 500 since 0.8447 (5): it takes a 2 s hold now
 /* A biome found (0.8324): the more you have found already, the more the next one pays — XP_BIOME for the first, rising
    by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (55-biomes.js biomeAt names them: 9 kinds of
    water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last (0.833). */
-const XP_BIOME_LAST = 1000, BIOME_COUNT = 35;   // 35 the Coldest Deep Snow Forest (0.837)   // 500 in 0.8324; 28 with the Ice Spikes (0.835), 29 the Snowy Hills (0.8351); 33 the plains' and forests' Hills (0.835491); 34 the Coldest Deep Snow (0.836)
+const XP_BIOME_LAST = 100000, BIOME_COUNT = 39;   // 10000 for the last since 0.8446 (1000): 10, 12, 14... about 316 half way   // 39 the Dryland (0.8411)   // 38 the Deep Red Desert (0.841)   // 37 the Deep Desert and the Oasis (0.84)   // 35 the Coldest Deep Snow Forest (0.837)   // 500 in 0.8324; 28 with the Ice Spikes (0.835), 29 the Snowy Hills (0.8351); 33 the plains' and forests' Hills (0.835491); 34 the Coldest Deep Snow (0.836)
 const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
-const XP_SAPLING = { [B.OAK_SAPLING]: 3, [B.BIRCH_SAPLING]: 4, [B.SPRUCE_SAPLING]: 5 };
-const XP_NIGHT = 5, XP_BLOOD_MOON = 30, WORLD_TOP_Y = WORLD_TOP, WORLD_BOTTOM_Y = 2;
+const XP_SAPLING = { [B.OAK_SAPLING]: 30, [B.BIRCH_SAPLING]: 40, [B.SPRUCE_SAPLING]: 50, [B.PALM_SAPLING]: 100 };   // palm 0.84
+// a night outside pays XP_NIGHT (10 since 0.8446, 5 before) times the days you have lived, the blood moon's the same way
+const XP_NIGHT = 10, XP_BLOOD_MOON = 100, WORLD_TOP_Y = WORLD_TOP, WORLD_BOTTOM_Y = 2;   // the blood moon 100 a day lived since 0.8447 (30)
 // XP for a player who may not be the seat running right now (a sapling they planted grew); paid on their next tick
 function grantXP(p, n, why) {
   if (!p || !(n > 0)) return;
@@ -175,7 +179,7 @@ const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p.
    and opening the thing. A table declares its own `xp: [min, max]` (supply crate = 4..10); one
    without the field falls back to this range. Paid once, on the first open, alongside the roll. */
 const XP_LOOT_DEFAULT = [3, 8];
-function awardLootXP(table, mul = 1) {   // mul: the chest's multiplier (0.833, lootXpMul in 34)
+function awardLootXP(table, mul = 100) {   // mul: the chest's multiplier (0.833, lootXpMul in 34)
   const r = table && Array.isArray(table.xp) ? table.xp : XP_LOOT_DEFAULT;
   const lo = Math.max(0, r[0] | 0), hi = Math.max(lo, r[1] | 0);
   addXP((lo + Math.floor(Math.random() * (hi - lo + 1))) * mul, 'loot chest');

@@ -41,7 +41,10 @@ const CHISEL_PAGES = [
   ],
   [
     { key: 'cover',  name: 'Cover',         desc: 'A thin plate you walk through', boxes: [[0, 0, 14, 16, 16, 16]] },  // 0.787
-    ...Array.from({ length: 9 }, (_, i) => _soonSlot(i + 1)),
+    // 0.842: a door of planks, the iron, copper or tin block, adobe or glass (27-doors.js); 3 blocks and 6 hammer wear
+    { key: 'door',   name: 'Door',          desc: 'Two high; takes 3 blocks and 6 hammer durability',
+      boxes: [[2, 0, 7, 14, 16, 9], [10, 6, 6, 12, 9, 10]] },
+    ...Array.from({ length: 8 }, (_, i) => _soonSlot(i + 2)),
   ],
 ];
 const CHISEL_PAGE_NAMES = ['Simple', 'Advanced'];
@@ -72,12 +75,13 @@ function chiselShapeKey() {
    byte (CHISEL SHAPES in 58-blocks.js); which blocks take which shape is SHAPE_BLOCKS there, read here
    through PROPS[id].shapes — so a block can take a pane but no fence, and the slots show that. */
 const CHISEL_BLOCK_SHAPE = { slab: 'slab', vslab: 'slab', stairs: 'stairs', pane: 'pane', fence: 'fence',
-                             carpet: 'layer', cover: 'cover', wall: 'wall' };   // radial key -> family (carpet 0.785, cover/wall 0.787)
+                             carpet: 'layer', cover: 'cover', wall: 'wall', door: 'door' };   // radial key -> family (carpet 0.785, cover/wall 0.787, door 0.842)
 // how a slot or the hand draws each shape: a bottom half, a back half standing up, stairs facing away,
 // a pane facing you, and a fence with its rails out both sides (a lone post would read as a stick)
 const CHISEL_ICON_VAR = { slab: SHAPE_SLAB, vslab: SHAPE_SLAB + 4, stairs: SHAPE_STAIRS,
                           pane: SHAPE_PANE, fence: SHAPE_FENCE + 1, carpet: SHAPE_LAYER,
-                          cover: SHAPE_COVER + 4, wall: SHAPE_WALL + 1 };
+                          cover: SHAPE_COVER + 4, wall: SHAPE_WALL + 1,
+                          door: 0 };                     // a door has no chunk model to draw: the slot shows the block (0.842)
 // what a held block places as right now: { key }, or null (no chisel, a shape without a model, or a block that cannot take it)
 function chiselShapedPlace(id) {
   if (id == null || id >= 256 || !PROPS[id]?.shapes || !chiselEquipped()) return null;
@@ -97,16 +101,24 @@ function chiselSlotIcon(id) {
     return renderBlockIcon(id, bits);
   return v ? renderBlockIcon(id, v) : renderBlockIcon(id);
 }
-// one point of wear per shaped placement, survival only; at 0 the tool breaks
-function chiselWear() {
+// one point of wear per shaped placement (a door DOOR_WEAR, 0.842), survival only; at 0 the tool breaks
+function chiselWear(n = 1) {
   if (player.canFly) return;
   const i = EQUIP_INDEX.accessories, s = equipSlots[i];
   if (!s || !CHISEL_TOOLS.includes(s.id) || s.dur == null) return;
-  const w = wearSlot(s);
+  const w = wearSlot(s, n);
   if (w === 'gone') equipSlots[i] = null;
   if (w !== 'kept') playSound('toolBreak', { gain: 0.8 });
   saveEquip();
   if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
+}
+
+// a door takes DOOR_WEAR of the hammer's durability (0.842): one with less left must be repaired first
+function hammerCanDoor() {
+  if (player.canFly) return true;
+  const s = equipSlots[EQUIP_INDEX.accessories];
+  if (!s || !CHISEL_TOOLS.includes(s.id)) return false;
+  return (s.dur ?? ITEM_PROPS[s.id]?.durability ?? 0) >= DOOR_WEAR;
 }
 
 /* ---- previews ---- */
@@ -277,7 +289,9 @@ function syncChiselHud() {
   rad.querySelector('.crName').textContent =
     !hs ? '' : hs.soon ? (hs.name || 'Coming soon') : hs.name;
   rad.querySelector('.crDesc').textContent =
-    !hs ? '' : hs.soon ? (hs.name ? 'In development' : 'Not yet decided') : (hs.desc || '');
+    !hs ? '' : hs.soon ? (hs.name ? 'In development' : 'Not yet decided')
+    : hs.key === 'door' && !hammerCanDoor() ? `Needs a repaired hammer: a door takes ${DOOR_WEAR} durability`   // 0.842
+    : (hs.desc || '');
 }
 
 /* Keyboard: hold Q to open, release to pick. Made sturdier in 0.7844, where it sometimes did not open:

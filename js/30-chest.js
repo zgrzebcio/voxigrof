@@ -15,7 +15,35 @@
    fourth row. A cell's slots are sized to what it shows when the chest opens (fitChestSlots below). */
 const CHEST_COLS = 7, CHEST_ROWS = 3, CHEST_ROWS_BONUS = 1;
 const CHEST_SLOTS = CHEST_COLS * CHEST_ROWS;          // 21 per cell; a double is 21 + 28 = 7 x 7
-const CHEST_SAVE_MAX = 64;                            // the most slots a saved chest is read back with
+const CHEST_SAVE_MAX = 128;                           // the most slots a saved chest is read back with (64 before 0.843)
+
+/* METAL CHESTS (0.843): B.METAL_CHEST, the chest in iron, copper or gold (variant bits 4-5, where a wooden chest keeps
+   its wood), 6 rows, a double 6 + 1 + 6. Its body is the metal block's own art with the wooden chest's fittings over
+   it. Never crafted: they lie about the world SEALED (bit 6), at any height on any block (trySpawnWorldChest), and a
+   key of their metal opens one, staying in its lock; then it is a chest like any other, and a pickaxe takes it home.
+   Keys come from monsters (28-entities.js). Any chest can be locked with a key like a door (useChest below; the codes
+   live in DOOR_LOCKS with the doors', 27-doors.js), and a locked chest broken takes its contents and itself with it. */
+const CHEST_ROWS_METAL = 6;
+const CHEST_SEALED = 64;
+const CHEST_METALS = [
+  { name: 'iron',   block: B.IRON_BLOCK,   key: ITEM.IRON_KEY,   keyText: 'an iron key',   loot: 'iron_chest' },
+  { name: 'copper', block: B.COPPER_BLOCK, key: ITEM.COPPER_KEY, keyText: 'a copper key',  loot: 'copper_chest' },
+  { name: 'gold',   block: B.GOLD_BLOCK,   key: ITEM.GOLDEN_KEY, keyText: 'a golden key',  loot: 'gold_chest' },
+];
+const isChestId = (id) => id === B.CHEST || id === B.METAL_CHEST;
+const chestMetalOf = (va) => { const m = (va >> 4) & 3; return m < CHEST_METALS.length ? m : 0; };
+// a chest's look, one number: 0-3 its wood, CHEST_METAL_LOOK + the metal for a metal chest
+const CHEST_METAL_LOOK = 4;
+const chestLookOf = (val) => (val & 255) === B.METAL_CHEST ? CHEST_METAL_LOOK + chestMetalOf((val >> 8) & 255) : chestWoodOf((val >> 8) & 255);
+const chestRowsOf = (val) => (val & 255) === B.METAL_CHEST ? CHEST_ROWS_METAL : CHEST_ROWS;
+/* 0.8444: a WOODEN chest can be sealed too (the same bit): the supply crate's. A blank wooden key opens it and stays in
+   its lock, like a metal chest's key; the wooden key is crafted, never dropped. */
+const chestSealed = (val) => isChestId(val & 255) && ((val >> 8) & CHEST_SEALED) !== 0;
+const CHEST_WOOD_SEAL = { name: 'wooden', key: ITEM.WOODEN_KEY, keyText: 'a wooden key' };
+// what opens a sealed chest: its metal's entry, or the wooden one
+const chestSealOf = (val) => (val & 255) === B.METAL_CHEST ? CHEST_METALS[chestMetalOf((val >> 8) & 255)] : CHEST_WOOD_SEAL;
+// sealed, or locked by a player's key
+const chestLocked = (x, y, z, val = getBlock(x, y, z)) => chestSealed(val) || DOOR_LOCKS.has(chestKey(x, y, z));
 const CHESTS = new Map();                             // "x,y,z" -> record
 var activeChest = null;                               // key of the primary cell whose GUI is open
 var activeChest2 = null;                              // key of its partner, or null
@@ -37,32 +65,49 @@ const CHEST_WOODS = ['oak', 'birch', 'spruce', 'rime'];
 const CHEST_WOOD_SHIFT = 4;
 const chestWoodOf = (va) => { const w = (va >> CHEST_WOOD_SHIFT) & 3; return w < CHEST_WOODS.length ? w : 0; };
 const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33], [1.4, 1.5, 1.62]];
+/* THE ART (0.843): four sheets, 128 px a face. chest_wood / chest_metal hold a single chest, one row: front | side |
+   top | bottom. chest_wood_double / chest_metal_double hold a double's two halves, three rows (front, top, bottom),
+   the left half in the first column and the right in the second, so each row reads as the whole wide face. The
+   metal sheets are the fittings (lock, corners, bands) in the same places, empty where a face has none. */
+const CHEST_SHEET = {
+  single: { wood: 'chest_wood', metal: 'chest_metal', cols: 4, rows: 1, front: [0, 0], side: [1, 0], top: [2, 0], bottom: [3, 0] },
+  double: { wood: 'chest_wood_double', metal: 'chest_metal_double', cols: 2, rows: 3, front: [0, 0], top: [0, 1], bottom: [0, 2] },
+};
+// where a face sits on its sheet: [image, sx, sy, size]; the right half of a double is one column on
+const _chestCell = (img, sh, part, half) => {
+  const s = img.width / sh.cols, [c, r] = sh[part];
+  return [img, (c + (half === 'right' ? 1 : 0)) * s, r * s, s];
+};
 const _chestTints = [];
 /* The planks' mean colour over the grey art's mean, so a tinted chest averages out to its planks. It can
    pass 1: the grey is darker than any plank, and the tint is applied per pixel, which may brighten. */
 function _chestTint(wood) {
   if (_chestTints[wood]) return _chestTints[wood];
-  const planks = IMAGES[CHEST_WOODS[wood] + '_planks'], grey = IMAGES.chest_side;
+  const planks = IMAGES[CHEST_WOODS[wood] + '_planks'], grey = IMAGES.chest_wood;
   if (!planks || !grey) return _CHEST_TINT_FALLBACK[wood];
-  const mean = (img) => {
+  const mean = (img, sx = 0, sy = 0, sw = img.width, sh = img.height) => {
     const c = document.createElement('canvas'); c.width = c.height = 16;
     const g = c.getContext('2d', { willReadFrequently: true });
-    g.drawImage(img, 0, 0, 16, 16);
+    g.drawImage(img, sx, sy, sw, sh, 0, 0, 16, 16);
     const d = g.getImageData(0, 0, 16, 16).data;
     let r = 0, gg = 0, b = 0, n = 0;
     for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 127) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
     return n ? [r / n / 255, gg / n / 255, b / n / 255] : [0.5, 0.5, 0.5];
   };
-  const p = mean(planks), gm = mean(grey), l = Math.max(0.05, (gm[0] + gm[1] + gm[2]) / 3);
+  const [, sx, sy, s] = _chestCell(grey, CHEST_SHEET.single, 'side', null);
+  const p = mean(planks), gm = mean(grey, sx, sy, s, s), l = Math.max(0.05, (gm[0] + gm[1] + gm[2]) / 3);
   return (_chestTints[wood] = p.map(v => v / l));
 }
+// the art a metal chest's body is cut from: its metal's block (MESH_TEXTURES in 03 loads it)
+const chestMetalArt = (look) => IMAGES[ATLAS_TILES[PROPS[CHEST_METALS[look - CHEST_METAL_LOOK].block].faces[0]]];
 
-/* One texture per wood and sheet: the grey wood multiplied by the tint, its own alpha kept, the metal
-   drawn over it. Cached per key, but NEVER cached blank (0.724): a texture built before its art arrived
-   keeps asking, and heals in place the moment IMAGES has it — otherwise the chest renders solid black. */
+/* One texture per look, face and half: a wooden chest is the grey wood multiplied by the tint, its own alpha kept; a
+   metal one its block's art with a frame and the lid's seam shaded in (0.843); then the fittings over either, untinted
+   (`fit` false: none, the back of a double's half). Cached per key, but NEVER cached blank (0.724): a texture built
+   before its art arrived keeps asking, and heals in place the moment IMAGES has it — otherwise it renders black. */
 const _chestTexCache = {};
-function chestTexture(wood, sheet, metal) {
-  const key = wood + ':' + sheet + ':' + (metal || '');
+function chestTexture(look, part, half = null, fit = true) {
+  const key = look + ':' + part + ':' + (half || '') + ':' + (fit ? 1 : 0);
   let t = _chestTexCache[key];
   if (!t) {
     t = _chestTexCache[key] = new THREE.Texture();
@@ -70,33 +115,48 @@ function chestTexture(wood, sheet, metal) {
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
   }
-  if (!t.image && IMAGES[sheet] && (!metal || IMAGES[metal])) {
-    const src = IMAGES[sheet], c = document.createElement('canvas');
-    c.width = src.width; c.height = src.height;
+  const sh = CHEST_SHEET[half ? 'double' : 'single'], metal = look >= CHEST_METAL_LOOK;
+  const wood = IMAGES[sh.wood], fitImg = IMAGES[sh.metal], body = metal ? chestMetalArt(look) : wood;
+  if (!t.image && wood && fitImg && body) {
+    const [, sx, sy, s] = _chestCell(wood, sh, part, half), c = document.createElement('canvas');
+    c.width = c.height = s;
     const g = c.getContext('2d', { willReadFrequently: true });
     g.imageSmoothingEnabled = false;
-    g.drawImage(src, 0, 0);
-    // per pixel rather than a canvas multiply, which can only darken: alpha is left as it is
-    const [r, gg, b] = _chestTint(wood), px = g.getImageData(0, 0, c.width, c.height), d = px.data;
-    for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * r); d[i + 1] = Math.min(255, d[i + 1] * gg); d[i + 2] = Math.min(255, d[i + 2] * b); }
-    g.putImageData(px, 0, 0);
-    if (metal) g.drawImage(IMAGES[metal], 0, 0, c.width, c.height);   // the fittings, untinted
+    if (!metal) {
+      g.drawImage(wood, sx, sy, s, s, 0, 0, s, s);
+      // per pixel rather than a canvas multiply, which can only darken: alpha is left as it is
+      const [r, gg, b] = _chestTint(look), px = g.getImageData(0, 0, s, s), d = px.data;
+      for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * r); d[i + 1] = Math.min(255, d[i + 1] * gg); d[i + 2] = Math.min(255, d[i + 2] * b); }
+      g.putImageData(px, 0, 0);
+    } else {
+      g.drawImage(body, 0, 0, s, s);
+      /* A frame a sixteenth wide, darker, round the face — but not along the edge a double's half shares with its
+         partner (the right side of a left half's picture, the left of a right's), so the two read as one chest */
+      const e = s / 16;
+      g.fillStyle = 'rgba(0,0,0,0.28)';
+      g.fillRect(0, 0, s, e); g.fillRect(0, s - e, s, e);
+      if (half !== 'right') g.fillRect(0, e, e, s - 2 * e);
+      if (half !== 'left') g.fillRect(s - e, e, e, s - 2 * e);
+      // the lid's seam on the faces round it: the lid is the top 5 sixteenths (CHEST_LID_H)
+      if (part === 'front' || part === 'side') { g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, s * CHEST_LID_H - s / 64, s, s / 32); }
+    }
+    if (fit) { const [, fx, fy, fs] = _chestCell(fitImg, sh, part, half); g.drawImage(fitImg, fx, fy, fs, fs, 0, 0, s, s); }   // the fittings, untinted
     t.image = c;
     t.needsUpdate = true;
   }
   return t;
 }
-// the inside of a chest is plain planks of its wood, no frame, so the two halves of a double meet cleanly (0.809)
+// the inside of a chest is plain planks of its wood, no frame, so the two halves of a double meet cleanly (0.809); a metal one its metal (0.843)
 const _chestInnerTex = [];
-function chestInnerTexture(wood) {
-  let t = _chestInnerTex[wood];
+function chestInnerTexture(look) {
+  let t = _chestInnerTex[look];
   if (!t) {
-    t = _chestInnerTex[wood] = new THREE.Texture();
+    t = _chestInnerTex[look] = new THREE.Texture();
     t.colorSpace = THREE.SRGBColorSpace;
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
   }
-  const img = IMAGES[CHEST_WOODS[wood] + '_planks'];
+  const img = look >= CHEST_METAL_LOOK ? chestMetalArt(look) : IMAGES[CHEST_WOODS[look] + '_planks'];
   if (!t.image && img) { t.image = img; t.needsUpdate = true; }
   return t;
 }
@@ -139,19 +199,15 @@ function _chestGeo(A) {
    `half`: null for a single chest, or 'left' / 'right' for one half of a double (0.809) — seen from the
    front, 'left' is the half at local -X. A half reaches the shared edge, has no wall there, and draws the
    double chest's own sheets, so the pair reads as one wide chest with one cavity. */
-function buildChestMesh(wood = 0, half = null) {
+// `look`: chestLookOf (0.843; the wood before)
+function buildChestMesh(look = 0, half = null) {
   const L = half === 'left', R = half === 'right', other = L ? 'right' : 'left';
-  const tex = half
-    ? { front: chestTexture(wood, `chest_double_front_${half}`, `chest_double_front_${half}_metal`),
-        back:  chestTexture(wood, `chest_double_front_${other}`, null),
-        top:   chestTexture(wood, `chest_double_top_${half}`, `chest_double_top_${half}_metal`),
-        bottom: chestTexture(wood, `chest_double_bottom_${half}`, null) }
-    : { front: chestTexture(wood, 'chest_front', 'chest_front_metal'),
-        back:  chestTexture(wood, 'chest_side', 'chest_side_metal'),
-        top:   chestTexture(wood, 'chest_top', 'chest_top_metal'),
-        bottom: chestTexture(wood, 'chest_bottom', null) };
-  const mats = [chestMat(tex.front), chestMat(tex.back), chestMat(chestTexture(wood, 'chest_side', 'chest_side_metal')),
-                chestMat(tex.top), chestMat(tex.bottom), chestMat(chestInnerTexture(wood), 0.6)];
+  const tex = { front: chestTexture(look, 'front', half),
+                back:  half ? chestTexture(look, 'front', other, false) : chestTexture(look, 'side'),
+                top:   chestTexture(look, 'top', half),
+                bottom: chestTexture(look, 'bottom', half, false) };
+  const mats = [chestMat(tex.front), chestMat(tex.back), chestMat(chestTexture(look, 'side')),
+                chestMat(tex.top), chestMat(tex.bottom), chestMat(chestInnerTexture(look), 0.6)];
   const [FRONT, BACK, SIDE, TOP, BOTTOM, INNER] = [0, 1, 2, 3, 4, 5];
   const BODY_V = 1 - CHEST_LID_H;                       // body art = lower rows, lid art = the top 5
 
@@ -197,19 +253,19 @@ function buildChestMesh(wood = 0, half = null) {
   return { group, lidPivot, mats };
 }
 
-/* Chest as a held/dropped item: one shared prototype per wood, cloned per use so every copy shares the
+/* Chest as a held/dropped item: one shared prototype per look, cloned per use so every copy shares the
    geometry and materials. Built lazily — IMAGES isn't populated when this file is parsed.
    buildChestMesh authors in cell-local 0..1 space; drops and hands expect the model centred on
    the origin, hence the offset. */
 const _chestItemProto = [];
-function chestItemNode(wood = 0) {
-  if (!_chestItemProto[wood]) {
-    const m = buildChestMesh(wood);
+function chestItemNode(look = 0) {
+  if (!_chestItemProto[look]) {
+    const m = buildChestMesh(look);
     m.group.position.set(-0.5, -0.5, -0.5);
-    _chestItemProto[wood] = new THREE.Group();
-    _chestItemProto[wood].add(m.group);
+    _chestItemProto[look] = new THREE.Group();
+    _chestItemProto[look].add(m.group);
   }
-  return _chestItemProto[wood].clone();
+  return _chestItemProto[look].clone();
 }
 
 /* ---------------------------------- lifecycle ---------------------------------- */
@@ -222,14 +278,18 @@ function _chestHalf(x, y, z, facing) {
   const rx = Math.round(Math.cos(ang)), rz = Math.round(-Math.sin(ang));   // local +X in the world
   return (p.x - x) * rx + (p.z - z) * rz > 0 ? 'left' : 'right';
 }
-function registerChest(x, y, z, facing) {
+/* 0.8445: `val` is the cell's value when the caller has it and the world may not yet (a world loading registers every
+   saved chest before a single chunk is in: getBlock read 0 there, and every chest came back as a single OAK one — a
+   sealed iron chest that looked wooden and asked for an iron key). What it was built as is kept (look, half), and
+   updateChests looks again the first time its chunk is there. */
+function registerChest(x, y, z, facing, val = null) {
   const k = chestKey(x, y, z);
   let rec = CHESTS.get(k);
   if (!rec) { rec = mkChest(); CHESTS.set(k, rec); }
   if (rec.group) return rec;                          // mesh already built
-  const va = (getBlock(x, y, z) >> 8) & 255;
   const half = _chestHalf(x, y, z, facing);
-  const m = buildChestMesh(chestWoodOf(va), half);
+  const here = getBlock(x, y, z), look = chestLookOf(isChestId(here & 255) ? here : (val ?? here));
+  const m = buildChestMesh(look, half);   // its wood or metal (0.843)
   m.group.position.set(x, y, z);
   m.group.rotation.y = [0, Math.PI, Math.PI / 2, -Math.PI / 2][facing & 3];
   // rotating about the cell corner swings the body off its cell — shift it back
@@ -238,7 +298,7 @@ function registerChest(x, y, z, facing) {
   m.group.position.z += off[1];
   scene.add(m.group);
   Object.assign(rec, { group: m.group, lidPivot: m.lidPivot, mats: m.mats,
-                       x, y, z, facing, lid: 0, lastB: -1 });
+                       x, y, z, facing, lid: 0, lastB: -1, look, half, checked: false });
   return rec;
 }
 // a chest that became, or stopped being, half of a pair draws again as what it is now (0.809)
@@ -277,14 +337,15 @@ const CHEST_PAIR_NEG = 8;
 const chestPairDirs = (facing) =>
   (facing === 0 || facing === 1) ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
 
+// a metal chest pairs with a metal chest, a wooden one with a wooden one (0.843)
 function chestPartner(x, y, z) {
-  const val = getBlock(x, y, z);
-  if ((val & 255) !== B.CHEST) return null;
+  const val = getBlock(x, y, z), id = val & 255;
+  if (!isChestId(id)) return null;
   const va = (val >> 8) & 255;
   if (!(va & CHEST_PAIRED)) return null;
   const [dx, dz] = chestPairDirs(va & 3)[(va & CHEST_PAIR_NEG) ? 1 : 0];
   const nv = getBlock(x + dx, y, z + dz);
-  if ((nv & 255) !== B.CHEST) return null;          // partner gone — fall back to a single chest
+  if ((nv & 255) !== id) return null;               // partner gone — fall back to a single chest
   return { x: x + dx, y, z: z + dz };
 }
 
@@ -292,19 +353,20 @@ function chestPartner(x, y, z) {
    writes the link into both variant bytes. A neighbour that is already half of a double is
    skipped, so a single chest can never be claimed twice. */
 function tryPairChest(x, y, z, facing) {
-  const dirs = chestPairDirs(facing);
+  const dirs = chestPairDirs(facing), id = getBlock(x, y, z) & 255;
   for (let i = 0; i < 2; i++) {
     const [dx, dz] = dirs[i];
     const nv = getBlock(x + dx, y, z + dz);
-    if ((nv & 255) !== B.CHEST) continue;
+    if ((nv & 255) !== id) continue;                      // the same kind of chest (0.843)
     const nva = (nv >> 8) & 255, va = (getBlock(x, y, z) >> 8) & 255;
     if ((nva & 3) !== facing || (nva & CHEST_PAIRED)) continue;
-    if (chestWoodOf(nva) !== chestWoodOf(va)) continue;   // one wood per double chest (0.809)
+    if (chestWoodOf(nva) !== chestWoodOf(va)) continue;   // one wood (or metal, the same bits) per double chest (0.809)
+    if (chestLocked(x + dx, y, z + dz, nv)) continue;     // a sealed or locked chest stays on its own (0.843)
     const wood = chestWoodOf(va) << CHEST_WOOD_SHIFT;     // kept through the pairing (0.809)
     const mine  = facing | CHEST_PAIRED | (i === 1 ? CHEST_PAIR_NEG : 0) | wood;
     const their = facing | CHEST_PAIRED | (i === 1 ? 0 : CHEST_PAIR_NEG) | wood;
-    setBlock(x, y, z, B.CHEST | (mine << 8));
-    setBlock(x + dx, y, z + dz, B.CHEST | (their << 8));
+    setBlock(x, y, z, id | (mine << 8));
+    setBlock(x + dx, y, z + dz, id | (their << 8));
     rebuildChestMesh(x + dx, y, z + dz);                  // the neighbour turns into its half (0.809)
     return true;
   }
@@ -314,13 +376,13 @@ function tryPairChest(x, y, z, facing) {
 /* A broken chest leaves its partner single again — otherwise the survivor keeps a paired bit
    pointing at an empty cell and chestPartner has to keep guessing. */
 function unpairChestNeighbour(x, y, z, oldVal) {
-  const va = (oldVal >> 8) & 255;
+  const va = (oldVal >> 8) & 255, id = oldVal & 255;
   if (!(va & CHEST_PAIRED)) return;
   const [dx, dz] = chestPairDirs(va & 3)[(va & CHEST_PAIR_NEG) ? 1 : 0];
   const nv = getBlock(x + dx, y, z + dz);
-  if ((nv & 255) !== B.CHEST) return;
+  if ((nv & 255) !== id) return;
   const keep = ((nv >> 8) & 3) | (chestWoodOf((nv >> 8) & 255) << CHEST_WOOD_SHIFT);   // facing and wood (0.809)
-  setBlock(x + dx, y, z + dz, B.CHEST | (keep << 8));
+  setBlock(x + dx, y, z + dz, id | (keep << 8));
   rebuildChestMesh(x + dx, y, z + dz);                    // a whole chest again (0.809)
 }
 // deterministic ordering so both halves agree which cell is "first"
@@ -335,12 +397,16 @@ function chestPairOrdered(x, y, z) {
 
 // spill contents and forget the chest when its block goes away
 function chestBroken(x, y, z, oldVal) {
-  unpairChestNeighbour(x, y, z, oldVal);
   const k = chestKey(x, y, z);
+  // a locked or sealed chest broken takes its contents (and its unrolled loot) with it; the lock goes too (0.843)
+  const locked = chestSealed(oldVal) || DOOR_LOCKS.has(k);
+  DOOR_LOCKS.delete(k);
+  if (locked) PENDING_LOOT.delete(lootKey(x, y, z));
+  unpairChestNeighbour(x, y, z, oldVal);
   const c = CHESTS.get(k);
   removeChestMesh(k);
   if (!c) return;
-  if (!player.canFly)
+  if (!player.canFly && !locked)
     for (const s of c.slots)
       if (s) spawnDrop(s.id, x, y, z, null, undefined, s.dur ?? null, slotMeta(s), 0, s.count);   // one stack a slot, wear kept (0.8385)
   CHESTS.delete(k);
@@ -357,9 +423,10 @@ function openChest(x, y, z) {
   if (b) registerChest(b.x, b.y, b.z, (getBlock(b.x, b.y, b.z) >> 8) & 3);
   activeChest = chestKey(a.x, a.y, a.z);
   activeChest2 = b ? chestKey(b.x, b.y, b.z) : null;
-  // each half to its size: the first half of a double has the bonus row (0.829)
-  const fit = [[CHESTS.get(activeChest), CHEST_COLS * (CHEST_ROWS + (b ? CHEST_ROWS_BONUS : 0))]];
-  if (b) fit.push([CHESTS.get(activeChest2), CHEST_SLOTS]);
+  // each half to its size: the first half of a double has the bonus row (0.829); a metal chest has 6 rows (0.843)
+  const rows = chestRowsOf(getBlock(a.x, a.y, a.z));
+  const fit = [[CHESTS.get(activeChest), CHEST_COLS * (rows + (b ? CHEST_ROWS_BONUS : 0))]];
+  if (b) fit.push([CHESTS.get(activeChest2), CHEST_COLS * rows]);
   fitChestSlots(fit, a.x, a.y, a.z);
   /* Structure loot is rolled on FIRST OPEN, not when the structure was stamped — a hundred
      untouched chests then cost nothing, and the contents feel rolled for you. */
@@ -373,6 +440,72 @@ function openChest(x, y, z) {
     if (b) fxPuff(b.x + 0.5, b.y + 0.9, b.z + 0.5, [0.8, 0.74, 0.62], 6);
   }
   toggleInventory(true);
+}
+
+/* Right-click on a chest in survival (0.843), keys as on a door (useDoor, 27-doors.js). A SEALED metal chest opens
+   for a key of its metal only, which stays in its lock: the chest is open for good then. Otherwise a blank key locks
+   it (both halves of a double, one code), its own key opens it, and with sneak unlocks it; any other hand opens an
+   unlocked chest. */
+function useChest(x, y, z) {
+  const val = getBlock(x, y, z);
+  if (!isChestId(val & 255)) return;
+  const held = HOTBAR[hotbarSel], isKey = isKeyItem(held?.id), pos = { x: x + 0.5, y: y + 0.5, z: z + 0.5 };
+  // a locked chest says so and stays shut: no lid sound, it never moved (0.8444; it played the closing lid quietly)
+  const deny = (msg) => { feedWarn(msg); };
+  const [a, b] = chestPairOrdered(x, y, z), cells = b ? [a, b] : [a];
+  /* 0.8445: the lid needs room. A chest with a block on it does not open — another chest on top is fine (they stack),
+     and a double opens as long as ONE of its halves is clear. Locking and unlocking with a key need no lid. */
+  const covered = cells.every(c => chestCovered(c.x, c.y, c.z));
+  // sealed: this cell, or the half a chest was put beside (0.8444: the other half is no way round the seal)
+  const sealedAt = cells.find(c => chestSealed(getBlock(c.x, c.y, c.z)));
+  if (sealedAt) {
+    const m = chestSealOf(getBlock(sealedAt.x, sealedAt.y, sealedAt.z));
+    if (held?.id !== m.key) { deny(`Locked: it takes ${m.keyText}`); return; }
+    if (keyBoundCode(held) != null) { deny(`That ${ITEM_PROPS[m.key].name.toLowerCase()} locks something else: unlock it first`); return; }
+    if (covered) { deny(CHEST_COVERED_MSG); return; }            // before the key is spent
+    if ((held.count | 0) > 1) held.count--; else HOTBAR[hotbarSel] = null;   // the key stays in its lock
+    saveHotbar(); buildHotbar();
+    for (const c of cells) {
+      const cv = getBlock(c.x, c.y, c.z);
+      if (chestSealed(cv)) setBlock(c.x, c.y, c.z, (cv & ~(CHEST_SEALED << 8)) >>> 0);
+    }
+    feedInfo(`Unlocked: ${m.keyText} stays in its lock`);
+    openChest(x, y, z);
+    return;
+  }
+  const lock = cells.map(c => DOOR_LOCKS.get(chestKey(c.x, c.y, c.z))).find(c => c != null);
+  const bound = isKey ? keyBoundCode(held) : null;
+  if (isKey && lock == null && bound == null) {                // a blank key locks it
+    const code = _newLockCode();
+    for (const c of cells) DOOR_LOCKS.set(chestKey(c.x, c.y, c.z), code);
+    held.lock = code;
+    saveHotbar(); buildHotbar();
+    playSound('chestClose', { gain: 0.5, pos });
+    feedInfo(`Chest locked: only this ${ITEM_PROPS[held.id].name.toLowerCase()} opens it now`);
+    return;
+  }
+  if (lock != null) {
+    if (!isKey || bound !== lock) { deny(isKey ? 'Locked: this is not its key' : 'Locked: hold its key to open it'); return; }
+    if (player.sneaking) {                                       // its own key, sneaking: unlocked, the key blank again
+      for (const c of cells) DOOR_LOCKS.delete(chestKey(c.x, c.y, c.z));
+      delete held.lock;
+      saveHotbar(); buildHotbar();
+      feedInfo('Chest unlocked: the key is blank again');
+      return;
+    }
+  }
+  if (covered) { deny(CHEST_COVERED_MSG); return; }
+  openChest(x, y, z);
+}
+// something on top of the chest that is not another chest (0.8445)
+const CHEST_COVERED_MSG = 'Clear the top of the chest first';
+const chestCovered = (x, y, z) => { const up = getBlock(x, y + 1, z) & 255; return up !== B.AIR && !isChestId(up); };
+// the chest tab's name: "Chest", "Large Chest", "Iron Chest", "Large Gold Chest" (0.843)
+function chestTabName() {
+  const p = activeChest ? activeChest.split(',').map(Number) : null;
+  const v = p ? getBlock(p[0], p[1], p[2]) : 0;
+  const kind = (v & 255) === B.METAL_CHEST ? CHEST_METALS[chestMetalOf((v >> 8) & 255)].name : '';
+  return (activeChest2 ? 'Large ' : '') + (kind ? kind[0].toUpperCase() + kind.slice(1) + ' Chest' : 'Chest');
 }
 
 /* Size each cell's slots to what it shows (0.829), list = [[record, slots], ...]. Whatever sits past the end — a
@@ -416,8 +549,17 @@ function updateChests(dt) {
   for (const [k, c] of CHESTS) {
     if (!c.group) continue;
     const ch = getChunk(Math.floor(c.x / 16), Math.floor(c.z / 16));
-    if (!ch || !ch.data) { c.group.visible = false; continue; }
-    if ((getBlock(c.x, c.y, c.z) & 255) !== B.CHEST) { removeChestMesh(k); continue; }
+    if (!ch || !ch.data) { c.group.visible = false; c.checked = false; continue; }
+    const cv = getBlock(c.x, c.y, c.z);
+    if (!isChestId(cv & 255)) { removeChestMesh(k); continue; }   // either kind (0.843)
+    /* The first time its chunk is there (0.8445): is the model what the cell says — its wood or metal, its facing,
+       its half of a double? One built while the world was still loading is not, and is built again. A half whose
+       partner's chunk has not come yet keeps looking until it has. */
+    if (!c.checked) {
+      const va = (cv >> 8) & 255, half = _chestHalf(c.x, c.y, c.z, va & 3);
+      if (!((va & CHEST_PAIRED) && !half)) c.checked = true;
+      if (chestLookOf(cv) !== c.look || half !== c.half || (va & 3) !== c.facing) { rebuildChestMesh(c.x, c.y, c.z); continue; }
+    }
     c.group.visible = true;
     // lid eases toward open/closed; a double chest opens both halves together
     const wantOpen = invOpen && (activeChest === k || activeChest2 === k);
@@ -430,7 +572,7 @@ function updateChests(dt) {
     // tint by world light at the chest cell (same approximation the doors use)
     const bl = getLightWorld(c.x, c.y, c.z) / 15;
     const sky = getSkyWorld(c.x, c.y, c.z) / 15;
-    const skyF = 0.276 + 0.724 * sky * sky;   // must track the chunk shader in 04-materials.js (0.8242)
+    const skyF = SKY_FLOOR + (1 - SKY_FLOOR) * sky * sky;   // must track the chunk shader in 04-materials.js (0.8242; SKY_FLOOR 0.8442)
     const sun = sharedUniforms.uAmbient.value + sharedUniforms.uDirect.value;
     const br = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
     if (Math.abs(br - c.lastB) > 0.02) {
@@ -443,13 +585,19 @@ function updateChests(dt) {
 /* ---------------------------------- GUI ---------------------------------- */
 // Rendered to the RIGHT of the inventory. A single chest is CHEST_ROWS x CHEST_COLS; a double
 // stacks its partner's grid above the first half's (which has the bonus row): 7 x 7 (0.829).
+const CHEST_SCROLL_ROWS = 7;                                  // more rows than this scroll (0.843; css #chestPanel .chestScroll)
 function buildChestPanel() {
   const panel = invPanel('chestPanel');
   if (!panel) return;
   const a = activeChest && CHESTS.get(activeChest);
   if (!a || invRightTab() !== 'chest') { panel.style.display = 'none'; return; }   // or another tab is up (0.795)
+  if (invPanelHeld(panel)) return;                                                  // the skill tree is up (0.8445)
   const b = activeChest2 && CHESTS.get(activeChest2);
   panel.style.display = 'flex';
+  // a rebuild (every drag and drop) keeps a large metal chest where it was scrolled; a new chest opens at the bottom (0.843)
+  const oldBox = panel.querySelector('.chestScroll');
+  const keepScroll = oldBox && panel._chestKey === activeChest ? oldBox.scrollTop : null;
+  panel._chestKey = activeChest;
   panel.innerHTML = '';                                       // its tab names it (0.796; was a "Chest" title)
   addInvTabs(panel, 'chest');                                 // Chest / Equipment / Skill tree (0.795)
   const mkGrid = (arr, region) => {
@@ -470,9 +618,19 @@ function buildChestPanel() {
     }
     return grid;
   };
-  // 3 x 7 fits on screen outright, and a double is only 7 rows — no scroller needed
-  if (b) panel.appendChild(mkGrid(b.slots, 'chest2'));      // partner sits above
-  panel.appendChild(mkGrid(a.slots, 'chest'));
+  /* 3 x 7 fits on screen outright, and a wooden double is only 7 rows. A metal chest's 6 do too, but a double's 13
+     (0.843) sit in a box CHEST_SCROLL_ROWS tall that scrolls: the wheel, or the right stick under the pad cursor (17) */
+  const rowsAll = Math.ceil(a.slots.length / CHEST_COLS) + (b ? Math.ceil(b.slots.length / CHEST_COLS) : 0);
+  let box = panel;
+  if (rowsAll > CHEST_SCROLL_ROWS) { box = document.createElement('div'); box.className = 'chestScroll'; panel.appendChild(box); }
+  if (b) box.appendChild(mkGrid(b.slots, 'chest2'));        // partner sits above
+  box.appendChild(mkGrid(a.slots, 'chest'));
+  if (box !== panel) {
+    // done twice, as the creative palette does (20): before layout the scroll height is still 0
+    const settle = () => { box.scrollTop = keepScroll ?? box.scrollHeight; };
+    settle();
+    requestAnimationFrame(settle);
+  }
   // its own Sort under the slots (0.7571): both halves of a large chest sort as one
   if (typeof invButton === 'function') {
     const row = document.createElement('div');
@@ -485,12 +643,100 @@ function buildChestPanel() {
   }
 }
 
+/* ---------------------------------- supply chests in the world (0.843) ---------------------------------- */
+/* 0.8442: every kind shares ONE spacing. The world is squares of SUPPLY_CELL blocks, and each holds one supply chest,
+   somewhere in its middle SUPPLY_JITTER blocks, so the next one along is always 100 to 250 blocks away (0.843 rolled a
+   chance per chunk for each metal, and the wooden supply crate another of its own: two could stand side by side, or
+   none for a long way). Which kind is rolled from the square too (SUPPLY_KINDS):
+     wood    the supply crate structure (structures/supply_crate.json), set on the ground with its own loot; it no
+             longer rolls as a lone prefab (34 _spawnCandidates). Not on water. 0.8444: its chest is SEALED like the
+             metal ones, and a blank wooden key (crafted: 4 planks and a nugget) opens it.
+     metal   a sealed copper, iron or gold chest at any height in its column: a cave floor, a peak, the open plain, on
+             any whole cell of air standing on a whole solid block. Its loot is rolled the first time a key opens it
+             (DEFAULT_LOOT's <metal>_chest, 34).
+   Placed with the structures' roll, once as the chunk holding the spot first arrives (trySpawnStructureInChunk, 34),
+   seeded by the world like them. */
+const SUPPLY_CELL = 175, SUPPLY_JITTER = 75;
+/* 0.8444: fewer wooden crates (45% of the squares before), a few more metal chests (28 / 19 / 8%), and what is left
+   over, 16% of the squares, holds nothing: the shares no longer add up to 1 (supplySiteOf's kind is then null). */
+const SUPPLY_KINDS = [['wood', 0.30], ['copper', 0.30], ['iron', 0.21], ['gold', 0.09]];
+const SUPPLY_CRATE = 'supply_crate';                           // the wooden kind's prefab
+const WORLD_CHEST_TRIES = 6;                                   // columns looked down for a metal chest's spot
+// the supply chest of square (gx, gz): where it stands and what it is
+function supplySiteOf(gx, gz) {
+  const pad = (SUPPLY_CELL - SUPPLY_JITTER) / 2;
+  let r = _structHash(gx, gz, 503), kind = null;                // null: an empty square (0.8444)
+  for (const [k, w] of SUPPLY_KINDS) { if (r < w) { kind = k; break; } r -= w; }
+  return { x: gx * SUPPLY_CELL + Math.floor(pad + _structHash(gx, gz, 501) * SUPPLY_JITTER),
+           z: gz * SUPPLY_CELL + Math.floor(pad + _structHash(gx, gz, 502) * SUPPLY_JITTER), kind };
+}
+function trySpawnWorldChest(cx, cz) {
+  const x0 = cx * 16, z0 = cz * 16;
+  for (let gz = Math.floor(z0 / SUPPLY_CELL); gz <= Math.floor((z0 + 15) / SUPPLY_CELL); gz++)
+    for (let gx = Math.floor(x0 / SUPPLY_CELL); gx <= Math.floor((x0 + 15) / SUPPLY_CELL); gx++) {
+      const s = supplySiteOf(gx, gz);
+      if (s.x < x0 || s.x > x0 + 15 || s.z < z0 || s.z > z0 + 15) continue;
+      if (!s.kind) return false;
+      return s.kind === 'wood' ? _spawnSupplyCrate(cx, cz, s) : _spawnSealedChest(cx, cz, s);
+    }
+  return false;
+}
+// the wooden one: the supply crate set into the ground at the spot, kept inside this chunk; a bare chest if the prefab is missing
+function _spawnSupplyCrate(cx, cz, s) {
+  const x0 = cx * 16, z0 = cz * 16, p = typeof STRUCTURES !== 'undefined' ? STRUCTURES.get(SUPPLY_CRATE) : null;
+  const [w, h, l] = (p && p.size) || [1, 1, 1];
+  const ax = Math.min(Math.max(s.x - (w >> 1), x0 + 1), x0 + 15 - w), az = Math.min(Math.max(s.z - (l >> 1), z0 + 1), z0 + 15 - l);
+  const fp = _footprint(ax, az, w, l);
+  if (fp.wet || fp.hi - fp.lo > 10) return false;               // water, or a cliff: no crate in this square
+  if (p) {
+    const oy = fp.lo + 1;
+    // once it stands, its chest is sealed (0.8444): every wooden chest in the crate's box
+    const seal = () => {
+      for (let y = oy; y < oy + h; y++) for (let z = az; z < az + l; z++) for (let x = ax; x < ax + w; x++) {
+        const v = getBlock(x, y, z);
+        if ((v & 255) === B.CHEST && !chestSealed(v)) setBlock(x, y, z, (v | (CHEST_SEALED << 8)) >>> 0);
+      }
+    };
+    queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy, oz: az, w, h, l, blend: true, blendOpts: { from: 0 }, onDone: seal });
+    return true;
+  }
+  const y = fp.lo + 1, facing = Math.floor(_structHash(cx, cz, 421) * 4);
+  if (getBlock(ax, y, az) !== B.AIR) return false;
+  setBlock(ax, y, az, B.CHEST | ((facing | CHEST_SEALED) << 8));
+  registerChest(ax, y, az, facing);
+  markPendingLoot(ax, y, az, '1', null);
+  return true;
+}
+// a metal one: sealed, at any height in the spot's column, or in a column near it when that one has no room
+function _spawnSealedChest(cx, cz, s) {
+  const metal = CHEST_METALS.findIndex(m => m.name === s.kind);
+  if (metal < 0) return false;
+  for (let t = 0; t < WORLD_CHEST_TRIES; t++) {
+    const x = t ? cx * 16 + Math.floor(_structHash(cx, cz, 411 + t * 7) * 16) : s.x;
+    const z = t ? cz * 16 + Math.floor(_structHash(cx, cz, 413 + t * 7) * 16) : s.z;
+    const spots = [];
+    for (let y = WORLD_TOP - 2; y > 1; y--) {
+      if (getBlock(x, y, z) !== B.AIR) continue;              // a whole empty cell: no water, plant or snow layer in it
+      const below = getBlock(x, y - 1, z);
+      if (CORE.opaqueVal(below) && !CORE.shapeOfVal(below)) spots.push(y);
+    }
+    if (!spots.length) continue;
+    const y = spots[Math.floor(_structHash(cx, cz, 419 + t) * spots.length)];
+    const facing = Math.floor(_structHash(cx, cz, 421) * 4);
+    setBlock(x, y, z, B.METAL_CHEST | ((facing | (metal << CHEST_WOOD_SHIFT) | CHEST_SEALED) << 8));
+    registerChest(x, y, z, facing);
+    markPendingLoot(x, y, z, CHEST_METALS[metal].loot, null);
+    return true;
+  }
+  return false;
+}
+
 /* ---------------------------------- save / load ---------------------------------- */
 function serializeChests() {
   const out = [];
   for (const [k, c] of CHESTS) {
     if (!c.slots.some(s => s)) continue;               // skip empties, they rebuild from the block
-    out.push([k, c.slots.map(s => s ? [s.id, s.count, s.dur ?? null, s.fresh ?? null, s.wm ? 1 : 0] : null),
+    out.push([k, c.slots.map(s => s ? [s.id, s.count, s.dur ?? null, s.fresh ?? null, s.wm ? 1 : 0, s.lock ?? null] : null),   // a key's lock (0.842)
               { t: c.spoilT ?? null, s: c.saltT || 0 }]);   // the world-clock time it last spoiled, its salt timer (0.8099)
   }
   return out;
@@ -506,13 +752,15 @@ function restoreChests(list) {
     for (let i = 0; i < c.slots.length && i < arr.length; i++) {
       const s = arr[i];
       if (!Array.isArray(s)) continue;
-      const [raw, count, dur, fresh, wm] = s;
-      const id = legacyItemId(raw);               // stone brick is a variant of stone since 0.794
+      const [raw, count, dur, fresh, wm, lock] = s;
+      // stone brick is a variant of stone since 0.794; an old oak door is its 3 oak planks since 0.842
+      const oldDoor = raw === B.DOOR, id = oldDoor ? B.PLANKS : legacyItemId(raw);
       if (!(PROPS[id] || ITEM_PROPS[id])) continue;
-      const slot = mkSlot(id, Math.max(1, count | 0));
+      const slot = mkSlot(id, Math.max(1, count | 0) * (oldDoor ? 3 : 1));
       if (dur != null) slot.dur = dur;
       if (fresh != null) slot.fresh = fresh;      // 0.789
       if (wm) slot.wm = 1;                        // 0.79
+      if (Number.isInteger(lock)) slot.lock = lock;   // a key's door (0.842)
       c.slots[i] = slot;
     }
     const meta = rec[2] && typeof rec[2] === 'object' ? rec[2] : null;   // 0.8099

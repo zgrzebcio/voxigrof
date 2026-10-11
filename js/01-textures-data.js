@@ -109,11 +109,13 @@ const TEXTURES = {
   bed_blanket:          'textures/Blocks/Interactables/Bed/bed_blanket.png',
   bed_sheet:            'textures/Blocks/Interactables/Bed/bed_sheet.png',
   bed_pillow:           'textures/Blocks/Interactables/Bed/bed_pillow.png',
-  // chest: also outside the atlas, sampled directly by the chest mesh in 30-chest.js
-  chest_top:            'textures/Blocks/Interactables/Chest/chest_top.png',
-  chest_bottom:         'textures/Blocks/Interactables/Chest/chest_bottom.png',
-  chest_side:           'textures/Blocks/Interactables/Chest/chest_side.png',
-  chest_front:          'textures/Blocks/Interactables/Chest/chest_front.png',
+  // chest: also outside the atlas, sampled directly by the chest mesh in 30-chest.js. Four sheets since 0.843 (17
+  // files before): the grey wood and its metal fittings, each for a single chest and for the two halves of a double;
+  // the layouts are CHEST_SHEET in 30-chest.js
+  chest_wood:           'textures/Blocks/Interactables/Chest/chest_wood.png',
+  chest_metal:          'textures/Blocks/Interactables/Chest/chest_metal.png',
+  chest_wood_double:    'textures/Blocks/Interactables/Chest/chest_wood_double.png',
+  chest_metal_double:   'textures/Blocks/Interactables/Chest/chest_metal_double.png',
   melon_top:            'textures/Blocks/Plants/watermelon_top.png',
   melon_side:           'textures/Blocks/Plants/watermelon_side.png',
   bricks:               'textures/Blocks/Decorations/Clay/terracotta.png',
@@ -179,6 +181,18 @@ const TEXTURES = {
   stripped_rime_log_top:    'textures/Blocks/Woods/rimewood/rimewood_stripped_log_top.png',
   rime_planks:              'textures/Blocks/Woods/rimewood/rimewood_planks.png',
   rime_leaves:              'textures/Blocks/Woods/rimewood/rimewood_leaves.png',
+  // palm wood (0.84): the oases' and warm shores' tree
+  palm_log:                 'textures/Blocks/Woods/palm/palm_log_side.png',
+  palm_log_top:             'textures/Blocks/Woods/palm/palm_log_top.png',
+  stripped_palm_log:        'textures/Blocks/Woods/palm/palm_stripped_log_side.png',
+  stripped_palm_log_top:    'textures/Blocks/Woods/palm/palm_stripped_log_top.png',
+  palm_planks:              'textures/Blocks/Woods/palm/palm_planks.png',
+  palm_leaves:              'textures/Blocks/Woods/palm/palm_leaves.png',
+  palm_sapling:             'textures/Billboards/Plants/Saplings/palm_sapling.png',
+  // the desert's dry plants (0.84); the tall one is one 2-tall sprite, split in 03-atlas.js like the tall grass
+  dry_grass:                'textures/Billboards/Plants/short_dry_grass.png',
+  dry_tall_grass:           'textures/Billboards/Plants/dry_tall_grass.png',
+  dry_bush:                 'textures/Billboards/Plants/dry_bush.png',
   pincushions:              'textures/Billboards/Plants/Flowers/pincushions.png',
   structure_block:          'textures/Blocks/Interactables/Structure_block.png',
   /* Berry bush: FOUR growth stages and two fruit colours, all one block driven by its variant
@@ -209,10 +223,6 @@ const TEXTURES = {
   chimney_side:             'textures/Blocks/Interactables/Furnace/chimney_side.png',
   chimney_top:              'textures/Blocks/Interactables/Furnace/chimney_top.png',
   crafting_bench_bottom:    'textures/Blocks/Interactables/Crafting_station/crafting_station_bottom.png',
-  // the chest's metal fittings, laid over the tinted wood, and the two halves of a double chest (0.809)
-  chest_top_metal:          'textures/Blocks/Interactables/Chest/chest_top_metal.png',
-  chest_front_metal:        'textures/Blocks/Interactables/Chest/chest_front_metal.png',
-  chest_side_metal:         'textures/Blocks/Interactables/Chest/chest_side_metal.png',
 };
 /* A furnace per rock and a crafting bench per wood (0.809). The first entry of each list is the block's
    own look, already above; the others are built from their folders. 03-atlas.js adds them to the atlas
@@ -361,12 +371,6 @@ const benchTileName = (wood, part) => `crafting_station_${wood}_${part}`;
 for (const w of BENCH_WOODS.slice(1))
   for (const p of BENCH_PARTS)
     TEXTURES[benchTileName(w, p)] = `textures/Blocks/Interactables/Crafting_station/${benchTileName(w, p)}.png`;
-for (const part of ['top', 'front', 'bottom'])
-  for (const side of ['left', 'right']) {
-    TEXTURES[`chest_double_${part}_${side}`] = `textures/Blocks/Interactables/Chest/chest_double_${part}_${side}.png`;
-    if (part !== 'bottom')
-      TEXTURES[`chest_double_${part}_${side}_metal`] = `textures/Blocks/Interactables/Chest/chest_double_${part}_${side}_metal.png`;
-  }
 
 const ITEM_TEXTURES = {
   stick:       'textures/Items/Materials/stick.png',
@@ -481,6 +485,11 @@ const ITEM_TEXTURES = {
   shield_back:     'textures/Items/Weapons/shield_back.png',   // the held side, drawn on the in-hand model
   arrow:           'textures/Items/Weapons/arrow.png',
   bone:            'textures/Items/Materials/bone.png',
+  bone_ash:        'textures/Items/Materials/bone_ash.png',               // 0.84
+  wooden_key:      'textures/Items/Useables/wooden_key.png',              // keys (0.842)
+  iron_key:        'textures/Items/Useables/iron_key.png',
+  golden_key:      'textures/Items/Useables/golden_key.png',
+  copper_key:      'textures/Items/Useables/copper_key.png',
   string:          'textures/Items/Materials/string.png',
   fiber:           'textures/Items/Materials/fiber.png',
   cloth:           'textures/Items/Materials/cloth.png',

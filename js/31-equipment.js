@@ -101,12 +101,11 @@ function playerArmorPointMats() {
 }
 // cheap change-detector for the HUD: repaint the bar when the MIX changes, not just the total
 const armorBarSignature = () => playerArmorPointMats().join(',');
-/* The share of a hit that gets through. Armor soaks 0.8% a point up to 80% (4% of 20 points before 0.82);
-   Thick Skin (0.791) adds 10% on top of whatever the armor gives, so the most anything can soak is 90%. */
+/* The share of a hit that gets through. Armor soaks 0.8% a point up to 80% (4% of 20 points before 0.82).
+   Thick Skin added 10% on top (0.791) until 0.8446: it is health only now (THICK_SKIN_HP, 54-stats-effects.js). */
 const ARMOR_SOAK_PER_POINT = 0.008;
 function armorDamageMultiplier() {
-  const skin = (typeof hasSkill === 'function' && hasSkill('thickSkin')) ? 0.1 : 0;
-  return 1 - Math.min(0.9, Math.min(0.8, playerArmorPoints() * ARMOR_SOAK_PER_POINT) + skin);
+  return 1 - Math.min(0.8, playerArmorPoints() * ARMOR_SOAK_PER_POINT);
 }
 /* Armour wear follows the blow (0.756): every worn piece loses three quarters of the damage taken,
    rounded, and never less than 2. It used to lose a flat 1 however hard the hit, so a set lasted ages. */
@@ -127,7 +126,7 @@ function damageArmorDurability(hit = 1) {
   if (changed) { saveEquip(); if (invOpen) buildEquipPanel(); }
 }
 /* Worn-gear stat totals. Every modifier is additive across pieces, so a full iron set (helmet,
-   chest, legs, boots, gloves) stacks five -2.5% penalties into -12.5% move speed. */
+   chest, legs, boots, gloves) stacks its five penalties into -4% move speed (0.8443: halved, -8% before). */
 function _equipSum(field) {
   let n = 0;
   for (const s of equipSlots) {
@@ -280,8 +279,39 @@ function _armorTex(name) {
 }
 // one inflated overlay piece; `grow` pushes it just outside the skin so it never z-fights.
 // The box's own UVs put the whole part picture on each face (0.82).
-function _armorPiece(tex, w, h, d, grow) {
+/* `cap` (0.8445; per face 0.8446, the cloth bandana): a piece that is a cap, not a helmet. Each face it names is
+   [keep, vTop, vBottom]: how much of the face is kept, from its top down, and the rows of the picture it shows (v 1 is
+   the picture's top edge, 0 its bottom); null drops the face; a face not named wears the whole picture as before. A
+   box's faces come in the order +x -x +y -y +z -z, four corners each, the two top ones first; the model's front is +z.
+   The bandana's picture is cloth on top, a band under it and the knot's tails hanging at the bottom right, so:
+     top     all of it, in the cloth rows only (the whole picture left a hole where its lower part is empty)
+     front   a strip at the hairline, the face under it bare; the two sides the same strip
+     back    the picture's lower rows on the top of the face: the band at the hairline's height, the knot under it
+     under   nothing */
+// CAP_TOP_V: just under the picture's top edge, clear of its ragged first rows
+const CAP_STRIP = 0.25, CAP_BACK = 0.42, CAP_CLOTH_ROWS = 0.32, CAP_TOP_V = 0.95;
+const _capStrip = [CAP_STRIP, CAP_TOP_V, CAP_TOP_V - CAP_STRIP];
+const ARMOR_CAP = { cloth: { px: _capStrip, nx: _capStrip, pz: _capStrip,
+                             nz: [CAP_BACK, CAP_BACK, 0], py: [1, CAP_TOP_V, CAP_CLOTH_ROWS], ny: null } };
+function _armorPiece(tex, w, h, d, grow, cap = null) {
   const geo = new THREE.BoxGeometry(w * PX + grow, h * PX + grow, d * PX + grow);
+  if (cap) {
+    const pos = geo.attributes.position, uv = geo.attributes.uv, H = h * PX + grow, drop = [];
+    ['px', 'nx', 'py', 'ny', 'pz', 'nz'].forEach((f, i) => {
+      const c = cap[f], b = i * 4;
+      if (c === undefined) return;
+      if (c === null) { drop.push(i); return; }
+      const [keep, vTop, vBot] = c;
+      // a side face shortened from the top down (the top and bottom faces lie flat: they keep their size)
+      if (f !== 'py' && f !== 'ny' && keep < 1) { pos.setY(b + 2, H / 2 - H * keep); pos.setY(b + 3, H / 2 - H * keep); }
+      uv.setY(b, vTop); uv.setY(b + 1, vTop); uv.setY(b + 2, vBot); uv.setY(b + 3, vBot);
+    });
+    if (drop.length) {
+      geo.setIndex(Array.from(geo.index.array).filter((_, k) => !drop.includes((k / 6) | 0)));   // six indices a face
+      geo.clearGroups();
+    }
+    pos.needsUpdate = true; uv.needsUpdate = true;
+  }
   return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
     map: tex, transparent: true, alphaTest: 0.35,
   }));
@@ -349,7 +379,8 @@ function syncArmorOnModel(m, slots) {
   };
   const limbY = -6 * PX, endY = -(12 - 5 / 2) * PX;   // a 12-long limb pivots at its top; its last five pixels
   const helm = texFor(0, 'head');
-  if (helm) add(m.head, _armorPiece(helm, 8, 8, 8, G2));
+  // the cloth bandana is a cap (0.8445): a strip at the hairline on the face, nothing under the chin
+  if (helm) add(m.head, _armorPiece(helm, 8, 8, 8, G2, ARMOR_CAP[ITEM_PROPS[worn[0]]?.armorMat] || null));
   const chest = texFor(1, 'torso'), sleeve = texFor(1, 'arm');
   if (chest) add(m.body, _armorPiece(chest, 8, 12, 4, G1));
   if (sleeve) for (const arm of [m.armR, m.armL]) add(arm, _armorPiece(sleeve, 4, 12, 4, G1), limbY);
@@ -421,6 +452,10 @@ function buildEquipPanel() {
      with a chest open popped the equipment panel up over the chest. */
   // ...and since 0.795 a tab can put it back over them: it shows exactly when the Equipment tab is the one up
   if (player.canFly || invRightTab() !== 'equip') { panel.style.display = 'none'; return; }
+  /* ...and never over the skill tree (0.8445). Its direct callers (an effect starting or ending, armour wearing, food
+     spoiling in the offhand) rebuilt it while the tree was up, and it stood there over the tree until the next full
+     rebuild. The same guard is on the other panels' builders (invPanelHeld, 20-inventory-ui.js). */
+  if (invPanelHeld(panel)) return;
   panel.style.display = 'flex';
   const cell = (s, i) => {
     const item = equipSlots[i];

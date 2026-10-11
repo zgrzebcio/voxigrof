@@ -115,6 +115,9 @@ function _paintTemp(g) {
     const s0 = Math.max(0, cy - half), s1 = Math.min(strip.height, cy + half), dk = 96 * k / strip.width;
     g.save();
     g.beginPath(); g.arc(x + 64 * k, y + 64 * k, 48 * k, 0, Math.PI * 2); g.clip();
+    /* 0.8445: shown upside down, HOT on top and cold below. The strip's art still runs cold to hot downward; it is
+       drawn mirrored about the middle of the window, where the temperature sits and the arrows point. */
+    g.translate(0, 2 * (y + 64 * k)); g.scale(1, -1);
     if (s1 > s0) g.drawImage(strip, 0, s0, strip.width, s1 - s0, x + 16 * k, y + 16 * k + (s0 - (cy - half)) * dk, 96 * k, (s1 - s0) * dk);
     g.restore();
   }
@@ -379,6 +382,7 @@ function updateVitals(dt) {
   if (player.hp <= 0 && !player.dead) {
     player.dead = true;
     player.effects = [];                         // death ends every timed effect (0.758)
+    player._saltT = 0;                           // ...and the salt in use, so Salted goes with them (0.8442)
     // the feed is one strip for the whole screen: it clears once nobody is left alive to read it (0.7576)
     if (typeof clearFeed === 'function' && PLAYERS.every(p => !p.spawned || p.dead)) clearFeed();
     player._deathDay = worldDay;                 // the day on the death screen, kept through a save (0.757)
@@ -392,7 +396,9 @@ function updateVitals(dt) {
     const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
     _dropLifeOverride = DROP_LIFE_DEATH;         // everything a death spills lies 20 minutes (0.7981)
     // ...and the spot is marked on this player's screen until they get back to it or it all runs out (0.827)
-    player._deathMark = { x: dx0, y: dy0, z: dz0, left: DROP_LIFE_DEATH };
+    // the last DEATH_MARKS_MAX deaths each keep theirs (0.8442): a new one starts its own clock and leaves the others' running
+    (player._deathMarks || (player._deathMarks = [])).push({ x: dx0, y: dy0, z: dz0, left: DROP_LIFE_DEATH });
+    while (player._deathMarks.length > DEATH_MARKS_MAX) player._deathMarks.shift();
     for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length],
                               [equipSlots, equipSlots.length], [beltSlots, beltSlots.length],
                               [invSlots2, packN]])
@@ -543,46 +549,61 @@ function showMiragesFor(who) {
    on the side to turn to. It goes when they come within DEATH_MARK_TOUCH of it, or when the time runs out; that
    clock only runs while the spot is simulated, as the drops' own does (15-drops.js). Saved with the player.
    Per player like the hurt vignette: 36-splitscreen.js puts it in the player's pane, outside the HUD's scaling. */
-const DEATH_MARK_TOUCH = 2, DEATH_MARK_EDGE = 28;
+/* 0.8442: the last DEATH_MARKS_MAX deaths each keep a mark (`player._deathMarks`, oldest first), every one with its own
+   clock: dying again starts the new one's and leaves the others' running. `deathMarkEl` is their holder now, a mark
+   (`.dm`) made in it for each. */
+const DEATH_MARK_TOUCH = 2, DEATH_MARK_EDGE = 28, DEATH_MARKS_MAX = 5;
 var deathMarkEl = document.createElement('div');
 deathMarkEl.id = 'deathMark';
 const _dmV = new THREE.Vector3();
 function _syncDeathMark(dt) {
-  const p = player, m = p._deathMark, el = deathMarkEl;
+  const p = player, el = deathMarkEl, list = p._deathMarks;
   if (!el) return;
   const hide = () => { if (el.style.display !== 'none') el.style.display = 'none'; };
-  if (!m) return hide();
-  if (typeof inSimRange === 'function' && inSimRange(m.x, m.z)) m.left -= dt;
-  const d = Math.hypot(p.pos.x - (m.x + 0.5), p.pos.y - m.y, p.pos.z - (m.z + 0.5));
-  if (m.left <= 0 || (!p.dead && p.spawned && d < DEATH_MARK_TOUCH)) { p._deathMark = null; return hide(); }
-  if (p.dead || !p.spawned || p.canFly || menuScene || !el.parentElement) return hide();
+  if (!list || !list.length) return hide();
+  // every clock runs while its own spot is simulated, as its drops' does; a mark goes when reached or run out
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (typeof inSimRange === 'function' && inSimRange(m.x, m.z)) m.left -= dt;
+    m._d = Math.hypot(p.pos.x - (m.x + 0.5), p.pos.y - m.y, p.pos.z - (m.z + 0.5));
+    if (m.left <= 0 || (!p.dead && p.spawned && m._d < DEATH_MARK_TOUCH)) list.splice(i, 1);
+  }
+  if (!list.length || p.dead || !p.spawned || p.canFly || menuScene || !el.parentElement) return hide();
   const W = el.parentElement.clientWidth, H = el.parentElement.clientHeight;
   if (!W || !H) return hide();
   camera.updateMatrixWorld();
-  _dmV.set(m.x + 0.5, m.y + 1.2, m.z + 0.5).applyMatrix4(camera.matrixWorldInverse);
-  const behind = _dmV.z > 0;
-  _dmV.applyMatrix4(camera.projectionMatrix);
-  let sx = _dmV.x, sy = _dmV.y;
-  if (behind) { sx = -sx; sy = -sy; }
-  let x = (sx * 0.5 + 0.5) * W, y = (0.5 - sy * 0.5) * H;
-  // off screen or behind: slide it in along the line from the middle to the edge
-  const hx = W / 2 - DEATH_MARK_EDGE, hy = H / 2 - DEATH_MARK_EDGE, dx = x - W / 2, dy = y - H / 2;
-  const out = behind || Math.abs(dx) > hx || Math.abs(dy) > hy;
-  if (out) {
-    const k = Math.min(hx / Math.max(1e-6, Math.abs(dx)), hy / Math.max(1e-6, Math.abs(dy)));
-    x = W / 2 + dx * k; y = H / 2 + dy * k;
+  while (el.children.length < list.length) { const c = document.createElement('div'); c.className = 'dm'; el.appendChild(c); }
+  for (let i = 0; i < el.children.length; i++) {
+    const c = el.children[i], m = list[i];
+    if (!m) { if (c.style.display !== 'none') c.style.display = 'none'; continue; }
+    _dmV.set(m.x + 0.5, m.y + 1.2, m.z + 0.5).applyMatrix4(camera.matrixWorldInverse);
+    const behind = _dmV.z > 0;
+    _dmV.applyMatrix4(camera.projectionMatrix);
+    let sx = _dmV.x, sy = _dmV.y;
+    if (behind) { sx = -sx; sy = -sy; }
+    let x = (sx * 0.5 + 0.5) * W, y = (0.5 - sy * 0.5) * H;
+    // off screen or behind: slide it in along the line from the middle to the edge
+    const hx = W / 2 - DEATH_MARK_EDGE, hy = H / 2 - DEATH_MARK_EDGE, dx = x - W / 2, dy = y - H / 2;
+    const out = behind || Math.abs(dx) > hx || Math.abs(dy) > hy;
+    if (out) {
+      const k = Math.min(hx / Math.max(1e-6, Math.abs(dx)), hy / Math.max(1e-6, Math.abs(dy)));
+      x = W / 2 + dx * k; y = H / 2 + dy * k;
+    }
+    const s = Math.max(0, Math.ceil(m.left)), txt = `☠ ${Math.round(m._d)} m · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    if (c._txt !== txt) { c._txt = txt; c.textContent = txt; }
+    c.style.display = 'block';
+    c.style.left = x.toFixed(1) + 'px';
+    c.style.top = y.toFixed(1) + 'px';
+    c.classList.toggle('edge', out);
+    c.classList.toggle('old', i < list.length - 1);     // the latest stands out a little
   }
-  const s = Math.max(0, Math.ceil(m.left)), txt = `☠ ${Math.round(d)} m · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  if (el._txt !== txt) { el._txt = txt; el.textContent = txt; }
   el.style.display = 'block';
-  el.style.left = x.toFixed(1) + 'px';
-  el.style.top = y.toFixed(1) + 'px';
-  el.classList.toggle('edge', out);
 }
-// a saved mark, or null (16-worlds.js, 36-splitscreen.js)
-const restoreDeathMark = (r) => r && [r.x, r.y, r.z, r.left].every(n => typeof n === 'number' && isFinite(n)) && r.left > 0
-  ? { x: r.x, y: r.y, z: r.z, left: r.left } : null;
-const serializeDeathMark = (p) => p._deathMark ? { x: p._deathMark.x, y: p._deathMark.y, z: p._deathMark.z, left: Math.round(p._deathMark.left) } : null;
+// the saved marks as a list (16-worlds.js, 36-splitscreen.js); a save from before 0.8442 holds the one mark it had
+const _okDeathMark = (r) => r && [r.x, r.y, r.z, r.left].every(n => typeof n === 'number' && isFinite(n)) && r.left > 0;
+const restoreDeathMark = (r) => (Array.isArray(r) ? r : [r]).filter(_okDeathMark).slice(-DEATH_MARKS_MAX)
+  .map(m => ({ x: m.x, y: m.y, z: m.z, left: m.left }));
+const serializeDeathMark = (p) => (p._deathMarks || []).map(m => ({ x: m.x, y: m.y, z: m.z, left: Math.round(m.left) }));
 
 /* ---- death screen ----
    `deathEl` and friends are per-player pane elements, swapped with the rest of the HUD, so a

@@ -61,7 +61,7 @@ function _lightAt(x, y, z) {
      so a creature at night is as dark as the ground it stands on, not twice as bright. */
   const lc = sharedUniforms.uLightColor.value, luma = 0.3 * lc.r + 0.59 * lc.g + 0.11 * lc.b;
   // the world shader's own sky curve since 0.8242 (skyF, 04-materials.js), so in a cave a creature is as lit as the rock
-  const daylight = (amb + dir * sky) * (0.276 + 0.724 * sky * sky) * luma;
+  const daylight = (amb + dir * sky) * (SKY_FLOOR + (1 - SKY_FLOOR) * sky * sky) * luma;   // SKY_FLOOR (0.8442, 00-config.js)
   /* A creature never goes fully to the dark (0.8191): a little glow of its own, a little more under a bright moon,
      so it can still be made out. A third of what it was since 0.8241 (0.3 + 0.12 under a full moon). */
   const floor = 0.1 + 0.05 * (typeof _skyMoonGlow === 'number' ? _skyMoonGlow : 0);
@@ -189,12 +189,15 @@ function animateHumanoid(m, phase, swing, pitch, atk = 0, opts) {
     /* The RIGHT arm is the bow arm — it holds the weapon, and every held-item rig in the game
        (the player's _selfHeld, a mob's heldGrp, the first-person hand) hangs off armR, so the
        bow ends up in the hand that is actually presenting it. */
+    /* 0.8444: both arms turn IN, toward the middle of the body, where the bow and the string are (their z and the
+       string arm's yaw had the wrong sign: the arms splayed outward. Right arm inward is +z, left arm inward -z, as
+       eating and blocking have it). */
     m.armR.rotation.x = (-Math.PI / 2 + pitch - lean) * r;
-    m.armR.rotation.z = -0.26 * r;
+    m.armR.rotation.z = 0.26 * r;
     // the left is the string hand: alongside the bow at first, hauled back to the cheek at full draw
     m.armL.rotation.x = (-Math.PI / 2 + pitch - lean) * r + 0.30 * drw;
-    m.armL.rotation.z = (0.28 + 0.5 * drw) * r;
-    m.armL.rotation.y = -0.35 * drw;
+    m.armL.rotation.z = -(0.28 + 0.5 * drw) * r;
+    m.armL.rotation.y = 0.35 * drw;
   }
   /* Blocking (0.745). The LEFT arm comes up in front of the chest and in across the body, carrying
      the offhand shield (40-shield.js poseBodyOffhand) between the body and whatever it faces.
@@ -1188,6 +1191,14 @@ const ZOMBIE_NUGGET_CHANCE = 0.06;
 const ZOMBIE_NUGGETS = [ITEM.COPPER_NUGGET, ITEM.COPPER_NUGGET, ITEM.COPPER_NUGGET,
                         ITEM.TIN_NUGGET, ITEM.TIN_NUGGET, ITEM.TIN_NUGGET,
                         ITEM.IRON_NUGGET, ITEM.IRON_NUGGET, ITEM.GOLD_NUGGET];
+/* Keys (0.843): a zombie or a skeleton a player kills may carry the key to a sealed metal chest (30-chest.js); one
+   roll, copper the commonest, gold the rarest, as the chests themselves are */
+const MOB_KEY_ODDS = [[ITEM.COPPER_KEY, 0.02], [ITEM.IRON_KEY, 0.012], [ITEM.GOLDEN_KEY, 0.004]];
+function _mobDropKey(pop, byPlayer) {
+  if (!byPlayer) return;                   // not off one the sun burnt, or the lava had
+  let r = Math.random();
+  for (const [id, p] of MOB_KEY_ODDS) { if (r < p) { pop(id, 1); return; } r -= p; }
+}
 // 4 chunks. That is the lowest render distance anyone plays at, so a zombie can never notice the
 // player from inside terrain the player cannot see.
 const ZOMBIE_CHASE_RANGE = 64;
@@ -1824,12 +1835,14 @@ function _entDropLoot(ent, byPlayer = false) {
     pop(ITEM.ROTTEN_FLESH, rollLoot(LOOT.monster));
     if (Math.random() < ZOMBIE_NUGGET_CHANCE)
       pop(ZOMBIE_NUGGETS[Math.floor(Math.random() * ZOMBIE_NUGGETS.length)], 1);
+    _mobDropKey(pop, byPlayer);                // now and then a chest's key (0.843)
     _mobDropHeld(ent);                         // and anything it picked up off the ground
     return;
   }
   if (ent.kind === 'skeleton') {
     pop(ITEM.BONE, rollLoot(LOOT.monster));
     pop(ent.ammoId != null ? ent.ammoId : ITEM.ARROW, rollLoot(LOOT.arrows));
+    _mobDropKey(pop, byPlayer);                // now and then a chest's key (0.843)
     /* The bow itself, once in a hundred thousand kills, and worn nearly through when it does
        come — it is a trophy off a corpse, not a shortcut past the crafting bench. */
     if (ent.arm === 'bow' && Math.random() < SKEL_BOW_DROP_CHANCE) {
@@ -2003,7 +2016,7 @@ function damageEntity(ent, dmg, src = null) {
     ent.state = 'chase';
   }
   if (ent.hp <= 0) {
-    if (!player.canFly) { _entDropLoot(ent); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind.replace('_', ' '))); }
+    if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent), 'killed ' + (ent.kind === 'npc' ? 'a villager' : 'a ' + ent.kind.replace('_', ' '))); }   // the player's kill: a key may drop (0.843)
     const i = ENTITIES.indexOf(ent);
     if (i >= 0) _removeEntity(i);
     return true;
@@ -2758,6 +2771,9 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
     }
   }
 
+  // a cow being milked stands where it is for as long as the bucket is held under it (0.8446, updateMilking in 39)
+  if (e._milkHold > 0) { e._milkHold -= dt; moveSpeed = 0; }
+
   /* ---- move ---- */
   let moved = 0;
   /* A knockback no longer stuns a FLEEING animal (0.799): the hit that makes it bolt also shoved it, and
@@ -2980,7 +2996,7 @@ function _updateFish(e, dt, tp, i) {
       const k = Math.max(0, 1 - ENT_KNOCK_DECAY * dt); e.kx *= k; e.kz *= k;
       if (Math.abs(e.kx) < 0.05 && Math.abs(e.kz) < 0.05) e.kx = e.kz = 0;
     }
-    if (waterFlowVec(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z), _flowV)) {
+    if (waterFlowVec(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z), _flowV, false)) {   // not a river's own run (0.8445): a fish holds its place in it
       const fdx = _flowV.x * 1.2 * dt, fdz = _flowV.z * 1.2 * dt;
       if (_fishWet(e, e.x + fdx, e.y, e.z + fdz)) { e.x += fdx; e.z += fdz; }
     }

@@ -38,9 +38,9 @@ const SKILL_CATS = [
 const SKILLS = [
   // ---- survival ----
   { id: 'thickSkin',   cat: 'survival', name: 'Thick Skin',     cost: 1, req: [],
-    desc: '+10 health and +10% damage reduction' },                    // was +10% health until 0.791; +10 health again 0.828
+    desc: '+10 health' },                    // was +10% health until 0.791; +10 health again 0.828; no damage reduction since 0.8446
   { id: 'grassWeaver', cat: 'survival', name: 'Grass Weaver',   cost: 1, req: [],
-    desc: '30% better chance of fiber from grass, wheat and bushes' },
+    desc: '40% better chance of fiber from grass, wheat and bushes' },     // 30% until 0.8441
   { id: 'slowBurner',  cat: 'survival', name: 'Slow Burner',    cost: 1, req: ['thickSkin'],
     desc: 'Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein' },   // hunger and oxygen until 0.828
   // 0.828: wall climbing goes a block higher and costs 30% less stamina
@@ -51,10 +51,12 @@ const SKILLS = [
   { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 2, req: ['canopy'],
     desc: 'Each log you cut shakes the tree: every leaf on it has a 2% chance to fall and drop its loot' },
   // ---- crafting ----
-  { id: 'nimble',      cat: 'crafting', name: 'Nimble Fingers', cost: 1, req: [],
-    desc: '+10% crafting speed' },
-  { id: 'walkWork',    cat: 'crafting', name: 'Walk and Work',  cost: 1, req: ['nimble'],
-    desc: 'Crafting slows your walk 25% less' },
+  // 0.8447: the ids stay (they are what a save holds). `nimble` is Work Fingers now, and took the walking bonus over
+  // from `walkWork`, which became Precise Focus (25-crafting.js: craftMoveMul, benchFocusMul)
+  { id: 'nimble',      cat: 'crafting', name: 'Work Fingers',   cost: 1, req: [],
+    desc: '+10% crafting speed, and crafting slows your walk 25% less' },
+  { id: 'walkWork',    cat: 'crafting', name: 'Precise Focus',  cost: 1, req: ['nimble'],
+    desc: 'Crafting without a break gets faster, at a station you keep working or in your pocket queue: after 4 seconds the crafting speed starts to rise, up to +50% at 14 seconds. Any break starts it over' },   // the pocket queue 0.84471
   { id: 'fineWork',    cat: 'crafting', name: 'Fine Work',      cost: 1, req: ['nimble'],
     desc: 'Tools and gear you craft from now on are Well made: 10% chance a use costs no durability' },
   { id: 'spareParts',  cat: 'crafting', name: 'Spare Parts',    cost: 1, req: ['nimble'],
@@ -65,13 +67,13 @@ const SKILLS = [
     desc: 'Drop a tool, weapon or piece of armor on the Dismantle zone under the equipment panel to break it down into half its recipe, less the more worn it is' },
   // ---- exploring ----
   { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 1, req: [],
-    desc: '25% chance a loot chest holds one extra item' },
+    desc: '25% chance a loot chest holds one extra item, and 1% that it holds a key (wooden, copper, iron or golden)' },   // the key 0.8446
   { id: 'prospector',   cat: 'exploring', name: 'Prospector',    cost: 1, req: [],
     desc: '20% chance of one more ore from every ore block you mine' },
   { id: 'weathered',    cat: 'exploring', name: 'Weathered',     cost: 2, req: [],
     desc: '+10% cold and heat resistance' },
   { id: 'packRat',      cat: 'exploring', name: 'Pack Rat',      cost: 1, req: ['treasureNose'],
-    desc: 'Block stacks hold 10 more' },
+    desc: 'Item stacks hold 20 more (99) and block stacks 10 more (60); not the small stacks (stews, bowls, buckets)' },   // blocks only until 0.8442
   { id: 'hazardHide',   cat: 'exploring', name: 'Hazard Hide',   cost: 1, req: ['prospector', 'treasureNose', 'weathered'],
     desc: '30% less damage from falls, lava and cactus' },   // explosions and temperature once they hurt (0.791)
   // 0.828: whatever clouds your sight or shakes it is 30% weaker: fog, a sandstorm, murky water, heatstroke's blur,
@@ -91,7 +93,7 @@ const SKILLS = [
     desc: 'The saddle recipe costs 20% less' },
   // 0.828, a path of its own
   { id: 'luckyHands',  cat: 'husbandry', name: 'Lucky Hands',    cost: 1, req: [],
-    desc: '20% chance of one more flint, stone pebble or berry when you forage one' },
+    desc: '20% chance of one more flint, stone pebble, berry, mushroom, wheat, melon or cantaloupe slice or pumpkin when you forage one' },   // mushrooms, wheat and gourds 0.8442
 ];
 const SKILL_BY_ID = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 
@@ -134,7 +136,7 @@ const restoreSkills = (list) => new Set(Array.isArray(list) ? list.filter(id => 
 /* ---------------------------------- the effects ----------------------------------
    Small helpers the gameplay sites call, so each number lives here beside the skill that sets it. */
 const skillLeafMul   = () => hasSkill('canopy') ? 1.3 : 1;          // Canopy Forager: leaf loot chances
-const skillFiberMul  = () => hasSkill('grassWeaver') ? 1.3 : 1;     // Grass Weaver: fiber chances
+const skillFiberMul  = () => hasSkill('grassWeaver') ? 1.4 : 1;     // Grass Weaver: fiber chances (1.3 until 0.8441)
 const skillHazardMul = () => hasSkill('hazardHide') ? 0.7 : 1;      // Hazard Hide: fall, cactus, fire, lava
 const skillSightMul  = () => hasSkill('clearEyes') ? 0.7 : 1;       // Clear Eyes: how strongly fog, blur, sway, shake work (0.828)
 const skillClimbMul  = () => hasSkill('climber') ? 0.7 : 1;         // Climber: wall-climb stamina (0.828)

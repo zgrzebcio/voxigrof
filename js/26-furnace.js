@@ -16,45 +16,46 @@ var activeFurnace = null;                   // key of the furnace whose GUI is o
 /* The smelting book (0.775). time: seconds per item, xp: per item (x SMELT_XP_MUL, below), banked until the output is taken.
    Raw ore takes 9 s, ground powder 7 s, and the rest 4-15 s a piece. cat is the book tab. */
 const SMELT_RECIPES = [
-  { in: ITEM.RAW_IRON,      out: ITEM.IRON_INGOT,    time: 9, xp: 5, cat: 'metals' },
-  { in: ITEM.RAW_COPPER,    out: ITEM.COPPER_INGOT,  time: 9, xp: 4, cat: 'metals' },
-  { in: ITEM.RAW_TIN,       out: ITEM.TIN_INGOT,     time: 9, xp: 4, cat: 'metals' },
-  { in: ITEM.RAW_GOLD,      out: ITEM.GOLD_INGOT,    time: 9, xp: 6, cat: 'metals' },
+  { in: ITEM.RAW_IRON,      out: ITEM.IRON_INGOT,    time: 9, xp: 10, cat: 'metals' },
+  { in: ITEM.RAW_COPPER,    out: ITEM.COPPER_INGOT,  time: 9, xp: 8, cat: 'metals' },
+  { in: ITEM.RAW_TIN,       out: ITEM.TIN_INGOT,     time: 9, xp: 8, cat: 'metals' },
+  { in: ITEM.RAW_GOLD,      out: ITEM.GOLD_INGOT,    time: 9, xp: 12, cat: 'metals' },
   // ground ore smelts one to one (0.773): a mortar doubles the ingots, so each one pays less
-  { in: ITEM.IRON_POWDER,   out: ITEM.IRON_INGOT,    time: 7, xp: 3, cat: 'metals' },
-  { in: ITEM.COPPER_POWDER, out: ITEM.COPPER_INGOT,  time: 7, xp: 2, cat: 'metals' },
-  { in: ITEM.TIN_POWDER,    out: ITEM.TIN_INGOT,     time: 7, xp: 2, cat: 'metals' },
-  { in: ITEM.GOLD_POWDER,   out: ITEM.GOLD_INGOT,    time: 7, xp: 4, cat: 'metals' },
-  { in: ITEM.BRONZE_POWDER, out: ITEM.BRONZE_INGOT,  time: 8, xp: 8, cat: 'metals' },   // 0.774
-  { in: B.SAND,             out: B.GLASS,            time: 5, xp: 1, cat: 'blocks' },
-  { in: B.PINK_SAND,        out: B.GLASS,            time: 5, xp: 1, cat: 'blocks' },   // 0.822
-  { in: B.COBBLE,           out: B.STONE,            time: 5, xp: 1, cat: 'blocks' },
+  { in: ITEM.IRON_POWDER,   out: ITEM.IRON_INGOT,    time: 7, xp: 4, cat: 'metals' },
+  { in: ITEM.COPPER_POWDER, out: ITEM.COPPER_INGOT,  time: 7, xp: 3, cat: 'metals' },
+  { in: ITEM.TIN_POWDER,    out: ITEM.TIN_INGOT,     time: 7, xp: 3, cat: 'metals' },
+  { in: ITEM.GOLD_POWDER,   out: ITEM.GOLD_INGOT,    time: 7, xp: 5, cat: 'metals' },
+  { in: ITEM.BRONZE_POWDER, out: ITEM.BRONZE_INGOT,  time: 8, xp: 15, cat: 'metals' },   // 0.774
+  { in: B.SAND,             out: B.GLASS,            time: 5, xp: 2, cat: 'blocks' },
+  { in: B.PINK_SAND,        out: B.GLASS,            time: 5, xp: 2, cat: 'blocks' },   // 0.822
+  { in: B.COBBLE,           out: B.STONE,            time: 5, xp: 2, cat: 'blocks' },
   { in: B.LOG,              out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.BIRCH_LOG,        out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.SPRUCE_LOG,       out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },
   { in: B.RIME_LOG,         out: ITEM.CHARCOAL,      time: 5, xp: 2, cat: 'materials' },   // 0.836: thaws first, a little slower
-  { in: ITEM.CLAY_BALL,     out: ITEM.BRICK,         time: 5, xp: 1, cat: 'materials' },
+  { in: B.PALM_LOG,         out: ITEM.CHARCOAL,      time: 4, xp: 2, cat: 'materials' },   // 0.84
+  { in: ITEM.CLAY_BALL,     out: ITEM.BRICK,         time: 5, xp: 2, cat: 'materials' },
   // cured hide (0.7444): the second leather source, beside cows — gives zombie drops a use
-  { in: ITEM.ROTTEN_FLESH,  out: ITEM.LEATHER,       time: 7, xp: 1, cat: 'materials' },
-  { in: ITEM.FLOUR,         out: ITEM.BREAD,         time: 7, xp: 4, cat: 'food' },
-  { in: ITEM.MUTTON,        out: ITEM.COOKED_MUTTON, time: 9, xp: 6, cat: 'food' },
-  { in: ITEM.BEEF,          out: ITEM.COOKED_BEEF,   time: 9, xp: 6, cat: 'food' },
-  { in: ITEM.PORK,          out: ITEM.COOKED_PORK,   time: 7, xp: 3, cat: 'food' },        // 0.789
-  { in: ITEM.COD,           out: ITEM.COOKED_COD,     time: 5, xp: 2, cat: 'food' },       // fish, 0.805
-  { in: ITEM.SALMON,        out: ITEM.COOKED_SALMON,  time: 5, xp: 2, cat: 'food' },
-  { in: ITEM.PIKE,          out: ITEM.COOKED_PIKE,    time: 6, xp: 3, cat: 'food' },
-  { in: ITEM.CATFISH,       out: ITEM.COOKED_CATFISH, time: 6, xp: 3, cat: 'food' },
-  { in: ITEM.PUMPKIN_PIE,   out: ITEM.COOKED_PUMPKIN_PIE, time: 15, xp: 10, cat: 'food' },   // bake the raw pie (0.761)
+  { in: ITEM.COMPRESSED_ROTTEN_FLESH,  out: ITEM.LEATHER,       time: 7, xp: 5, cat: 'materials' },
+  { in: ITEM.FLOUR,         out: ITEM.BREAD,         time: 7, xp: 10, cat: 'food' },
+  { in: ITEM.MUTTON,        out: ITEM.COOKED_MUTTON, time: 9, xp: 20, cat: 'food' },
+  { in: ITEM.BEEF,          out: ITEM.COOKED_BEEF,   time: 9, xp: 20, cat: 'food' },
+  { in: ITEM.PORK,          out: ITEM.COOKED_PORK,   time: 7, xp: 15, cat: 'food' },        // 0.789
+  { in: ITEM.COD,           out: ITEM.COOKED_COD,     time: 5, xp: 10, cat: 'food' },       // fish, 0.805
+  { in: ITEM.SALMON,        out: ITEM.COOKED_SALMON,  time: 5, xp: 10, cat: 'food' },
+  { in: ITEM.PIKE,          out: ITEM.COOKED_PIKE,    time: 6, xp: 10, cat: 'food' },
+  { in: ITEM.CATFISH,       out: ITEM.COOKED_CATFISH, time: 6, xp: 10, cat: 'food' },
+  { in: ITEM.PUMPKIN_PIE,   out: ITEM.COOKED_PUMPKIN_PIE, time: 15, xp: 30, cat: 'food' },   // bake the raw pie (0.761)
   // grilled mushrooms (0.821): every kind but the lava one
-  { in: B.RED_MUSHROOM,        out: B.GRILLED_RED_MUSHROOM,    time: 4, xp: 1, cat: 'food' },
-  { in: B.BROWN_MUSHROOM,      out: B.GRILLED_BROWN_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
-  { in: B.BLUE_MUSHROOM,       out: B.GRILLED_BLUE_MUSHROOM,   time: 4, xp: 1, cat: 'food' },
-  { in: B.BLACK_MUSHROOM,      out: B.GRILLED_BLACK_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
-  { in: B.WHITE_TALL_MUSHROOM, out: B.GRILLED_WHITE_MUSHROOM,  time: 4, xp: 1, cat: 'food' },
-  { in: B.YELLOW_MUSHROOM,     out: B.GRILLED_YELLOW_MUSHROOM, time: 4, xp: 1, cat: 'food' },
+  { in: B.RED_MUSHROOM,        out: B.GRILLED_RED_MUSHROOM,    time: 4, xp: 5, cat: 'food' },
+  { in: B.BROWN_MUSHROOM,      out: B.GRILLED_BROWN_MUSHROOM,  time: 4, xp: 5, cat: 'food' },
+  { in: B.BLUE_MUSHROOM,       out: B.GRILLED_BLUE_MUSHROOM,   time: 4, xp: 5, cat: 'food' },
+  { in: B.BLACK_MUSHROOM,      out: B.GRILLED_BLACK_MUSHROOM,  time: 4, xp: 5, cat: 'food' },
+  { in: B.WHITE_TALL_MUSHROOM, out: B.GRILLED_WHITE_MUSHROOM,  time: 4, xp: 5, cat: 'food' },
+  { in: B.YELLOW_MUSHROOM,     out: B.GRILLED_YELLOW_MUSHROOM, time: 4, xp: 5, cat: 'food' },
 ];
 // 0.831: smelting pays half as much again — but what paid 1 still pays 1 (0.832; it was 1.5)
-const SMELT_XP_MUL = 1.5;
+const SMELT_XP_MUL = 2;
 for (const r of SMELT_RECIPES) if (r.xp >= 2) r.xp *= SMELT_XP_MUL;
 const SMELT = {};                                              // input id -> recipe
 for (const r of SMELT_RECIPES) SMELT[r.in] = r;
@@ -66,7 +67,7 @@ const FUEL_SMELTS = {                                          // fuel id -> fue
   // a storage block burns as the ten it was made from (0.768)
   [B.COAL_BLOCK]: 50, [B.CHARCOAL_BLOCK]: 40,
   // the first-tier tools are knapped stone and fiber since 0.7341, so they no longer burn
-  [B.OAK_SAPLING]: 0.5,[B.BIRCH_SAPLING]: 0.5,[B.SPRUCE_SAPLING]: 0.5, [ITEM.LAVA_BUCKET]: 99, [ITEM.BARK]: 0.75,
+  [B.OAK_SAPLING]: 0.5,[B.BIRCH_SAPLING]: 0.5,[B.SPRUCE_SAPLING]: 0.5, [B.PALM_SAPLING]: 0.5, [ITEM.LAVA_BUCKET]: 99, [ITEM.BARK]: 0.75,   // palm 0.84
   [ITEM.FAT]: 1.5,                                             // rendered pig fat (0.789): better than a plank, worse than charcoal
 };
 const ASH_SLOT = 3;
@@ -230,11 +231,18 @@ function buildFurnacePanel() {
   if (!panel) return;
   const f = activeFurnace && FURNACES.get(activeFurnace);
   if (!f || invRightTab() !== 'furnace') { panel.style.display = 'none'; return; }   // or another tab is up (0.795)
-  panel.style.display = 'flex';
+  if (invPanelHeld(panel)) return;                                                    // the skill tree is up (0.8445)
   const bar = (cls) =>
     `<div class="fbar ${cls}"><img class="fbase" src="textures/Gui/Interactables/Lit_progress.png" alt="">` +
     `<div class="ffill"><img src="textures/Gui/Interactables/Lit_progress.png" alt=""></div></div>`;
-  panel.innerHTML =                                         // untitled since 0.796: the Furnace tab names it
+  /* The book's list is kept in place through a rebuild, only what is in it swapped (0.8443, swapHtmlKeeping in
+     20-inventory-ui.js): made anew it was scrolled back to where the frame had begun, and at a low frame rate jumped
+     back up under the wheel. Where it is now is read off it first, while it is still on screen. */
+  const oldList = panel.querySelector('.fbList');
+  if (oldList && !panel._scrollTop && oldList.clientHeight > 0) _furnBookScroll = oldList.scrollTop;
+  panel._scrollTop = false;
+  panel.style.display = 'flex';
+  const html =                                              // untitled since 0.796: the Furnace tab names it
     `<div id="furnGrid">` +
       `<div class="fcol">` +
         `<div class="slot" data-fi="1">${slotInner(f.slots[1])}</div>` +
@@ -251,15 +259,16 @@ function buildFurnacePanel() {
     (furnBookOpen ? _furnBookHtml() : '') +
     // a covered chimney says so, since otherwise it just looks broken (0.801)
     (f.choked ? '<div class="fChoked">Top covered — nothing smelts, fuel still burns</div>' : '');
+  const list = swapHtmlKeeping(panel, html, '.fbList');
   // Furnace / Equipment / Skill tree (0.795) — on the very top: over the book while it is open (0.796)
   addInvTabs(panel.querySelector('.fbook') || panel, 'furnace');
   panel.classList.toggle('bookOpen', furnBookOpen);         // squares the top corners where the book joins (0.7761)
   for (const tab of panel.querySelectorAll('#furnTabs .ctab'))
-    tab.addEventListener('click', () => { furnBookCat = tab.dataset.cat; _furnBookScroll = 0; buildFurnacePanel(); });
-  const list = panel.querySelector('.fbList');
+    tab.addEventListener('click', () => { furnBookCat = tab.dataset.cat; _furnBookScroll = 0; panel._scrollTop = true; buildFurnacePanel(); });
   if (list) {
-    list.scrollTop = _furnBookScroll;
-    list.addEventListener('scroll', () => { _furnBookScroll = list.scrollTop; });
+    if (Math.abs(list.scrollTop - _furnBookScroll) > 1) list.scrollTop = _furnBookScroll;
+    if (list !== oldList)                                   // a new list: its own listener, never saving a 0 read off the page
+      list.addEventListener('scroll', () => { if (list.isConnected && list.clientHeight > 0) _furnBookScroll = list.scrollTop; });
     _sizeFurnBook(panel);
     /* ...and again once the frame has laid out (0.796). Opening a furnace with the book already open builds
        this panel before the inventory is shown and slid into place, so the first measurement read a panel
@@ -276,8 +285,9 @@ function _sizeFurnBook(panel) {
   const top = panel.getBoundingClientRect().top;
   if (!top) return;                                          // not laid out yet: the next frame sizes it
   const room = top - 12 - (book.offsetHeight - list.offsetHeight) - 6;
-  list.style.height = Math.max(120, Math.min(320, room)) + 'px';
-  list.scrollTop = _furnBookScroll;
+  const h = Math.max(120, Math.min(320, room)) + 'px';
+  if (list.style.height !== h) list.style.height = h;
+  if (Math.abs(list.scrollTop - _furnBookScroll) > 1) list.scrollTop = _furnBookScroll;   // only when it is not there (0.8443)
 }
 
 /* ---- smelting book (0.775) ----
@@ -296,6 +306,8 @@ function cycleFurnBookCategory(dir) {
   const i = FURN_BOOK_CATS.findIndex(c => c.key === furnBookCat);
   furnBookCat = FURN_BOOK_CATS[(i + dir + FURN_BOOK_CATS.length) % FURN_BOOK_CATS.length].key;
   _furnBookScroll = 0;
+  const panel = invPanel('furnacePanel');
+  if (panel) panel._scrollTop = true;        // to the top, whatever the list says it is at (0.8443)
   buildFurnacePanel();
 }
 function _furnBookHtml() {

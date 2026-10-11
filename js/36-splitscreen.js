@@ -37,7 +37,7 @@ const SWAP_KEYS = [
   'equipSlots', 'beltSlots', 'survEquip', 'survBelt',
   // what this player is doing right now
   'mining', 'act', 'mouseBreak', 'mousePlace', 'pad', 'crackMat',
-  '_bushCd', 'handPlaceSwing', 'handPickSwing', '_eatTimer',
+  '_bushCd', '_bushHeldT', 'handPlaceSwing', 'handPickSwing', '_eatTimer',
   // this seat's own inventory: its panel, its cursor, what it is dragging and what it has open
   'invOpen', 'invWrapEl', 'invEl', 'vcurEl', 'vdragEl', 'ctipEl',
   'invCursor', 'dragFrom', 'dragHeld', 'lastHoverEl', '_invSeq',
@@ -59,7 +59,7 @@ const SWAP_KEYS = [
   // movement bookkeeping + held light
   'wasMoving', 'lastFlying', '_hlId', '_hlLevel', '_hlX', '_hlY', '_hlZ', '_hlRaw',
   // this player's slice of the HUD
-  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl',
+  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl', 'progRingEl',
   'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl', 'heatBlurEl', 'deathMarkEl',
   'deathEl', 'deathCauseEl', 'deathStatsEl', '_interactShown', 'blocknameTimer',
 ];
@@ -231,7 +231,7 @@ const playerRoster = () => PSTATE.map((s, i) => s.player.name || defaultPlayerNa
        `position: fixed` descendants. So `#hotbar { bottom: 6px }` lands at the bottom of the PANE
        rather than the bottom of the window, and the scale shrinks the whole HUD to suit a
        quarter-screen viewport.                                                                   */
-const HUD_PANE_IDS = ['hud', 'crosshair', 'interact', 'blockname', 'vitals',
+const HUD_PANE_IDS = ['hud', 'crosshair', 'progRing', 'interact', 'blockname', 'vitals',   // progRing 0.8446
                       'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap', 'quest'];   // quest box 0.798
 /* The virtual cursor, the drag ghost and the item tooltip stay on the BODY rather than inside the
    pane, one set per player. They are positioned in raw screen coordinates — the same space mouse
@@ -284,6 +284,7 @@ function _bindPaneDom(pane, g) {
   g.hotbarEl     = q('#hotbar');
   g.interactEl   = q('#interact');
   g.questEl      = q('#quest');                  // each seat's own starter quest (0.798)
+  g.progRingEl   = q('#progRing');               // ...and its own progress ring round the crosshair (0.8446)
   g.vitalsEl     = q('#vitals');
   g.vctx         = g.vitalsEl.getContext('2d');
   g.vctx.imageSmoothingEnabled = false;
@@ -441,7 +442,7 @@ function joinPlayer(name) {
   g.act = { break: false, place: false, lastBreak: 0, lastPlace: 0, padPick: false };
   g.mouseBreak = false; g.mousePlace = false;
   g.pad = { deadzone: 0.16, lookX: 0, lookY: 0, prev: [], radialOpen: false, radialSel: -1 };
-  g.invOpen = false; g._bushCd = 0; g.handPlaceSwing = false; g.handPickSwing = false;
+  g.invOpen = false; g._bushCd = 0; g._bushHeldT = 0; g.handPlaceSwing = false; g.handPickSwing = false;
   g._eatTimer = 0;
   // carried items — a fresh set in whichever mode the world is in
   g.survStash = { hot: new Array(HOTBAR_SLOTS).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
@@ -952,7 +953,8 @@ function applyExtraPlayerRestore(slot) {
   // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
   player.aliveT = +rec.aliveT || 0; player.dead = !!rec.dead; player._dmgCause = rec.cause || null;
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
-  player._deathMark = restoreDeathMark(rec.deathMark);   // 0.827
+  player._deathMarks = restoreDeathMark(rec.deathMark);  // 0.827; a list since 0.8442
+  player._restacked = false;                             // stacks fitted once the inventory is back (0.8442, 15-drops.js)
   player._feats = restoreFeats(rec.feats);               // 0.8283
   player.craftQueue = restoreCraftQueue(rec.craftQueue);
   player.skills = restoreSkills(rec.skills);   // 0.79
