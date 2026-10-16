@@ -1,10 +1,10 @@
 'use strict';
-/* voxiGrof — shields, the offhand, and the arm that holds it (0.745, 0.7451)
+/* voxiGrof — shields, the offhand, and the arm that holds it
 
-   The OFFHAND is an equipment slot (31-equipment.js). It takes a shield or a torch; anything in it
+   The OFFHAND is an equipment slot (player/equipment.js). It takes a shield or a torch; anything in it
    shows in a second arm on the left of the view and on the body's left arm.
 
-   A shield works from EITHER hand (0.7451). In the main hand it raises the right arm; in the
+   A shield works from EITHER hand. In the main hand it raises the right arm; in the
    offhand it raises the left — but only when the main hand has no right-click use of its own (a
    bow draws, food is eaten, a block is placed; a sword, a tool or an empty hand leave the button
    free). A main-hand shield always wins over an offhand one.
@@ -18,8 +18,8 @@ const SHIELD_FRONT_COS = Math.cos(70 * Math.PI / 180);   // a 140-degree cone in
 const SHIELD_RAISE_TIME = 0.15;          // seconds to get it up before it counts: no parry spam
 const SHIELD_KNOCK_MUL = 0.35;           // a blocked blow still shoves, just much less
 const SHIELD_MOVE_MUL = 0.45;            // walking behind a raised shield is slow
-const EAT_MOVE_MUL = SHIELD_MOVE_MUL;    // and so is eating (0.7591), read in 22-main-loop.js
-const DRAW_MOVE_MUL = SHIELD_MOVE_MUL;   // ...and drawing a bow (0.7592)
+const EAT_MOVE_MUL = SHIELD_MOVE_MUL;    // and so is eating, read in 22-main-loop.js
+const DRAW_MOVE_MUL = SHIELD_MOVE_MUL;   // ...and drawing a bow
 
 const offhandSlot = () => (typeof equipSlots !== 'undefined' && equipSlots)
   ? equipSlots[EQUIP_INDEX.offhand] : null;
@@ -32,14 +32,15 @@ function mainHandUsesRightClick(id) {
   if (id == null) return false;
   if (id < 256) return true;                                     // blocks place
   const p = ITEM_PROPS[id] || {};
-  return !!(p.shield || p.food > 0 || p.ranged || p.throwable || p.tool === 'shears'
+  return !!(p.shield || p.food > 0 || p.drink || p.ranged || p.throwable || p.tool === 'shears'
          || id === ITEM.BUCKET || id === ITEM.WATER_BUCKET || id === ITEM.LAVA_BUCKET
+         || id === ITEM.GLASS_BOTTLE || id === ITEM.FIRE                // 0.845
          || id === ITEM.SUGAR_CANE || id === ITEM.SADDLE);
 }
 // which shield the right button would raise right now, and from which hand (active seat)
 function _activeShield() {
   const main = HOTBAR[hotbarSel];
-  if (main && isShieldId(main.id)) return slotBroken(main) ? null : { slot: main, hand: 'main' };   // broken: no block (0.79)
+  if (main && isShieldId(main.id)) return slotBroken(main) ? null : { slot: main, hand: 'main' };   // broken: no block
   const off = offhandShield();
   if (off && !slotBroken(off) && !mainHandUsesRightClick(slotId(main))) return { slot: off, hand: 'off' };
   return null;
@@ -60,7 +61,7 @@ function updateShield(dt, wantPlace) {
   if (player._shieldUp < 0.01) player._shieldUp = 0;
   if (player._shieldHitT > 0) player._shieldHitT -= dt;
   if (player._offSwingT > 0) player._offSwingT -= dt;
-  if (player._offPickT > 0) player._offPickT -= dt;          // a forage grab with the left hand (0.802)
+  if (player._offPickT > 0) player._offPickT -= dt;          // a forage grab with the left hand
   _poseOffhandArm(dt);
 }
 
@@ -76,7 +77,7 @@ function shieldBlock(tp, fromX, fromZ, dmg) {
   withPlayer(tp, () => {
     const a = _activeShield();
     if (!a || tp.canFly || a.slot.dur == null) return;
-    const w = wearSlot(a.slot, Math.max(1, Math.ceil((dmg || 5) / 5)));   // wear in the old 20-point damage (0.823)
+    const w = wearSlot(a.slot, Math.max(1, Math.ceil((dmg || 5) / 5)));   // wear in the old 20-point damage
     if (w === 'gone') {
       if (a.hand === 'main') HOTBAR[hotbarSel] = null;
       else equipSlots[EQUIP_INDEX.offhand] = null;
@@ -88,40 +89,47 @@ function shieldBlock(tp, fromX, fromZ, dmg) {
   playSound('wood', { gain: 0.9, rate: 0.72 + Math.random() * 0.1,
                       pos: { x: tp.pos.x, y: tp.pos.y + 1.2, z: tp.pos.z } });
   tp._shieldHitT = 0.18;                   // the arm jolts back on impact
-  if (typeof fxShieldHit === 'function') fxShieldHit(tp, fromX, fromZ);   // wood chips and sparks off its face (0.803)
+  if (typeof fxShieldHit === 'function') fxShieldHit(tp, fromX, fromZ);   // wood chips and sparks off its face
   return true;
 }
 
 /* ---------------------------------- the shield model ----------------------------------
-   The front is the item icon extruded like every other held item. The side you HOLD is a
-   different picture (shield_back.png: battens, padding and grip), laid on a plane just behind
-   the sprite. It gets the same 0.12-pi lean buildItemDropGeom gives the sprite, or the two would
-   separate at the edges. */
-let _shieldBackTex = null;
+   A shield in the hand or on the arm is drawn from its WORN pictures, not its inventory icon: the item's `wear`
+   (items/items.js) names them, <wear>_front and <wear>_back in textures/Entity/equipment/Shield/ (WORN_TEXTURES,
+   01-textures-data.js). The front is extruded like every held item (its own sprite, kept apart from the icon's).
+   The side you HOLD is the back picture (battens, padding and grip), laid on a plane just behind the sprite. It
+   gets the same 0.12-pi lean buildItemDropGeom gives the sprite, or the two would separate at the edges.
+   Until the worn pictures have loaded, or for a shield with none, the front is the item's icon and there is no back. */
+const _shieldBackTex = {};                 // wear name -> its back picture as a texture
 function buildShieldNode(id) {
   const g = new THREE.Group();
-  for (const { p, geo, mat: mo, node } of buildDropGeom(id))
+  const wear = ITEM_PROPS[id]?.wear;
+  let passes = wear && typeof IMAGES !== 'undefined' && IMAGES[wear + '_front']
+    ? buildItemDropGeom(id, wear + '_front', 'worn:' + wear) : [];
+  if (!passes.length) passes = buildDropGeom(id);
+  for (const { p, geo, mat: mo, node } of passes)
     g.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
-  if (!_shieldBackTex && typeof IMAGES !== 'undefined' && IMAGES.shield_back) {
-    _shieldBackTex = new THREE.Texture(IMAGES.shield_back);
-    _shieldBackTex.colorSpace = THREE.SRGBColorSpace;
-    _shieldBackTex.magFilter = THREE.NearestFilter;
-    _shieldBackTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
-    _shieldBackTex.generateMipmaps = true;   // (0.8092)
-    _shieldBackTex.needsUpdate = true;
+  const backImg = wear && typeof IMAGES !== 'undefined' ? IMAGES[wear + '_back'] : null;
+  if (backImg && !_shieldBackTex[wear]) {
+    const t = _shieldBackTex[wear] = new THREE.Texture(backImg);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
+    t.generateMipmaps = true;
+    t.needsUpdate = true;
   }
-  if (_shieldBackTex) {
+  if (backImg) {
     const geo = new THREE.PlaneGeometry(1, 1);
     geo.rotateY(Math.PI);                                        // faces -Z: the held side
     geo.translate(0, 0, -(ITEM_DROP_THICK / 2) - 0.004);
     geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI * 0.12));
-    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: _shieldBackTex, transparent: true, alphaTest: 0.5 })));
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: _shieldBackTex[wear], transparent: true, alphaTest: 0.5 })));
   }
   return g;
 }
 
 /* ---------------------------------- first person: the offhand arm ----------------------------------
-   Built with the right arm (24-hands.js) and hung off root.userData.off. It shows whatever the
+   Built with the right arm (player/hands.js) and hung off root.userData.off. It shows whatever the
    offhand holds. A shield rests low on the left turned edge-on, and when raised swings in front
    of the left half of the view with its back toward you (its FRONT always faces away, hence the
    half turn about Y). A torch is simply carried, upright, where you can see its light. */
@@ -133,9 +141,9 @@ function _poseOffhandArm(dt) {
   const off = handRoot && handRoot.userData && handRoot.userData.off;
   if (!off) return;
   const id = offhandItemId();
-  // an empty left arm still comes up for a forage grab (0.802)
+  // an empty left arm still comes up for a forage grab
   const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead
-    && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water (0.8245)
+    && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water
   off.root.visible = show;
   if (!show) { off.root.position.y = OFF_REST.pos[1] - 1.4; return; }       // come back up from below
   const shield = id != null && isShieldId(id);
@@ -149,8 +157,8 @@ function _poseOffhandArm(dt) {
       off.held.add(node);
     } else {
       const passes = buildDropGeom(id);
-      // a torch is fattened and turned so it reads as a stick, not a sliver (24-hands.js, 0.7523)
-      if (id < 256 && PROPS[id]?.torch && typeof wrapHeldTorch === 'function') wrapHeldTorch(off.held, passes);   // every torch (0.834)
+      // a torch is fattened and turned so it reads as a stick, not a sliver (player/hands.js)
+      if (id < 256 && PROPS[id]?.torch && typeof wrapHeldTorch === 'function') wrapHeldTorch(off.held, passes);   // every torch
       else for (const { p, geo, mat: mo, node } of passes)
         off.held.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
       off.held.scale.setScalar(OFF_ITEM.scale);
@@ -163,7 +171,7 @@ function _poseOffhandArm(dt) {
   const jolt = (player._shieldHitT > 0 && player._shieldHand === 'off') ? player._shieldHitT / 0.18 * 0.12 : 0;
   const swing = player._offPickT > 0 ? Math.sin((1 - player._offPickT / 0.35) * Math.PI)          // forage grab
     : player._offSwingT > 0 ? Math.sin((1 - player._offSwingT / 0.25) * Math.PI) : 0;               // placed a torch
-  // climbing (0.804): the left arm reaches while the right one pulls (24-hands.js), half a beat apart
+  // climbing: the left arm reaches while the right one pulls (player/hands.js), half a beat apart
   const cl = player._climbAnim ? Math.sin((player._climbT || 0) * 7 + Math.PI) : 0, climb = player._climbAnim ? 1 : 0;
   const k = 1 - Math.exp(-dt * 18);
   const r = off.root.position;

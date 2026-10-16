@@ -51,7 +51,7 @@ const _rnd = (a, b) => a + Math.random() * (b - a);
 // per-particle behaviour bits. HANG: no gravity until `phase` seconds old (a drip gathering).
 // POP: dies the moment it lands instead of lying there.
 const FX_COLLIDE = 1, FX_REST = 2, FX_FADEIN = 4, FX_IN_WATER = 8, FX_DIE_IN_FLUID = 16, FX_BOUNCE = 32,
-      FX_HANG = 64, FX_POP = 128, FX_FLAP = 256,   // FLAP: swaps between the two butterfly frames (0.803)
+      FX_HANG = 64, FX_POP = 128, FX_FLAP = 256,   // FLAP: swaps between the two butterfly frames
       FX_RAIN = 512;                               // RAIN: a raindrop, which splashes where it lands (_fxRainLand, 0.83)
 
 /* ---------------------------------- the sprite sheet ----------------------------------
@@ -59,7 +59,7 @@ const FX_COLLIDE = 1, FX_REST = 2, FX_FADEIN = 4, FX_IN_WATER = 8, FX_DIE_IN_FLU
    with the block textures; nearest filtering keeps it crisp. */
 const FXS = { SMOKE_L: 0, SMOKE_M: 1, SMOKE_S: 2, SPARK: 3, STAR: 4, HEART: 5, Z: 6, DROP: 7,
               BUBBLE: 8, FLAME: 9, DUST: 10, BOOT: 11, HOOF: 12, EMBER: 13, BUTTERFLY: 14, BUTTERFLY2: 15,
-              RAIN: 16, FLAKE: 17, PUDDLE: 18, RING: 19 };   // the weather (0.83)
+              RAIN: 16, FLAKE: 17, PUDDLE: 18, RING: 19 };   // the weather
 const _fxSheet = (() => {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -102,10 +102,10 @@ const _fxSheet = (() => {
                  '.XXXX.', 'XXXXXX', 'XXXXXX', 'XXXXXX', '.XXXX.']);
   map(FXS.HOOF, ['.XX..XX.', 'XXX..XXX', 'XXX..XXX', 'XXX..XXX', 'XX....XX', '.X....X.']);
   map(FXS.EMBER, ['XX', 'XX']);
-  // a butterfly, wings open and wings half closed: the two frames it flaps between (0.803)
+  // a butterfly, wings open and wings half closed: the two frames it flaps between
   map(FXS.BUTTERFLY,  ['XX...XX', 'XXX.XXX', 'XoX#XoX', '.XX#XX.', '.oX#Xo.', 'XX.#.XX', 'X.....X']);
   map(FXS.BUTTERFLY2, ['.X...X.', '.XX.XX.', '.oX#Xo.', '..X#X..', '..X#X..', '.X.#.X.']);
-  // the weather (0.83): a falling streak of rain, a snowflake, a puddle (a decal) and a ripple ring on water
+  // the weather: a falling streak of rain, a snowflake, a puddle (a decal) and a ripple ring on water
   map(FXS.RAIN, [':', 'o', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'o', ':']);
   map(FXS.FLAKE, ['..o..', '.oXo.', 'oXXXo', '.oXo.', '..o..']);
   map(FXS.PUDDLE, ['...XXXXXX.....', '.XXXXXXXXXXX..', 'XXXXXXXXXXXXX.', 'XXXXXXXXXXXXXX',
@@ -184,7 +184,7 @@ const _fxMaxPt = (() => {
 const fxOwner = (p) => (typeof PLAYERS !== 'undefined' ? PLAYERS.indexOf(p) + 1 : 1);
 
 class FxPool {
-  /* `target` is the scene it draws in; `onlyOwner` makes it the first-person hand pool (0.801): drawn
+  /* `target` is the scene it draws in; `onlyOwner` makes it the first-person hand pool: drawn
      with the hand, in the hand scene's space, and each seat sees only the particles it owns. */
   constructor(max, cutout, mapFn, target = scene, onlyOwner = false, array = false) {
     this.max = max; this.n = 0; this.staticDirty = false;
@@ -211,7 +211,7 @@ class FxPool {
       uniforms: { map: { value: mapFn() }, uScale: { value: 600 }, uHide: { value: 0 },
                   uOnly: { value: onlyOwner ? 1 : 0 }, uMaxPt: { value: _fxMaxPt } },
       vertexShader: _FX_VSH, fragmentShader: _FX_FSH,
-      defines: { ...(cutout ? { CUTOUT: 1 } : {}), ...(array ? { ARRAY: 1 } : {}) },   // ARRAY: samples the block textures (0.809)
+      defines: { ...(cutout ? { CUTOUT: 1 } : {}), ...(array ? { ARRAY: 1 } : {}) },   // ARRAY: samples the block textures
       transparent: !cutout, depthWrite: !!cutout,
     });
     this.points = new THREE.Points(geo, this.mat);
@@ -286,7 +286,7 @@ class FxPool {
         if (f & (FX_IN_WATER | FX_DIE_IN_FLUID)) {
           const inW = _fxFluidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz));
           if (((f & FX_IN_WATER) && !inW) || ((f & FX_DIE_IN_FLUID) && inW && vy < 0)) {
-            if ((f & FX_RAIN) && inW) _fxRainLand(nx, ny, nz, true);   // a ring on the water (0.83)
+            if ((f & FX_RAIN) && inW) _fxRainLand(nx, ny, nz, true);   // a ring on the water
             this.kill(i); continue;
           }
         }
@@ -394,15 +394,15 @@ const FX = {
   bits:    new FxPool(FX_LOW ? 500 : 1200, true, () => sharedUniforms.map.value, scene, false, true),
   sprites: new FxPool(FX_LOW ? 700 : 1600, false, () => _fxSheet),
   decals:  new FxDecals(FX_LOW ? 64 : 160),
-  // what the first-person hand holds: a torch's flame, a gem's glint, crumbs while eating (0.801)
+  // what the first-person hand holds: a torch's flame, a gem's glint, crumbs while eating
   hand:    new FxPool(FX_LOW ? 80 : 160, false, () => _fxSheet, handScene, true),
-  // rain and snow round each player, their own pool so a downpour never starves the rest (0.83)
+  // rain and snow round each player, their own pool so a downpour never starves the rest
   weather: new FxPool(FX_LOW ? 900 : 2600, false, () => _fxSheet),
   puddles: new FxDecals(FX_LOW ? 48 : 128),       // ...and where it lands: puddles, rings on water
 };
 
 /* ---------------------------------- helpers ---------------------------------- */
-/* getBlock for the pools' collision, keeping the last chunk it looked in (0.83): rain and snow are thousands of
+/* getBlock for the pools' collision, keeping the last chunk it looked in: rain and snow are thousands of
    particles each testing the block under them every frame. Forgotten at the start of every frame (_fxBlockReset),
    so a chunk loaded or unloaded between frames is never read stale. */
 let _fxCx = 1e9, _fxCz = 1e9, _fxData = null;
@@ -428,11 +428,11 @@ function _fxNear(x, y, z) {
   const dx = p.pos.x - x, dy = p.pos.y - y, dz = p.pos.z - z;
   return dx * dx + dy * dy + dz * dz < FX_RANGE * FX_RANGE;
 }
-// light at a point, the way the world shader lights a face (28-entities.js)
+// light at a point, the way the world shader lights a face (entities/entities.js)
 const _fxLight = (x, y, z) => (typeof _lightAt === 'function' ? _lightAt(x, y, z) : 1);
 // a random square, `frac` of its side, out of the visible centre of an atlas tile, onto particle i
 function _fxTileRect(pool, i, tile, frac) {
-  // u carries the layer in its whole part: the square sits inside [0,1) of layer `tile` (0.809)
+  // u carries the layer in its whole part: the square sits inside [0,1) of layer `tile`
   const s = Math.min(0.999, frac);
   pool.setRect(i, tile + Math.random() * (1 - s), Math.random() * (1 - s), s, s);
 }
@@ -487,7 +487,7 @@ function fxBreak(x, y, z, val) {
   const id = val & 255, p = PROPS[id];
   if (!p || !p.faces) return;
   const L = _fxLight(x + 0.5, y + 0.5, z + 0.5);
-  if (_fxPlantBurst(x, y, z, val, L)) return;   // grass, wheat, a bush: its colours, as when foraged (0.804)
+  if (_fxPlantBurst(x, y, z, val, L)) return;   // grass, wheat, a bush: its colours, as when foraged
   const n = _fxN(p.model === 'cross' ? 8 : 18);
   for (let k = 0; k < n; k++) {
     const px = x + _rnd(0.12, 0.88), py = y + _rnd(0.12, 0.88), pz = z + _rnd(0.12, 0.88);
@@ -555,7 +555,7 @@ function _fxSprite(cell, x, y, z, life, s0, s1) {
   return i;
 }
 function _fxSmoke(x, y, z, grey, L, big = 1) {
-  const i = _fxSprite(_R_SMOKE[(Math.random() * 2) | 0], x, y, z, _rnd(2.2, 3.4), 0.27 * big, 0.85 * big);   // bigger (0.804)
+  const i = _fxSprite(_R_SMOKE[(Math.random() * 2) | 0], x, y, z, _rnd(2.2, 3.4), 0.27 * big, 0.85 * big);   // bigger
   if (i < 0) return;
   const S = FX.sprites, k = grey * L;
   S.color(i, k, k, k * 1.02, 0.7);
@@ -601,10 +601,10 @@ function fxFurnace(f, x, y, z, facing, dt) {
   if (f._fxT > 0 || _fxScale <= 0) return;
   f._fxT = _rnd(0.3, 0.5) / Math.max(0.3, _fxScale);
   if (!_fxNear(x + 0.5, y + 1, z + 0.5)) return;
-  // out of the chimney (0.8041), at the top of a chimney of walls when one stands on it (0.827)
+  // out of the chimney, at the top of a chimney of walls when one stands on it
   const top = y + 1 + (typeof CORE.chimneyHeight === 'function' ? CORE.chimneyHeight(getBlock, x, y, z) : 0);
   _fxSmoke(x + _rnd(0.4, 0.6), top + 0.3, z + _rnd(0.4, 0.6), 0.6, _fxLight(x + 0.5, top + 0.5, z + 0.5));
-  // something in the input slot is being fired: embers jump out of the open top (0.803)
+  // something in the input slot is being fired: embers jump out of the open top
   if (f.slots && f.slots[1] && Math.random() < 0.7)
     for (let k = 0, n = 1 + (Math.random() < 0.4); k < n; k++)
       _fxEmber(x + _rnd(0.4, 0.6), top + 0.27, z + _rnd(0.4, 0.6), _rnd(-0.5, 0.5), _rnd(1.8, 3), _rnd(-0.5, 0.5));
@@ -615,7 +615,7 @@ function fxFurnace(f, x, y, z, facing, dt) {
   }
 }
 /* Hearts: red for a hit, green for healing (0.8). `owner` hides them in that player's own first person. */
-/* `amt` is the health lost or gained (0.8031): one heart per point, up to 14, spread and thrown wider the
+/* `amt` is the health lost or gained: one heart per point, up to 14, spread and thrown wider the
    bigger it was, so a heavy hit reads as heavy and a nibble of healing as one small heart. */
 function fxHearts(x, y, z, heal, amt = 1, owner = 0) {
   if (_fxScale <= 0 || !_fxNear(x, y, z) || !(amt > 0)) return;
@@ -721,9 +721,9 @@ const FX_FEET = {
   boot:  { cell: FXS.BOOT, w: 0.17, l: 0.3,  spread: 0.12, stride: 0.75 },
   hoof:  { cell: FXS.HOOF, w: 0.22, l: 0.17, spread: 0.17, stride: 0.62 },
   small: { cell: FXS.HOOF, w: 0.14, l: 0.11, spread: 0.1,  stride: 0.45 },
-  paw:   { cell: FXS.HOOF, w: 0.27, l: 0.25, spread: 0.24, stride: 0.85 },   // a polar bear's big round prints (0.835)
+  paw:   { cell: FXS.HOOF, w: 0.27, l: 0.25, spread: 0.24, stride: 0.85 },   // a polar bear's big round prints
 };
-const FX_FOOT_OF = { cow: 'hoof', horse: 'hoof', sheep: 'small', pig: 'small', polar_bear: 'paw' };   // everything else walks in boots
+// which of these a creature leaves is its kind's `foot` in the creature table (entities/mobs.js); none given: a boot's
 // the grounds that take a print: [r, g, b, alpha] of the print on it
 const FX_SOFT = {
   [B.SAND]: [0.6, 0.5, 0.34, 0.42], [B.RED_SAND]: [0.52, 0.26, 0.15, 0.42], [B.PINK_SAND]: [0.62, 0.42, 0.42, 0.42], [B.SNOW]: [0.6, 0.67, 0.8, 0.55],
@@ -767,7 +767,7 @@ function fxWalk(p, grounded, dx, dz) {
 /* A creature's feet, from entityStepSound (32-sound.js) — already range-gated to the players. */
 function fxEntityWalk(e, dt, spd) {
   if (!e.onGround || spd < 0.4 || e.rider) { e._fxStride = 0; return; }
-  const foot = FX_FEET[FX_FOOT_OF[e.kind] || 'boot'], sc = e.size || 1;
+  const foot = FX_FEET[mobOf(e).foot || 'boot'], sc = e.size || 1;
   e._fxStride = (e._fxStride || 0) + spd * dt;
   if (e._fxStride < foot.stride * sc) return;
   e._fxStride = 0;
@@ -786,7 +786,7 @@ for (const [col, ...ids] of [
   [[0.5, 0.65, 1],   ITEM.SAPPHIRE, B.SAPPHIRE_ORE, B.SAPPHIRE_CLUSTER_STONE],
   [[1, 0.82, 0.4],   ITEM.TOPAZ,    B.TOPAZ_ORE,    B.TOPAZ_CLUSTER_STONE],
 ]) for (const id of ids) if (id != null) _FX_GEM[id] = col;
-const _FX_CRYSTAL = [0.55, 0.85, 1];                 // the crystal torch's glint (0.834)
+const _FX_CRYSTAL = [0.55, 0.85, 1];                 // the crystal torch's glint
 function _fxGlint(pool, x, y, z, col, size, life = 0.55) {
   const i = pool.add(x, y, z, life);
   if (i < 0) return -1;
@@ -824,12 +824,12 @@ function _fxHeldOne(dt, grp, id, own, key, tipY) {
       H.s0[i] = 0.014; H.s1[i] = 0.004; H.vx[i] = _rnd(-0.06, 0.06); H.vy[i] = _rnd(0.15, 0.3); H.fade[i] = 0.4; H.own[i] = own;
     }
   } else if (crystal) {
-    // a crystal torch has no flame: its crystal glints blue now and then (0.834)
+    // a crystal torch has no flame: its crystal glints blue now and then
     _fxV.set(_rnd(-0.03, 0.03), tipY + _rnd(-0.03, 0.04), _rnd(-0.03, 0.03)); grp.localToWorld(_fxV);
     const i = _fxGlint(H, _fxV.x, _fxV.y, _fxV.z, _FX_CRYSTAL, 0.035);
     if (i >= 0) H.own[i] = own;
   } else if (id < 256) {
-    /* a held gem CLUSTER (0.804): a solid model, so a glint inside it was hidden by its own faces. It
+    /* a held gem CLUSTER: a solid model, so a glint inside it was hidden by its own faces. It
        sparkles on its surface instead, a little proud of it, a bit more often than a loose gem */
     player[k] = 0.3;
     const ax = (Math.random() * 3) | 0, s = Math.random() < 0.5 ? -1 : 1;
@@ -847,13 +847,13 @@ function _fxHeldOne(dt, grp, id, own, key, tipY) {
 function fxHeldTick(dt, held, id, off) {
   if (_fxScale <= 0 || typeof player === 'undefined' || !player) return;
   const own = fxOwner(player);
-  // a torch in the main hand sits on a lifted cross-model group (24-hands.js); its tip is ~0.47 up
+  // a torch in the main hand sits on a lifted cross-model group (player/hands.js); its tip is ~0.47 up
   _fxHeldOne(dt, held, id, own, 'm', 0.47);
   if (off && off.root.visible) _fxHeldOne(dt, off.held, off.heldId, own, 'o', 0.13);
 }
 /* Eating or drinking (from updateEating, while the eat timer runs): crumbs of the food's own colour
    fall from it in your hand, and — for everyone else — from your mouth. Milk splashes white. */
-// `water`: drinking from a lake or river with the bare hand (0.82) — blue drops, no item behind them
+// `water`: drinking from a lake or river with the bare hand — blue drops, no item behind them
 function fxEat(p, id, dt, water = false) {
   if (_fxScale <= 0) return;
   p._fxEatT = (p._fxEatT || 0) - dt;
@@ -885,13 +885,13 @@ function fxEat(p, id, dt, water = false) {
     FX.sprites.grav[i] = 9; FX.sprites.flags[i] = FX_COLLIDE; FX.sprites.own[i] = own;
   }
 }
-/* A block placed: a few bits of it knocked loose around its foot (0.801). */
+/* A block placed: a few bits of it knocked loose around its foot. */
 function fxPlace(x, y, z, val) {
   if (_fxScale <= 0 || !_fxNear(x + 0.5, y + 0.5, z + 0.5)) return;
   const id = val & 255;
   if (!PROPS[id] || !PROPS[id].faces) return;
   /* The light the bits land in, not the light inside the block just placed: that cell is solid now and
-     reads as pitch dark, which drew every placed bit black (0.809). The brightest open side wins. */
+     reads as pitch dark, which drew every placed bit black. The brightest open side wins. */
   let L = 0;
   for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]])
     L = Math.max(L, _fxLight(x + 0.5 + dx, y + 0.5 + dy, z + 0.5 + dz));
@@ -904,13 +904,13 @@ function fxPlace(x, y, z, val) {
   }
 }
 /* Foraging (bush pickup): a handful of bits of the plant pulled — grass, wheat, a berry bush, a
-   flint pebble, a melon (0.801). */
-/* 0.803: plants throw bits of their own colour rather than their texture — grass green, wheat straw
+   flint pebble, a melon. */
+/* plants throw bits of their own colour rather than their texture — grass green, wheat straw
    yellow, a berry bush its berries when ripe and dark leaf green when bare. */
 const _FX_BERRY_COL = {};
 _FX_BERRY_COL[B.REDBERRY_BUSH] = [0.82, 0.12, 0.16];
 _FX_BERRY_COL[B.BLUEBERRY_BUSH] = [0.25, 0.36, 0.88];
-_FX_BERRY_COL[B.BLACKBERRY_BUSH] = [0.25, 0.12, 0.3];   // blackberries (0.80991)
+_FX_BERRY_COL[B.BLACKBERRY_BUSH] = [0.25, 0.12, 0.3];   // blackberries
 _FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.95, 0.8, 0.2];   // 0.827
 _FX_BERRY_COL[B.WHITEBERRY_BUSH] = [0.92, 0.92, 0.86];
 const _FX_LEAF_DARK = [0.2, 0.38, 0.14], _FX_WHEAT = [0.88, 0.76, 0.36];
@@ -930,12 +930,12 @@ function _fxPlantBits(x, y, z, rgb, n, L) {
   }
 }
 /* A plant's coloured bits, for foraging it AND for breaking it with a hoe, a sword or a creative hand
-   (0.804). False when `val` is not one of these plants. */
+. False when `val` is not one of these plants. */
 function _fxPlantBurst(x, y, z, val, L) {
   const id = val & 255;
   if (id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxGrassCol(), _fxN(8), L); return true; }
   if (id === B.WHEAT) { _fxPlantBits(x, y, z, _FX_WHEAT, _fxN(8), L); return true; }
-  // the desert's dry plants (0.84): straw-coloured bits, a dry bush's twigs browner
+  // the desert's dry plants: straw-coloured bits, a dry bush's twigs browner
   if (id === B.DRY_GRASS || id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER) { _fxPlantBits(x, y, z, _FX_DRY, _fxN(8), L); return true; }
   if (id === B.DRY_BUSH) { _fxPlantBits(x, y, z, _FX_DRY_BUSH, _fxN(7), L); return true; }
   if (_FX_BERRY_COL[id]) {
@@ -958,7 +958,7 @@ function fxForage(x, y, z, val) {
     FX.bits.grav[i] = 13; FX.bits.flags[i] = FX_COLLIDE;
   }
 }
-/* A creature killed: crit stars fly out of it and it goes up in a white puff (0.801). */
+/* A creature killed: crit stars fly out of it and it goes up in a white puff. */
 function fxDeath(x, y, z, h = 1) {
   if (_fxScale <= 0 || !_fxNear(x, y, z)) return;
   const S = FX.sprites, L = _fxLight(x, y + h * 0.5, z);
@@ -980,7 +980,7 @@ function fxDeath(x, y, z, h = 1) {
   }
 }
 /* Placed torches near each player burn: a small flame at the tip, now and then a spark or a wisp of
-   smoke. The emitters come from the light index (forEachGlowNear), not from a scan (0.801). */
+   smoke. The emitters come from the light index (forEachGlowNear), not from a scan. */
 const _FX_TORCH_DIR = [null, [1, 0], [-1, 0], [0, 1], [0, -1]];
 function _fxTorches(dt, live) {
   if (typeof forEachGlowNear !== 'function') return;
@@ -993,9 +993,9 @@ function _fxTorches(dt, live) {
       const v = getBlock(x, y, z), id = v & 255;
       if (id !== B.TORCH && id !== B.CRYSTAL_TORCH) return;
       const d = _FX_TORCH_DIR[(v >> 8) & 7];
-      // the tip: an upright stick is 40/64 tall; a wall one leans in from its wall (see emitTorch in 02)
+      // the tip: an upright stick is 40/64 tall; a wall one leans in from its wall (see emitTorch in chunks/mesher-plants.js)
       const tx = x + 0.5 - (d ? d[0] * 0.24 : 0), ty = y + (d ? 0.84 : 0.66), tz = z + 0.5 - (d ? d[1] * 0.24 : 0);
-      // a crystal torch does not burn: its crystal glints blue now and then (0.834)
+      // a crystal torch does not burn: its crystal glints blue now and then
       if (id === B.CRYSTAL_TORCH) {
         if (Math.random() < dt * 0.9 * k) _fxGlint(FX.sprites, tx + _rnd(-0.05, 0.05), ty + _rnd(-0.06, 0.04), tz + _rnd(-0.05, 0.05), _FX_CRYSTAL, 0.06);
         return;
@@ -1098,7 +1098,7 @@ function fxTntFuse(r, x, y, z, dt) {
   if (r._fxT > 0) return;
   r._fxT = Math.max(0.03, 0.02 + r.t * 0.03) / Math.max(0.4, _fxScale);
   if (!_fxNear(x + 0.5, y + 1, z + 0.5)) return;
-  const i = _fxSprite(_R.SPARK, x + 0.5, y + 1.08, z + 0.5, _rnd(0.3, 0.5), 0.15, 0.04);   // bigger (0.804)
+  const i = _fxSprite(_R.SPARK, x + 0.5, y + 1.08, z + 0.5, _rnd(0.3, 0.5), 0.15, 0.04);   // bigger
   if (i >= 0) {
     FX.sprites.color(i, 1, _rnd(0.75, 0.95), 0.4);
     FX.sprites.vx[i] = _rnd(-1.2, 1.2); FX.sprites.vy[i] = _rnd(1.5, 3); FX.sprites.vz[i] = _rnd(-1.2, 1.2);
@@ -1182,7 +1182,7 @@ function _fxBodyInFluid(o, x, y, z, vy, dt, headY) {
   o._fxVy = vy;
   o._fxFluid = fluid;
   if (fluid && !was && fallV < -2.5) fxSplash(x, _fxSurface(x, y, z), z, Math.min(1, -fallV / 16), fluid === 2);
-  // out of the water: the body drips for a couple of seconds (0.803)
+  // out of the water: the body drips for a couple of seconds
   if (was === 1 && !fluid) o._fxWetT = 2.5;
   if (!fluid && o._fxWetT > 0) {
     o._fxWetT -= dt;
@@ -1207,7 +1207,7 @@ function _fxBodyInFluid(o, x, y, z, vy, dt, headY) {
     }
   }
 }
-/* Water, from the ambient sampler (0.803): foam and spray where a falling column lands, and now and then
+/* Water, from the ambient sampler: foam and spray where a falling column lands, and now and then
    a bubble rising off the bottom of a pool. */
 const _FX_SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 function _fxAmbWater(x, y, z, v) {
@@ -1247,8 +1247,8 @@ function _fxAmbBubble(x, y, z) {
   if (Math.random() > 0.04 || !_fxSolid(x, y - 1, z) || (getBlock(x, y + 1, z) & 255) !== B.WATER) return;
   _fxBubble(x + _rnd(0.2, 0.8), y + 0.1, z + _rnd(0.2, 0.8));
 }
-/* Diamond dust (0.836): in the Coldest Deep Snow the open air glitters with drifting ice crystals. `_fxRime` is how far
-   into its cold a player stands (climateAt's rime, 55-biomes.js), asked twice a second. */
+/* Diamond dust: in the Coldest Deep Snow the open air glitters with drifting ice crystals. `_fxRime` is how far
+   into its cold a player stands (climateAt's rime, biomes/biomes.js), asked twice a second. */
 function _fxRime(p) {
   const now = performance.now();
   if (!(p._fxRimeT > now)) {
@@ -1296,10 +1296,10 @@ function _fxAmbient(dt) {
       } else if (id === B.WATER) {
         _fxAmbWater(x, y, z, v);                                     // 0.803
       } else if (id === B.ICE && rime > 0.3) {
-        // the Coldest Deep Snow's ice glints all over (0.836)
+        // the Coldest Deep Snow's ice glints all over
         if (Math.random() < 0.06) _fxGlint(FX.sprites, x + _rnd(-0.02, 1.02), y + _rnd(0, 1.02), z + _rnd(-0.02, 1.02), [0.75, 0.92, 1], _rnd(0.05, 0.09));
       } else if (LEAF_BLOCKS.has(id)) {
-        // a leaf lets go now and then and flutters down, in its own tree's colour (0.803)
+        // a leaf lets go now and then and flutters down, in its own tree's colour
         if (Math.random() > 0.06 || CORE.shapeOfVal(v) || (getBlock(x, y - 1, z) & 255) !== B.AIR) continue;
         const i = _fxBit(id, x + _rnd(0.1, 0.9), y - 0.05, z + _rnd(0.1, 0.9), _rnd(3.5, 5.5), _rnd(0.09, 0.12),
                          _fxLight(x + 0.5, y - 0.5, z + 0.5), 0.3);
@@ -1307,7 +1307,7 @@ function _fxAmbient(dt) {
         FX.bits.grav[i] = 1.2; FX.bits.drag[i] = 1.6; FX.bits.sway[i] = _rnd(0.6, 1.2);
         FX.bits.s1[i] = FX.bits.s0[i] * 0.8; FX.bits.flags[i] = FX_COLLIDE;
       } else if (night && (id === B.GRASS || id === B.TALLGRASS || _fxIsFlower(id))) {
-        // fireflies over the grass at night (0.803)
+        // fireflies over the grass at night
         if (Math.random() > 0.02) continue;
         const up = id === B.GRASS ? 1 : 0;
         if (up && (getBlock(x, y + 1, z) & 255) !== B.AIR && (getBlock(x, y + 1, z) & 255) !== B.TALLGRASS) continue;
@@ -1318,7 +1318,7 @@ function _fxAmbient(dt) {
         S.vx[i] = _rnd(-0.2, 0.2); S.vy[i] = _rnd(-0.05, 0.12); S.vz[i] = _rnd(-0.2, 0.2);
         S.sway[i] = _rnd(0.3, 0.7); S.fade[i] = 0.45; S.flags[i] = FX_FADEIN;
       } else if (day && _fxIsFlower(id)) {
-        // a butterfly about the flowers by day (0.803)
+        // a butterfly about the flowers by day
         if (Math.random() > 0.08) continue;
         const i = _fxSprite(_R.BUTTERFLY, x + 0.5, y + _rnd(0.5, 1.2), z + 0.5, _rnd(5, 8), 0.14, 0.14);
         if (i < 0) continue;
@@ -1328,10 +1328,10 @@ function _fxAmbient(dt) {
         S.vx[i] = _rnd(-0.3, 0.3); S.vy[i] = _rnd(-0.06, 0.1); S.vz[i] = _rnd(-0.3, 0.3);
         S.sway[i] = _rnd(1, 1.6); S.fade[i] = 0.2; S.flags[i] = FX_FADEIN | FX_FLAP;
       } else if (_FX_GEM[id] && PROPS[id]?.model === 'cluster') {
-        // a gem cluster glints (0.801)
+        // a gem cluster glints
         _fxGlint(FX.sprites, x + _rnd(0.15, 0.85), y + _rnd(0.1, 0.7), z + _rnd(0.15, 0.85), _FX_GEM[id], 0.08);
       } else if (PROPS[id]?.opaque && _fxFluidAt(x, y + 1, z) && (getBlock(x, y - 1, z) & 255) === B.AIR) {
-        // a ceiling with water or lava sitting on it drips (0.801): the drop gathers, then falls
+        // a ceiling with water or lava sitting on it drips: the drop gathers, then falls
         if (Math.random() > 0.35) continue;
         const lava = (getBlock(x, y + 1, z) & 255) === B.LAVA;
         const i = _fxSprite(_R.DROP, x + _rnd(0.15, 0.85), y - 0.04, z + _rnd(0.15, 0.85), 3, 0.06, 0.06);
@@ -1350,7 +1350,7 @@ function _fxAmbient(dt) {
     }
   }
 }
-/* A SANDSTORM (0.825, sandstormAt in 51-seasons.js): sand streams past each player on the wind, thicker as the storm
+/* A SANDSTORM (sandstormAt in seasons/weather-sky.js): sand streams past each player on the wind, thicker as the storm
    builds round them (eased like its fog, 52-clouds.js), yellow or red by the ground; none under a roof or in a cave. */
 const _FX_SAND = [0.86, 0.72, 0.47], _FX_RED_SAND = [0.76, 0.42, 0.24], _fxSandCol = [0, 0, 0];
 const FX_SAND_PER_S = 90;                     // at a full storm, before the particle setting
@@ -1385,7 +1385,7 @@ function _fxSandstorm(p, dt) {
     S.grav[i] = 0.3; S.drag[i] = 0; S.flags[i] = FX_FADEIN;
   }
 }
-/* RAIN AND SNOW (0.83): what falls round each player (precipAt in 51-seasons.js), eased in and out over a few seconds
+/* RAIN AND SNOW: what falls round each player (precipAt in seasons/weather-sky.js), eased in and out over a few seconds
    like the sand. More, faster and longer streaks the harder it rains; snow drifts down with a sway, and a blizzard
    drives it sideways with the wind. A drop or flake is only made where the sky is open above it, so none fall under a
    roof, a canopy or in a cave, and each dies on what it hits: rain leaves the odd puddle on the ground, or a ring and a
@@ -1430,7 +1430,7 @@ function _fxWeather(p, dt) {
   // snow: drifting flakes, or a blizzard's driven ones
   const sn = p._fxSnow, bz = p._fxBliz;
   p._fxSnowAcc = Math.min(60, (p._fxSnowAcc || 0) + (FX_SNOW_PER_S * sn + FX_BLIZZARD_PER_S * bz) * _fxScale * dt);
-  /* a blizzard (0.837) packs its snow close round you: flakes made within about 4 blocks instead of 12, driven
+  /* a blizzard packs its snow close round you: flakes made within about 4 blocks instead of 12, driven
      harder, living shorter, so the air at arm's length is thick with them and past it there is only white */
   const side = ws * (0.2 + 0.9 * bz), R = 12 - 8 * bz, up = 9 - 5 * bz;
   while (p._fxSnowAcc >= 1) {
@@ -1492,12 +1492,12 @@ function updateParticles(dt) {
       if (!p.flying) _fxBodyInFluid(p, p.pos.x, p.pos.y, p.pos.z, p.vy || 0, dt, p.pos.y + (p.EYE || 1.62));
       _fxEffects(p, dt);                      // 0.803
       _fxSandstorm(p, dt);                    // 0.825
-      _fxWeather(p, dt);                      // rain and snow (0.83)
+      _fxWeather(p, dt);                      // rain and snow
     }
     // creatures near a player splash too
     if (typeof ENTITIES !== 'undefined')
       for (const e of ENTITIES) {
-        if (e.active === false || e.kind === 'fish') continue;   // a fish lives underwater: no bubble stream (0.805)
+        if (e.active === false || e.kind === 'fish') continue;   // a fish lives underwater: no bubble stream
         const np = nearestPlayerTo(e.x, e.z);
         const dx = e.x - np.pos.x, dz = e.z - np.pos.z;
         if (dx * dx + dz * dz > 24 * 24) continue;

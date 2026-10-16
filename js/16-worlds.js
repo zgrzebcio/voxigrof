@@ -10,7 +10,7 @@ let pointerLocked = false;
 const overlay = document.getElementById('overlay');
 const seedInput = document.getElementById('seedInput');
 seedInput.value = (new URLSearchParams(location.search).get('seed') || '').replace(/[^a-z0-9]/gi, '');
-if (seedInput.value.toLowerCase() === 'voxigrof') seedInput.value = '';   // the menu backdrop's, left in old URLs (0.8031)
+if (seedInput.value.toLowerCase() === 'voxigrof') seedInput.value = '';   // the menu backdrop's, left in old URLs
 
 /* ================================================================================================
    WORLDS — named save files in localStorage. `vg_worlds` holds the registry; each world's
@@ -33,9 +33,9 @@ const newSplitChk = document.getElementById('newSplitChk');
 const newStructChk = document.getElementById('newStructChk');
 const newSeasonChk = document.getElementById('newSeasonChk');   // 0.818
 /* The game's own version, as the corner of the screen shows it ("alpha 0.837"), stamped on a world when it is made and
-   each time it is played (0.837; GAME_VERSION before, which only moves with the textures) */
+   each time it is played (GAME_VERSION before, which only moves with the textures) */
 const APP_VERSION = ((document.getElementById('version') || {}).textContent || '').replace(/^\s*alpha\s*/i, '').trim() || GAME_VERSION;
-// 0.837: day and night, weather, clouds, animals, monsters — each can be switched off when a world is made
+// day and night, weather, clouds, animals, monsters — each can be switched off when a world is made
 const newDayNightChk = document.getElementById('newDayNightChk'), newWeatherChk = document.getElementById('newWeatherChk');
 const newCloudsChk = document.getElementById('newCloudsChk'), newAnimalsChk = document.getElementById('newAnimalsChk');
 const newMonstersChk = document.getElementById('newMonstersChk');
@@ -53,7 +53,7 @@ function setLoadingStep(s) {
   if (worldLoadingStepEl) worldLoadingStepEl.textContent = s;
 }
 let _loadingWorld = false;   // true while initial chunks are generating; hides loading screen when done
-/* True while a world is being joined and its chunks are not all in yet (0.759). Nothing in the world
+/* True while a world is being joined and its chunks are not all in yet. Nothing in the world
    moves while it holds: no controls, no physics, no vitals, no mobs, no clock. A player used to drown,
    starve or get mauled behind the loading screen before they could see anything. */
 const worldJoining = () => _loadingWorld && !menuScene;
@@ -61,7 +61,7 @@ const worldJoining = () => _loadingWorld && !menuScene;
 let WORLDS = (() => { try { const a = JSON.parse(localStorage.getItem('vg_worlds')); return Array.isArray(a) ? a : []; } catch { return []; } })();
 let currentWorld = null;
 let pendingRestore = null;                  // player one's own saved state, applied once their chunk loads
-let pendingWorldRestore = null;             // drops + loose mobs, applied once anything is loaded (0.721)
+let pendingWorldRestore = null;             // drops + loose mobs, applied once anything is loaded
 
 /* World DATA lives in IndexedDB (structured clone — no localStorage 5MB ceiling); only the
    small registry stays in localStorage. Legacy localStorage saves migrate over on load, and
@@ -126,7 +126,7 @@ const idbGet = (id) => new Promise((res) => {
 });
 const idbDel = (id) => { if (idb) try { idb.transaction('worlds', 'readwrite').objectStore('worlds').delete(id); } catch {} };
 
-/* THE SAVE WORKER (0.8384, MultithreadPlan.md "Later"; SAVE_WORKER in 00-config). Building the save and storing it
+/* THE SAVE WORKER (SAVE_WORKER in 00-config). Building the save and storing it
    used to happen in one go on the game's thread: every chunk's edits turned into [cell, value] pairs, then all of it
    copied into IndexedDB. Now the edits leave as one flat Uint32Array per chunk (cell, value, cell, value...), handed
    over without copying, and this worker turns them back into exactly the shape the save always had and writes it.
@@ -192,7 +192,7 @@ function _saveViaWorker(id, data) {
   return p;
 }
 
-/* Storage full (0.8387). localStorage holds about 5 MB a site. Closing the page writes the world being played there
+/* Storage full. localStorage holds about 5 MB a site. Closing the page writes the world being played there
    too (`vg_world_<id>`, saveWorld(true): IndexedDB may not finish while a page closes), and that copy was only taken
    away when the same world was saved again later; a few big worlds left that way filled it, and the world list could
    no longer be written: Create threw before the world loaded. Now every such copy goes into IndexedDB (when it is
@@ -231,10 +231,10 @@ function persistWorlds() {
     catch (e) { console.warn('[worlds] world list not saved', e); if (typeof toast === 'function') toast('storage full: the world list could not be saved'); }
   });
 }
-lsWorldsToIdb();                            // last session's closing-time copies into the database (0.8387)
+lsWorldsToIdb();                            // last session's closing-time copies into the database
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-// a taken name gets a number in brackets: World, World(1), World(2)... (0.829; was World1)
+// a taken name gets a number in brackets: World, World(1), World(2)... (was World1)
 function uniqueWorldName(raw) {
   const base = (raw || '').trim().slice(0, 24) || 'World';
   if (!WORLDS.some(w => w.name === base)) return base;
@@ -242,7 +242,7 @@ function uniqueWorldName(raw) {
   while (WORLDS.some(w => w.name === `${base}(${n})`)) n++;
   return `${base}(${n})`;
 }
-// the small line under the name box: what the world will really be called (0.829)
+// the small line under the name box: what the world will really be called
 const worldNameHint = document.getElementById('worldNameHint');
 function paintWorldNameHint() {
   if (worldNameHint) worldNameHint.textContent = 'saved as: ' + uniqueWorldName(worldNameIn.value);
@@ -251,7 +251,7 @@ worldNameIn.addEventListener('input', paintWorldNameHint);
 
 function saveWorld(syncToLS = false) {
   if (!currentWorld) return;
-  // the edits as the save holds them; an autosave through the worker builds them there instead (0.8384)
+  // the edits as the save holds them; an autosave through the worker builds them there instead
   const viaWorker = !syncToLS && SAVE_WORKER && !!_saveWorkerOf();
   const edits = {};
   if (!viaWorker) for (const [k, m] of editStore) if (m.size) edits[k] = [...m];
@@ -259,45 +259,45 @@ function saveWorld(syncToLS = false) {
     +r.group.position.x.toFixed(2), +r.group.position.y.toFixed(2), +r.group.position.z.toFixed(2),
     +r.vx.toFixed(2), +r.vy.toFixed(2), +r.vz.toFixed(2),
     Math.round(r.age * 10) / 10, Math.max(0, +(r.pickupDelay || 0).toFixed(2)),
-    r.dur ?? null, r.meta || null,                                    // wear and extras (0.79)
-    r.life || DROP_LIFETIME,                                          // how long it lies: 5, 10 or 20 min (0.7981)
-    r.count || 1]);                                                   // a stacked drop's size (0.8385)
+    r.dur ?? null, r.meta || null,                                    // wear and extras
+    r.life || DROP_LIFETIME,                                          // how long it lies: 5, 10 or 20 min
+    r.count || 1]);                                                   // a stacked drop's size
   const furnaces = [...FURNACES].map(([k, f]) =>
     [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3),
-     +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP (0.775)
+     +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP
   const data = {
     savedAt: Date.now(),
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
-    burns: serializeBurns(),              // when each torch and glow block goes out (0.834, 56-torches.js)
-    doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (0.842, 27-doors.js)
-    // mixed layer stacks (0.785): [chunk key, [[cell index, [block ids bottom to top]], ...]]
+    burns: serializeBurns(),              // when each torch and glow block goes out (blocks/torches.js)
+    doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (blocks/doors.js)
+    // mixed layer stacks: [chunk key, [[cell index, [block ids bottom to top]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
     // structures: which chunks were already rolled, unopened loot markers, structure-block setups
     structPlaced: serializeStructPlaced(), structLoot: serializePendingLoot(),
     structBlocks: serializeStructBlocks(),
-    bossLairs: typeof serializeBossLairs === 'function' ? serializeBossLairs() : [],   // the snow castles and their kings (0.8393)
+    bossLairs: typeof serializeBossLairs === 'function' ? serializeBossLairs() : [],   // the snow castles and their kings
     time: worldTime, worldDay, curMode: currentInvMode,
-    bloodLast: bloodMoonLast,               // the night of the last blood moon (0.8192, 53-storms.js)
+    bloodLast: bloodMoonLast,               // the night of the last blood moon (53-storms.js)
     survHot: survStash.hot, survInv: survStash.inv, survInv2: survStash.inv2,
     survEquip: serializeEquip(), survBelt: serializeBelt(),
     xp: serializeXP(),                    // total experience + the player-placed block ledger
     player: { pos: [player.pos.x, player.pos.y, player.pos.z], yaw: player.yaw, pitch: player.pitch,
               hp: player.hp, food: player.food, saturation: player.saturation, flying: player.flying,
-              vit: serializeVitals(player),   // the other bars, and the mark that these are out of 100 (0.82)
+              vit: serializeVitals(player),   // the other bars, and the mark that these are out of 100
               hotSel: hotbarSel, profile: player.profileId || null,
               spawnPos: player.spawnPos ? player.spawnPos.toArray() : null,
               homeSpawn: player.homeSpawn ? player.homeSpawn.toArray() : null,
               spawnBedKey: player.spawnBedKey || null,
-              // a death survives leaving the world (0.757): how long, which day, and what did it
+              // a death survives leaving the world: how long, which day, and what did it
               aliveT: +(player.aliveT || 0).toFixed(1), dead: !!player.dead,
               cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
-              deathMark: serializeDeathMark(player),                       // where they last died (0.827)
-              feats: serializeFeats(player),                               // biomes found, the top and bottom (0.8283)
+              deathMark: serializeDeathMark(player),                       // where they last died
+              feats: serializeFeats(player),                               // biomes found, the top and bottom
               craftQueue: serializeCraftQueue(player),                     // 0.76
               skills: serializeSkills(player),                             // 0.79
-              quest: serializeQuests(player), saltT: player._saltT || 0 },   // salt timer (0.8099)                            // the starter quest reached (0.798)
-    /* One record per person who has played this world, tagged with their profile (0.721) — see
+              quest: serializeQuests(player), saltT: player._saltT || 0 },   // salt timer                            // the starter quest reached
+    /* One record per person who has played this world, tagged with their profile — see
        the header of 36-splitscreen.js's persistence section. Player one ALSO keeps writing the
        original top-level fields above, so an older build still opens this save. */
     players: serializePlayerRecords(),
@@ -306,7 +306,7 @@ function saveWorld(syncToLS = false) {
   if (syncToLS) {           // unload path: synchronous localStorage copy, IDB may not finish
     try { localStorage.setItem('vg_world_' + id, JSON.stringify(data)); } catch {}
   }
-  // the old way when the worker cannot take it: `edits` built here after all (0.8384)
+  // the old way when the worker cannot take it: `edits` built here after all
   const direct = () => {
     if (viaWorker) { data.edits = {}; for (const [k, m] of editStore) if (m.size) data.edits[k] = [...m]; }
     idbPut(id, data)
@@ -332,7 +332,7 @@ async function loadWorld(w) {
   if (currentWorld && currentWorld !== w) saveWorld();   // switching worlds: save the old one first
   currentWorld = w;
   menuScene = false;
-  showTitleDate(false);                      // the title's date goes with it (0.8194)
+  showTitleDate(false);                      // the title's date goes with it
   setHudVisible(true);
   _loadingWorld = true;
   worldLoadingNameEl.textContent = w.name;
@@ -341,28 +341,28 @@ async function loadWorld(w) {
   // the loading screen, where there is already something covering the wait
   ensureGameAssets();
   const vd = clampi(+distInput.value || 10, 4, 32);      // leave the short panorama distance
-  // always, even at the same distance: the backdrop had no far ring, and the camera's reach must grow by it (0.8193)
+  // always, even at the same distance: the backdrop had no far ring, and the camera's reach must grow by it
   viewDist = vd; applyViewDist();
-  // world's simulation-speed setting; a saved 0 stays 0 (0.8373), a world without one is 3
+  // world's simulation-speed setting; a saved 0 stays 0, a world without one is 3
   randomTickSpeed = clampi(typeof w.tickSpeed === 'number' && isFinite(w.tickSpeed) ? w.tickSpeed : 3, 0, 20);
   if (!w.createdVersion) w.createdVersion = 'pre-0.443';  // legacy worlds predate version stamping
   w.lastVersion = APP_VERSION;                            // record the version this session joined on
   persistWorlds();
   await idbReady;
-  await _saveSettled(w.id);                 // its own save still on the way through the save worker first (0.8384)
+  await _saveSettled(w.id);                 // its own save still on the way through the save worker first
   let data = await idbGet(w.id);
   let ls = null;
   try { ls = JSON.parse(localStorage.getItem('vg_world_' + w.id)); } catch {}
   if (ls && (!data || (ls.savedAt || 0) > (data.savedAt || 0))) data = ls;   // pick the newest copy
   setPlayerCount(1);                  // the roster is per world; the previous one's players leave
-  player.chiselShape = null;          // the chisel's shape is not kept between worlds (0.7844)
-  player._variantPick = null;         // ...nor the picked variants (0.794)
-  player._deathMarks = [];            // ...nor where they died in another world (0.827; the last five since 0.8442)
-  player._restacked = false;          // its stacks are fitted again as this world is joined (0.8442, 15-drops.js)
-  player._feats = null; player._night = null;   // ...nor what they found there (0.8283)
+  player.chiselShape = null;          // the chisel's shape is not kept between worlds
+  player._variantPick = null;         // ...nor the picked variants
+  player._deathMarks = [];            // ...nor where they died in another world (the last five since 0.8442)
+  player._restacked = false;          // its stacks are fitted again as this world is joined (15-drops.js)
+  player._feats = null; player._night = null;   // ...nor what they found there
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
-  LAYER_STACKS.clear();                      // mixed layer stacks belong to the world (0.785)
+  LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
   if (data && Array.isArray(data.layers))
     for (const rec of data.layers) {
       if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[1])) continue;
@@ -410,14 +410,14 @@ async function loadWorld(w) {
     }
   glowClear();                               // re-derive glowstone lights from the saved edits
   clearDoors();                              // + rebuild door meshes from saved bottom halves
-  restoreDoorLocks(data && data.doorLocks);  // and their locks (0.842)
+  restoreDoorLocks(data && data.doorLocks);  // and their locks
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
-  restoreSeasons(data && data.seasons);                                // what autumn took, for spring (0.81)
-  restoreBurns(data && data.burns);                                    // lights burning out (0.834)
+  restoreSeasons(data && data.seasons);                                // what autumn took, for spring
+  restoreBurns(data && data.burns);                                    // lights burning out
   restoreBloodMoon(data && data.bloodLast);                            // 0.8192
-  restoreBenches(data && data.benches);                                   // crafting bench orders (0.76)
+  restoreBenches(data && data.benches);                                   // crafting bench orders
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
   restoreStructPlaced(data && data.structPlaced);
   // same rule for mobs: this must land before any chunk streams in, or it re-rolls its population
@@ -430,15 +430,15 @@ async function loadWorld(w) {
     for (const [i, v] of m) {
       if (blockLightOf(v) > 0)
         glowAdd(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15));
-      if (BLOCKS.isDoorVal(v) && !((v >> 8) & 8))     // a door of any material (0.842; old oak doors converted above)
+      if (BLOCKS.isDoorVal(v) && !((v >> 8) & 8))     // a door of any material (old oak doors converted above)
         registerDoor(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), v);
       if ((v & 255) === B.BED && !((v >> 8) & 8))     // only the foot half owns a mesh
         registerBed(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, bedWoodOf((v >> 8) & 255));   // wood 0.8342
-      if (isChestId(v & 255))                         // wooden or metal (0.843)
-        registerChest(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, v);   // its value: the chunk is not in yet (0.8445)
+      if (isChestId(v & 255))                         // wooden or metal
+        registerChest(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, v);   // its value: the chunk is not in yet
     }
   }
-  /* Who is player one in this world?  (0.721)
+  /* Who is player one in this world?
      The save holds one record per profile, so the person sitting at the keyboard gets THEIR OWN
      things back — even if they were player three last time. Only when the save has no record for
      them (a world they have never joined, or one written before profiles existed) does the legacy
@@ -448,7 +448,7 @@ async function loadWorld(w) {
   const _legacy = (data && data.player && Array.isArray(data.player.pos) && !data.player.profile)
                 ? data.player : null;
   const _own = _mine || _legacy;
-  /* Skills first (0.79): they ride with the XP that paid for them, and Pack Rat decides how big a
+  /* Skills first: they ride with the XP that paid for them, and Pack Rat decides how big a
      stack the inventory below is allowed to hold. */
   player.skills = restoreSkills(_own && _own.skills);
   player.questIdx = restoreQuests(_own && _own.quest);   // 0.798
@@ -487,7 +487,7 @@ async function loadWorld(w) {
 
 function restoreDrops(list) {
   if (!Array.isArray(list)) return;
-  _dropsRestoring = true;                        // a load restores them whatever the mode (0.804)
+  _dropsRestoring = true;                        // a load restores them whatever the mode
   try { _restoreDropList(list); } finally { _dropsRestoring = false; }
 }
 function _restoreDropList(list) {
@@ -550,7 +550,7 @@ function renderWorldList() {
     if (w.split) bits.push('split screen');
     if (typeof w.savedDay === 'number') bits.push(`day ${w.savedDay}`);
     /* which game made it and which last played it, and its world generation (biomeRev: the land a world grows
-       stays the one it was made with, 0.837) */
+       stays the one it was made with) */
     const made = w.createdVersion || 'pre-0.443', last = w.lastVersion || made;
     // early in the line, which ends in an ellipsis when it runs long
     bits.splice(2, 0, `made in v${escapeHtml(made)}` + (last !== made ? `, played in v${escapeHtml(last)}` : ''), `world gen ${w.biomeRev || 1}`);
@@ -632,7 +632,7 @@ function setHudVisible(v) {
      hearts, hunger and level bar sitting over the panorama. They own their own visibility while
      playing (survival only), so hiding is unconditional but SHOWING is left to them — otherwise
      this would force a creative player's heart row back on. */
-  /* Every one of these lives inside a per-player HUD pane now (0.72), so the sweep runs over all
+  /* Every one of these lives inside a per-player HUD pane now, so the sweep runs over all
      the panes rather than over document ids — with four players there are four of each. */
   for (const [i, pane] of hudPanes().entries()) {
     for (const sel of ['#hud', '#hotbar', '#crosshair']) {
@@ -679,7 +679,7 @@ function startMenuBackdrop() {
   resetWorld(MENU_SEED);
   viewDist = 5; applyViewDist(false);       // backdrop only — never persist this short distance
   worldTime = 0.15;                         // late morning: bright, long shadows
-  worldDay = randomTitleDay();              // on a random day of a random season, shown top left (0.8194)
+  worldDay = randomTitleDay();              // on a random day of a random season, shown top left
   showTitleDate(true);
   player.pos.set(MENU_SPOT.x, MENU_SPOT.y, MENU_SPOT.z);
   player.spawned = true;                    // skip the spawn snap entirely

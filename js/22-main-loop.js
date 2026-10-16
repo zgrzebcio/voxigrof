@@ -1,909 +1,8 @@
 'use strict';
-/* voxiGrof — per-frame update: movement, mining, drops, camera */
+/* 22-main-loop.js: the loop. frame() (once a screen refresh), simTick() (the world's clockwork, 20 times a second),
+   runWorldTick (the chunk stream and the world's slow passes), the F3 timings and read-out, and the hand's own
+   render pass. A player's own frame is player/tick.js. */
 
-/* ================================================================================================
-   MAIN LOOP
-   ================================================================================================ */
-/* ---- gravity blocks (sand, gravel) ---- */
-const fallingBlocks = new Map();   // "x,y,z" -> full block VALUE (id + variant)
-// a cell a falling block drops into: empty, or a billboard it simply crushes on the way through
-const _fallOpen = (id) => id === B.AIR || PROPS[id]?.model === 'cross';
-// Carpets fall too — snow and leaf litter both need ground under them, and digging out that
-// ground used to leave a sheet of snow hanging in the air. Since 0.785 that is any stack of layers you
-// wade through (snow, leaves, sand, gravel, fiber); solid layers (stone, planks, ...) stay put. By VALUE.
-const _fallsUnderGravity = (v) => {
-  const id = v & 255;
-  if (CORE.layerCount(v)) return !!PROPS[id]?.layerStack;
-  return LOOSE_LAYER_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';        // a whole sand, gravel or fiber block
-};
-function scheduleFall(x, y, z) {
-  if (y < 1 || y > WORLD_TOP) return;
-  const val = getBlock(x, y, z);
-  if (!_fallsUnderGravity(val)) return;
-  // billboards don't hold up a falling block — they get crushed, so they count as empty here
-  // ...and a stack resting on a stack that takes it is queued too: processFalling pours it in (0.8263)
-  const below = getBlock(x, y - 1, z);
-  if (!_fallOpen(below & 255) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
-  fallingBlocks.set(`${x},${y},${z}`, val);        // keep the variant: carpets carry layer count
-}
-/* 0.8444. Gravity blocks only ever fell when something beside them was edited, so sand or gravel the world made over a
-   cave hung there for good, and held you up. Two more things wake them now:
-     - your feet: the loose blocks you stand on look under themselves every frame (_fallUnderFeet, from tickPlayer);
-     - a neighbour going: the four cells beside a block that falls look too (_fallWakeBeside), so a hanging roof
-       comes down along its whole length, a few blocks a tick, instead of one block out of the middle. */
-function _fallWakeBeside(x, y, z) {
-  scheduleFall(x + 1, y, z); scheduleFall(x - 1, y, z); scheduleFall(x, y, z + 1); scheduleFall(x, y, z - 1);
-}
-function _fallUnderFeet() {
-  const p = player.pos, r = player.R, y = Math.floor(p.y - 0.01);
-  const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r), z0 = Math.floor(p.z - r), z1 = Math.floor(p.z + r);
-  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) scheduleFall(x, y, z);
-}
-let _fallTimer = 0;
-/* A single fall is TWO setBlocks, and clearing an opaque block re-floods sky light through the
-   column — measured at ~4ms apiece for gravel. The old budget of 192 meant a tick could cost
-   most of a second, so it is deliberately small now: a big collapse comes down over a couple of
-   seconds instead of freezing the frame. */
-const FALL_MAX_PER_TICK = 24;
-/* ...and the queue is not allowed to clog. An entry that is out of simulation range is stepped
-   over rather than acted on, but stepping over it still costs a scan, so the walk is bounded:
-   past FALL_SCAN_LIMIT entries we stop looking this tick and pick up from the front next time.
-   Entries that are simply stale (block already gone, or something solid slid in underneath) are
-   DELETED on sight — leaving them is what let a few hundred dead keys sit at the head of the map
-   and starve every live one behind them. */
-const FALL_SCAN_LIMIT = 512;
-/* BLOCKS IN THE AIR (0.8193). A whole block (sand, gravel) used to step down one cell a tick, and every step was two
-   setBlocks that each changed a column's opacity, so each re-flooded sky light (~4ms): a sand column collapsing
-   cost hundreds of those and froze the game. Now it leaves its cell once, falls as a moving block, and lands once,
-   and the lighting of a whole tick's worth of those edits is redone once per area (_litEdits). Past
-   FALL_BLOCKS_MAX in the air, or away from every player, a block drops straight to where it would land. Layer
-   stacks (snow, litter, loose piles) are see-through, cost no relight, and still step down cell by cell. */
-const FALL_BLOCKS = [];                 // { group, val, x, z, y (its bottom), vy }
-const FALL_BLOCKS_MAX = 64;
-const FALL_G = 32, FALL_VMAX = 40;
-/* Block edits with lighting held back, then relit once per 16x16 area they touched: one sky rebuild over the area
-   (reskyAround's box form) and, where a light is near, one block-light rebuild. */
-function _litEdits(cells, fn) {
-  const prev = structBulkLight;
-  structBulkLight = true;
-  try { fn(); } finally { structBulkLight = prev; }
-  if (prev || !cells.length) return;
-  const areas = new Map();
-  for (const [x, y, z] of cells) {
-    const k = (x >> 4) + ',' + (z >> 4);
-    let a = areas.get(k);
-    if (!a) areas.set(k, a = { x0: x, x1: x, y0: y, y1: y, z0: z, z1: z, glow: false });
-    a.x0 = Math.min(a.x0, x); a.x1 = Math.max(a.x1, x); a.y0 = Math.min(a.y0, y); a.y1 = Math.max(a.y1, y);
-    a.z0 = Math.min(a.z0, z); a.z1 = Math.max(a.z1, z);
-    if (!a.glow && glowNear(x, y, z)) a.glow = true;
-  }
-  for (const a of areas.values()) {
-    reskyAround(a.x0, 0, a.z0, a.x1, a.z1);
-    if (a.glow) relight(a.x0, a.y0, a.z0, a.x1, a.y1, a.z1);
-  }
-}
-// where a block dropped from (x, y, z) comes to rest: the lowest open cell it can reach
-function _landingY(x, y, z) {
-  let c = y;
-  while (c > 1 && _fallOpen(getBlock(x, c - 1, z) & 255)) c--;
-  return c;
-}
-/* A whole sand, gravel or fiber block lands as a loose pile of 8 walk-through layers, pouring into a stack below
-   that takes it (0.786); a falling stack pours the same way (0.785). */
-function _settlePile(x, y, z, val) {
-  const top = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : new Array(LAYER_MAX).fill(val & 255);
-  if (!top) return;
-  const below = getBlock(x, y - 1, z);
-  if (canStackLayer(below, top[0])) {
-    const bottom = layerIdsAt(x, y - 1, z, below), room = LAYER_MAX - bottom.length;
-    setLayerStack(x, y - 1, z, bottom.concat(top.slice(0, room)));
-    setLayerStack(x, y, z, top.slice(room));
-  } else if (!CORE.layerCount(val)) setLayerStack(x, y, z, top);   // a whole block settles into its pile
-}
-function _landBlocks(list) {
-  _litEdits(list, () => {
-    for (const [x, y0, z, val] of list) {
-      let y = y0;
-      for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
-      if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
-        if (!player.canFly) for (const d of blockDrop(val & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
-        continue;
-      }
-      crushBillboard(x, y, z);
-      setBlock(x, y, z, val);
-      if (LOOSE_LAYER_BLOCKS.has(val)) _settlePile(x, y, z, val);
-    }
-  });
-}
-function _spawnFallBlock(x, y, z, val) {
-  const passes = buildDropGeom(val & 255, (val >> 8) & 255);
-  if (!passes.length) return false;
-  const group = new THREE.Group();
-  for (const { p, geo, mat, node } of passes) group.add(node || new THREE.Mesh(geo, mat || MATERIALS[p]));
-  group.traverse(o => o.layers.set(1));          // drawn, but kept out of the shadow maps
-  group.position.set(x + 0.5, y + 0.5, z + 0.5);
-  scene.add(group);
-  FALL_BLOCKS.push({ group, val, x, z, y, vy: 0 });
-  return true;
-}
-function _updateFallBlocks(dt) {
-  if (!FALL_BLOCKS.length) return;
-  const landed = [];
-  for (let i = FALL_BLOCKS.length - 1; i >= 0; i--) {
-    const f = FALL_BLOCKS[i];
-    if (!inSimRange(f.x, f.z)) continue;                             // frozen out of range, like the queue
-    f.vy = Math.max(-FALL_VMAX, f.vy - FALL_G * dt);
-    const ny = f.y + f.vy * dt;
-    // the first whole cell it reaches this frame that has no room under it is where it stops
-    let land = null;
-    for (let c = Math.floor(f.y); c >= Math.ceil(ny); c--)
-      if (c <= 1 || !_fallOpen(getBlock(f.x, c - 1, f.z) & 255)) { land = c; break; }
-    if (land == null) { f.y = ny; f.group.position.y = ny + 0.5; continue; }
-    landed.push([f.x, Math.max(1, land), f.z, f.val]);
-    scene.remove(f.group);
-    FALL_BLOCKS.splice(i, 1);
-  }
-  if (landed.length) _landBlocks(landed);
-}
-function clearFallBlocks() {
-  for (const f of FALL_BLOCKS) scene.remove(f.group);
-  FALL_BLOCKS.length = 0;
-  fallingBlocks.clear();
-}
-function processFalling(dt) {
-  _updateFallBlocks(dt);
-  _fallTimer += dt;
-  if (_fallTimer < 0.08) return;
-  _fallTimer -= 0.08;
-  const todo = [], starts = [], settle = [];
-  let scanned = 0;
-  for (const [k, val] of fallingBlocks) {         // deleting during iteration is safe on a Map
-    if (todo.length + starts.length >= FALL_MAX_PER_TICK || ++scanned > FALL_SCAN_LIMIT) break;
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;              // frozen out of range — keep it queued
-    if (getBlock(x, y, z) !== val) { fallingBlocks.delete(k); continue; }        // stale
-    const below = getBlock(x, y - 1, z);
-    if (!_fallOpen(below & 255)) {                // landed
-      fallingBlocks.delete(k);
-      /* ...a falling stack pours down into a stack below that takes it (0.785), and a whole sand, gravel
-         or fiber block lands as a loose pile of 8 walk-through layers, pouring in the same way (0.786) */
-      if (CORE.layerCount(val) ? canStackLayer(below, val & 255) : LOOSE_LAYER_BLOCKS.has(val)) settle.push([x, y, z, val]);
-      continue;
-    }
-    fallingBlocks.delete(k);
-    // a see-through stack steps down a cell; a whole block takes to the air (0.8193)
-    if (CORE.layerCount(val) || !CORE.opaqueVal(val)) todo.push([x, y, z, val]);
-    else starts.push([x, y, z, val]);
-  }
-  for (const [x, y, z, val] of todo) {
-    // a mixed stack carries its list of blocks down with it (0.785)
-    const ids = CORE.layerMixed(val) ? layerIdsAt(x, y, z, val) : null;
-    crushBillboard(x, y - 1, z);                 // torch/flower in the way is destroyed + dropped
-    setBlock(x, y, z, B.AIR);
-    if (ids) setLayerStack(x, y - 1, z, ids);
-    else setBlock(x, y - 1, z, val);             // variant travels with it
-    _fallWakeBeside(x, y, z);                    // 0.8444
-  }
-  if (starts.length) {
-    const now = [];
-    _litEdits(starts, () => {
-      for (const [x, y, z, val] of starts) {
-        setBlock(x, y, z, B.AIR);
-        const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
-        if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) now.push([x, _landingY(x, y, z), z, val]);
-        _fallWakeBeside(x, y, z);                // its neighbours may hang over the same hole (0.8444)
-      }
-    });
-    if (now.length) _landBlocks(now);
-  }
-  if (settle.length) _litEdits(settle, () => { for (const [x, y, z, val] of settle) _settlePile(x, y, z, val); });
-}
-
-/* ---- simulation wake-up (0.7141) ----
-   Fluids and gravity blocks are EVENT driven: a cell only ever moves because something queued it,
-   and the only things that queue are setBlock and a neighbour's own tick. Terrain straight out of
-   the generator has never been queued by anything — which is why a generated lava pool sat inert
-   until an unrelated edit nearby happened to poke it (the light update that seemed to trigger it
-   was incidental; ANY setBlock would have done), and why a snow carpet whose support a cave had
-   eaten hung in the air.
-
-   So the simulation radius seeds it. A chunk entering the radius is scanned once and every cell
-   that could plausibly move is handed to the right queue; normal per-cell scheduling takes over
-   from there.
-
-   PERFORMANCE. The scan is 64 000 cells (250 tall since 0.8354) per chunk, far too much for one frame, so it is a
-   RESUMABLE CURSOR: `_wake` holds the chunk and the y-layer reached, and each frame spends a
-   fixed cell budget wherever it left off. Three things keep the per-cell cost near zero:
-     - the id is classified by one Uint8Array lookup, so stone/dirt/air reject immediately;
-     - neighbour reads go straight to the chunk's own array, using getBlock only on the four
-       border columns;
-     - settled sea water is never queued at all (see _WAKE_KIND).
-   A full radius-6 region wakes in a few seconds, spread evenly, with no visible hitch. */
-const _simWoken = new Set();              // "cx,cz" already scanned this session
-let _wake = null;                         // resumable cursor: { cx, cz, d, y }
-const WAKE_CELLS_PER_FRAME = 20000;       // ~2.5 frames per chunk at 60fps
-/* 0 = never moves on its own, 2 = falls under gravity. One lookup replaces a chain of comparisons
-   on the hot path, and the table is what makes a 20k-cell slice cost ~0.1ms.
-
-   Only CARPETS are woken — snow and leaf litter, which is the "flying snow" case the seeding
-   exists to fix. It is cheap (a carpet is not opaque, so removing one costs no sky relight) and
-   self-limiting: the carpet falls once, lands, and is done.
-
-   Two things are deliberately NOT woken:
-
-   - Sand and gravel. The world is full of gravel lying over cave roofs; collapsing all of it the
-     moment a chunk enters the radius cost ~4ms per block in sky relighting and rearranged terrain
-     nobody asked to have rearranged.
-
-   - Fluids. Waking generated lava does not make it settle into place — it makes it OSCILLATE.
-     A woken cell flows outward, the new flowing cell fails the "still fed" test on its next tick
-     and dries back, which re-seeds the neighbour that spawned it, and round it goes. Measured at
-     ~30 lava writes and ~30 air writes a second forever, with the queue pinned at ~180 and never
-     draining. Lava emits light 15, so every one of those writes re-floods light across several
-     chunks: ~900 chunk re-meshes a second and roughly half the frame rate, while standing still.
-     The oscillation is a fault in the fluid tick's feed rules, not in the seeding, and fixing it
-     belongs to that code — see the note at the end of this response.
-
-   Either kind still behaves exactly as it always has once you disturb it yourself: setBlock
-   queues the neighbours, and the normal per-cell scheduling takes over. */
-// 3 = falls only while it is a layer stack (0.785): a full sand block or leaf block is not woken
-const _WAKE_KIND = new Uint8Array(256);
-{
-  for (let id = 0; id < 256; id++) {
-    if (PROPS[id]?.model === 'carpet') _WAKE_KIND[id] = 2;
-    if (PROPS[id]?.layerStack) _WAKE_KIND[id] = 3;
-  }
-}
-function clearSimWake() { _simWoken.clear(); _wake = null; _wakeIdle = false; }
-// a chunk that just (re)arrived must be scanned again, whatever it did last time
-function simWakeInvalidate(cx, cz) {
-  _simWoken.delete(cx + ',' + cz);
-  _wakeIdle = false;                                               // there is work again
-  if (_wake && _wake.cx === cx && _wake.cz === cz) _wake = null;   // cursor's array is stale
-}
-
-/* Once every chunk in range is seeded, the ring search below finds nothing — but it still walks
-   the whole radius to prove it, every single frame, forever. `_wakeIdle` latches that result and
-   is cleared by the only two things that can invalidate it: crossing a chunk border, and a chunk
-   arriving (simWakeInvalidate). Standing still therefore costs nothing at all. */
-let _wakeIdle = false, _wakeIdleKey = '';
-// the latch key must name EVERY player's chunk — one of them moving is new work (0.72)
-const _wakeKey = () => PLAYER_CHUNKS.map(p => p[0] + ',' + p[1]).join(';');
-// pick the nearest un-woken loaded chunk inside the radius; false when there is nothing to do
-function _beginNextWake() {
-  const wk = _wakeKey();
-  if (_wakeIdle && _wakeIdleKey === wk) return false;
-  const r = simDist();
-  for (let ring = 0; ring <= r; ring++)
-    for (const pc of PLAYER_CHUNKS)
-      for (let dz = -ring; dz <= ring; dz++)
-        for (let dx = -ring; dx <= ring; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue;      // ring shell only
-          if (dx * dx + dz * dz > r * r) continue;
-          const cx = pc[0] + dx, cz = pc[1] + dz;
-          if (_simWoken.has(cx + ',' + cz)) continue;
-          const c = getChunk(cx, cz);
-          if (!c || !c.data) continue;                  // not streamed in yet — try again later
-          _wake = { cx, cz, d: c.data, y: 1 };
-          return true;
-        }
-  _wakeIdle = true; _wakeIdleKey = wk;
-  return false;
-}
-// scan up to `budget` cells of the current chunk; returns how many were actually spent
-function _scanWakeSlice(budget) {
-  const w = _wake, d = w.d, wx0 = w.cx * 16, wz0 = w.cz * 16;
-  // the chunk may have unloaded (or been rebuilt) since the cursor was opened
-  const c = getChunk(w.cx, w.cz);
-  if (!c || c.data !== d) { _wake = null; return budget; }
-  const openAt = (lx, y, lz) => {
-    if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 0 && y < CHUNK_Y)
-      return _fallOpen(d[lx + (lz << 4) + (y << 8)] & 255);
-    return _fallOpen(getBlock(wx0 + lx, y, wz0 + lz) & 255);
-  };
-  let used = 0;
-  while (w.y < CHUNK_Y && used < budget) {
-    const base = w.y << 8;
-    for (let i = 0; i < 256; i++) {
-      const raw = d[base + i], id = raw & 255;
-      /* Emitters first. Registering is idempotent — a Set add — and it is the insurance that
-         makes the re-light below actually have something to pour: a torch inside a structure
-         stamped while the chunk was out of range is in the world but may never have reached
-         glowLights, and unregistered emitters are exactly why those torches sat dark. */
-      if (EMITTER_ID[id] && blockLightOf(raw) > 0)
-        glowAdd(wx0 + (i & 15), w.y, wz0 + ((i >> 4) & 15));
-      const wk = _WAKE_KIND[id];
-      if (!wk || (wk === 3 && !CORE.layerCount(raw))) continue;
-      const lx = i & 15, lz = (i >> 4) & 15;
-      if (openAt(lx, w.y - 1, lz)) scheduleFall(wx0 + lx, w.y, wz0 + lz);
-    }
-    used += 256;
-    w.y++;
-  }
-  if (w.y >= CHUNK_Y) {
-    /* Chunk fully scanned: every emitter in it is registered, so pour block light in now. This is
-       the step that lights a structure's torches — chunk load already tried, but at the time the
-       chunk was outside the simulation radius and relightForChunk correctly declined.
-
-       Then RE-MESH the neighbourhood, which is the part that actually makes it visible.
-       propagateLight only writes into the light arrays; it marks nothing dirty, because its other
-       caller (relight) marks the affected box itself and its remaining caller (chunk load) runs
-       before the chunk has ever been meshed. Here the chunks are already on screen with stale
-       vertex light, so without this the torch data says 15 and the picture stays black — which is
-       exactly what you were looking at. A source reaches GLOW_LEVEL blocks, under one chunk, so
-       the 3x3 ring around the woken chunk is the full blast radius. */
-    relightForChunk(w.cx, w.cz);
-    for (let dz = -1; dz <= 1; dz++)
-      for (let dx = -1; dx <= 1; dx++) {
-        const n = getChunk(w.cx + dx, w.cz + dz);
-        if (n && n.data) markDirty(n);
-      }
-    _simWoken.add(w.cx + ',' + w.cz);
-    _wake = null;
-  }
-  return used;
-}
-function updateSimWake() {
-  if (menuScene || !player.spawned) return;
-  let budget = WAKE_CELLS_PER_FRAME;
-  while (budget > 0) {
-    if (!_wake && !_beginNextWake()) return;       // nothing left in range to seed
-    budget -= _scanWakeSlice(budget);
-  }
-}
-
-/* ---- leaves natural decay ---- */
-const leavesDecayQueue = new Set();
-const DECAY_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
-
-const _isLeaf = (id) => id === B.LEAVES || id === B.BIRCH_LEAVES || id === B.SPRUCE_LEAVES || id === B.RIME_LEAVES || id === B.PALM_LEAVES;   // rime 0.836; palm 0.84
-// a real leaf block, by value: leaf litter is the leaf block's own id with layers, and must never decay as canopy (0.785)
-const _isLeafVal = (v) => _isLeaf(v & 255) && !((v >> 8) & 255);
-// stripped logs count as support: a half-chopped tree must not shed its canopy while you work
-const _isLog  = (id) => id === B.LOG || id === B.BIRCH_LOG || id === B.SPRUCE_LOG ||
-                        id === B.STRIPPED_SPRUCE_LOG || id === B.RIME_LOG || id === B.STRIPPED_RIME_LOG ||   // rime 0.836
-                        id === B.PALM_LOG || id === B.STRIPPED_PALM_LOG ||                                  // palm 0.84
-                        id === B.STRIPPED_LOG || id === B.STRIPPED_BIRCH_LOG;
-function scheduleLeavesCheck(cx, cy, cz) {
-  const R = 5;
-  for (let dx = -R; dx <= R; dx++)
-    for (let dy = -R; dy <= R; dy++)
-      for (let dz = -R; dz <= R; dz++)
-        if (_isLeafVal(getBlock(cx+dx, cy+dy, cz+dz)))
-          leavesDecayQueue.add(`${cx+dx},${cy+dy},${cz+dz}`);
-}
-
-function isLeavesConnected(lx, ly, lz) {
-  const visited = new Set();
-  const queue = [[lx, ly, lz, 0]];
-  visited.add(`${lx},${ly},${lz}`);
-  while (queue.length) {
-    const [x, y, z, dist] = queue.shift();
-    for (const [dx, dy, dz] of DECAY_DIRS) {
-      const nx = x+dx, ny = y+dy, nz = z+dz;
-      const key = `${nx},${ny},${nz}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
-      const bv = getBlock(nx, ny, nz), b = bv & 255;
-      if (_isLog(b)) return true;
-      if (_isLeafVal(bv) && dist < 4) queue.push([nx, ny, nz, dist + 1]);
-    }
-  }
-  return false;
-}
-
-let leavesDecayTimer = 0;
-const DECAY_INTERVAL = 0.2;      // was 0.5 — an orphaned canopy should clear while you watch
-const DECAY_BATCH = 24;          // was 8
-function processLeavesDecay(dt) {
-  leavesDecayTimer += dt;
-  if (leavesDecayTimer < DECAY_INTERVAL) return;
-  leavesDecayTimer -= DECAY_INTERVAL;
-  const toProcess = [];
-  for (const k of leavesDecayQueue) {
-    if (toProcess.length >= DECAY_BATCH) break;
-    if (!_keyInSimRange(k)) continue;      // stays queued until the player is back in range
-    toProcess.push(k);
-  }
-  for (const key of toProcess) {
-    leavesDecayQueue.delete(key);
-    const [x, y, z] = key.split(',').map(Number);
-    const leafVal = getBlock(x, y, z), leafId = leafVal & 255;
-    if (!_isLeafVal(leafVal)) continue;
-    if (!isLeavesConnected(x, y, z)) {
-      // base decay chance, then scaled by the world tick speed
-      if (Math.random() < 0.3 * tickFactor()) {
-        // decayed leaves fall the same way a felled canopy does, so they end up as litter on
-        // the ground instead of evaporating in place
-        setBlock(x, y, z, B.AIR);
-        if (typeof fxLeafDecay === 'function') fxLeafDecay(x, y, z, leafId);   // a flutter of leaf bits (0.8)
-        if (FALLING.length < MAX_FALLING) spawnFallingLeaf(leafId, x, y, z);
-        else settleLeafNow(leafId, x, y, z);
-        scheduleLeavesCheck(x, y, z);
-      } else {
-        leavesDecayQueue.add(key);
-      }
-    }
-  }
-}
-
-/* ---- grass spread: a dirt block slowly turns to grass when it's lit from above (transparent
-   block overhead = sunlight/light reaches it) AND a grass block sits in the neighbouring 3×3×
-   (±1 y) column. Very slow; sampled randomly near the player and scaled by the tick speed. ---- */
-let _grassTimer = 0;
-// grass blocks that are covered (opaque block above): key "x,y,z" -> seconds it has stayed dark.
-// Only a full 24 in-game hours (= DAY_LEN real seconds) of continuous cover turns it to dirt,
-// so a passing night or shadow (which never make the block above opaque) can't trigger it.
-const _darkGrass = new Map();
-function processGrassSpread(dt) {
-  if (menuScene || !player.spawned) return;      // don't mutate the title panorama
-  _grassTimer += dt;
-  const interval = 1.0 / tickFactor();
-  if (_grassTimer < interval) return;
-  _grassTimer -= interval;
-  const px = Math.floor(player.pos.x), py = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
-  // sampling is anchored on GRASS blocks and spreads outward to a neighbouring lit dirt — far
-  // higher hit rate than probing random air, so spread is actually visible. Scales with tick speed.
-  const tries = Math.max(4, Math.round(30 * tickFactor()));
-  for (let i = 0; i < tries; i++) {
-    const x = px + (Math.random() * 48 | 0) - 24;
-    const z = pz + (Math.random() * 48 | 0) - 24;
-    const y = py + (Math.random() * 16 | 0) - 8;
-    if (!_plainGrass(getBlock(x, y, z))) continue;                  // spread originates from grass (a block, not a cover)
-    if (CORE.opaqueVal(getBlock(x, y + 1, z))) {                   // covered grass: track for decay
-      const k = `${x},${y},${z}`; if (!_darkGrass.has(k)) _darkGrass.set(k, 0);
-      continue;
-    }
-    // pick a random neighbour in the 3×3×3 shell; convert it if it's dirt lit from above
-    const tx = x + (Math.random() * 3 | 0) - 1, ty = y + (Math.random() * 3 | 0) - 1, tz = z + (Math.random() * 3 | 0) - 1;
-    if (getBlock(tx, ty, tz) !== B.DIRT) continue;                  // plain dirt only: a dirt cover stays one (0.787)
-    if (CORE.opaqueVal(getBlock(tx, ty + 1, tz))) continue;         // target needs light too
-    // the Dryland's pale grass spreads as itself (0.8411)
-    setBlock(tx, ty, tz, ((getBlock(x, y, z) >> 8) & 255) === V.GRASS_DRY ? B.GRASS | (V.GRASS_DRY << 8) : B.GRASS);
-  }
-  // age the covered-grass timers; convert after 24h dark, drop entries that got uncovered/changed
-  for (const [k, t] of _darkGrass) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;             // dark-cover clock pauses outside the sim radius
-    if (!_plainGrass(getBlock(x, y, z)) || !CORE.opaqueVal(getBlock(x, y + 1, z))) { _darkGrass.delete(k); continue; }
-    const nt = t + interval;
-    if (nt >= DAY_LEN) { setBlock(x, y, z, B.DIRT); _darkGrass.delete(k); }
-    else _darkGrass.set(k, nt);
-  }
-}
-
-/* ---- mushrooms on hollow logs (0.7843): a LYING hollow log packed with dirt or grass now and then sprouts a
-   mushroom on top, of the kind its wood grows — oak brown, birch red, spruce blue. Hollow logs are rare, so
-   rather than probing random cells this scans one loaded chunk's data per step, walking the 7x7 chunks
-   around the player; each chunk comes round about every 100 s at normal tick speed. ---- */
-const HOLLOW_SHROOM = { [B.HOLLOW_LOG]: B.BROWN_MUSHROOM, [B.HOLLOW_BIRCH_LOG]: B.RED_MUSHROOM, [B.HOLLOW_SPRUCE_LOG]: B.BLUE_MUSHROOM };
-const HOLLOW_SHROOM_CHANCE = 0.15;              // per log, per visit of its chunk: roughly one every 10 minutes
-const HOLLOW_SIDE_SHROOM_CHANCE = 0.03;         // autumn, per log cell, per visit: a few round each log at a time (0.821)
-let _shroomTimer = 0, _shroomStep = 0;
-function processHollowMushrooms(dt) {
-  if (menuScene || !player.spawned) return;
-  _shroomTimer += dt;
-  const interval = 2.0 / tickFactor();
-  if (_shroomTimer < interval) return;
-  _shroomTimer -= interval;
-  const k = _shroomStep++ % 49;
-  const cx = Math.floor(player.pos.x / 16) + (k % 7) - 3, cz = Math.floor(player.pos.z / 16) + ((k / 7) | 0) - 3;
-  const c = getChunk(cx, cz);
-  if (!c || !c.data || !inSimRangeChunk(cx, cz)) return;
-  const d = c.data;
-  const autumn = seasonsOn() && gameDate().season === 2;
-  for (let i = 0; i < d.length - 256; i++) {
-    const v = d[i];
-    let shroom = HOLLOW_SHROOM[v & 255];
-    // an oak log grows brown, black, white or (0.821) yellow, as brown grows in the wild (0.8091)
-    if (shroom === B.BROWN_MUSHROOM) shroom = shroomOak();
-    if (!shroom || !((v >> 8) & 3)) continue;                            // standing up: a planter, not a rotting log
-    const x = cx * 16 + (i & 15), y = i >> 8, z = cz * 16 + ((i >> 4) & 15);
-    /* Autumn (0.821): mushrooms come up on the ground beside a fallen hollow log, whatever it holds — the best
-       place in the woods to find them. One side at random, on grass or dirt with air over it. */
-    if (autumn && Math.random() < HOLLOW_SIDE_SHROOM_CHANCE) {
-      const [dx, dz] = [[1, 0], [-1, 0], [0, 1], [0, -1]][(Math.random() * 4) | 0];
-      const g = getBlock(x + dx, y - 1, z + dz) & 255;
-      if ((g === B.GRASS || g === B.DIRT) && (getBlock(x + dx, y, z + dz) & 255) === B.AIR) sproutShroom(x + dx, y, z + dz, shroom);
-    }
-    const fill = hollowFillOf(v);
-    if ((fill !== B.DIRT && fill !== B.GRASS) || (d[i + 256] & 255) !== B.AIR) continue;
-    if (Math.random() >= HOLLOW_SHROOM_CHANCE * seasonGrowth()) continue;   // by season (0.81): spring to autumn
-    sproutShroom(x, y + 1, z, shroom);                                    // a sprout that grows (0.821)
-  }
-}
-
-/* ---- throwing ---- */
-// blocks whose right-click opens a GUI or actuates something; throwing must yield to them
-const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.METAL_CHEST, B.DOOR, B.BED,   // metal chest 0.843
-                                  B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR,   // mortar variants 0.7945
-                                  B.DOLOMITE_MORTAR]);   // 0.822
-function tryThrow() {
-  if (!playing || player.canFly || invOpen || menuScene) return false;
-  const slot = HOTBAR[hotbarSel];
-  if (!slot || !ITEM_PROPS[slot.id]?.throwable) return false;
-  /* A right-click aimed at something that OPENS must interact, not throw — otherwise a stack of
-     snowballs in hand locks you out of your own furnace. doPlace() handles these same ids. */
-  const aimed = currentRay();
-  if (aimed && (THROW_BLOCKED_BY.has(aimed.id) || BLOCKS.isDoorVal(getBlock(aimed.x, aimed.y, aimed.z)))) return false;   // a door of any material (0.842)
-  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  spawnProjectile(slot.id,
-    player.pos.x + fwd.x * 0.3,
-    player.pos.y + player.EYE - 0.1,
-    player.pos.z + fwd.z * 0.3,
-    fwd.x * 22, fwd.y * 22 + 1.5, fwd.z * 22
-  );
-  slot.count--;
-  if (slot.count <= 0) HOTBAR[hotbarSel] = null;
-  if (typeof feedItem === 'function') feedItem(slot.id, -1, 'thrown');
-  saveHotbar(); buildHotbar();
-  return true;
-}
-
-/* ---- eating ---- */
-var _eatTimer = 0;
-const EAT_TIME = 1.32;  // default eat duration; override per-item via eatTime in ITEM_PROPS (every one 20% longer in 0.821)
-function updateEating(dt, wantPlace) {
-  if (!playing || player.canFly || invOpen || menuScene) { _eatTimer = 0; return 0; }
-  const slot = HOTBAR[hotbarSel];
-  const id = slot ? slot.id : null;
-  // an item or a block (the grilled mushrooms, 0.821): foodPropsOf in 54-stats-effects.js
-  const fp = foodPropsOf(id), isFood = !!fp;
-  const eatDur = (fp && fp.eatTime) || EAT_TIME;
-  if (wantPlace && isFood) {
-    _eatTimer = Math.min(eatDur, _eatTimer + dt);
-    if (typeof fxEat === 'function') fxEat(player, id, dt);   // crumbs, or milk splashing (0.801)
-    if (_eatTimer >= eatDur) {
-      _eatTimer = 0;
-      const foodAmt = fp.food || 0;
-      const foodSat = (fp.foodSat || 0) * OVER_FOOD_GAIN;              // half the table's number (0.8443)
-      if (player.food < MAX_FOOD) {
-        player.food = Math.min(MAX_FOOD, player.food + foodAmt);
-        player.saturation = Math.min(MAX_SATURATION, player.saturation + foodSat);
-      } else {
-        const fullSat = fp.foodSatFull != null ? fp.foodSatFull * OVER_FOOD_GAIN : foodSat;
-        player.saturation = Math.min(MAX_SATURATION, player.saturation + fullSat);
-      }
-      // ...and thirst, fruit, vegetables, protein (0.82, FOOD_NUTRITION in 54-stats-effects.js)
-      if (typeof eatNutrition === 'function') eatNutrition(player, fp);
-      /* What the food does beyond filling you (0.758). Its effect lands FIRST, so the heal it carries is
-         already boosted by it: a golden apple starts Rapid regen, then its 2 health arrive doubled as 4. */
-      // milk (0.767): washes out every running effect, good or bad, before anything else lands
-      if (fp.foodClearEffects && player.effects && player.effects.length) {
-        player.effects = [];
-        if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
-      }
-      // a white berry washes seconds off every bad effect running (0.827)
-      if (fp.foodCleanse && typeof cleanseEffects === 'function') cleanseEffects(player, fp.foodCleanse);
-      const eff = fp.foodEffect;
-      // some effects are only a chance: raw food and rotten flesh may or may not turn your stomach (0.761)
-      const effChance = fp.foodEffectChance ?? 1;
-      if (eff && typeof addPlayerEffect === 'function' && Math.random() < effChance) addPlayerEffect(eff, fp.foodEffectTime);
-      const heal = fp.foodHeal || 0;
-      if (heal > 0) {
-        const before = player.hp;
-        player.hp = Math.min(playerMaxHP(), player.hp + heal * (typeof playerRegenMul === 'function' ? playerRegenMul() : 1));
-        // green hearts for what the food healed, seen by everyone but you in first person (0.8)
-        if (typeof fxHearts === 'function' && player.hp > before)
-          fxHearts(player.pos.x, player.pos.y + 1.3, player.pos.z, true, (player.hp - before) / VITAL_K, fxOwner(player));   // one per 5 healed (0.8031; per point of 20)
-      }
-      slot.count--;
-      if (slot.count <= 0) HOTBAR[hotbarSel] = null;
-      if (typeof feedItem === 'function') feedItem(id, -1, 'eaten');
-      // give back container item (e.g. bowl from mushroom stew)
-      const returnId = fp.foodReturn;
-      if (returnId != null) {
-        const cap = stackSize(returnId);
-        let placed = false;
-        for (let k = 0; k < HOTBAR.length && !placed; k++) {
-          const s = HOTBAR[k]; if (s && s.id === returnId && s.count < cap) { s.count++; placed = true; }
-        }
-        if (!placed) for (let k = 0; k < invSlots.length && !placed; k++) {
-          const s = invSlots[k]; if (s && s.id === returnId && s.count < cap) { s.count++; placed = true; }
-        }
-        if (!placed) {
-          const fh = HOTBAR.indexOf(null), fi = invSlots.indexOf(null);
-          if (fh >= 0) HOTBAR[fh] = mkSlot(returnId, 1), placed = true;
-          else if (fi >= 0) invSlots[fi] = mkSlot(returnId, 1), placed = true;
-          else toast('inventory full — bowl lost');
-        }
-        if (placed && typeof feedItem === 'function') feedItem(returnId, 1, 'emptied');
-      }
-      saveHotbar(); buildHotbar(); vitalsDirty = true;
-    }
-  } else {
-    _eatTimer = 0;
-  }
-  return isFood ? _eatTimer / eatDur : 0;
-}
-
-/* ---- world simulation speed (per-world "random tick speed" setting; default 3) ----
-   scales natural processes: leaves decay, water flow, grass spread. factor 1.0 at the default. */
-let randomTickSpeed = 3;
-const tickFactor = () => Math.max(0.05, randomTickSpeed / 3);
-
-/* ---- fluid flow ----
-   Water and lava flowing live in 61-fluids.js since 0.844 (the simulation itself: makeFluidSim, 02-voxel-core.js). */
-/* What one layer gives when it is dug off (0.8244: moved out of the mining tick, which now also takes whole stacks). */
-function _dropLayer(L, x, y, z) {
-  if (L === B.SNOW) {
-    // a snow layer never hands back a block — only a shovel packs it into a snowball
-    if (ITEM_PROPS[heldUseId()]?.tool === 'shovel') spawnDrop(ITEM.SNOWBALL, x, y, z);
-  } else if (LEAF_BLOCKS.has(L)) {
-    // leaf litter yields exactly what its leaves yield, never a block of leaves
-    for (const drop of blockDrop(L, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
-  } else if (L === B.GRAVEL) {
-    // a gravel layer gives no gravel, but its flint as often as a gravel block does (0.799)
-    if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, x, y, z);
-  } else if (L === B.SALT_CRUST) {
-    // each salt layer rolls its salt like a whole crust does (0.8097)
-    for (const drop of blockDrop(L, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
-  } else if (L === B.ASH) {
-    if (rollLoot(LOOT.ashLayer)) spawnDrop(ITEM.ASHES, x, y, z);   // an ash carpet: ashes half the time (0.8191)
-  } else if (L === B.FIBER_BLOCK) {
-    // a fiber carpet comes apart into fiber (0.819): LOOT.fiberCarpet
-    for (let i = rollLoot(LOOT.fiberCarpet); i > 0; i--) spawnDrop(ITEM.FIBER, x, y, z);
-  } else if (!LOOSE_LAYER_BLOCKS.has(L)) spawnDrop(L, x, y, z);   // a loose sand layer gives nothing (0.786)
-}
-/* A whole stack off at once with a shovel (0.8244). Sand and gravel give their block for every 8 layers (the odd
-   ones as a chance), snow a snowball for every 2; the rest as one layer each. */
-function _dropStackLayers(ids, x, y, z) {
-  const count = new Map();
-  for (const L of ids) count.set(L, (count.get(L) || 0) + 1);
-  for (const [L, k] of count) {
-    if (L === B.SNOW) { for (let i = Math.ceil(k / 2); i > 0; i--) spawnDrop(ITEM.SNOWBALL, x, y, z); continue; }
-    if (LOOSE_LAYER_BLOCKS.has(L) && L !== B.FIBER_BLOCK) {
-      const n = Math.floor(k / LAYER_MAX) + (Math.random() < (k % LAYER_MAX) / LAYER_MAX ? 1 : 0);
-      for (let i = 0; i < n; i++) for (const d of blockDrop(L, false)) for (let j = 0; j < d.count; j++) spawnDrop(d.id, x, y, z);
-      continue;
-    }
-    for (let i = 0; i < k; i++) _dropLayer(L, x, y, z);
-  }
-}
-function _breakBillboard(x, y, z, id) {
-  if (!player.canFly)
-    for (const d of blockDrop(id, true)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
-}
-
-
-/* ---- TNT: fuse tick, blinking, explosion ----
-   Placed TNT blocks live in TNTS with a countdown timer + a blink phase. The block ID stays
-   B.TNT the whole time; only the variant byte's low bit toggles (0 → normal faces, 1 → white
-   flash via the mesher swap). While a TNT is armed, its position is protected from being
-   broken (isTNTFuseActive is checked by both mining paths and doBreak). */
-const TNTS = new Map();                  // "x,y,z" -> { t, blinkT, lit }
-const TNT_FUSE = 3.0;
-const TNT_RADIUS = 4;
-const _tntKey = (x, y, z) => x + ',' + y + ',' + z;
-function armTNT(x, y, z) { TNTS.set(_tntKey(x, y, z), { t: TNT_FUSE, blinkT: 0, lit: 0 }); }
-function isTNTFuseActive(x, y, z) { return TNTS.has(_tntKey(x, y, z)); }
-function explodeAt(cx, cy, cz, R) {
-  const survival = !player.canFly;
-  const chained = [];
-  const R2 = R * R;
-  if (typeof fxExplode === 'function') fxExplode(cx + 0.5, cy + 0.5, cz + 0.5, R);   // a smoke ball and flying sparks (0.803)
-  for (let dy = -R; dy <= R; dy++)
-    for (let dz = -R; dz <= R; dz++)
-      for (let dx = -R; dx <= R; dx++) {
-        const d2 = dx * dx + dy * dy + dz * dz;
-        if (d2 > R2) continue;
-        // fuzzy shell: cells near the sphere surface drop out with rising probability, so the
-        // crater silhouette reads as a sphere instead of an axis-aligned diamond of cubes.
-        const d = Math.sqrt(d2);
-        if (R - d < 0.9 && Math.random() < 0.55) continue;
-        const x = cx + dx, y = cy + dy, z = cz + dz;
-        if (y < 0 || y > WORLD_TOP) continue;
-        const val = getBlock(x, y, z);
-        const id = val & 255;
-        if (id === B.AIR || id === B.BEDROCK || id === B.WATER || id === B.LAVA) continue;
-        if (id === B.TNT && !(x === cx && y === cy && z === cz)) chained.push([x, y, z]);
-        // a locked or sealed chest blown up gives nothing back, itself included (0.843)
-        if (survival && id !== B.TNT && !(isChestId(id) && chestLocked(x, y, z, val)) && Math.random() < 0.5) {
-          for (const drop of blockDrop(id, false))
-            for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
-        }
-        TNTS.delete(_tntKey(x, y, z));
-        setBlock(x, y, z, B.AIR);
-        queueWaterAround(x, y, z);
-        queueLavaAround(x, y, z);
-      }
-  for (const [x, y, z] of chained) armTNT(x, y, z);
-}
-function updateTNTs(dt) {
-  if (TNTS.size === 0) return;
-  const stale = [];
-  for (const [k, r] of TNTS) {
-    const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
-    const val = getBlock(x, y, z);
-    if ((val & 255) !== B.TNT) { stale.push(k); continue; }
-    r.t -= dt;
-    r.blinkT -= dt;
-    if (typeof fxTntFuse === 'function') fxTntFuse(r, x, y, z, dt);   // sparks off the fuse on top (0.803)
-    if (r.blinkT <= 0) {
-      r.lit ^= 1;
-      // blink period accelerates toward zero: 0.35s at 3s left → 0.06s minimum near boom
-      r.blinkT = Math.max(0.06, r.t * 0.18);
-      setBlock(x, y, z, B.TNT | (r.lit << 8));
-    }
-    if (r.t <= 0) {
-      stale.push(k);
-      explodeAt(x, y, z, TNT_RADIUS);
-    }
-  }
-  for (const k of stale) TNTS.delete(k);
-}
-
-/* ---- saplings: grow into full trees after 7-14 in-game days ----
-   Placed saplings register in SAPLINGS with a target worldDay. Each frame we compare current
-   worldDay against the target; when reached, replace the sapling with a small tree. Growth is
-   transient (Map lives in memory only) — saplings placed before a world reload keep sitting as
-   saplings forever. Acceptable for a first pass. */
-const SAPLINGS = new Map();     // "x,y,z" -> { type, need (days of growing), grown, last (world clock) }
-/* Since 0.81 a sapling counts days of GROWING rather than waiting for a date: the season speeds it up
-   (spring 1.3x), slows it (autumn 0.7x) or stops it (winter), seasonGrowth() in 51-seasons.js. */
-function armSapling(x, y, z, type) {
-  // ...and who planted it, paid when it grows (0.8283; armSapling runs in the planter's own tick)
-  SAPLINGS.set(x + ',' + y + ',' + z, { type, need: 7 + Math.floor(Math.random() * 8), grown: 0, last: worldClockDays(),
-                                       owner: typeof player !== 'undefined' ? player : null });
-}
-function _putSoft(x, y, z, id) {
-  if (y < 0 || y > WORLD_TOP) return;
-  const cur = getBlock(x, y, z) & 255;
-  if (_isLeaf(cur) || cur === B.AIR) setBlock(x, y, z, id);
-}
-/* A palm from its sapling (0.84): the slim leaning trunk and the crown of four fronds on hidden ribs the world generator
-   builds (palmTree/palmCrown in 02-voxel-core.js), a little shorter */
-function _growPalm(x, y, z) {
-  const th = 6 + Math.floor(Math.random() * 4), a = Math.random() * Math.PI * 2, lean = 0.6 + Math.random() * 1.4;
-  const ca = Math.cos(a), sa = Math.sin(a), W0 = 20, W1 = 14, RIB_W = 4;
-  let px = 0, pz = 0;
-  for (let k = 0; k < th; k++) {
-    const t = k / Math.max(1, th - 1), c = t * t * lean;
-    const nx = Math.round(ca * c), nz = Math.round(sa * c), val = B.PALM_LOG | ((Math.round(W0 - (W0 - W1) * t) << 2) << 8);
-    if (k > 0 && (nx !== px || nz !== pz)) {
-      _putSoft(x + nx, y + k - 1, z + nz, val);
-      if (nx !== px && nz !== pz) _putSoft(x + nx, y + k - 1, z + pz, val);
-    }
-    if (k === 0) setBlock(x, y, z, val); else _putSoft(x + nx, y + k, z + nz, val);
-    px = nx; pz = nz;
-  }
-  const cx = x + px, cy = y + th - 1, cz = z + pz;
-  _putSoft(cx, cy + 1, cz, B.PALM_LEAVES);
-  for (const [dx, dz, ex, ez] of [[1, 0, 1, 1], [-1, 0, -1, 1], [0, 1, -1, -1], [0, -1, 1, -1]]) {
-    const axis = dx ? 1 : 2;
-    for (let s = 1; s <= 2; s++) { _putSoft(cx + dx * s, cy, cz + dz * s, B.PALM_LOG | ((axis | (RIB_W << 2)) << 8)); _putSoft(cx + dx * s, cy + 1, cz + dz * s, B.PALM_LEAVES); }
-    const L = 3 + Math.floor(Math.random() * 3);
-    for (const [u, v] of [[3, 0], [4, 0], [4, -1], [5, -1], [5, -2]].slice(0, L)) _putSoft(cx + dx * u, cy + v, cz + dz * u, B.PALM_LEAVES);
-    if (Math.random() < 0.6) {
-      _putSoft(cx + ex, cy + 1, cz + ez, B.PALM_LEAVES); _putSoft(cx + ex * 2, cy, cz + ez, B.PALM_LEAVES); _putSoft(cx + ex * 2, cy, cz + ez * 2, B.PALM_LEAVES);
-    }
-  }
-}
-function _growTree(x, y, z, species) {
-  if (species === B.PALM_SAPLING) { _growPalm(x, y, z); return; }   // 0.84
-  const isBirch = species === B.BIRCH_SAPLING, isSpruce = species === B.SPRUCE_SAPLING;
-  const LOG  = isSpruce ? B.SPRUCE_LOG : isBirch ? B.BIRCH_LOG : B.LOG;
-  const LEAF = isSpruce ? B.SPRUCE_LEAVES : isBirch ? B.BIRCH_LEAVES : B.LEAVES;
-  // a grown spruce is a cone like the generated ones, not the round oak blob
-  if (isSpruce) {
-    // same cone the world generator builds: tapering spike, heavy skirt low, always tipped
-    const sh = 13 + Math.floor(Math.random() * 7);     // 13..19
-    const SPR_STUMP = 30, SPR_TIP = 14;
-    for (let k = 0; k < sh; k++) {
-      const t = k / Math.max(1, sh - 1);
-      const w = Math.round(SPR_STUMP - (SPR_STUMP - SPR_TIP) * t);
-      const val = LOG | ((w << 2) << 8);
-      if (k === 0) setBlock(x, y, z, val); else _putSoft(x, y + k, z, val);
-    }
-    const base = y + 2, topY = y + sh - 1, span = Math.max(1, topY - base);
-    for (let ly = base; ly <= topY; ly++) {
-      const t = (ly - base) / span;
-      let rad = Math.max(1, Math.round(4 - 3.2 * t));
-      if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
-      const rimKeep = 0.85 - 0.5 * t;
-      for (let oz = -rad; oz <= rad; oz++)
-        for (let ox = -rad; ox <= rad; ox++) {
-          const d = Math.abs(ox) + Math.abs(oz);
-          if (d > rad || (d === rad && Math.random() > rimKeep)) continue;
-          _putSoft(x + ox, ly, z + oz, LEAF);
-        }
-    }
-    for (let t = 1; t <= 2; t++) _putSoft(x, topY + t, z, LEAF);
-    return;
-  }
-  const h = 4 + Math.floor(Math.random() * 3);         // 4..6
-  setBlock(x, y, z, LOG);                              // trunk starts at sapling cell (overwrites it)
-  for (let k = 1; k < h; k++) _putSoft(x, y + k, z, LOG);
-  // canopy: 3x3x3 blob centered near top, with rounded corners
-  const top = y + h;
-  for (let dy = -1; dy <= 1; dy++)
-    for (let dz = -2; dz <= 2; dz++)
-      for (let dx = -2; dx <= 2; dx++) {
-        if (dx === 0 && dz === 0 && dy < 1) continue;   // don't overwrite trunk mid-canopy
-        const r = Math.abs(dx) + Math.abs(dz) + Math.abs(dy);
-        if (r > 3) continue;
-        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;   // clip corners
-        _putSoft(x + dx, top + dy, z + dz, LEAF);
-      }
-  _putSoft(x, top + 2, z, LEAF);
-}
-function updateSaplings() {
-  if (SAPLINGS.size === 0) return;
-  const stale = [];
-  for (const [k, r] of SAPLINGS) {
-    const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
-    const cur = getBlock(x, y, z) & 255;
-    if (cur !== r.type) { stale.push(k); continue; }               // broken / replaced
-    const now = worldClockDays();
-    r.grown += Math.max(0, now - r.last) * seasonGrowth();
-    r.last = now;
-    if (r.grown >= r.need) {
-      stale.push(k);
-      _growTree(x, y, z, r.type);
-      if (r.owner) grantXP(r.owner, XP_SAPLING[r.type] || 0, 'a sapling grew');   // oak 3, birch 4, spruce 5 (0.8283)
-    }
-  }
-  for (const k of stale) SAPLINGS.delete(k);
-}
-
-/* ---- water current: horizontal flow direction from the level gradient ----
-   Flowing water pushes entities toward higher level numbers (downstream). Source pools
-   (all level 0) produce no current. Result normalized into `out`; false = still water. */
-const _flowV = { x: 0, z: 0 };
-const _uwTint = new THREE.Color(0x0a2438);   // underwater murk color
-/* 0.8445: a RIVER carries you too. A river's water is all source cells, so the gradient below found nothing in it; but
-   its top cell knows which way it runs (variant bits 3-6, 1-8 round the compass from +x by eighths; bit 7 = a fast
-   stretch: genChunk's FDV, and the flowing fluid writes the same bits). That way is used first, read from this cell or
-   the surface up to RIVER_FLOW_UP cells over it, at RIVER_PUSH of the old push (RIVER_PUSH_FAST on a fast stretch), so
-   you can still swim against an ordinary river. `river` false (fish) keeps to the gradient: they hold their place. */
-const RIVER_PUSH = 0.6, RIVER_PUSH_FAST = 1.0, RIVER_FLOW_UP = 3;
-function waterFlowVec(x, y, z, out, river = true) {
-  out.x = 0; out.z = 0;
-  const val = getBlock(x, y, z);
-  if ((val & 255) !== B.WATER) return false;
-  if (river)
-    for (let k = 0, v = val; k <= RIVER_FLOW_UP && (v & 255) === B.WATER; k++, v = getBlock(x, y + k, z)) {
-      const va = (v >> 8) & 255, fd = (va >> 3) & 15;
-      if (fd < 1 || fd > 8) continue;
-      const a = (fd - 1) * Math.PI / 4, s = (va & 128) ? RIVER_PUSH_FAST : RIVER_PUSH;
-      out.x = Math.cos(a) * s; out.z = Math.sin(a) * s;
-      return true;
-    }
-  const level = (val >> 8) & 7;
-  let fx = 0, fz = 0;
-  for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-    const nb = getBlock(x + dx, y, z + dz);
-    const nbId = nb & 255;
-    if (nbId === B.WATER) {
-      const nl = (nb >> 8) & 7;
-      fx += dx * (nl - level); fz += dz * (nl - level);
-    } else if (nbId === B.AIR && level < 7 && (getBlock(x + dx, y - 1, z + dz) & 255) === B.AIR) {
-      fx += dx * 2; fz += dz * 2;          // waterfall edge pulls hard
-    }
-  }
-  const m = Math.hypot(fx, fz);
-  if (m < 1e-6) return false;
-  out.x = fx / m; out.z = fz / m;
-  return true;
-}
-
-let lastT = performance.now();
-let fps = 0, fpsFrames = 0, fpsT = lastT;
-let hudT = 0;
-var wasMoving = false, lastFlying = player.flying;   // sprint auto-release tracking
-
-// held-light state: track last-known position + item to detect changes
-var _hlId = undefined, _hlLevel = 0, _hlX = null, _hlY = null, _hlZ = null;
-var _hlRaw = 0;  // raw light value of current held item (exposed for arm glow in 24-hands.js)
-const _handSaveLC = new THREE.Color();  // reusable save slot for uLightColor during hand render
-
-/* F3 timings (0.83851, MultithreadPlan C1). While any seat shows the debug read-out, frame(), simTick and runWorldTick
-   time their parts with laps: `perfLap(name, t)` adds the time since t to `name` and returns now. F3 then shows the
-   main thread's ms per frame (average over a second, and the worst frame), and the 8 costliest parts. With F3 hidden a
-   lap is one compare. It is CPU time: the graphics card's own work shows in `render` only when the browser waits on it. */
-let _perfOn = false, _perfWinT = 0, _perfFrames = 0, _perfMax = 0, _perfLine = '';
-const _perfAcc = new Map();
-const perfNow = () => _perfOn ? performance.now() : 0;
 function perfLap(name, t0) {
   if (!_perfOn) return 0;
   const now = performance.now();
@@ -932,32 +31,38 @@ function _perfFrameEnd(t0) {
 function frame(now) {
   requestAnimationFrame(frame);
   if (fpsLimit > 0 && now - lastT < 1000 / fpsLimit - 2) return;   // fps cap: skip whole tick
-  _perfFrameStart(now);                     // F3 timings (0.83851)
+  _perfFrameStart(now);                     // F3 timings
   const tFrame = perfNow();
   const realDt = Math.max(0, (now - lastT) / 1000);
-  frameMsAvg += (Math.min(250, realDt * 1000) - frameMsAvg) * 0.1;   // a frame's real length, eased: the chunk stream paces by it (0.8443, 11-chunks.js)
-  // a frame's own time: capped at FRAME_DT_MAX with the fixed tick (0.8378; 0.05 before, slow motion under 20 fps)
+  frameMsAvg += (Math.min(250, realDt * 1000) - frameMsAvg) * 0.1;   // a frame's real length, eased: the chunk stream paces by it (chunks/chunks.js)
+  // a frame's own time: capped at FRAME_DT_MAX with the fixed tick (0.05 before, slow motion under 20 fps)
   const dt = Math.min(SIM_FIXED ? FRAME_DT_MAX : 0.05, realDt);
   lastT = now;
   sharedUniforms.uTime.value += dt;
-  updateTileAnimation(now);                 // water and lava step through their frames (0.8093)
-  updateWindUniforms();                     // grass and leaves bend with the wind (0.81)
+  updateTileAnimation(now);                 // water and lava step through their frames
+  updateWindUniforms();                     // grass and leaves bend with the wind
   updateMusic();                            // menu track on/off follows menuScene
-  updateWeatherSound(dt);                   // rain and snow loops (0.831, 32-sound.js)
+  updateWeatherSound(dt);                   // rain and snow loops (32-sound.js)
   /* Input routing, before anybody is ticked: which pad drives which seat, and — while the player
      is rebinding from the pause menu — whether a device has just spoken up. Both run whether or
      not the game is unpaused, because binding is done with the menu open. */
   pollInputCapture();
-  updatePauseRespawn(dt);                   // the pause menu's hold-to-arm Respawn (0.829, 19-vitals.js)
+  updatePauseRespawn(dt);                   // the pause menu's hold-to-arm Respawn (player/hazards.js)
   let tp = perfLap('input+sound', tFrame);
-  /* The title panorama is scenery, not a world (0.7144). Nothing in it is meant to change: no
+  /* LAND FIRST: the chunk stream takes its turn before anything else of the world does, so the workers get their
+     next jobs and finished chunks are lit and shown ahead of the frame's simulation, however long that runs. It
+     also says whether land is waiting (`streamBehind`), which the rest of this frame reads to give way. */
+  useSlot(0);
+  runChunkStream(dt);
+  tp = perfNow();                           // the stream timed its own parts
+  /* The title panorama is scenery, not a world. Nothing in it is meant to change: no
      rot, no melt, no regrowth, no felling, no structures assembling, no leaves coming down. Each
      of these was individually harmless there — their queues are empty on a backdrop — but they
      were still called every frame, and gating them in one place makes the rule explicit rather
      than relying on each system to notice where it is. Boot spends its frames on the panorama. */
-  // a world still joining is held the same way until its chunks are in (0.759)
+  // a world still joining is held the same way until its chunks are in
   if (!menuScene && !worldJoining()) {
-    /* the fixed tick (0.8378, SIM_FIXED in 00-config): the world's clockwork steps SIM_DT at a time, as many times as
+    /* the fixed tick (SIM_FIXED in 00-config): the world's clockwork steps SIM_DT at a time, as many times as
        the real time since the last frame holds; a gap over SIM_MAX_FRAME is dropped (a hidden tab: the world waits) */
     if (SIM_FIXED) {
       _simAcc += Math.min(realDt, SIM_MAX_FRAME);
@@ -974,16 +79,16 @@ function frame(now) {
       updateLitterRot(dt);                  // fallen leaves rot off the forest floor
       updateSnowMelt(dt);                   // snow outside a cold biome thins away a layer at a time
       updateBerryGrow(dt);                  // picked berry bushes ripen again, one stage at a time
-      updateSeasons(dt);                    // leaves fall and come back, plants wither and return, wheat grows (0.81)
+      updateSeasons(dt);                    // leaves fall and come back, plants wither and return, wheat grows
       updateGrassGrow(dt);                  // bare grass slowly sprouts short grass, short grass grows tall
-    } else updateSeasonScan(dt);            // the seasons' chunk scans stay a frame's background work (0.8378)
+    } else updateSeasonScan(dt);            // the seasons' chunk scans stay a frame's background work
     tp = perfLap('season scan', tp);
     updateStructOutline();                  // drop the capture box if its block was broken
     processPlacementQueue();                // villages/dungeons assemble a few cells per frame
-    if (typeof updateBossLairs === 'function') updateBossLairs();   // the snow castles: found, placed, their kings (0.8393)
+    if (typeof updateBossLairs === 'function') updateBossLairs();   // the snow castles: found, placed, their kings
     tp = perfLap('structures', tp);
     updateFallingLeaves(dt);                // canopy coming down after a tree was felled
-    updateStorms(dt);                       // lightning, fire, hail, the aurora (0.819)
+    updateStorms(dt);                       // lightning, fire, hail, the aurora
     tp = perfLap('storms+leaves', tp);
   }
 
@@ -991,7 +96,7 @@ function frame(now) {
   fpsFrames++;
   if (now - fpsT >= 500) { fps = Math.round(fpsFrames * 1000 / (now - fpsT)); fpsFrames = 0; fpsT = now; }
 
-  /* ---- each player, in their own context (0.72) ----
+  /* ---- each player, in their own context ----
      `useSlot` repoints `player`, `camera`, the hotbar, the arm rig and the HUD at one player, so
      everything inside tickPlayer is the same single-player code it always was. The WORLD is then
      stepped exactly once afterwards, never once per player. */
@@ -1003,15 +108,20 @@ function frame(now) {
   _perfFrameEnd(tFrame);
 }
 
-/* THE FIXED TICK (0.8378, SIM_FIXED / SIM_HZ in 00-config, MultithreadPlan.md part A1): the world's clockwork, SIM_DT of
+/* THE FIXED TICK (SIM_FIXED / SIM_HZ in 00-config): the world's clockwork, SIM_DT of
    real time a step, the same at any frame rate. Called from frame() with player one's slot installed. What moves on
    screen (creatures, drops, arrows, falling blocks, particles, doors), the players and the chunk streaming stay once a
    frame; so do the budgeted background jobs (the seasons' chunk scans, felling, villages assembling). */
-let _simAcc = 0, _simTime = 0, _simTicksLast = 0;
+let _simAcc = 0, _simTime = 0, _simTicksLast = 0, _simTickN = 0;
 function simTick(dt) {
   _simTime += dt;
-  let tp = perfNow();                       // F3 timings, summed over the frame's ticks (0.83851)
-  /* each player's bars and what they carry (part A2, 0.8379), in their own slot as tickPlayer does: hunger, thirst,
+  let tp = perfNow();                       // F3 timings, summed over the frame's ticks
+  /* While land is waiting near a player the world's slow background gives way to it (LAND FIRST, chunks/stream.js):
+     it steps one tick in STREAM_BG_EVERY, so it never stops but takes a fifth of the time, and of the chunks it would
+     send to be meshed again. `bg` is false on the ticks it sits out. What has a clock a player watches (growth,
+     furnaces, burning lights, the day) is not part of it and keeps every tick. */
+  const bg = !streamBehind || (++_simTickN % STREAM_BG_EVERY) === 0;
+  /* each player's bars and what they carry (part A2), in their own slot as tickPlayer does: hunger, thirst,
      stamina, energy, nutrients, effects, oxygen, temperature, heatstroke, a held torch burning down (tickStats), and
      food spoiling. `_statsLive` is set each frame by updateVitals: survival, spawned, the ground under them loaded.
      What stays per frame: movement, eating and drinking (they follow the held button), hazards (fall, cactus, lava,
@@ -1023,39 +133,45 @@ function simTick(dt) {
   }
   useSlot(0);
   tp = perfLap('t:stats', tp);
-  updateLitterRot(dt);                      // fallen leaves rot off the forest floor
-  updateSnowMelt(dt);                       // snow outside a cold biome thins away a layer at a time
+  if (bg) {
+    updateLitterRot(dt);                    // fallen leaves rot off the forest floor
+    updateSnowMelt(dt);                     // snow outside a cold biome thins away a layer at a time
+  }
   updateBerryGrow(dt);                      // picked berry bushes ripen again
   tp = perfLap('t:rot+melt', tp);
-  updateSeasonGrowth(dt);                   // wheat, mushrooms, cane, the weather on the ground, ice, lights burning out
+  updateSeasonGrowth(dt, bg);               // wheat, mushrooms, cane, ice, lights burning out; the weather on the ground when `bg`
   tp = perfLap('t:seasons', tp);
-  updateGrassGrow(dt);                      // bare grass sprouts short grass, short grass grows tall
-  if (!player.canFly) processLeavesDecay(dt);
+  if (bg) {
+    updateGrassGrow(dt);                    // bare grass sprouts short grass, short grass grows tall
+    if (!player.canFly) processLeavesDecay(dt);
+  }
   tp = perfLap('t:grass+leaves', tp);
   updateEntitiesTick(dt);                   // creatures' AI and bodies (part A3, 0.838; drawn between ticks per frame)
   tp = perfLap('t:creatures', tp);
-  // dropped items, thrown things and arrows (0.8384), kept as poses and drawn between ticks (_tickPosesDraw)
+  // dropped items, thrown things and arrows, kept as poses and drawn between ticks (_tickPosesDraw)
   if (!player.canFly) {
     _tickPoses(DROPS, true); _tickPoses(PROJECTILES, true);
     updateDrops(dt); updateProjectiles(dt);
     _tickPoses(DROPS, false); _tickPoses(PROJECTILES, false);
   }
   _tickPoses(ARROWS, true); updateArrows(dt); _tickPoses(ARROWS, false);
-  // a boss's fireballs, ice spikes, burning snow and beams (0.839, 60-bosses.js), drawn between ticks too
+  // a boss's fireballs, ice spikes, burning snow and beams (entities/frozen-king.js), drawn between ticks too
   _tickPoses(BOSS_FX, true); updateBossFx(dt); _tickPoses(BOSS_FX, false);
   tp = perfLap('t:drops+arrows', tp);
   updateFluids(dt);
   tp = perfLap('t:fluids', tp);
   updateTNTs(dt);
   updateSaplings();
-  processGrassSpread(dt);
-  processHollowMushrooms(dt);               // lying hollow logs full of dirt grow mushrooms (0.7843)
+  if (bg) {
+    processGrassSpread(dt);
+    processHollowMushrooms(dt);             // lying hollow logs full of dirt grow mushrooms
+  }
   updateFurnaces(dt);
   advanceWorldClock(dt);                    // the day moves on; the sky only draws from it (updateDayNight)
   perfLap('t:blocks+clock', tp);
 }
 
-/* Things whose state IS their model's place and turn (0.8384: dropped items, thrown things, arrows; `o.group`). Around
+/* Things whose state IS their model's place and turn (dropped items, thrown things, arrows; `o.group`). Around
    each tick: before it the pose the last tick left is put back (the tick reads and moves it), after it that pose is
    kept. Each frame they are drawn between their last two poses by how far the next tick is, a tick behind, so they
    move smoothly at any frame rate. One just made (no pose yet) stays where it was put until its first tick. */
@@ -1083,632 +199,23 @@ function _tickPosesDraw(list, t) {
   }
 }
 
-/* A held torch goes out with your head under water (0.8245): no light, no warmth, and the hand that holds it
-   (24-hands.js, 40-shield.js) is put away until you surface. */
+/* A held torch goes out with your head under water: no light, no warmth, and the hand that holds it
+   (player/hands.js, 40-shield.js) is put away until you surface. */
 function torchDoused(p = player) {
   return !!p && !!p.pos && (getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)) & 255) === B.WATER;
 }
 
-/* ================================================================================================
-   PER-PLAYER TICK — input, movement, camera, targeting, mining/placing, vitals, hand.
-   Runs once per player per frame with that player's globals installed.
-   ================================================================================================ */
-function tickPlayer(dt, now, slot) {
-  const kbOwner = slot === 0;               // keyboard and mouse belong to player one only
-  /* ---- input & movement ---- */
-  const _preYaw = player.yaw, _prePitch = player.pitch;
-  const gp = pollGamepad(dt);
-  const joining = worldJoining();           // world still loading in: frozen like the dead (0.759)
-  // ...and the same while a cow is being milked (0.8446, updateMilking in 39-taming.js): you stand still for it
-  const benching = !!player._benchWork || !!player._milk;     // holding E at a crafting bench: nothing else answers (0.76)
-  if (player.dead || joining || benching) {             // dead: no look (mouse gated in input, pad undone here),
-    player.yaw = _preYaw; player.pitch = _prePitch;   // no movement, no fly/jump input
-    gp.mx = gp.mz = 0; gp.up = gp.dn = false;
-  }
-  const kb = kbOwner && playing && !invOpen && !player.dead && !joining && !benching;   // keyboard steers when no menu/inventory is open
-  let fwd = (kb && keys.KeyW ? 1 : 0) - (kb && keys.KeyS ? 1 : 0) - gp.mz;
-  let str = (kb && keys.KeyD ? 1 : 0) - (kb && keys.KeyA ? 1 : 0) + gp.mx;
-  const upHeld = (kb && keys.Space) || gp.up;
-  const dnHeld = (kb && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
-  /* Sneak waits for a fresh press after the inventory opens or closes (0.8243): Shift held for a shift-click, or the
-     pad's button held as it shut, does not drop you into a sneak until it has been let go. */
-  const dnRaw = (kbOwner && (keys.ShiftLeft || keys.ShiftRight)) || gp.dn;
-  if (player._sneakLatch && !dnRaw) player._sneakLatch = false;
-  /* A sneak kept through the inventory (0.826, toggleInventory in 20-inventory-ui.js) ends, once it is shut, when sneak
-     is let go after a press or you walk; looking around keeps it. */
-  if (player._sneakKeep && !invOpen) {
-    if (fwd || str || player.dead || player.flying) player._sneakKeep = false;
-    else if (dnRaw) player._sneakKeepDn = true;
-    else if (player._sneakKeepDn) player._sneakKeep = false;
-  }
-  if (!player._sneakKeep) player._sneakKeepDn = false;
-  /* Eating or holding up a shield means walking, never sprinting (0.7591). Both flags are last frame's,
-     which is all a one-frame-late cancel needs. */
-  if (player.blocking || player._eatProg > 0 || player._drawProg > 0 || playerIsCrafting()) player.fast = false;   // ...and a running crafting queue (0.76)   // drawing a bow too (0.7592)
-  if (playerTired()) player.fast = false;   // out of stamina: no sprint until it is back to 20 (0.82)
-  const len = Math.hypot(fwd, str);
-  if (len > 1) { fwd /= len; str /= len; }
-
-  /* ---- lying in a bed (0.7294) ----
-     Sneak is the only control that still means anything: it gets you back up. Everything else is
-     zeroed below, next to the title-screen case, so the body stays pinned to the mattress. The
-     look stick stays live so you can glance around from the pillow. */
-  if (player.sleepingAt && dnHeld) leaveBed(player);
-  const lying = !!player.sleepingAt;
-  const grounded = onGround();
-  const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
-  player._inWater = inWater;               // exposed for fall damage + hand animation
-  // loose ground with nothing under it gives way as you step on it (0.8444, _fallUnderFeet)
-  if (grounded && !player.flying && player.spawned && !player.dead && !menuScene && !joining) _fallUnderFeet();
-  // never in the inventory (0.8243), unless you were crouched as it opened (0.826)
-  player.sneaking = !player.flying && !inWater && grounded && !player.dead
-    && ((dnHeld && !invOpen && !player._sneakLatch) || !!player._sneakKeep);
-  /* Sneak and sprint never together, and a sprint only runs forward: backing up or a pure sidestep drops
-     it (0.804). Flying keeps its fast move in every direction. */
-  if (player.sneaking) player.fast = false;
-  if (!player.flying && (fwd || str) && fwd <= 0.1) player.fast = false;
-  const fast = player.fast;
-  const onClimb = !player.flying && !inWater && player.spawned && !menuScene && playerOnClimbable();   // 0.765
-  // up a bare wall (0.804, 12-player.js); at its lip a last heave carries you over the edge
-  const wallClimb = !onClimb && player.spawned && !menuScene && !joining && !benching && !lying
-                    && wallClimbWanted(upHeld, fwd, grounded, inWater);
-  if (!wallClimb && player._wallClimbing && upHeld && fwd > 0.1 && !wallAhead()) player.vy = Math.max(player.vy, WALL_CLIMB_MANTLE_VY);
-  player._wallClimbing = wallClimb;
-  let dy, hSpeed;
-  player._swimUp = false;                   // swimming up costs stamina (0.8291, tickStats in 54)
-  if (player.flying) {
-    hSpeed = player.speed * (fast ? player.fastMul : 1);
-    dy = ((upHeld ? 1 : 0) - (dnHeld ? 1 : 0)) * hSpeed * dt;
-    player.vy = 0;
-    if (dnHeld && grounded) player.flying = false;  // sneak onto a block top -> land & walk
-  } else {
-    if (inWater) {                          // swim: jump = up, shift = fast sink, else slow sink
-      // sprint-swim: passive float/sink 95% weaker AND vy damped hard so the player
-      // glides at near-constant depth (no drift up or down)
-      const sprintSwim = fast && fwd > 0.1;
-      const glide = sprintSwim && !upHeld && !dnHeld;
-      // out of stamina you still rise, at about half the pull, so a tired swimmer is not drowned by it (0.8291)
-      const tired = playerTired();
-      player._swimUp = upHeld;
-      const acc = (upHeld ? (tired ? 20 : 36) : dnHeld ? -32 : -14) * (glide ? 0.05 : 1);
-      player.vy = Math.max(dnHeld ? -7 : -5, Math.min(4.5, player.vy + acc * dt));
-      if (glide) player.vy *= Math.max(0, 1 - 10 * dt);
-      // sprint-swim: pitch steers depth, but vertical component is 95% slower than horizontal
-      if (fast && fwd > 0.1) {
-        const pitchVert = Math.sin(player.pitch) * 30 * dt * 0.05;
-        player.vy = Math.max(-6, Math.min(6, player.vy + pitchVert));
-      }
-      // near the surface + holding jump: full pop-out ONLY next to a climbable wall —
-      // otherwise cap upward speed so you bob at the surface instead of jumping on water
-      if (upHeld && (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 1.2), Math.floor(player.pos.z)) & 255) !== B.WATER) {
-        const px = Math.floor(player.pos.x), pyF = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
-        let nearWall = false;
-        for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]])
-          if (isSolid(px + dx, pyF, pz + dz) || isSolid(px + dx, pyF + 1, pz + dz)) { nearWall = true; break; }
-        if (nearWall) player.vy = 8.0;
-        else player.vy = Math.min(player.vy, 3.0);
-      }
-    } else if (onClimb) {
-      // on a glow vine (0.765): forward or jump climbs, sneak holds on, otherwise a slow slide down
-      /* Where you look sets the pace (0.7652): straight up climbs CLIMB_LOOK_BONUS faster, straight down
-         slides that much faster, blending smoothly in between; level ground is the normal speed. */
-      const look = Math.max(-1, Math.min(1, player.pitch / (Math.PI / 2)));
-      if (upHeld || fwd > 0.1) player.vy = CLIMB_SPEED * (1 + CLIMB_LOOK_BONUS * Math.max(0, look));
-      else if (dnHeld) player.vy = 0;
-      else player.vy = Math.max(player.vy - 27 * dt, -CLIMB_SLIDE * (1 + CLIMB_LOOK_BONUS * Math.max(0, -look)));
-      player.fallStart = null;                  // a climb is never a fall
-    } else if (wallClimb) {
-      player.vy = WALL_CLIMB_SPEED;             // hand over hand up the wall (0.804)
-      player.fallStart = null;
-    } else {
-      // jump strength is a HEIGHT multiplier and height goes with velocity squared, hence the root (0.756)
-      // ...and no jumping out of stamina (0.82); a crafting queue running halves its strength (0.826; no jump 0.804-0.825)
-      if (grounded) { if (player.vy < 0) player.vy = 0; if (upHeld && !playerTired()) player.vy = 8.7 * Math.sqrt(playerJumpMul() * snowJumpMul() * (playerIsCrafting() ? CRAFT_JUMP_MUL : 1)); }
-      player.vy = Math.max(-58, player.vy - 27 * dt);           // gravity
-      // in a cobweb you sink slowly and barely hop (0.766)
-      if (playerInCobweb()) player.vy = Math.max(-COBWEB_VY_MAX, Math.min(COBWEB_VY_MAX, player.vy));
-    }
-    dy = player.vy * dt;
-    hSpeed = player.walkSpeed * (player.sneaking ? 0.3 : fast ? (inWater ? 1.9 : 1.6) : 1) * (inWater ? 0.45 : 1)
-           * playerMoveSpeedMul()                // heavy armor slows you down
-           * terrainSpeedMul()                   // leaves/litter -40%, snow carpet -70%
-           * playerStormMoveMul()                // a sandstorm, up to -45% (0.825)
-           * (player.blocking ? SHIELD_MOVE_MUL : 1)    // behind a raised shield (0.745)
-           * (player._eatProg > 0 ? EAT_MOVE_MUL : 1)   // mid-bite: as slow as a raised shield (0.7591)
-           * (player._drawProg > 0 ? DRAW_MOVE_MUL : 1)  // bow string back: the same again (0.7592)
-           * (playerIsCrafting() ? craftMoveMul() : 1);  // crafting queue running (0.76; Walk and Work 0.79)
-  }
-  if (!player.spawned) { player.vy = 0; dy = 0; }   // hold still until the spawn chunk exists
-  // hands on a wall, or on a ladder going somewhere: the climbing arms play and the hands are busy (0.804)
-  player._climbAnim = wallClimb || (onClimb && Math.abs(player.vy) > 0.2);
-  if (joining || benching) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
-  if (menuScene) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // title camera: rotation only
-  if (lying) {                                  // asleep: pinned to the mattress, look only
-    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0; player._climbAnim = false;
-    const s = player.sleepingAt, d = BED_DIR[s.facing & 3];
-    player.pos.set(s.x + 0.5 + d[0] * 0.5, s.y + BED_H, s.z + 0.5 + d[1] * 0.5);
-  }
-  /* ---- riding (0.74) ----
-     The rider does not move: the ANIMAL does. The intent is handed over here — forward/back and
-     jump — and 28-entities.js drives the body with it and then plants the rider on its back, so
-     the seat never lags a frame behind. Sneak is the only control that still means "me": it gets
-     you down. Steering is the mouse, because the animal follows where its rider is looking. */
-  if (player.riding && dnHeld) dismountRider(player);
-  if (player.riding) {
-    player._rideFwd = fwd;
-    player._rideJump = upHeld;
-    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0;
-  }
-  if (fwd || str || dy) {
-    const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-    let mdx = (str * cos - fwd * sin) * hSpeed * dt, mdz = (-fwd * cos - str * sin) * hSpeed * dt;
-    // a strong wind carries a walker along or holds them back (0.81; not while flying or swimming)
-    // ...stronger up high, and not indoors or behind a wall (0.812)
-    if (!player.flying && !player.canFly && !inWater && (mdx || mdz)) {   // never in creative (0.8241)
-      const wm = windMoveMul(weatherAt(player.pos.x, player.pos.z, player.pos.y), mdx, mdz, windShelter(player));
-      mdx *= wm; mdz *= wm;
-    }
-    // sneak edge-catch: cancel horizontal movement that would leave the player unsupported
-    if (player.sneaking && (mdx || mdz)) {
-      const p = player.pos;
-      if (!onGroundAt(p.x + mdx, p.y, p.z + mdz)) {
-        if (onGroundAt(p.x + mdx, p.y, p.z))       mdz = 0;
-        else if (onGroundAt(p.x, p.y, p.z + mdz))  mdx = 0;
-        else                                         mdx = mdz = 0;
-      }
-    }
-    const wantY = player.pos.y + dy, x0 = player.pos.x, z0 = player.pos.z;
-    movePlayer(mdx, dy, mdz);
-    if (!player.flying && Math.abs(player.pos.y - wantY) > 1e-7) player.vy = 0;  // hit floor/ceiling
-    // sprint drops when a wall stops us (moved <20% of the intended horizontal distance)
-    const want2 = mdx * mdx + mdz * mdz;
-    const got2 = (player.pos.x - x0) ** 2 + (player.pos.z - z0) ** 2;
-    if (player.fast && want2 > 1e-8 && got2 < want2 * 0.04) player.fast = false;
-  }
-  // water current pushes the player (walking mode only; flying ignores it)
-  if (!player.flying && player.spawned && !menuScene && !joining && inWater) {
-    if (waterFlowVec(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z), _flowV))
-      movePlayer(_flowV.x * 1.7 * dt, 0, _flowV.z * 1.7 * dt);
-  }
-  /* ...and a strong wind pushes a player who is standing still, too (0.812): not flying, swimming, riding
-     or asleep, and not where it is sheltered (windShelter). */
-  // ...never a creative player (0.8241)
-  if (!player.flying && !player.canFly && player.spawned && !menuScene && !joining && !benching && !inWater && !player.riding && !lying && !(fwd || str)) {
-    const dr = windDrift(player, dt);
-    if (dr) {
-      // sneaking holds the edge against it, the same catch a sneaking walk gets (0.818)
-      let [ddx, ddz] = dr;
-      const p = player.pos;
-      if (player.sneaking && onGroundAt(p.x, p.y, p.z) && !onGroundAt(p.x + ddx, p.y, p.z + ddz)) {
-        if (onGroundAt(p.x + ddx, p.y, p.z))      ddz = 0;
-        else if (onGroundAt(p.x, p.y, p.z + ddz)) ddx = 0;
-        else                                      ddx = ddz = 0;
-      }
-      if (ddx || ddz) movePlayer(ddx, 0, ddz);
-    }
-  }
-  updateFootsteps(grounded);
-  // sprint also releases when movement input stops, and on any fly<->walk transition
-  const movingNow = !!(fwd || str);
-  player._movingH = movingNow ? 1 : 0;   // exposed for survival sprint-drain detection
-  if (player.fast && wasMoving && !movingNow) player.fast = false;
-  wasMoving = movingNow;
-  if (player.flying !== lastFlying) { player.fast = false; lastFlying = player.flying; }
-
-  // void safety: fell below the world -> teleport above terrain at this X/Z
-  if (player.pos.y < -16) {
-    const sy = surfaceY(Math.floor(player.pos.x), Math.floor(player.pos.z));
-    player.pos.y = Math.max(sy + 2, WATER_Y + 3);
-    player.vy = 0;
-  }
-
-  // one-time spawn snap once a valid spawn column is loaded. A loaded save restores the
-  // exact player state instead, as soon as the chunk under the saved position exists.
-  if (!player.spawned) {
-    // Players two and up either restore from the save (once the ground under their stored
-    // position has streamed in) or, having none, step out next to player one.
-    if (slot > 0) {
-      /* A saved player WAITS for their own chunk — the fallback seat next to player one must
-         never win that race, or their inventory and position would be silently thrown away the
-         moment player one happened to spawn a frame earlier. */
-      if (!applyExtraPlayerRestore(slot) && !hasPendingExtraRestore(slot) && PLAYERS[0].spawned)
-        seatNewPlayer(player);
-    } else if (pendingRestore) {
-      const c = getChunk(Math.floor(pendingRestore.pos[0] / 16), Math.floor(pendingRestore.pos[2] / 16));
-      if (c && c.data) {
-        const pr = pendingRestore; pendingRestore = null;
-        player.pos.set(pr.pos[0], pr.pos[1], pr.pos[2]);
-        if (typeof pr.yaw === 'number') player.yaw = pr.yaw;
-        if (typeof pr.pitch === 'number') player.pitch = pr.pitch;
-        restoreVitals(player, pr);             // every bar; a save from before 0.82 is scaled up (54-stats-effects.js)
-        player.flying = !!pr.flying && player.canFly;
-        player.vy = 0; player.fallStart = null;
-        player.spawnPos = Array.isArray(pr.spawnPos)
-          ? new THREE.Vector3(pr.spawnPos[0], pr.spawnPos[1], pr.spawnPos[2]) : null;
-        // the world spawn and which bed (if any) currently overrides it — see releaseBedSpawns
-        player.homeSpawn = Array.isArray(pr.homeSpawn)
-          ? new THREE.Vector3(pr.homeSpawn[0], pr.homeSpawn[1], pr.homeSpawn[2])
-          : (player.spawnPos ? player.spawnPos.clone() : null);   // pre-0.7341 save: best guess
-        player.spawnBedKey = pr.spawnBedKey || null;
-        // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
-        player.aliveT = +pr.aliveT || 0; player.dead = !!pr.dead; player._dmgCause = pr.cause || null;
-        player._deathDay = typeof pr.deathDay === 'number' ? pr.deathDay : null;
-        player._deathMarks = restoreDeathMark(pr.deathMark);   // 0.827; a list since 0.8442
-        player._restacked = false;                            // stacks fitted once the inventory is back (0.8442)
-        player._feats = restoreFeats(pr.feats);               // 0.8283
-        player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
-        if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_SLOTS) {
-          hotbarSel = pr.hotSel; buildHotbar();
-        }
-        player.spawned = true;
-      }
-    } else {
-      const s = findValidSpawn();
-      if (s) {
-        player.pos.set(s.x, s.y, s.z);
-        player.spawned = true;
-        fillVitals(player);                  // new world: every bar full, the over-stats too (0.82; all but thirst's 0.821)
-        if (!player.spawnPos) player.spawnPos = player.pos.clone();
-        // the world spawn, kept apart from spawnPos so a broken bed has somewhere to fall back to
-        if (!player.homeSpawn) player.homeSpawn = player.pos.clone();
-      }
-    }
-  }
-  /* Loose drops and wandering mobs belong to the WORLD, not to whoever is in seat one — a profile
-     opening this world for the first time has no record of its own, so restoring them alongside a
-     player's spawn (as it used to be) would have quietly lost them. */
-  if (slot === 0 && pendingWorldRestore && player.spawned) {
-    const pw = pendingWorldRestore; pendingWorldRestore = null;
-    restoreDrops(pw.drops);
-    restoreEntities(pw.entities);
-  }
-
-  if (menuScene) player.yaw += dt * 0.06;   // title panorama slowly circles the overlook
-
-  camera.position.set(player.pos.x, player.pos.y + (player.sneaking ? 1.42 : player.EYE), player.pos.z);
-  // hit kick: brief decaying pitch/roll wobble on damage (camShake set by hurtFlash in 19-vitals)
-  let shP = 0, shR = 0;
-  if (camShake.t > 0) {
-    const k = camShake.t / camShake.dur;
-    shP = Math.sin(camShake.t * 50) * camShake.amp * k;
-    shR = Math.cos(camShake.t * 37) * camShake.amp * 0.6 * k;
-    camShake.t -= dt;
-  }
-  /* Nausea (0.761): the view rolls from side to side and the heading drifts on its own, slowly
-     turning you one way and then back, for as long as the effect lasts. */
-  if (!menuScene && !player.dead && typeof playerHasEffect === 'function' && playerHasEffect('sway')) {
-    const t = sharedUniforms.uTime.value;
-    // 0.7612: twice as fast, half as far
-    shR += Math.sin(t * 2.3) * 0.11;
-    shP += Math.sin(t * 1.46) * 0.025;
-    player.yaw += Math.sin(t * 0.9) * 0.7 * dt;
-  }
-  // Clear Eyes (0.828): the shake of a hit and nausea's sway both 30% weaker (45-skills.js)
-  { const sm = typeof skillSightMul === 'function' ? skillSightMul() : 1; shP *= sm; shR *= sm; }
-  camera.rotation.set(player.pitch + shP, player.yaw, shR);
-  applyCameraView(dt);            // F5 third-person: moves the camera back + shows the body
-
-  /* ---- break / place (mouse + gamepad share repeat timing) ---- */
-  // in bed you can look around and nothing else — no swinging, no placing, no eating
-  const climbing = !!player._climbAnim;      // both hands on the wall or the ladder (0.804)
-  const wantBreak = !lying && !joining && !benching && !climbing && ((mouseBreak && pointerLocked) || act.padBreak);
-  // ...nor while the button that just milked a cow is still down (0.8446, _milkLatch in 39-taming.js)
-  const wantPlace = !lying && !joining && !benching && !climbing && !player._milkLatch && ((mousePlace && pointerLocked) || act.padPlace);
-  // selection highlight
-  updateInvCursorVisual(dt);                 // this seat's cursor / drag ghost / hover / tooltip
-  if (typeof updateSkillHold === 'function') updateSkillHold(dt);   // a skill being held to learn (0.804)
-  if (typeof updateDropZones === 'function') updateDropZones();      // repair / dismantle zones while carrying gear (0.807)
-  const hit = (playing && !invOpen) ? currentRay() : null;
-
-  // Swinging at a mob takes priority over the block behind it. Priority is decided by AIM alone,
-  // never by the attack cooldown — gating it on tryAttackEntity() meant every swing after the
-  // first (while still on cooldown) fell through to the block code and mined straight through
-  // the mob. wantBreak still drives the hand swing so the attack animates.
-  const _entAim = (playing && !invOpen) ? pickEntityHit() : null;
-  const _entPriority = entityBeatsBlock(_entAim, hit);
-  if (wantBreak && _entPriority) tryAttackEntity(_entAim.ent);
-  const wantMine = wantBreak && !_entPriority;
-  selBox.visible = !!hit;
-  if (hit) {
-    const boxes = rayBoxesAt(hit.x, hit.y, hit.z);
-    if (boxes && boxes.length) {
-      let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
-      for (const b of boxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
-                               x1=Math.max(x1,b[3]); y1=Math.max(y1,b[4]); z1=Math.max(z1,b[5]); }
-      selBox.position.set(hit.x + (x0+x1)/2, hit.y + (y0+y1)/2, hit.z + (z0+z1)/2);
-      selBox.scale.set(x1-x0, y1-y0, z1-z0);
-    } else {
-      selBox.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
-      selBox.scale.set(1, 1, 1);
-    }
-    selBox.updateMatrix();
-  }
-  if (typeof updateWandOutline === 'function') updateWandOutline(hit);   // what a held wand would do, outlined (0.8374)
-
-  updateInteractPrompt();                   // "(E) to pickup grass" under the crosshair
-  /* Crafting bench (0.76): E works the bench you are looking at, a tap takes what is finished, holding
-     the right button cancels its order. Runs before bush pickup, which it replaces while aimed at one. */
-  const _eHeld = (playing && !invOpen && !menuScene && !joining) && ((kbOwner && !!keys['KeyE']) || act.padPick);
-  const _rmbRaw = (playing && !invOpen && !menuScene) && ((mousePlace && pointerLocked) || act.padPlace);
-  updateBenchWork(dt, _eHeld, _rmbRaw);
-  // milking (0.8446): the right button held on a cow for MILK_TIME; read raw, since the hold locks the controls
-  if (typeof updateMilking === 'function') updateMilking(dt, _rmbRaw);
-  // drinking (0.82): crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs
-  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim);
-  // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
-  // ...and not while eating or drawing a bow (0.8444): both take two hands, and foraging needs them free
-  updateBushPickup(dt, _eHeld && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
-
-  // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
-  const _didThrow = (wantPlace && !act.place) ? tryThrow() : false;
-
-  // a hand on the world (0.8444, 11-chunks.js): block changes made now are meshed at once, ahead of everything else
-  if (wantMine || wantPlace) notePlayerEdit();
-  // Creative: instant break with 240ms repeat. Survival: progressive mining vs. hardness.
-  const survivalMining = !player.canFly;
-  if (survivalMining) {
-    if (wantMine && hit && PROPS[hit.id].hardness === 0 && PROPS[hit.id].raycast) {
-      resetMining();
-      if (!act.break || now - act.lastBreak > 240) {
-        if (isTNTFuseActive(hit.x, hit.y, hit.z)) { act.lastBreak = now; }
-        // a hoe on grass cuts a whole square of it at once, each plant yielding as foraged (14-mining.js, 0.757)
-        else if (typeof hoeTargetsPlant === 'function' && hoeTargetsPlant(getBlock(hit.x, hit.y, hit.z) & 255)) {
-          hoeCutGrass(hit.x, hit.y, hit.z); act.lastBreak = now;
-        }
-        else {
-        const minedVal = getBlock(hit.x, hit.y, hit.z), minedId = minedVal & 255;
-        playBlockSound(minedId, 'break', hit.x, hit.y, hit.z);
-        if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, minedVal);   // 0.8
-        setBlock(hit.x, hit.y, hit.z, B.AIR);
-        queueWaterAround(hit.x, hit.y, hit.z);
-        queueLavaAround(hit.x, hit.y, hit.z);
-        /* What it leaves (0.8443: the two lines that asked blockDrop were lost long ago, and the loop left behind read a
-           `drop` that was never set: every soft block broken by hand — a mushroom, a torch, a flower — threw an error and
-           gave nothing). A mushroom broken gives itself, with no Lucky Hands (that is for picking, E); one still too
-           small to pick gives nothing, as it gives nothing picked. */
-        const tooSmall = typeof shroomTooSmall === 'function' && shroomTooSmall(minedId, (minedVal >> 8) & 255);
-        if (!tooSmall)
-          for (const drop of blockDrop(minedId, false))
-            for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, hit.x, hit.y, hit.z);
-        act.lastBreak = now;
-        }
-      }
-    } else if (wantMine && hit && Number.isFinite(PROPS[hit.id].hardness) && PROPS[hit.id].hardness > 0
-               && (isToolItem(slotId(HOTBAR[hotbarSel])) || handBreakable(getBlock(hit.x, hit.y, hit.z)))) {
-      // no tool, no crack (0.7341) — bare hands only take foliage; see handBreakable
-      if (isTNTFuseActive(hit.x, hit.y, hit.z)) { resetMining(); }
-      else
-      if (!mining.active || mining.x !== hit.x || mining.y !== hit.y || mining.z !== hit.z
-          || mining.bi !== (hit.bi || 0)          // aiming at the other half of a double slab restarts
-          || mining.sel !== hotbarSel) {          // so does switching the held item (tool speed changes)
-        mining.active = true;
-        mining.x = hit.x; mining.y = hit.y; mining.z = hit.z; mining.bi = hit.bi || 0;
-        mining.sel = hotbarSel;
-        mining.elapsed = 0;
-        // per user (2026-07-12): all break times shortened by 10% (multiplier 0.9).
-        // right tool in hand (shovel/pickaxe/axe) divides the time further (1.5 = 50% faster).
-        // wood and ground dig 1.5x slower than they used to, stone unchanged (14-mining.js, 0.756)
-        // one layer comes off quickly: a quarter of the block for a drift, half for a solid layer (0.785)
-        const hv = getBlock(hit.x, hit.y, hit.z);
-        /* By hand (0.8244): sand, gravel, snow and glass come away at half a flint tool's speed, and a whole sand,
-           gravel or snow block only a layer at a time — each dig is timed as one layer of it. */
-        const hand = !isToolItem(heldUseId()) && HAND_SLOW_BLOCKS.has(hit.id & 255);
-        const byLayer = hand && DIG_BY_LAYER.has(hit.id & 255) && !CORE.layerCount(hv) && !CORE.shapeOfVal(hv);
-        const layerMul = (CORE.layerCount(hv) || byLayer) ? (PROPS[hit.id].layerStack ? 0.25 : 0.5) : 1;
-        mining.needed = PROPS[hit.id].hardness * layerMul * 0.9 * softBlockMineMul(hit.id)
-                      / (hand ? handMineFactor(hit.id) : toolFactor(heldUseId(), hit.id))
-                      / Math.max(0.01, typeof playerMiningSpeedMul === 'function' ? playerMiningSpeedMul() : 1);   // mining speed stat (0.8323)
-        mining.stage = -1;
-      }
-      mining.elapsed += dt;
-      const progress = Math.min(1, mining.elapsed / mining.needed);
-      const stage = Math.min(9, Math.floor(progress * 10));
-      if (stage !== mining.stage) {
-        mining.stage = stage;
-        drawCrack(progress);
-        if (stage & 1) playBlockSound(hit.id, 'hit', hit.x, hit.y, hit.z);   // every other stage
-        // chips off the face being hit, on every stage (0.8)
-        if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
-      }
-      let cboxes = rayBoxesAt(hit.x, hit.y, hit.z);
-      if (cboxes && CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) cboxes = [cboxes[hit.bi || 0]];   // only the half being dug (0.8263)
-      if (cboxes && cboxes.length) {
-        let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
-        for (const b of cboxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
-                                   x1=Math.max(x1,b[3]); y1=Math.max(y1,b[4]); z1=Math.max(z1,b[5]); }
-        crackMesh.position.set(hit.x + (x0+x1)/2, hit.y + (y0+y1)/2, hit.z + (z0+z1)/2);
-        crackMesh.scale.set((x1-x0) * 1.004, (y1-y0) * 1.004, (z1-z0) * 1.004);
-      } else {
-        crackMesh.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
-        crackMesh.scale.set(1.004, 1.004, 1.004);
-      }
-      crackMesh.visible = true;
-      if (mining.elapsed >= mining.needed) {
-        const mval = getBlock(mining.x, mining.y, mining.z);
-        const mx = mining.x, my = mining.y, mz = mining.z, mbi = mining.bi || 0;
-        // a mixed slab (0.8263): it is the half you were aiming at that breaks, and that block that counts
-        const mix = slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] : mval & 255;
-        resetMining();
-        // axe on a log: strip it, or fell the tree if it is already stripped. It performs its own
-        // block edit and drops, so the ordinary break path is skipped when it claims the hit.
-        // NOT an early return — the rest of frame() still has to stream chunks and render.
-        const chopped = tryChopLog(mx, my, mz);
-        if (!chopped) playBlockSound(minedId, 'break', mx, my, mz);
-        // the block bursts into bits of itself; a log the axe only notched sheds a few chips (0.8)
-        if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
-        // the wrong tool for the job (a pickaxe on dirt): double wear below, and no experience
-        const wrongTool = isWrongTool(heldUseId(), mix ? minedId : mval);
-        // tier gate: wrong/too-weak tool still breaks the block but yields no drops
-        const dropsOk = mineDropAllowed(heldUseId(), minedId);
-        let inf = chopped ? null : layerBreakInfo(mx, my, mz, mval);     // a layer stack: only its top layer
-        // a whole sand, gravel or snow block dug by hand loses one layer, and stands on as a drift (0.8244)
-        if (!chopped && !inf && !isToolItem(heldUseId()) && DIG_BY_LAYER.has(minedId) && !CORE.shapeOfVal(mval))
-          inf = { layerId: minedId, apply: () => setLayerStack(mx, my, mz, new Array(LAYER_MAX - 1).fill(minedId)) };
-        // natural blocks only; your own placements pay 0 — and a single layer pays nothing (0.785)
-        // no drop, no experience: a flint pickaxe on ore gets nothing (0.829)
-        if (!wrongTool && dropsOk && !CORE.layerCount(mval) && !inf) awardBlockXP(mx, my, mz, minedId);
-        // ...except salt crust, nearly always a single layer on the beach: each salt layer pays (0.8282)
-        else if (!wrongTool && dropsOk && inf && inf.layerId === B.SALT_CRUST) awardBlockXP(mx, my, mz, B.SALT_CRUST);
-        // ...and a shovel takes a whole stack at once (0.8244), every layer with its own drop
-        const stack = inf && !chopped && ITEM_PROPS[heldUseId()]?.tool === 'shovel' ? layerIdsAt(mx, my, mz, mval) : null;
-        if (chopped) {
-          /* felling already did everything */
-        } else if (mix) {
-          breakSlabMixHalf(mx, my, mz, mbi ? 1 : 0, mval);   // the other half stays as a slab of its own
-          if (dropsOk) for (const drop of blockDrop(minedId, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-        } else if (stack) {
-          setBlock(mx, my, mz, B.AIR);
-          if (dropsOk) _dropStackLayers(stack, mx, my, mz);
-        } else if (inf) {
-          inf.apply();
-          if (dropsOk) _dropLayer(inf.layerId, mx, my, mz);
-        } else {
-          const lockedChest = isChestId(minedId) && chestLocked(mx, my, mz, mval);
-          // broken ice leaves its water behind (0.8321) — only ice that froze from water (0.833); creative just clears it
-          setBlock(mx, my, mz, minedId === B.ICE && !player.canFly && ((mval >> 8) & 255) === ICE_FROM_WATER ? B.WATER : B.AIR);
-          queueWaterAround(mx, my, mz);
-          queueLavaAround(mx, my, mz);
-          if (_isLog(minedId)) scheduleLeavesCheck(mx, my, mz);
-          // a locked or sealed chest broken gives nothing back, itself included (0.843; asked before setBlock let go of its lock)
-          if (dropsOk && !lockedChest) {
-            // a door gives back the blocks it was made of (0.842: three, as the block a look belongs to)
-            const drops = BLOCKS.isDoorVal(mval) ? doorDropOf(mval) : blockDrop(minedId, false);
-            if (drops.length && !BLOCKS.isDoorVal(mval)) drops[0].count += skillOreBonus(minedId);   // Prospector (0.79)
-            // ...and a roll of its own for one more of the ore's stone pebbles (0.8445, LOOT.orePebble)
-            if (drops.length && typeof ORE_BLOCKS !== 'undefined' && ORE_BLOCKS.has(minedId)) {
-              const more = skillOreBonus(minedId), peb = more ? drops.find(d => d.id === ITEM.STONE_PEBBLE) : null;
-              if (peb) peb.count += more; else if (more) drops.push({ id: ITEM.STONE_PEBBLE, count: more });
-            }
-            for (const drop of drops)
-              for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
-          }
-          // a hollow log also gives back what was packed into it (0.7842)
-          if (dropsOk && hollowFillOf(mval)) spawnDrop(hollowFillOf(mval), mx, my, mz);
-        }
-        // stone a flint pickaxe cannot keep still gives a pebble or two (0.8291, flintPebbles in 02)
-        if (!dropsOk && !chopped) for (let i = flintPebbles(heldUseId(), minedId); i > 0; i--) spawnDrop(ITEM.STONE_PEBBLE, mx, my, mz);
-        /* Tool wear: an ordinary survival break costs 1 durability, 2 when the tool had no
-           business on that block (isWrongTool), and NOTHING at all for a billboard — a torch or
-           a flower is brushed aside rather than dug, so no edge dulls on it (0.7345). */
-        const tslot = HOTBAR[hotbarSel];
-        if (tslot && tslot.dur != null && !isFreeBreak(minedId)) {
-          if (wearSlot(tslot, wrongTool ? 2 : 1) === 'gone') HOTBAR[hotbarSel] = null;
-          saveHotbar(); buildHotbar(); updateHotbar();
-        }
-      }
-    } else {
-      resetMining();
-    }
-    // Place uses the same repeat-tap timing as creative.
-    if (wantPlace && !_didThrow) { if (!act.place || now - act.lastPlace > 240) { doPlace(); act.lastPlace = now; } }
-  } else {
-    resetMining();
-    if (wantMine) { if (!act.break || now - act.lastBreak > 240) { doBreak(); act.lastBreak = now; } }
-    // a wand acts once a press: held, it would lay a second layer a moment later (0.8375)
-    if (wantPlace && !_didThrow) { if (!act.place || (now - act.lastPlace > 240 && !holdingWand())) { doPlace(); act.lastPlace = now; } }
-  }
-  act.break = wantBreak; act.place = wantPlace;
-
-  /* ---- held-block light: a virtual glow source that follows this player ---- */
-  {
-    // the brighter of your two hands lights you — a torch in the OFFHAND glows too (0.7451); not one under water (0.8245)
-    const doused = torchDoused(player);
-    const lightOf = (i) => i === null || (doused && i === B.TORCH) ? 0 : i < 256 ? (PROPS[i]?.light ?? 0) : (ITEM_PROPS[i]?.light ?? 0);
-    const mainId = HOTBAR[hotbarSel] ? HOTBAR[hotbarSel].id : null;
-    const offId  = typeof offhandItemId === 'function' ? offhandItemId() : null;
-    const id   = lightOf(offId) > lightOf(mainId) ? offId : mainId;
-    const raw  = lightOf(id);
-    const hand = id === null ? null : id < 256 ? PROPS[id]?.handLight : ITEM_PROPS[id]?.handLight;
-    const lvl  = (playing && player.spawned && raw > 0) ? (hand ?? Math.max(1, Math.round(raw * 0.65))) : 0;
-    _hlRaw = raw;
-    /* Math.round for XZ: triggers 0.5 blocks early so mesh is ready when player arrives. But hard against
-       a wall that half-block lead rounds INTO the wall, and a light source inside an opaque block emits
-       nothing: walking up to a wall with a torch put the light out (0.7531). So the first OPEN cell wins,
-       working back from the rounded one to the cell the eye is really in, then the body's. */
-    const rx = Math.round(player.pos.x), rz = Math.round(player.pos.z);
-    const fx = Math.floor(player.pos.x), fz = Math.floor(player.pos.z);
-    const ey = Math.floor(player.pos.y + player.EYE), by = Math.floor(player.pos.y + 0.5);
-    const _open = (x, y, z) => !CORE.opaqueVal(getBlock(x, y, z));
-    let px = fx, py = ey, pz = fz;
-    if (_open(rx, ey, rz)) { px = rx; pz = rz; }
-    else if (_open(rx, ey, fz)) { px = rx; }
-    else if (_open(fx, ey, rz)) { pz = rz; }
-    else if (!_open(fx, ey, fz) && _open(fx, by, fz)) { py = by; }
-    if (lvl !== _hlLevel || id !== _hlId || px !== _hlX || py !== _hlY || pz !== _hlZ) {
-      _hlId = id; _hlLevel = lvl; _hlX = px; _hlY = py; _hlZ = pz;
-      updatePlayerLight(slot, px, py, pz, lvl, id != null && id < 256 && !!PROPS[id]?.coldLight);   // each player owns one glow slot; a crystal torch's is blue (0.834)
-    }
-  }
-
-  /* ---- eating ---- */
-  // a drink lifts the arm the same way (0.82): walking pace, no sprint, and the body shows it
-  const eatProg = Math.max(updateEating(dt, wantPlace), player._drinkProg || 0);
-  // the third-person body mirrors it next frame, so everyone else sees this player eating
-  player._eatProg = eatProg;
-
-  /* ---- ranged: the same right button draws a bow (38-ranged.js) ---- */
-  const drawProg = updateRanged(dt, wantPlace);
-  player._drawProg = drawProg;              // read by the third-person body, same as _eatProg
-
-  /* ---- taming: the ride fills the bar, and finishing it opens the naming panel ---- */
-  updateTaming(dt);
-
-  /* ---- this player's own upkeep: swing pacing, vitals, XP bar, first-person arm ---- */
-  updateAttackCooldown(dt);
-  /* Vitals stand still while the world is joining, and whenever the ground under this player has not
-     loaded (0.759): hunger, air and damage wait for a world you can actually see and move in. */
-  const _hereC = getChunk(Math.floor(player.pos.x / 16), Math.floor(player.pos.z / 16));
-  /* The chisel's shape slot and radial, in both modes. Moved out of updateVitals in 0.7844: that one waits
-     for the chunk you stand in to be loaded, and until then a radial opened by Q was never drawn. */
-  if (!menuScene && typeof syncChiselHud === 'function') syncChiselHud();
-  if (!menuScene && typeof syncVariantHud === 'function') syncVariantHud();   // 0.794
-  if (!menuScene && typeof syncEffectBar === 'function') syncEffectBar();     // running effects beside the hotbar (0.797)
-  if (typeof updateQuests === 'function') updateQuests(dt);                   // the starter quest, top right (0.798)
-  if (typeof syncBossHud === 'function') syncBossHud();                       // a boss's bar, the last quest's marker (0.839)
-  /* stacks made to fit, once as this seat's world is joined (0.8442, 15-drops.js): on loaded ground, alive and in
-     survival, so what does not fit can fall at their feet; `_restacked` is cleared when a world or a record loads */
-  if (!player._restacked && !menuScene && !joining && player.spawned && !player.dead && !player.canFly && _hereC && _hereC.data) {
-    player._restacked = true;
-    restackInventory();
-  }
-  // food rots in your hands, a second at a time (0.789, 44-spoil.js); with the fixed tick in simTick (0.8379)
-  if (!SIM_FIXED && !menuScene && typeof tickSpoilage === 'function') tickSpoilage(dt);
-  if (!menuScene && !joining && _hereC && _hereC.data) updateVitals(dt);
-  else player._statsLive = false;           // the bars wait with the vitals (0.8379, simTick)
-  updateXPBar(dt);
-  if (typeof updateProgressRing === 'function') updateProgressRing();   // the ring round the crosshair (0.8446, 18-hud.js)
-  updateCraftQueue(dt);                     // this player's crafting queue, and its HUD strip (0.76)
-  updateHands(dt, wantBreak, wantPlace, eatProg, drawProg);
-  updateShield(dt, wantPlace);              // offhand arm + blocking state (40-shield.js)
-
-  /* Selection outline and crack overlay are single scene MESHES shared by every viewport, so each
-     player records the transform it wants and the render pass re-applies it per view. The crack
-     MATERIAL is per seat since 0.734 — sharing it was not the harmless overlap the old note here
-     claimed: both players wrote their own stage into it as their progress crossed each 10%, so
-     both viewports flickered between the two stages several times a second. */
-  const st = PSTATE[slot];
-  st.handVisible = handRoot.visible;
-  st.offVisible = !!(handRoot.userData.off && handRoot.userData.off.root.visible);
-  st.sel = selBox.visible
-    ? { px: selBox.position.x, py: selBox.position.y, pz: selBox.position.z,
-        sx: selBox.scale.x,    sy: selBox.scale.y,    sz: selBox.scale.z } : null;
-  st.crack = crackMesh.visible
-    ? { px: crackMesh.position.x, py: crackMesh.position.y, pz: crackMesh.position.z,
-        sx: crackMesh.scale.x,    sy: crackMesh.scale.y,    sz: crackMesh.scale.z } : null;
-}
-
-/* ================================================================================================
-   WORLD TICK — everything that belongs to the world rather than to a player. Runs exactly once a
-   frame no matter how many people are playing.
-   ================================================================================================ */
-function runWorldTick(dt, now) {
-  let tp = perfNow();                       // F3 timings (0.83851)
+/* THE CHUNK STREAM'S TURN, first in every frame (frame() calls it before the simulation): which chunks are wanted,
+   the arrived ones lit and finished, finished meshes put on screen, and the workers handed their next jobs. It runs
+   on the title screen and while a world is joining too. It sets `streamBehind` for the rest of the frame. */
+function runChunkStream(dt) {
+  let tp = perfNow();                       // F3 timings
   /* ---- chunk streaming, centred on the union of every player's position ---- */
   syncPlayerChunks();
   /* Finish arrived chunks before uploading meshes — a chunk must be lit before it is meshed.
      Generous while the loading screen is up (nothing is on screen to stutter), tight in play.
 
-     Both drains also carry a DEADLINE (0.7143). The counts alone were a poor budget: a chunk
+     Both drains also carry a DEADLINE. The counts alone were a poor budget: a chunk
      finish pass costs anything from a fraction of a millisecond to several depending on how much
      decoration landed in it, so a fixed count is either wasteful or a stutter depending on where
      you happen to be standing. The deadline is a hard wall in real time — whatever is left over
@@ -1726,28 +233,42 @@ function runWorldTick(dt, now) {
      look at than a frame that ran a few milliseconds long. */
   const _rush = _loadingWorld || menuScene;   // nothing to stutter; the player is waiting on this
   const _catchUp = genFinishQueue.length > 6 || meshResults.length > 12;
-  /* UNDER STRESS (0.8443). These budgets were per frame, so a low frame rate starved the stream: at 10 fps a second of
+  /* UNDER STRESS. These budgets were per frame, so a low frame rate starved the stream: at 10 fps a second of
      play got a sixth of the finishing and uploading 60 fps gets, and the world stayed full of holes and half-built
      chunks just when it was hardest to keep up. Now the slice is also never less than a SHARE of the frame's real
      length — STREAM_SHARE of it, STREAM_SHARE_BEHIND while land is waiting, up to STREAM_MS_MAX — and the counts grow
      with the frame the same way, so a second finishes and shows about as much land at 10 fps as at 60. At 60 fps the
      numbers are what they were. The frame rate pays for it while the land catches up: a hole in the world is the worse
-     thing to look at. `streamBehind` (11-chunks.js) tells the work that can wait to wait. */
-  // land waiting = finished chunks piling up, or one still to be made near a player (a re-mesh after an edit is not it)
-  streamBehind = !_rush && (_catchUp || (genQueue.length > 0 && genQueue[0].d2 <= STREAM_NEAR_D2));
+     thing to look at. `streamBehind` (chunks/stream.js) tells the work that can wait to wait. */
+  /* land waiting = finished chunks piling up, or a chunk near a player still to be made, or made and never drawn
+     (streamLandWaiting; a re-mesh after an edit is not it). While it holds the stream takes more: at least
+     STREAM_MS_BEHIND ms and STREAM_SHARE_BEHIND of the frame, twice the chunks finished and shown a frame. What it
+     takes, the background gives up (LAND FIRST, chunks/stream.js), so the frame is not much longer for it. */
+  streamBehind = !_rush && (_catchUp || streamLandWaiting());
   const _slow = _rush ? 1 : Math.min(STREAM_COUNT_MAX, Math.max(1, frameMsAvg / 16.7));
-  const _streamMs = _rush ? 30 : Math.min(STREAM_MS_MAX, Math.max(_catchUp ? 12 : 5, frameMsAvg * (streamBehind ? STREAM_SHARE_BEHIND : STREAM_SHARE)));
+  const _streamMs = _rush ? 30 : Math.min(STREAM_MS_MAX, Math.max(_catchUp ? 12 : streamBehind ? STREAM_MS_BEHIND : 5,
+                                                                  frameMsAvg * (streamBehind ? STREAM_SHARE_BEHIND : STREAM_SHARE)));
   const _streamDeadline = performance.now() + _streamMs;
   tp = perfLap('stream', tp);
-  processGenFinish(Math.round((_rush ? 8 : _catchUp ? 6 : 2) * _slow), _streamDeadline);
+  processGenFinish(Math.round((_rush ? 8 : _catchUp ? 6 : streamBehind ? 4 : 2) * _slow), _streamDeadline);
   tp = perfLap('chunk finish', tp);
-  updateChunkFades(dt);                     // chunks fading in and out (0.8195)
-  // the uploads keep at least a third of the slice to themselves, however long the finishing took (0.8443)
-  applyMeshResults(Math.round((_rush ? 48 : _catchUp ? 32 : 12) * _slow), Math.max(_streamDeadline, performance.now() + _streamMs * STREAM_UPLOAD_KEEP));
+  updateChunkFades(dt);                     // chunks fading in and out
+  // the uploads keep at least a third of the slice to themselves, however long the finishing took
+  applyMeshResults(Math.round((_rush ? 48 : _catchUp ? 32 : streamBehind ? 24 : 12) * _slow), Math.max(_streamDeadline, performance.now() + _streamMs * STREAM_UPLOAD_KEEP));
   tp = perfLap('mesh upload', tp);
-  updateFarRegions();                       // settled far chunks drawn 4x4 to a mesh (0.8386, C8)
+  updateFarRegions();                       // settled far chunks drawn 4x4 to a mesh (C8)
   tp = perfLap('far regions', tp);
   pump();
+  perfLap('stream', tp);
+}
+
+/* ================================================================================================
+   WORLD TICK — everything that belongs to the world rather than to a player. Runs exactly once a
+   frame no matter how many people are playing. (The chunk stream had its turn at the start of the frame:
+   runChunkStream.)
+   ================================================================================================ */
+function runWorldTick(dt, now) {
+  let tp = perfNow();                       // F3 timings
 
   /* Title panorama: lift the veil once every chunk in the (small) menu radius has both data and
      geometry, and nothing is still in flight. Any other state — a world loading, or gameplay —
@@ -1756,7 +277,7 @@ function runWorldTick(dt, now) {
   if (menuScene) {
     if (_menuVeil) {
       let ready = true;
-      const R = drawDist();                  // the far ring too (0.8194): nothing pops in behind the title
+      const R = drawDist();                  // the far ring too: nothing pops in behind the title
       outerMenu: for (let dz = -R; dz <= R; dz++)
         for (let dx = -R; dx <= R; dx++) {
           if (dx * dx + dz * dz > R * R) continue;
@@ -1787,9 +308,9 @@ function runWorldTick(dt, now) {
   }
 
   /* Loading screen: dismiss once the player has spawned, the chunks within radius 4 are ready,
-     AND the art is in (0.732). Chunk readiness alone used to be enough, which is how a cold join
+     AND the art is in. Chunk readiness alone used to be enough, which is how a cold join
      landed you in a finished world holding invisible items beside a black chest. */
-  /* ...with a rough percentage and what is left (0.804): terrain generated, chunks built, art loaded and
+  /* ...with a rough percentage and what is left: terrain generated, chunks built, art loaded and
      icons drawn, weighted by about how long each takes. Close, not exact. */
   if (_loadingWorld) {
     const R = Math.min(viewDist, Math.max(4, simDist()));
@@ -1816,7 +337,7 @@ function runWorldTick(dt, now) {
   }
   if (_loadingWorld && player.spawned && gameAssetsReady) {
     let _ldDone = true;
-    // every chunk the simulation will touch, not just the nearest ring (0.759), capped at the view distance
+    // every chunk the simulation will touch, not just the nearest ring, capped at the view distance
     const _ldR = Math.min(viewDist, Math.max(4, simDist()));
     outer: for (let ldz = -_ldR; ldz <= _ldR; ldz++) {
       for (let ldx = -_ldR; ldx <= _ldR; ldx++) {
@@ -1829,7 +350,7 @@ function runWorldTick(dt, now) {
     if (_ldDone && meshResults.length === 0 && genFinishQueue.length === 0) {
       _loadingWorld = false;
       worldLoadingEl.style.display = 'none';
-      /* Focus was lost while loading (0.801): pause now only if the window is still minimised or in the
+      /* Focus was lost while loading: pause now only if the window is still minimised or in the
          background; still looking at the game, it simply carries on — a click on it takes the mouse back. */
       if (pauseAfterJoin) {
         pauseAfterJoin = false;
@@ -1842,14 +363,14 @@ function runWorldTick(dt, now) {
   /* The whole simulation block is skipped on the title screen. The panorama has no physics, no
      fluids, no mobs and no growth — it is a camera pointed at generated terrain — so every one of
      these is dead weight there, and the boot frames are better spent streaming the backdrop in. */
-  // ...and while a world is joining nothing runs either: no mobs, fluids, drops or growth (0.759)
+  // ...and while a world is joining nothing runs either: no mobs, fluids, drops or growth
   tp = perfLap('stream', tp);
   if (!menuScene && !worldJoining()) {
     updateSimWake();                        // seed physics for chunks entering the sim radius
     processFalling(dt);
     tp = perfLap('falling', tp);
     if (SIM_FIXED) {
-      // dropped items, thrown things and arrows step in simTick (0.8384): drawn here between their ticks
+      // dropped items, thrown things and arrows step in simTick: drawn here between their ticks
       const t = Math.max(0, Math.min(1, _simAcc / SIM_DT));
       if (!player.canFly) { _tickPosesDraw(DROPS, t); _tickPosesDraw(PROJECTILES, t); }
       _tickPosesDraw(ARROWS, t);
@@ -1859,8 +380,8 @@ function runWorldTick(dt, now) {
       updateArrows(dt);                     // arrows fly in both modes: mobs shoot, creative tests
       updateBossFx(dt);                     // 0.839
     }
-    if (!SIM_FIXED) updateFluids(dt);       // with the fixed tick these step in simTick (0.8378)
-    // creatures: with the fixed tick they step in simTick and are drawn here between their ticks (0.838)
+    if (!SIM_FIXED) updateFluids(dt);       // with the fixed tick these step in simTick
+    // creatures: with the fixed tick they step in simTick and are drawn here between their ticks
     if (SIM_FIXED) updateEntitiesFrame(dt, _simAcc / SIM_DT);
     else updateEntities(dt);
     tp = perfLap('creatures+drops draw', tp);
@@ -1868,13 +389,13 @@ function runWorldTick(dt, now) {
       updateTNTs(dt);
       updateSaplings();
       processGrassSpread(dt);
-      processHollowMushrooms(dt);           // lying hollow logs full of dirt grow mushrooms (0.7843)
+      processHollowMushrooms(dt);           // lying hollow logs full of dirt grow mushrooms
       updateFurnaces(dt);
     }
     updateDoors(dt);
     updateBed(dt);
     updateChests(dt);
-    updateBenchDisplays();                  // the order floating over each busy crafting bench (0.76)
+    updateBenchDisplays();                  // the order floating over each busy crafting bench
     tp = perfLap('doors+chests', tp);
     if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)
     tp = perfLap('particles', tp);
@@ -1890,13 +411,13 @@ function runWorldTick(dt, now) {
   tp = perfLap('gear preview', tp);
 
   /* ---- sky, lighting & shadow maps, then one render pass per player ---- */
-  // the clock waits for the world too (0.759); with the fixed tick it moves in simTick, but on the title here (0.8378)
+  // the clock waits for the world too; with the fixed tick it moves in simTick, but on the title here
   updateDayNight(worldJoining() ? 0 : dt, !SIM_FIXED || !!menuScene);
-  updateClouds(worldJoining() ? 0 : dt);        // the cloud layer drifts with the wind (0.815)
+  updateClouds(worldJoining() ? 0 : dt);        // the cloud layer drifts with the wind
   tp = perfLap('sky+clouds', tp);
   renderAllViews(dt);
   tp = perfLap('render', tp);
-  if (typeof updateCameraFilter === 'function') updateCameraFilter(worldJoining() ? 0 : dt);   // what is on each lens (0.837)
+  if (typeof updateCameraFilter === 'function') updateCameraFilter(worldJoining() ? 0 : dt);   // what is on each lens
   tp = perfLap('lens', tp);
 
   /* ---- HUD text (after the render so draw/tri stats reflect the main pass) ---- */
@@ -1913,7 +434,7 @@ function runWorldTick(dt, now) {
    must not turn everyone else's view blue. */
 function applyEyeVolumeFog() {
   const eyeId = getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) & 255;
-  const far = drawDist() * 16;              // over the far ring (0.8193)
+  const far = drawDist() * 16;              // over the far ring
   if (eyeId === B.LAVA) {
     sharedUniforms.fogColor.value.set(0.72, 0.22, 0.0);
     renderer.setClearColor(sharedUniforms.fogColor.value);
@@ -1923,7 +444,7 @@ function applyEyeVolumeFog() {
   } else if (eyeId === B.WATER) {
     sharedUniforms.fogColor.value.copy(_skyFogColor).multiplyScalar(0.45).lerp(_uwTint, 0.4);
     renderer.setClearColor(sharedUniforms.fogColor.value);
-    // ...30% farther with Clear Eyes (0.828)
+    // ...30% farther with Clear Eyes
     const see = typeof skillSightMul === 'function' ? 2 - skillSightMul() : 1;
     sharedUniforms.fogNear.value = 5 * see;
     sharedUniforms.fogFar.value = 36 * see;
@@ -1937,11 +458,11 @@ function applyEyeVolumeFog() {
     sharedUniforms.uDirect.value  = _skyDirect;
     sharedUniforms.fogNear.value = far * 0.55;
     sharedUniforms.fogFar.value  = far * 0.98;
-    sharedUniforms.uSkyFog.value = 0; sharedUniforms.uHaze.value = 1;   // open sky (0.817); applyMist may fog it
-    applyMist(camera);                                    // weather fog and the rainbow where this eye is (0.816)
+    sharedUniforms.uSkyFog.value = 0; sharedUniforms.uHaze.value = 1;   // open sky; applyMist may fog it
+    applyMist(camera);                                    // weather fog and the rainbow where this eye is
     renderer.setClearColor(sharedUniforms.fogColor.value);
   }
-  // under water or in lava the sky is only murk: no dome, sun, moon, stars, flare or haze (0.817)
+  // under water or in lava the sky is only murk: no dome, sun, moon, stars, flare or haze
   if (eyeId === B.LAVA || eyeId === B.WATER) {
     sharedUniforms.uSkyFog.value = 1; sharedUniforms.uHaze.value = 0;
     skyVisibility(0); rainbowMesh.visible = false;
@@ -1960,7 +481,7 @@ function renderHandPass() {
   /* hand scene: force neutral-bright uniforms so held items are never dark at night or in caves.
      Shadow coords (vSC) are in world space and meaningless for hand geometry, so disable shadow. */
   const _hsa = sharedUniforms.uAmbient.value, _hsd = sharedUniforms.uDirect.value, _hss = sharedUniforms.uShadowOn.value;
-  const _hsc = sharedUniforms.uCloudOn.value;   // cloud shade is world space too (0.815)
+  const _hsc = sharedUniforms.uCloudOn.value;   // cloud shade is world space too
   _handSaveLC.copy(sharedUniforms.uLightColor.value);
   sharedUniforms.uAmbient.value = 1.0; sharedUniforms.uDirect.value = 0.0; sharedUniforms.uShadowOn.value = 0.0;
   sharedUniforms.uCloudOn.value = 0;
@@ -1972,24 +493,24 @@ function renderHandPass() {
   renderer.autoClear = true;
 }
 
-// any other weather blending in here with at least a fifth of the weight (0.813), e.g. " (storm 30%)"
+// any other weather blending in here with at least a fifth of the weight, e.g. " (storm 30%)"
 const _dbgMix = (w) => Object.entries(w.mix || {}).filter(([t, v]) => t !== w.type && v >= 0.2)
   .map(([t, v]) => ` (${t} ${Math.round(v * 100)}%)`).join('');
-// the morning / after-rain fog and a rainbow where the player stands, when there is any (0.816)
+// the morning / after-rain fog and a rainbow where the player stands, when there is any
 const _dbgMist = () => {
   const m = mistAt(player.pos.x, player.pos.z);
   return (m.light >= 0.05 ? ` &middot; mist ${Math.round(m.light * 100)}%` : '') + (m.bow >= 0.05 ? ` &middot; rainbow ${Math.round(m.bow * 100)}%` : '')
        + (typeof isBloodMoon === 'function' && isBloodMoon() ? ' &middot; blood moon' : '');   // 0.8192
 };
-// the date, weather and wind lines of the debug read-out (0.81)
+// the date, weather and wind lines of the debug read-out
 function _dbgDate() {
   const d = gameDate(), w = weatherAt(player.pos.x, player.pos.z, player.pos.y);
   const wdir = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(w.dir / 45) % 8];
-  // where the wind is heading over the next in-game hour (0.812): > rising, < falling, = steady
+  // where the wind is heading over the next in-game hour: > rising, < falling, = steady
   const soon = weatherAt(player.pos.x, player.pos.z, player.pos.y, 1).speed;
   const trend = soon > w.speed + 1 ? '&gt;' : soon < w.speed - 1 ? '&lt;' : '=';
   const felt = windShelter(player);
-  // today's sunrise and sunset (0.818): the days lengthen and shorten with the season
+  // today's sunrise and sunset: the days lengthen and shorten with the season
   const st = sunTimes(), hm = (t) => { const m = Math.round((((t * 24 + 6) % 24) + 24) % 24 * 60); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
   return `Day ${worldDay} &middot; ${d.day} ${MONTH_NAMES[d.month]}, year ${d.year} (${SEASON_NAMES[d.season]}) &middot; ${moonPhaseName()} &middot; sun ${hm(st.rise)}-${hm(st.set)}<br>` +   // moon 0.817
     `weather: ${w.name}${_dbgMix(w)}${w.next ? ` &rarr; ${w.nextName} in ${w.nextIn}h` : ''}${_dbgMist()}<br>` +
@@ -2008,7 +529,7 @@ function paintDebugHud() {
   hudEl.innerHTML =
     `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz}${SIM_FIXED ? ` &middot; sim ${SIM_HZ} Hz x${_simTicksLast}` : ''} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
     `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock}<br>` +
-    // the date, the weather and the wind where you stand (0.81, 51-seasons.js)
+    // the date, the weather and the wind where you stand (0.81, seasons/seasons.js)
     `${_dbgDate()}<br>` +
     `XYZ ${p.x.toFixed(1)} / ${p.y.toFixed(1)} / ${p.z.toFixed(1)}<br>` +
     `biome ${mainGen.biomeAt(Math.floor(p.x), Math.floor(p.z))}<br>` +
@@ -2017,7 +538,6 @@ function paintDebugHud() {
     // what this seat is actually listening to — the quickest answer to "is my controller detected"
     `input ${escapeHtml(inputLabelFor(activePlayerSlot()))}<br>` +
     `draws ${info.calls} &middot; tris ${(info.triangles / 1000).toFixed(0)}k &middot; creatures ${ENTITIES.length} &middot; drops ${DROPS.length}` +
-    (_perfLine ? `<br>${_perfLine}` : '') +     // where the time goes (0.83851, MultithreadPlan C1)
-    (typeof fluidDebugLine === 'function' && fluidDebugLine() ? `<br>${fluidDebugLine()}` : '');   // the fluids' work (0.844, 61-fluids.js)
+    (_perfLine ? `<br>${_perfLine}` : '') +     // where the time goes
+    (typeof fluidDebugLine === 'function' && fluidDebugLine() ? `<br>${fluidDebugLine()}` : '');   // the fluids' work (fluids/fluids.js)
 }
-

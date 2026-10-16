@@ -109,10 +109,10 @@ legends: B = big update, M= medium update, S = small update
 107. S: ~~door shape with keys~~ v0.842
 108. S: ~~metal chest with new structure in world~~ v0.843
 109. S: ~~fluid flow fix~~ v0.844
-110. M: QoL and balance updates v0.844(2-7) PART 1-6
-111. S: hellhound spawning in desert obsidian updated, 0.845
-112. S: more block variant, acacia tree. 0.846
-113. S: Slopes shape, and seashells blocks (as human build pyramid for summer boss) v0.847
+110. M: ~~QoL and balance updates~~ v0.844(2-7) PART 1-6
+111. S: hellhound spawning in desert, bottle and water, 0.845
+112. S: more block variant, savanna with acacia trees. 0.846
+113. S: shape and seashells with block (as human build pyramid for summer boss) v0.847
 114. S: added pyramid same and big version v0.848
 115. S: summer boss desert curse v0.849
 116. M: jungle biome with jungle tree and cocoa beans (parrots ?). v0.85
@@ -127,8 +127,8 @@ legends: B = big update, M= medium update, S = small update
 125. S: bear territorial, quality fat, trapdoor and bars shapes (as human build autumn mansion)v0.873
 126. S: add kelp underwater picking bush, chicken, 0.875
 127. S: autumn boss, campfire and cauldron with make simple food 0.877
-128. M: cherry update with cherry tree, rabbits animals. v0.88
-129. S: savanna biome with acacia trees with lever shape v0.883
+128. M: cherry update with cherry tree, flower carpet, rabbits animals. v0.88
+129. S: lever shape, other block variants v0.883
 130. S: belt system chisel and hammer, lantern slots.  0.885
 131. S: second part belt system with compass, map, spyglass with them functions  v0.887
 132. M: volcano biome with a lot new block like Blackstone, quartz ore with black quartz item 0.89

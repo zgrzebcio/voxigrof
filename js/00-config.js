@@ -32,21 +32,21 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.8445';     // 0.843: the chest art in four sheets, the metal chest   // 0.8411: the Dryland's pale grass and dry leaves   // 0.84: palm wood, palm sapling, dry grass, tall dry grass, dry bush   // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
-// 0.80991: blackberry bush art
-// 0.8099: blackberries icon, pumpkin pie art
-// 0.8098: item textures moved (containers, powders, raw ores)
-// 0.8094: glow masks for light sources
-// 0.8093: textures moved, animated fluids, built grass sides and gem ores, band/pillar
-// 0.8091: mushroom models, trees moved, sand sides, adobe, glass looks, salt, cantaloupe
-// 0.809: texture array, furnace/bench/chest variants, dolomite
+const GAME_VERSION = '0.8455';     // the chest art in four sheets, the metal chest   // 0.8411: the Dryland's pale grass and dry leaves   // 0.84: palm wood, palm sapling, dry grass, tall dry grass, dry bush   // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+// blackberry bush art
+// blackberries icon, pumpkin pie art
+// item textures moved (containers, powders, raw ores)
+// glow masks for light sources
+// textures moved, animated fluids, built grass sides and gem ores, band/pillar
+// mushroom models, trees moved, sand sides, adobe, glass looks, salt, cantaloupe
+// texture array, furnace/bench/chest variants, dolomite
 // earlier bumps: 0.808: 128px art, moved furnace/bench/chest   // 0.807: stripped log files renamed   // 0.804: the blinking TNT's own top   // 0.801: the furnace's open top   // 0.7943 brick textures; 0.7945/0.7946 gem clusters; 0.7947 yellow berries: cached art must go
 const CHUNK_X = 16, CHUNK_Y = 250, CHUNK_Z = 16;   // 250 tall since 0.8354 (200 before; CY in 02 must match)
-const WORLD_TOP = CHUNK_Y - 1;            // the highest y a block can be at (0.8354)
+const WORLD_TOP = CHUNK_Y - 1;            // the highest y a block can be at
 const WATER_Y = 99;                       // top water surface fills up to this y
 const DEFAULT_VIEW_DIST = 10;             // in chunks (radius)
 let   viewDist = clampi(parseInt(localStorage.getItem('vg_dist')) || DEFAULT_VIEW_DIST, 8, 32);
-/* ---- two chunk radii (0.712) ----
+/* ---- two chunk radii ----
    `viewDist` is the GENERATION/render radius: how far chunks are built, meshed and drawn. It is
    a graphics setting and people push it high.
 
@@ -60,13 +60,13 @@ let   viewDist = clampi(parseInt(localStorage.getItem('vg_dist')) || DEFAULT_VIE
    render distance says. */
 const SIM_DIST_MIN = 2, SIM_DIST_MAX = 16;
 const DEFAULT_SIM_DIST = 6;
-/* Water and lava flow (0.8245): OFF for now, it lagged too much. Fluids stay exactly where they are put: a bucket
+/* Water and lava flow: OFF for now, it lagged too much. Fluids stay exactly where they are put: a bucket
    places one still block, breaking beside water opens no flow, and nothing is queued (queueWaterAt / queueLavaAt,
    22-main-loop.js). True brings the old flow back.
-   0.844: back on, rebuilt: its own thread with shared memory, finite (falling water is never a source), the world's own
-   loose water flows too (61-fluids.js, the rules makeFluidSim in 02). False stills every fluid again. */
+   back on, rebuilt: its own thread with shared memory, finite (falling water is never a source), the world's own
+   loose water flows too (fluids/fluids.js, the rules makeFluidSim in fluids/rules.js). False stills every fluid again. */
 const FLUID_FLOW = true;
-/* The fixed simulation tick (0.8378, MultithreadPlan.md part A1). The world's clockwork — the day clock, furnaces,
+/* The fixed simulation tick. The world's clockwork — the day clock, furnaces,
    saplings, grass spreading and growing, berries, wheat, mushrooms, cane, the weather on the ground, ice melting,
    lights burning out, leaf decay, snow melt, litter, fluids, TNT — steps SIM_HZ times a real second whatever the frame
    rate (simTick, 22-main-loop.js), so it runs at the same speed at 15 fps or 144. The players (movement, vitals),
@@ -75,42 +75,42 @@ const FLUID_FLOW = true;
    long hitch) is dropped, not caught up: the world waits while you are away. SIM_FIXED false: all of it once a frame,
    as before 0.8378. */
 const SIM_FIXED = true, SIM_HZ = 20, SIM_DT = 1 / SIM_HZ, SIM_MAX_FRAME = 0.5, SIM_MAX_STEPS = 10, FRAME_DT_MAX = 0.1;
-/* How dark it gets (0.8442: a fifth lighter in caves and at night). SKY_FLOOR is the share of daylight a face with no
+/* How dark it gets (a fifth lighter in caves and at night). SKY_FLOOR is the share of daylight a face with no
    sky light still shows (a cave, deep shade; 0.276 before, 0.24 before 0.8242): the chunk shader (04) and everything
    lit to match it (doors 27, creatures 28, beds 29, chests 30) read it here. NIGHT_LIGHTEN scales the night's ambient
    light and the moon's (07-sky.js); the day is as it was.
-   0.8443: half as light again as 0.8441 had it (0.414 and 1.5; 0.8442's 0.331 and 1.2 were real but too small a step to
+   half as light again as 0.8441 had it (0.414 and 1.5; 0.8442's 0.331 and 1.2 were real but too small a step to
    see: the cave floor went from 10% of daylight to 12%, and is 15% now). The two multiply in a cave at night. */
 const SKY_FLOOR_0843 = 0.414, NIGHT_LIGHTEN_0843 = 1.5;
-/* 0.8444: a quarter of the darkness that was left taken off again. A cave's floor goes a quarter of the way from 0.414
+/* a quarter of the darkness that was left taken off again. A cave's floor goes a quarter of the way from 0.414
    to full daylight (0.56), and the night's light a quarter more (1.875: its ambient 0.32, the day's is 0.368). Cloud
    shadows are half as dark too (CLOUD_SHADOW_MUL, 04-materials.js). */
 const SKY_FLOOR = SKY_FLOOR_0843 + (1 - SKY_FLOOR_0843) * 0.25, NIGHT_LIGHTEN = NIGHT_LIGHTEN_0843 * 1.25;
-/* Raw mouse for looking around (0.8443, 17-input.js): the pointer lock asks for the mouse's own movement, without the
+/* Raw mouse for looking around (17-input.js): the pointer lock asks for the mouse's own movement, without the
    system's pointer acceleration, which made fast strokes (the ones a low frame rate draws out of you) turn further than
    slow ones. Falls back to the ordinary lock where the browser has none. false = the ordinary lock, as before.
    A setting since 0.8443: Options > Gameplay "Raw mouse input" (on unless switched off; applySettings, 17-input.js). */
 let rawMouse = (() => { try { return localStorage.getItem('vg_rawmouse') !== 'off'; } catch { return true; } })();
-/* Work handed to the worker threads (MultithreadPlan.md part B). SEASON_WORKER_SCAN (0.8382): a chunk's hourly season
-   pass gets its list of cells worth a look from a worker instead of walking all of the chunk (51-seasons.js).
-   LIGHT_WORKER (0.8383): a new chunk's own sky light is worked out in the worker as it is made (09-light-sky.js). */
+/* Work handed to the worker threads. SEASON_WORKER_SCAN: a chunk's hourly season
+   pass gets its list of cells worth a look from a worker instead of walking all of the chunk (seasons/seasons.js).
+   LIGHT_WORKER: a new chunk's own sky light is worked out in the worker as it is made (09-light-sky.js). */
 const SEASON_WORKER_SCAN = true, LIGHT_WORKER = true;
-/* SAVE_WORKER (0.8384): an autosave hands the world to a worker of its own, which puts it in the same shape and writes
+/* SAVE_WORKER: an autosave hands the world to a worker of its own, which puts it in the same shape and writes
    it to IndexedDB (16-worlds.js); the player's edits go across as flat number arrays, cheap to hand over. */
 const SAVE_WORKER = true;
-/* CHUNK_CACHE (0.83851, MultithreadPlan C2): getChunk remembers the chunks it found in a small table (11-chunks.js), so a
+/* CHUNK_CACHE: getChunk remembers the chunks it found in a small table (chunks/chunks.js), so a
    block, light or sky read no longer builds a "cx,cz" string and searches the chunk Map every time. */
 const CHUNK_CACHE = true;
-/* 0.83852 (MultithreadPlan C3, C6): CREATURE_FAR_SLOW: a calm creature over ENT_FAR_R blocks from every player thinks every
+/* CREATURE_FAR_SLOW: a calm creature over ENT_FAR_R blocks from every player thinks every
    4th tick (28); MESH_REUSE: a remeshed chunk's new data is written into its old buffers when it fits (11). */
 const CREATURE_FAR_SLOW = true, MESH_REUSE = true;
-/* 0.8386 (MultithreadPlan C8-C10).
+/* 0.8386.
    SHARED_MEMORY (C10): when the page is cross-origin isolated (coi-sw.js gives GitHub Pages and serve.ps1 the headers),
    a chunk's cells, sky and block light live in SharedArrayBuffers: the workers read them where they are, nothing is
    copied for a mesh job, a season scan or a light job. SHARED_OK says whether it is really on this time.
    LIGHT_THREAD (C9, needs SHARED_OK): block light floods (an edit, a held torch, a chunk arriving near a light) run in a
    light worker of their own (08), the main thread only gathers the sources and remeshes what changed.
-   FAR_REGIONS (C8): settled far chunks (level of detail 2) are drawn 4x4 to a mesh (11), far fewer draw calls. */
+   FAR_REGIONS (C8): settled far chunks (level of detail 2) are drawn 4x4 to a mesh (chunks/chunks.js), far fewer draw calls. */
 const SHARED_MEMORY = true, LIGHT_THREAD = true, FAR_REGIONS = true;
 const SHARED_OK = SHARED_MEMORY && !!globalThis.crossOriginIsolated && typeof SharedArrayBuffer === 'function';
 // a new typed array, in shared memory when it is on
@@ -127,14 +127,14 @@ let   simRadius = clampi(parseInt(localStorage.getItem('vg_sim')) || DEFAULT_SIM
 /* Never larger than the render distance — simulating chunks that do not exist is meaningless,
    so lowering render distance quietly clamps the effective simulation radius with it. */
 const simDist = () => Math.max(SIM_DIST_MIN, Math.min(simRadius, viewDist));
-/* ---- the far ring (0.8193) ----
+/* ---- the far ring ----
    FAR_RING more chunks are always built and drawn past the render distance, cheaply: at the lowest level of
    detail (a 2x2x2 downsample, no small things), with no creatures shown and no simulation, and the fog pushed out
    over them. The world reads as reaching further than the full-detail radius the machine is set to carry.
    The title backdrop has it too since 0.8194. `drawDist()` is how far chunks are drawn; `viewDist` stays the full-detail setting. */
 const FAR_RING = 4;
 const drawDist = () => viewDist + FAR_RING;
-/* ---- split screen (0.72) ----
+/* ---- split screen ----
    Every radius in the game is measured from "the player". With up to four of them on one screen
    the honest question is always "how far is the NEAREST player", so that is what this answers.
    `PLAYER_CHUNKS` holds one [cx, cz] pair per active player and is rewritten by 36-splitscreen.js
@@ -150,7 +150,7 @@ function chunkDist2ToPlayers(cx, cz) {
   }
   return best;
 }
-// chunk-space range test. playerCX/CZ live in 11-chunks.js and are read at call time.
+// chunk-space range test. playerCX/CZ live in chunks/chunks.js and are read at call time.
 function inSimRangeChunk(cx, cz) {
   const r = simDist();
   return chunkDist2ToPlayers(cx, cz) <= r * r;

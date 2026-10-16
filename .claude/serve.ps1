@@ -22,14 +22,16 @@ while ($listener.IsListening) {
       $ext = [IO.Path]::GetExtension($path).ToLower()
       $res.ContentType = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { 'application/octet-stream' }
       $res.Headers.Add('Cache-Control', 'no-store')
+      # headers and body leave in ONE send (Close with the bytes). Written separately, every request on a kept-alive
+      # connection waited ~100 ms on the delayed ACK, and a page of 200 scripts took 16 s to load.
       $res.ContentLength64 = $bytes.Length
-      $res.OutputStream.Write($bytes, 0, $bytes.Length)
+      $res.Close($bytes, $false)
     } else {
       $res.StatusCode = 404
     }
   } catch {
     $res.StatusCode = 500
   } finally {
-    $res.Close()
+    try { $res.Close() } catch { }   # already closed when the file was sent
   }
 }

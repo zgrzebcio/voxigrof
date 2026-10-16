@@ -76,7 +76,7 @@ var _drawAmmoId = null;      // what is nocked right now
 var _drawDry = false;        // held with nothing to shoot: the bow stays slack
 
 const rangedDraw = () => {
-  const rp = rangedProps(heldUseId());       // a broken bow cannot be drawn (0.79)
+  const rp = rangedProps(heldUseId());       // a broken bow cannot be drawn
   return rp ? Math.min(1, _drawT / rp.draw) : 0;
 };
 const rangedNocked = () => (_drawT > 0 && !_drawDry) ? _drawAmmoId : null;
@@ -213,7 +213,7 @@ function updateArrows(dt) {
     if (a.age > 25 || a.group.position.y < -30) { removeArrow(i); continue; }
     if (a.drag) { const k = Math.max(0, 1 - a.drag * dt); a.vx *= k; a.vy *= k; a.vz *= k; }
     a.vy -= a.gravity * dt;
-    if (typeof fxArrowTrail === 'function') fxArrowTrail(a, dt);   // a faint trail behind it in flight (0.803)
+    if (typeof fxArrowTrail === 'function') fxArrowTrail(a, dt);   // a faint trail behind it in flight
     const speed = Math.hypot(a.vx, a.vy, a.vz);
     const steps = Math.max(1, Math.min(12, Math.ceil(speed * dt / ARROW_STEP)));
     const sdt = dt / steps;
@@ -223,7 +223,7 @@ function updateArrows(dt) {
       const nx = pos.x + a.vx * sdt, ny = pos.y + a.vy * sdt, nz = pos.z + a.vz * sdt;
       // 1) a body in the way
       const ent = _arrowHitEntity(a, nx, ny, nz);
-      // a boss's raised shield turns the arrow, as a player's does (0.839, 60-bosses.js)
+      // a boss's raised shield turns the arrow, as a player's does (entities/frozen-king.js)
       if (ent && ent.boss && typeof bossDeflects === 'function' && bossDeflects(ent, nx - a.vx, nz - a.vz)) {
         _bounceArrow(a);
         playSound('hit', { gain: 0.6, rate: 0.6, pos: { x: nx, y: ny, z: nz } });
@@ -238,7 +238,7 @@ function updateArrows(dt) {
       if (!a.fromPlayer && !a.spent) {
         const tp = _arrowHitPlayer(nx, ny, nz);
         if (tp) {
-          // a raised shield facing the shot turns it: it glances off and tumbles away (0.745)
+          // a raised shield facing the shot turns it: it glances off and tumbles away
           if (typeof shieldBlock === 'function' && shieldBlock(tp, nx - a.vx, nz - a.vz, a.dmg)) {
             _bounceArrow(a);
             break;                               // still in flight — it just changed direction
@@ -296,8 +296,9 @@ function _arrowHitEntity(a, x, y, z) {
   for (const e of ENTITIES) {
     if (e.hp <= 0 || e === a.shooter) continue;
     if (a.fromPlayer && e.rider && e.rider === a.owner) continue;   // never your own mount
+    if (a.fromPlayer && e.kind === 'hellhound' && e.tame && e.owner === a.owner) continue;   // nor your own hound, in the fight beside your target
     if (!a.fromPlayer && e.kind === a.shooterKind) continue;   // mobs don't shoot their own kind
-    const er = entR(e);                      // each body's own box (size-scaled, 0.7441)
+    const er = entR(e);                      // each body's own box (size-scaled)
     if (Math.abs(x - e.x) > er + 0.15 || Math.abs(z - e.z) > er + 0.15) continue;
     if (y < e.y - 0.1 || y > e.y + entH(e)) continue;
     return e;
@@ -310,8 +311,8 @@ function _arrowHitsEntity(a, ent) {
   ent.kz = a.vz / m * a.knock;
   playSound('hit', { gain: 0.6, rate: 1.1 + Math.random() * 0.15,
                      pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
-  // a mob's arrow is a creature's blow (0.7912): no XP or loot for the player, no grudge against them
-  // where it came from goes along for a boss's shield (0.839)
+  // a mob's arrow is a creature's blow: no XP or loot for the player, no grudge against them
+  // where it came from goes along for a boss's shield
   if (a.fromPlayer) damageEntity(ent, a.dmg, { x: ent.x - a.vx, z: ent.z - a.vz }); else damageEntityByMob(ent, a.dmg, a.shooter);
 }
 function _arrowHitPlayer(x, y, z) {
@@ -327,6 +328,7 @@ function _arrowHitPlayer(x, y, z) {
 function _arrowHitsPlayer(a, tp, x, y, z) {
   tp.hp -= a.dmg;              // out of 100 on both sides since 0.823
   tp._dmgCause = `was shot by a ${a.byName}`;
+  if (a.shooter) { tp._hitBy = a.shooter; tp._hitByAt = performance.now(); }   // a hound on defense goes for the archer
   const m = Math.hypot(a.vx, a.vz) || 1;
   const kick = playerKick(tp);
   const kbMul = 1 - (typeof playerKnockbackResist === 'function'

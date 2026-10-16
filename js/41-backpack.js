@@ -1,7 +1,7 @@
 'use strict';
-/* voxiGrof — the backpack (0.75)
+/* voxiGrof — the backpack
 
-   Worn in the BACK equipment slot (31-equipment.js), which until now took nothing. Wearing one opens
+   Worn in the BACK equipment slot (player/equipment.js), which until now took nothing. Wearing one opens
    the SECOND inventory grid — two more rows under the main one — and it is a real bag, not a
    display: picked-up drops fall into it once the hotbar and the main grid are full, quick-move
    reaches it, and crafting spends out of it.
@@ -35,7 +35,7 @@ function gridLen(arr) {
 }
 /* Called after any equipment change, exactly as syncBeltCapacity is. Anything past the new capacity
    (the pack taken off, or traded for a smaller one) goes back into the BASE inventory: the main grid
-   first, then the hotbar, topping up stacks before taking empty slots (0.755). Whatever still does not
+   first, then the hotbar, topping up stacks before taking empty slots. Whatever still does not
    fit is thrown out in front of the player rather than dropped at their feet. It used to go through
    tryPickup one item at a time, which filled the hotbar before the main grid and fed a "+1 unpacked"
    line for every single item. */
@@ -77,34 +77,77 @@ function syncBackpackCapacity() {
 }
 
 /* ---------------------------------- the worn pack ----------------------------------
-   A real box on the back, not an extruded icon: the pack is the piece of gear other players see
-   most, and a flat sprite would disappear edge-on. textures/Entity/backpack.png is a 128x128
-   sheet in the ordinary 64-space skin layout (w8 h8 d4 based at 0,0), so _skinUV maps it with no
-   special case — the same trick the skeleton's double-resolution sheet uses.
+   A real model on the back, not an extruded icon: the pack is the piece of gear other players see most, and a
+   flat sprite would disappear edge-on. Each kind of pack is two files named by the item's `wear` (items/items.js),
+   in textures/Entity/equipment/Backpacks/:
+     <wear>.json   its model: a list of boxes (`elements`), each with `from` and `to` corners and, per face, the
+                   part of the sheet it shows (`uv`: left, top, right, bottom, in 16ths of the sheet)
+     <wear>.png    its sheet
+   (The straps over the chest are a third, <wear>_torso_overlay.png, laid on the torso by player/armor-model.js.)
 
-   The geometry is shallower than the sheet's four pixels of depth. UVs are fractions of the
-   sheet, so squashing the box does not move them; it just stops the pack sticking out as far as
-   the player's own chest is deep. */
-const PACK_W = 8, PACK_H = 8, PACK_D = 4;        // the sheet's layout, in skin pixels
-const PACK_DEPTH = 3.2;                          // how deep it actually sits off the back
-let _packTex = null;
-function _packMat() {
-  if (!_packTex) {
-    _packTex = new THREE.TextureLoader().load('textures/Entity/equipment/backpack.png');
-    _packTex.colorSpace = THREE.SRGBColorSpace;
-    _packTex.magFilter = THREE.NearestFilter;
-    _packTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
-    _packTex.generateMipmaps = true;   // (0.8092)
+   THE MODEL'S SPACE is the one its JSON describes: units are skin pixels, the torso is 8 x 12 x 4 round x = 0,
+   z = 0 with the waist at y = 0, the body FACES -Z and the pack sticks out to +Z. The game's bodies face +Z, so
+   every corner is turned half round (x and z negated) as it is read; a turn, not a mirror, so every face keeps
+   its picture the right way round. The waist is the TORSO group's own origin, so the node needs no offset.
+
+   The files are fetched the first time a pack of that kind is worn. Until they are in, buildBackpackNode gives
+   null and its callers ask again. */
+const PACK_DIR = 'textures/Entity/equipment/Backpacks/';
+const _packModels = {};                          // wear name -> { geo, tex } once loaded, 'loading', or 'failed'
+// one box's six faces as seen from outside: [the JSON's name for it, its four corners: top left, top right,
+// bottom left, bottom right], each corner by which end (0 = from, 1 = to) it takes on x, y, z
+const _PACK_FACES = [
+  ['east',  [[1, 1, 1], [1, 1, 0], [1, 0, 1], [1, 0, 0]]],
+  ['west',  [[0, 1, 0], [0, 1, 1], [0, 0, 0], [0, 0, 1]]],
+  ['up',    [[0, 1, 0], [1, 1, 0], [0, 1, 1], [1, 1, 1]]],
+  ['down',  [[0, 0, 1], [1, 0, 1], [0, 0, 0], [1, 0, 0]]],
+  ['south', [[0, 1, 1], [1, 1, 1], [0, 0, 1], [1, 0, 1]]],
+  ['north', [[1, 1, 0], [0, 1, 0], [1, 0, 0], [0, 0, 0]]],
+];
+// every box of a model as ONE geometry, already in the game's space and size
+function _packGeometry(json) {
+  const pos = [], uv = [], idx = [];
+  for (const el of json.elements || []) {
+    const ends = [el.from, el.to];
+    for (const [name, corners] of _PACK_FACES) {
+      const f = el.faces && el.faces[name];
+      if (!f || !f.uv) continue;
+      const [u0, v0, u1, v1] = f.uv, base = pos.length / 3;
+      corners.forEach(([ex, ey, ez], k) => {
+        pos.push(-ends[ex][0] * PX, ends[ey][1] * PX, -ends[ez][2] * PX);   // turned half round to face +Z
+        uv.push((k % 2 ? u1 : u0) / 16, 1 - (k < 2 ? v0 : v1) / 16);        // the sheet's top is v = 1
+      });
+      idx.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
+    }
   }
-  return new THREE.MeshBasicMaterial({ map: _packTex, transparent: true, alphaTest: 0.5 });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  return geo;
 }
-// Positioned for the TORSO group, which pivots at the hips with 12px of body above it.
-function buildBackpackNode() {
-  const geo = new THREE.BoxGeometry(PACK_W * PX, PACK_H * PX, PACK_DEPTH * PX);
-  _skinUV(geo, PACK_W, PACK_H, PACK_D, 0, 0);
-  const mesh = new THREE.Mesh(geo, _packMat());
-  mesh.position.set(0, 7 * PX, -(2 + PACK_DEPTH / 2) * PX);   // 2px = half the torso's depth
-  return mesh;
+function _loadPackModel(wear) {
+  _packModels[wear] = 'loading';
+  fetch(PACK_DIR + wear + '.json').then(r => r.ok ? r.json() : Promise.reject(new Error(r.status))).then((json) => {
+    const tex = new THREE.TextureLoader().load(PACK_DIR + wear + '.png');
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
+    tex.generateMipmaps = true;
+    _packModels[wear] = { geo: _packGeometry(json), tex };
+  }).catch((e) => { _packModels[wear] = 'failed'; console.error('backpack model ' + wear + ':', e); });
+}
+/* The pack `id` is, as a mesh positioned for the TORSO group (which pivots at the hips with 12px of body above
+   it), or null while its files are still loading (or it has none). Each mesh gets its own copy of the geometry
+   and its own material (a body lights its own, and whoever takes a pack off disposes of both); they share the
+   sheet. */
+function buildBackpackNode(id) {
+  const wear = ITEM_PROPS[id]?.wear;
+  if (!wear) return null;
+  const model = _packModels[wear];
+  if (!model) { _loadPackModel(wear); return null; }
+  if (typeof model === 'string') return null;      // loading, or failed
+  return new THREE.Mesh(model.geo.clone(), new THREE.MeshBasicMaterial({ map: model.tex, transparent: true, alphaTest: 0.5 }));
 }
 /* Hung off the torso rather than the root, so it leans with a sneak and tips with the model in a
    bed. Its material joins m.mats — the list shadeHumanoid walks — so the pack darkens at night
@@ -112,9 +155,20 @@ function buildBackpackNode() {
 function poseBodyBack(m, id) {
   if (!m || !m.torso) return;
   const want = isBackpackId(id);
+  // another kind of pack than the one on the back: that one comes off first
+  if (m.packNode && want && m._packBuilt !== id) {
+    m.torso.remove(m.packNode);
+    if (m.mats) m.mats = m.mats.filter(mt => mt !== m.packNode.material);
+    m.packNode.geometry.dispose();
+    m.packNode.material.dispose();
+    m.packNode = null;
+  }
   if (!want && !m.packNode) { m._packId = null; return; }
   if (want && !m.packNode) {
-    m.packNode = buildBackpackNode();
+    const node = buildBackpackNode(id);
+    if (!node) { m._packId = null; return; }       // its model is not in yet: asked again next frame
+    m.packNode = node;
+    m._packBuilt = id;
     m.torso.add(m.packNode);
     if (m.mats) m.mats.push(m.packNode.material); else m.mats = [m.packNode.material];
   }

@@ -13,8 +13,10 @@ const DROP_GEOM = {};
    around the sprite's silhouette, each wall vertex-colored from the sprite pixel it belongs to
    (slightly darkened). Item lies flat and spins. Needs IMAGES[icon] preloaded by buildAtlas. */
 const ITEM_DROP_THICK = 1 / 16;
-function buildItemDropGeom(id, iconName) {
-  const key = 'item:' + id;
+// `iconName`: a picture other than the item's own icon; `cacheKey`: then its own place in DROP_GEOM, so the
+// item's ordinary sprite is not replaced by it (a shield in the hand is drawn from its worn picture, 40-shield.js)
+function buildItemDropGeom(id, iconName, cacheKey) {
+  const key = cacheKey || 'item:' + id;
   if (DROP_GEOM[key]) return DROP_GEOM[key];
   const props = ITEM_PROPS[id];
   const img = IMAGES[iconName || (props && props.icon)];
@@ -32,7 +34,7 @@ function buildItemDropGeom(id, iconName) {
   const tex = new THREE.Texture(img);
   tex.colorSpace = THREE.SRGBColorSpace;  // ColorManagement off + sRGB output: without this the sprite renders washed-out
   tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped (0.8092)
+  tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
   tex.needsUpdate = true;
   const matFace = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
   const faceGeo = new THREE.BufferGeometry();
@@ -85,11 +87,11 @@ function buildItemDropGeom(id, iconName) {
 function buildDropGeom(id, variant = 0) {
   if (id >= 256) return buildItemDropGeom(id);
   if (id === B.DOOR) return buildItemDropGeom(id, 'oak_door');   // no chunk-mesh model — sprite drop
-  if (id === B.BED)  return [{ node: bedItemNode(bedWoodOf(variant)) }];   // real mesh, not a flat sprite; in its wood (0.8342)
+  if (id === B.BED)  return [{ node: bedItemNode(bedWoodOf(variant)) }];   // real mesh, not a flat sprite; in its wood
   // Chest has no chunk-mesh model, but unlike the door and bed it IS a full 3D shape — a flat
   // chest_front sprite in the hand looked like a painting. Hand it the real lid-and-body mesh
   // (the same one 05-icons.js renders) as a node the caller adds directly.
-  if (isChestId(id)) return [{ node: chestItemNode(chestLookOf(id | (variant << 8))) }];   // in its wood (0.809) or metal (0.843)
+  if (isChestId(id)) return [{ node: chestItemNode(chestLookOf(id | (variant << 8))) }];   // in its wood or metal
   // as an item a log is a full 64-unit block, not whatever width it happened to grow at
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;
@@ -102,12 +104,12 @@ function buildDropGeom(id, variant = 0) {
   const lightArr = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
   if (PROPS[id]?.light) {
     for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]])
-      lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue (0.834)
+      lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue
   }
   const r = CORE.meshChunk(data.buffer, empty(), empty(), empty(), empty(),
                            lightArr.buffer, lite(), lite(), lite(), lite());
   const passes = [];
-  for (let p = 0; p < 5; p++) {                   // pass 4 is glass (0.8263)
+  for (let p = 0; p < 5; p++) {                   // pass 4 is glass
     const g = r.passes[p];
     if (!g) continue;
     const geo = new THREE.BufferGeometry();
@@ -116,7 +118,7 @@ function buildDropGeom(id, variant = 0) {
     geo.setAttribute('tile',       new THREE.BufferAttribute(g.tile, 1, false));
     geo.setAttribute('shade',      new THREE.BufferAttribute(g.shade, 1, true));
     geo.setAttribute('blockLight', new THREE.BufferAttribute(g.lite, 1, false));
-    geo.setAttribute('clim', new THREE.BufferAttribute(g.clim, 1, true));   // all 0: the usual colour (0.8231)
+    geo.setAttribute('clim', new THREE.BufferAttribute(g.clim, 1, true));   // all 0: the usual colour
     geo.setIndex(new THREE.BufferAttribute(g.index, 1));
     geo.translate(-8.5, -64.5, -8.5);           // centre on origin so rotation looks nice
     passes.push({ p, geo });
@@ -128,7 +130,7 @@ function buildDropGeom(id, variant = 0) {
    drop's geometry is shared by every drop of that block, so it cannot carry a light of its own: it
    baked full daylight and no torchlight, and under the shadow map that turned a drop in a torch-lit
    cave near black against bright walls. Each draw now hands the shader the packed light byte of the
-   cell the drop is actually in (0.7521), through a uniform only these materials own. */
+   cell the drop is actually in, through a uniform only these materials own. */
 const _dropMats = [];
 function _dropMat(p) {
   if (_dropMats[p]) return _dropMats[p];
@@ -137,7 +139,7 @@ function _dropMat(p) {
   m.uniforms = { ...sharedUniforms, uLightOverride: { value: -1 } };
   return (_dropMats[p] = m);
 }
-/* 0.83852 (MultithreadPlan C5): a drop reads its cell's light once a tick (`_dropLitTick`, bumped by updateDrops), not
+/* 0.83852: a drop reads its cell's light once a tick (`_dropLitTick`, bumped by updateDrops), not
    on every draw of every one of its meshes in every view; and the shared material's uniforms are sent again only when
    this drop's light differs from the one drawn just before it (drops lying together mostly share a light). */
 let _dropLitTick = 0;
@@ -150,7 +152,7 @@ function _dropLightHook(_r, _s, _c, _g, material) {
     const x = Math.floor(g.position.x), y = Math.floor(g.position.y), z = Math.floor(g.position.z);
     let v = (getSkyWorld(x, y, z) << 4) | getLightWorld(x, y, z);
     if (ud.glow) v |= 15;                             // a dropped glowstone still reads as lit
-    if ((v & 15) && lightColdWorld(x, y, z)) v |= 256;  // in blue light, blue (0.834)
+    if ((v & 15) && lightColdWorld(x, y, z)) v |= 256;  // in blue light, blue
     ud.lit = v;
   }
   if (u.value === ud.lit) return;
@@ -161,7 +163,7 @@ function _dropLightHook(_r, _s, _c, _g, material) {
 const DROPS = [];
 const DROP_SCALE = 0.28, DROP_HALF = DROP_SCALE / 2;
 const DROP_GRAVITY = 20, DROP_PICKUP_R = 1.6, DROP_LIFETIME = 300;
-/* How long a drop lies before it goes (0.7981), counted ONLY while its chunk is simulated: 5 minutes for
+/* How long a drop lies before it goes, counted ONLY while its chunk is simulated: 5 minutes for
    anything mined or knocked loose, 10 for what you threw down yourself, 20 for what you dropped by dying. */
 const DROP_LIFE_THROWN = 600, DROP_LIFE_DEATH = 1200;
 var _dropLifeOverride = 0;                 // set around a death, so every drop it spills (queue included) lasts 20 min
@@ -170,10 +172,10 @@ const DROP_HOP_AMP  = 0.025;               // very subtle bob — user asked for
 const DROP_HOP_HZ   = 1.1;                 // ~5.7s per full up-down cycle
 const DEFAULT_PICKUP_DELAY = 0.35;
 const PLAYER_DROP_PICKUP_DELAY = 1.5;      // player-tossed items refuse re-pickup for this long
-/* Creative drops nothing (0.804): no item ever comes loose in it — thrown, spilled, felled or refunded.
+/* Creative drops nothing: no item ever comes loose in it — thrown, spilled, felled or refunded.
    A save being loaded is the one exception, so a survival world's drops survive a load in creative. */
 var _dropsRestoring = false;
-/* Stacked drops (0.8385). One drop holds `count` of one thing, so a spilled chest, a death or a felled tree lies as a
+/* Stacked drops. One drop holds `count` of one thing, so a spilled chest, a death or a felled tree lies as a
    few drops instead of hundreds: each drop was its own group of meshes (a draw per pass, a light upload per draw) and
    its own physics step. Drops of the same thing that come to rest near each other join (`_dropMerge`); a stack shows
    1-3 copies by its size (`_dropCopies`). Worn things (`dur`) and things that do not stack never join; food keeps the
@@ -190,7 +192,7 @@ function _dropFill(group, passes, copies) {
       if (node) m = k ? node.clone() : node;       // prebuilt sub-tree (chest); no pass material
       else {
         m = new THREE.Mesh(geo, matOverride || _dropMat(p));
-        if (!matOverride) m.onBeforeRender = _dropLightHook;   // lit by the cell it is in (0.7521)
+        if (!matOverride) m.onBeforeRender = _dropLightHook;   // lit by the cell it is in
         m.renderOrder = p;
       }
       if (k) { m.position.x += o[0]; m.position.y += o[1]; m.position.z += o[2]; m.rotation.y += o[3]; }
@@ -209,7 +211,7 @@ function _dropSetCount(d, n) {
 }
 function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = null, meta = null, life = 0, count = 1) {
   if (!_dropsRestoring && typeof player !== 'undefined' && player && player.canFly) return null;
-  // a count of something that cannot stack falls as that many single drops (0.8385)
+  // a count of something that cannot stack falls as that many single drops
   if (count > 1 && !_dropStacks(id, dur)) {
     let rec = null;
     for (let n = 0; n < count; n++) rec = spawnDrop(id, x, y, z, vel, pickupDelay, dur, meta, life) || rec;
@@ -226,7 +228,7 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
   group.position.set(x + 0.5, y + 0.5, z + 0.5);
   scene.add(group);
   const rec = {
-    group, id, age: 0, count,                // how many it holds (0.8385)
+    group, id, age: 0, count,                // how many it holds
     vx: vel ? vel.x : (Math.random() - 0.5) * 1.4,
     vy: vel ? vel.y : 3.5,
     vz: vel ? vel.z : (Math.random() - 0.5) * 1.4,
@@ -234,7 +236,7 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
     pickupDelay,
     dur,                                   // tool wear carried through the drop (null for non-tools)
     meta,                                  // ...and its extras — spoilage clock, Well made (slotMeta, 0.79)
-    life: life || _dropLifeOverride || DROP_LIFETIME,   // seconds it lies before it goes (0.7981)
+    life: life || _dropLifeOverride || DROP_LIFETIME,   // seconds it lies before it goes
   };
   DROPS.push(rec);
   return rec;
@@ -244,7 +246,7 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
 function throwFromPlayer(id, count, dur = null, meta = null) {
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   const spawnY = player.pos.y + player.EYE - 0.35;
-  /* Standing against a block, 0.4 ahead of the eye is INSIDE it (0.807): the throw spawned in the wall and
+  /* Standing against a block, 0.4 ahead of the eye is INSIDE it: the throw spawned in the wall and
      hung there hidden — it looked as if it vanished, and with a full inventory it never came back. Against
      a wall it now drops from your own column, straight down at your feet, where you can see it. */
   let reach = 0.4;
@@ -253,15 +255,15 @@ function throwFromPlayer(id, count, dur = null, meta = null) {
   const blocked = reach < 0.4;
   const spawnX = player.pos.x + forward.x * reach;
   const spawnZ = player.pos.z + forward.z * reach;
-  const whole = _dropStacks(id, dur);          // a stack goes as one drop holding it all (0.8385)
+  const whole = _dropStacks(id, dur);          // a stack goes as one drop holding it all
   for (let i = 0; i < (whole ? 1 : count); i++) {
     const jitter = 0.6, push = blocked ? 0 : 5.5;
     const rec = spawnDrop(id, Math.floor(spawnX), Math.floor(spawnY), Math.floor(spawnZ), {
       x: forward.x * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
       y: blocked ? 1 : 3.6 + (Math.random() - 0.5) * 0.3,
       z: forward.z * push + (Math.random() - 0.5) * jitter * (blocked ? 0.3 : 1),
-    }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN, whole ? count : 1);   // thrown down by you: 10 minutes (0.7981)
-    // spawnDrop centres on the cell midpoint; nudge back to the true throw origin (null in creative, 0.804)
+    }, PLAYER_DROP_PICKUP_DELAY, dur, meta, DROP_LIFE_THROWN, whole ? count : 1);   // thrown down by you: 10 minutes
+    // spawnDrop centres on the cell midpoint; nudge back to the true throw origin (null in creative)
     if (rec) rec.group.position.set(spawnX, spawnY, spawnZ);
   }
 }
@@ -278,14 +280,14 @@ function dropFromHotbar(mode) {
   saveHotbar(); buildHotbar();
 }
 /* Every gain the player makes goes through here — walking over a drop, stripping a bush, pulling
-   an arrow out of a wall — so this is the one place the item feed has to be told about (0.751).
+   an arrow out of a wall — so this is the one place the item feed has to be told about.
    `reason` is the "how" it prints; the work itself is unchanged below. */
 function tryPickup(id, dur = null, reason = 'picked up', meta = null) {
   if (!_tryPickupInto(id, dur, meta)) return false;
   if (typeof feedItem === 'function') feedItem(id, 1, reason);
   return true;
 }
-/* Up to `n` at once (0.8385, a stacked drop): how many were taken. Same order as one by one (offhand, then partial
+/* Up to `n` at once (a stacked drop): how many were taken. Same order as one by one (offhand, then partial
    stacks in hotbar, bags, backpack, then empty slots), but each grid is saved and redrawn once, not once per item. */
 function tryPickupMany(id, n, dur = null, reason = 'picked up', meta = null) {
   let got = 0;
@@ -325,10 +327,10 @@ function _pickupBulk(id, n, meta) {
   if (inv) { saveInv(); if (invOpen) buildInventory(); }
   return n - left;
 }
-/* Stacks made to fit (0.8442). A stack bigger than it may be now (every stack got smaller in 0.8442; and what Pack Rat
+/* Stacks made to fit. A stack bigger than it may be now (every stack got smaller in 0.8442; and what Pack Rat
    let you carry needs the skill) is cut to its size, and what came off goes into the other stacks of it and the empty
    slots, hotbar, bags, then backpack; what finds no room falls at your feet. Run once for each seat as its world is
-   joined (tickPlayer, 22: `player._restacked`). Returns how many items fell. */
+   joined (tickPlayer, player/tick.js: `player._restacked`). Returns how many items fell. */
 function restackInventory() {
   if (player.canFly) return 0;
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
@@ -354,7 +356,7 @@ function restackInventory() {
 }
 function _tryPickupInto(id, dur, meta = null) {
   const fresh = meta ? meta.fresh ?? null : null;
-  // a part-used offhand stack of the same thing fills first, ahead of the hotbar (0.7521)
+  // a part-used offhand stack of the same thing fills first, ahead of the hotbar
   if (dur == null && typeof offhandTopUp === 'function' && offhandTopUp(id, 1, fresh)) return true;
   const cap = stackSize(id);
   // worn tool: lands in an empty slot with its wear and extras intact (stack top-up can't apply at cap 1)
@@ -370,7 +372,7 @@ function _tryPickupInto(id, dur, meta = null) {
       stackInto(s, 1, fresh); saveInv(); if (invOpen) buildInventory(); return true;
     }
   }
-  // ...then the backpack, if one is worn (0.75): it is the last place to look, so what you pick
+  // ...then the backpack, if one is worn: it is the last place to look, so what you pick
   // up still lands where you can see it while there is room in the grids you always have
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
   for (let i = 0; i < packN; i++) {
@@ -400,7 +402,7 @@ function clearDrops() {
   for (const pr of PROJECTILES) scene.remove(pr.group);
   PROJECTILES.length = 0;
   if (typeof clearArrows === 'function') clearArrows();   // ammo in flight (38-ranged.js)
-  if (typeof clearBossFx === 'function') clearBossFx();   // a boss's spells in the air (0.839, 60-bosses.js)
+  if (typeof clearBossFx === 'function') clearBossFx();   // a boss's spells in the air (entities/frozen-king.js)
   if (typeof fxClear === 'function') fxClear();           // and every particle and footprint (0.8)
 }
 /* ---- projectiles: throwable items (snowball etc) — fly forward, vanish on block hit ---- */
@@ -448,7 +450,7 @@ function updateProjectiles(dt) {
   }
 }
 
-/* Join resting drops of the same thing (0.8385). Oldest first, so a newcomer joins what already lay there and the
+/* Join resting drops of the same thing. Oldest first, so a newcomer joins what already lay there and the
    stack stays where it was. Only settled drops (on the ground or floating) old enough for their pop to have been seen. */
 let _dropMergeAcc = 0;
 function _dropJoinable(a, b) {
@@ -487,12 +489,12 @@ function _dropMerge() {
   if (joined) for (let i = DROPS.length - 1; i >= 0; i--) if (DROPS[i].count <= 0) removeDrop(i);
 }
 function updateDrops(dt) {
-  _dropLitTick++;                               // each drop re-reads its light at its next draw (0.83852)
+  _dropLitTick++;                               // each drop re-reads its light at its next draw
   if ((_dropMergeAcc += dt) >= DROP_MERGE_EVERY) { _dropMergeAcc = 0; _dropMerge(); }
   for (let i = DROPS.length - 1; i >= 0; i--) {
     const d = DROPS[i];
     const p = d.group.position;
-    /* A drop keeps to its chunk like a mob does (0.7981). Out of the loaded world it is hidden and left
+    /* A drop keeps to its chunk like a mob does. Out of the loaded world it is hidden and left
        exactly where it is; loaded but outside the simulation radius it is drawn, still, with its clock
        stopped. It used to keep falling and ageing out there: with the chunk under it unloaded the ground
        read as air, so it dropped through the world and was deleted, and far off its time ran out anyway. */
@@ -535,7 +537,7 @@ function updateDrops(dt) {
     // each frame gravity pulled p.y below base and the next tick's snap yanked it back, which
     // read as a constant bounce. Only re-enter physics if the block underneath disappeared.
     /* A drop inside a solid block — thrown into a wall, or a block placed over it — is lifted out onto its
-       top (0.807). Stuck in there it could neither be seen nor fall, and read as lost. */
+       top. Stuck in there it could neither be seen nor fall, and read as lost. */
     if (!inWater && isSolid(wbx, wby, wbz)) {
       let ty = wby + 1;
       while (ty < wby + 8 && isSolid(wbx, ty, wbz)) ty++;
@@ -574,7 +576,7 @@ function updateDrops(dt) {
     if (p.y < -30) { removeDrop(i); continue; }
     // pickup — grace so a fresh drop isn't grabbed before the pop is visible; player-tossed
     // items get a much longer grace so throwing them doesn't loop back into your hotbar.
-    /* Whoever is closest and still alive gets it (0.72). tryPickup writes into the ACTIVE
+    /* Whoever is closest and still alive gets it. tryPickup writes into the ACTIVE
        player's hotbar and inventory, so the grab runs inside that player's context — otherwise a
        split-screen pickup would land in whichever player happened to be mid-tick. */
     if (d.age > d.pickupDelay) {                    // a corpse doesn't vacuum its own death drops
@@ -585,7 +587,7 @@ function updateDrops(dt) {
         const d2 = dx*dx + dyv*dyv + dz*dz;
         if (d2 < bestD2) { bestD2 = d2; taker = pl; }
       }
-      if (taker) {                                  // as much of the stack as fits (0.8385)
+      if (taker) {                                  // as much of the stack as fits
         const got = withPlayer(taker, () => tryPickupMany(d.id, d.count, d.dur ?? null, 'picked up', d.meta ?? null));
         if (got >= d.count) { removeDrop(i); continue; }
         if (got > 0) _dropSetCount(d, d.count - got);

@@ -1,9 +1,9 @@
 'use strict';
-/* voxiGrof — block textures: one texture ARRAY, a 128px layer per tile (64px LOW) (0.809) */
+/* voxiGrof — block textures: one texture ARRAY, a 128px layer per tile (64px LOW) */
 
 
 /* ================================================================================================
-   THE TEXTURE ARRAY (0.809). Every block tile is a layer of its own in one sampler2DArray, instead of a
+   THE TEXTURE ARRAY. Every block tile is a layer of its own in one sampler2DArray, instead of a
    cell of a 2D sheet. What that buys:
    - ROOM. The tile index is a Uint16 now (it was a Uint8, 256 at most), and a GPU holds 2048 layers or
      more (WebGL2 promises 256; real desktop and phone GPUs say 2048), so a few hundred tiles is fine.
@@ -12,14 +12,20 @@
      wrapped copies: 256 tiles now take ~22 MB with mips where the sheet took ~48 MB.
    The mesher and every UV are unchanged: a face still names its tile, and UVs are in tile units.
    Older 64px art is stretched 2x with NEAREST, so it looks exactly as it did. */
-const ART_PX = 128;                               // the size every block tile is normalised to (0.808)
-const OAK_LEAF_TINT = 'rgb(104,158,64)';          // the grey oak leaf art, multiplied by this leaf green (0.809)
-const BIRCH_LEAF_TINT = 'rgb(128,167,85)';        // birch's paler, yellower green (0.8093)
-const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the oak leaf art gone very pale and dry (0.8411)
-const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green (0.8445)
+const ART_PX = 128;                               // the size every block tile is normalised to
+/* THE GRASS COLOUR. Every grass picture is grey art: the grass block's top, the fringe on its side, the short
+   grass and the tall grass. All of them are multiplied by this one green when the atlas is built (and by a paler
+   and a darker one for the warm and cold climates the shader blends between, and a very pale one for the
+   Dryland: buildAtlas). Change the three numbers (red, green, blue, 0-255) to recolour all the grass at once,
+   then bump GAME_VERSION (00-config.js) so the cached atlas is rebuilt. */
+const GRASS_RGB = [77.7, 119.1, 42.7];
+const OAK_LEAF_TINT = 'rgb(104,158,64)';          // the grey oak leaf art, multiplied by this leaf green
+const BIRCH_LEAF_TINT = 'rgb(128,167,85)';        // birch's paler, yellower green
+const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the oak leaf art gone very pale and dry
+const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green
 /* ================================================================================================ */
 
-/* ---- texture quality (0.752; array 0.809) ----
+/* ---- texture quality (array 0.809) ----
    HIGH: 128px layers. LOW: every tile halved to 64px, a quarter of the memory; LOW also switches off
    anisotropic filtering (one of the most expensive per-pixel costs a phone GPU pays) and renders block
    icons at half size (05-icons.js).
@@ -40,7 +46,7 @@ function texQuality() {
   if (pref === 'high' || pref === 'low') return pref;
   return detectLowTextures() ? 'low' : 'high';
 }
-const atlasTilePx = () => texQuality() === 'low' ? ART_PX / 2 : ART_PX;   // one layer's side (0.809)
+const atlasTilePx = () => texQuality() === 'low' ? ART_PX / 2 : ART_PX;   // one layer's side
 
 /* LOW tier: one tile at half size. Done by hand rather than with canvas smoothing, which is not a
    box filter in every browser and, worse, blends the transparent gaps of a cutout tile into its
@@ -49,7 +55,7 @@ const atlasTilePx = () => texQuality() === 'low' ? ART_PX / 2 : ART_PX;   // one
    on/off (leaves, plants, torches) stays strictly on/off, covered where two of the four are.
    Glass and anything else genuinely translucent keeps its averaged alpha. */
 function _halfTile(img) {
-  const F = ART_PX, H = F / 2;                        // 128 -> 64 (0.808)
+  const F = ART_PX, H = F / 2;                        // 128 -> 64
   const full = document.createElement('canvas');
   full.width = full.height = F;
   const fg = full.getContext('2d', { willReadFrequently: true });
@@ -104,7 +110,7 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      'coal_ore', 'iron_ore', 'diamond_ore', 'gravel', 'red_mushroom', 'brown_mushroom',
                      'crafting_bench_top', 'crafting_bench_front', 'crafting_bench_side', 'torch',
                      'furnace_front', 'furnace_front_on', 'furnace_side', 'furnace_top',
-                     'red_sand', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bricks', 'melon_top', 'melon_side' 
+                     'red_sand', 'cactus_side', 'cactus_top', 'cactus_bottom', 'bricks', 'melon_top', 'melon_side'
                      ,'stone_brick', 'wool', 'pumpkin_top', 'pumpkin_side', 'wheat_full'
                      ,'birch_log', 'birch_log_top', 'birch_planks', 'birch_leaves'
                      ,'hay_top', 'hay_side', 'marble', 'granite', 'limestone'
@@ -135,58 +141,58 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'granite_bricks', 'marble_bricks', 'limestone_bricks'
                      ,'berry_bush_yellow'                             // 0.7947
                      ,'furnace_top_open'                              // 0.801
-                     ,'tnt_top_lit'                                   // made below from tnt_top (0.804)
-                     // 0.809: dolomite, the mossy and polished rocks, the stone furnace's chimney
+                     ,'tnt_top_lit'                                   // made below from tnt_top
+                     // dolomite, the mossy and polished rocks, the stone furnace's chimney
                      ,'dolomite', 'dolomite_bricks', 'mossy_dolomite_bricks', 'polished_dolomite'
                      ,'mossy_granite_bricks', 'mossy_marble_bricks', 'mossy_limestone_bricks'
                      ,'polished_granite', 'polished_marble', 'polished_limestone'
                      ,'chimney_side', 'chimney_top'
-                     // a furnace per rock, and a bench per wood (0.809); the order must match T in 58-blocks.js
+                     // a furnace per rock, and a bench per wood; the order must match T in blocks/blocks.js
                      ,...FURNACE_ROCKS.slice(1).flatMap(r => FURNACE_PARTS.map(p => furnaceTileName(r, p)))
                      ,'crafting_bench_bottom'
                      ,...BENCH_WOODS.slice(1).flatMap(w => BENCH_PARTS.map(p => benchTileName(w, p)))
-                     // 0.8091: sand sides, polished stone, adobe, the glass looks, salt crust, cantaloupe
+                     // sand sides, polished stone, adobe, the glass looks, salt crust, cantaloupe
                      ,'sand_side', 'red_sand_side', 'polished_stone', 'adobe', 'adobe_brick'
                      ,'dark_glass', 'greenhouse_glass', 'glass_bricks', 'dark_glass_bricks', 'salt_crust'
                      ,'cantaloupe_side', 'cantaloupe_top', 'cantaloupe_bottom'
-                     // the mushroom models, five part tiles per kind (0.8091): the first six kinds
+                     // the mushroom models, five part tiles per kind: the first six kinds
                      ,...MUSHROOM_KINDS.slice(0, 6).flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p)))
-                     // 0.8093: flowing water and lava, terracotta brick, band and pillar for every rock
+                     // flowing water and lava, terracotta brick, band and pillar for every rock
                      ,'water_flow', 'lava_flow', 'terracotta_bricks'
                      ,...DECOR_ROCKS.flatMap(r => DECOR_PARTS.map(p => `${r}_${p}`))
-                     // wheat's growth stages (0.81)
+                     // wheat's growth stages
                      ,...[0, 1, 2, 3, 4, 5, 6].map(s => 'wheat_stage' + s)
-                     // ash, what fire leaves (0.8191)
+                     // ash, what fire leaves
                      ,'ash_block'
-                     // 0.821: the yellow mushroom and the six grilled ones (six parts for the yellow shapes)
+                     // the yellow mushroom and the six grilled ones (six parts for the yellow shapes)
                      ,...MUSHROOM_KINDS.slice(6).flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p)))
-                     // 0.822: pink sand, pink sandstone, brick and polished sandstones (T 301-309)
+                     // pink sand, pink sandstone, brick and polished sandstones (T 301-309)
                      ,'pink_sand', 'pink_sand_side', 'pink_sandstone', 'sandstone_bricks', 'polished_sandstone'
                      ,'red_sandstone_bricks', 'polished_red_sandstone', 'pink_sandstone_bricks', 'polished_pink_sandstone'
-                     // 0.823: warm and cold grass (T 310-319), built below, never fetched
+                     // warm and cold grass (T 310-319), built below, never fetched
                      ,'grass_block_top_warm', 'grass_block_top_cold', 'grass_block_side_warm', 'grass_block_side_cold'
                      ,'tallgrass_bottom_warm', 'tallgrass_bottom_cold', 'tallgrass_top_warm', 'tallgrass_top_cold'
                      ,'grass_warm', 'grass_cold'
-                     // 0.824: lightning-struck sand, the carved pumpkin's face and top, the jack o'lantern's face
+                     // lightning-struck sand, the carved pumpkin's face and top, the jack o'lantern's face
                      ,'glassy_sand', 'carved_pumpkin_front', 'carved_pumpkin_top', 'jack_o_lantern_front'
                      ,'glassy_red_sand', 'glassy_pink_sand'   // 0.8241
-                     // 0.827: every berry bush's six stages (T 326-355)
+                     // every berry bush's six stages (T 326-355)
                      ,...BERRY_COLORS.flatMap(c => [0, 1, 2, 3, 4, 5].map(s => `berry_${c}_stage${s}`))
-                     // 0.829: sugar cane's stages 0-4 and its column pieces (T 356-363)
+                     // sugar cane's stages 0-4 and its column pieces (T 356-363)
                      ,...CANE_PIECES.map(p => 'sugar_cane_' + p)
                      ,'ice'                                                   // 0.8321 (T 364)
                      ,'ice_bricks', 'snow_bricks', 'snow_ice_bricks', 'bone_block_side', 'bone_block_top', 'bone_bricks'   // 0.833 (T 365-370)
                      ,'torch_fire', 'torch_unlit', 'torch_crystal', 'glowstone_spent', 'glowcrystal_spent'   // 0.834 (T 371-375)
                      ,'packed_ice'                                            // 0.835 (T 376)
                      ,'water_flow_fast', 'water_fall'                         // 0.835491 (T 377-378): the flow art, faster
-                     // 0.836: rime wood (T 379-384)
+                     // rime wood (T 379-384)
                      ,'rime_log', 'rime_log_top', 'stripped_rime_log', 'stripped_rime_log_top', 'rime_planks', 'rime_leaves'
                      // 0.84: palm wood and sapling, the dry plants (T 385-395); the tall dry grass split in two below
                      ,'palm_log', 'palm_log_top', 'stripped_palm_log', 'stripped_palm_log_top', 'palm_planks', 'palm_leaves'
                      ,'palm_sapling', 'dry_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top', 'dry_bush'
-                     // 0.8411: the Dryland's pale grass block and its dry leaves (T 396-398), built below, never fetched
+                     // the Dryland's pale grass block and its dry leaves (T 396-398), built below, never fetched
                      ,'grass_block_top_dry', 'grass_block_side_dry', 'dry_leaves'];
-// tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched (0.8091)
+// tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
 
@@ -238,7 +244,7 @@ function loadImage(name, url) {
    ENTRY instead — around a hundred separate PNG requests — which is the five to ten seconds of
    invisible items and blank icons after joining.
 
-   Two changes fix that (0.724), the same two the atlas already uses:
+   Two changes fix that, the same two the atlas already uses:
 
    1. It is CACHED. Every image is stored, once, as a PNG blob inside a single IndexedDB record,
       so later boots do one read instead of a hundred round trips. The key carries GAME_VERSION and
@@ -256,10 +262,10 @@ function loadImage(name, url) {
    them, `new THREE.Texture(undefined)` produced a blank map, and those meshes rendered BLACK. */
 const MESH_TEXTURES = ['oak_door',
                        'bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow',      // 0.8342
-                       ...Object.keys(TEXTURES).filter(n => n.startsWith('chest_')),   // wood, metal, double halves (0.809)
-                       'wool', 'oak_planks', 'birch_planks', 'spruce_planks',          // planks: a chest's wood colour (0.809)
-                       // 0.842: every door material's art, each door's look is drawn from it (27-doors.js), its looks too
-                       // 0.843: ...and the metal chest's, its body drawn from the iron, copper or gold block (30-chest.js)
+                       ...Object.keys(TEXTURES).filter(n => n.startsWith('chest_')),   // wood, metal, double halves
+                       'wool', 'oak_planks', 'birch_planks', 'spruce_planks',          // planks: a chest's wood colour
+                       // every door material's art, each door's look is drawn from it (blocks/doors.js), its looks too
+                       // ...and the metal chest's, its body drawn from the iron, copper or gold block (blocks/chest.js)
                        ...new Set([...PROPS.flatMap((p, id) => p?.shapes?.door ? [ATLAS_TILES[p.faces[4] ?? p.faces[0]]] : []),
                                    ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])]
                                        .filter(n => n && TEXTURES[n] && n !== 'oak_planks' && n !== 'birch_planks' && n !== 'spruce_planks'))];
@@ -310,7 +316,7 @@ function _cacheArt(names) {
 const _artCacheKey = (names) => 'art:' + GAME_VERSION + ':' + names.length;
 
 let _gameArtPromise = null;
-// how much of the art has landed, for the loading screen's percentage (0.804)
+// how much of the art has landed, for the loading screen's percentage
 var gameArtTotal = 0, gameArtDone = 0;
 function ensureGameArt() {
   if (_gameArtPromise) return _gameArtPromise;
@@ -325,9 +331,9 @@ function ensureGameArt() {
   return _gameArtPromise;
 }
 
-/* ---- atlas cache (0.7147; raw layers 0.809) ----
+/* ---- atlas cache (raw layers 0.809) ----
    The atlas is stitched from a few hundred individual PNGs, and every one of them is its own HTTP
-   request. Measured cold on the dev server (0.7147): 162 requests finishing ~94ms apart, 15.2 SECONDS
+   request. Measured cold on the dev server: 162 requests finishing ~94ms apart, 15.2 SECONDS
    before the first frame could draw. No amount of JS scheduling helps with that — the fix is to stop
    making the requests.
 
@@ -336,7 +342,7 @@ function ensureGameArt() {
    there is no decode (and no colour-management or flipY trap) on the way back. The key carries
    GAME_VERSION, the tile count and the layer size, so any change to the textures or the list misses the
    cache and rebuilds from source — a stale atlas would be a far worse bug than a slow boot. */
-/* Where each animated tile's extra frames sit (0.8093): frame 0 is the tile's own layer, frames 1.. go on
+/* Where each animated tile's extra frames sit: frame 0 is the tile's own layer, frames 1.. go on
    the end of the array in ANIMATED_TILES order. Fixed by the lists alone, so a cached array matches it. */
 const ATLAS_ANIM = [];
 let ATLAS_LAYERS = ATLAS_TILES.length;
@@ -346,7 +352,7 @@ for (const [name, a] of Object.entries(ANIMATED_TILES)) {
   ATLAS_ANIM.push({ tile, name, first: ATLAS_LAYERS, frames: a.frames, ms: a.ms, reverse: !!a.reverse });
   ATLAS_LAYERS += a.frames - 1;
 }
-// ...and after them each glowing tile's mask, one layer each (0.8094; EMISSIVE_TILES in 01)
+// ...and after them each glowing tile's mask, one layer each (EMISSIVE_TILES in 01)
 const ATLAS_EMISSIVE = [];
 for (const [name, src] of Object.entries(EMISSIVE_TILES)) {
   const tile = ATLAS_TILES.indexOf(name);
@@ -361,7 +367,7 @@ function _atlasTexFrom(data, px) {
   tex.type = THREE.UnsignedByteType;
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestMipmapLinearFilter;
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;       // each layer wraps on its own: no gutters (0.809)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;       // each layer wraps on its own: no gutters
   tex.generateMipmaps = true;
   tex.unpackAlignment = 4;
   tex.anisotropy = px < ART_PX ? 1 : 4;               // LOW tier: no anisotropic filtering
@@ -382,7 +388,7 @@ function _cacheAtlas(data, px) {
   try { idbPut(atlasCacheKey(px), new Blob([data])).catch(() => {}); } catch {}
 }
 /* A GPU names how many layers one array may hold. WebGL2 only promises 256; desktops and phones say 2048.
-   Past it the upload fails, so say so plainly rather than draw nothing (0.809). */
+   Past it the upload fails, so say so plainly rather than draw nothing. */
 function _checkLayerLimit() {
   try {
     const gl = renderer.getContext(), max = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
@@ -390,7 +396,7 @@ function _checkLayerLimit() {
       console.error(`voxiGrof: ${ATLAS_LAYERS} texture layers, but this GPU holds ${max}`);
   } catch {}
 }
-// the tile list and T in 58-blocks.js must agree, or every face after a gap samples its neighbour (0.809)
+// the tile list and T in blocks/blocks.js must agree, or every face after a gap samples its neighbour
 function _checkTileOrder() {
   const T = CORE.T;
   const top = Math.max(...Object.values(T));
@@ -398,46 +404,46 @@ function _checkTileOrder() {
     console.error(`voxiGrof: T ends at ${top} but ATLAS_TILES has ${ATLAS_TILES.length} tiles`);
 }
 
-/* ---- the tile -> layer lookup (0.8093; glow 0.8094) ----
+/* ---- the tile -> layer lookup (glow 0.8094) ----
    Two floats per tile: the layer the shader samples for it, and the layer of its glow mask (-1: none).
    Every tile maps to itself except an animated one, which steps through its frames. It is a tiny
    texture, rewritten only when a frame changes. */
-/* Third channel (0.81): how the wind moves the tile — 0 not at all, 1 a plant (leans from its foot, by
-   height), 2 leaves (stir in a light wind, lean with a strong one; 0.819), 3 the top half of a tall plant
+/* Third channel: how the wind moves the tile — 0 not at all, 1 a plant (leans from its foot, by
+   height), 2 leaves (stir in a light wind, lean with a strong one), 3 the top half of a tall plant
    (carries on from the bottom half's lean). Read by the vertex shader (04-materials.js). */
-/* 0.812: every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
+/* every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
    the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
    its segments stay joined; the upper half of tall grass carries on from the lower (3). */
-const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2 };   // rime leaves are frozen stiff (0.836); palm 0.84; dry 0.8411
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2 };   // rime leaves are frozen stiff; palm 0.84; dry 0.8411
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
-  if (p.torch || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;   // every torch (0.834)
+  if (p.torch || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;   // every torch
   const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER || id === B.DRY_TALL_UPPER ? 3 : 1;   // dry 0.84
   for (const t of [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || [])])   // cane pieces 0.829
     if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
-// the warm and cold grass plants sway as their usual selves do (0.823)
+// the warm and cold grass plants sway as their usual selves do
 for (const n of ['grass', 'tallgrass_bottom', 'tallgrass_top'])
   if (SWAY_TILES[n]) SWAY_TILES[n + '_warm'] = SWAY_TILES[n + '_cold'] = SWAY_TILES[n];
-/* The water's colours (0.8231): the art is grey, drawn in the usual blue below; the shader moves it toward the cold
+/* The water's colours: the art is grey, drawn in the usual blue below; the shader moves it toward the cold
    or the warm one by the mesh's climate value (04-materials.js). */
-const WATER_TINT = { base: [58, 128, 214], cold: [30, 66, 158], warm: [70, 194, 196] };   // cold deeper, warm greener (0.835491)
-const WATER_ART_CONTRAST = 0.3;   // how much of the water art's light-and-dark pattern is kept (0.835492; all of it before)
+const WATER_TINT = { base: [58, 128, 214], cold: [30, 66, 158], warm: [70, 194, 196] };   // cold deeper, warm greener
+const WATER_ART_CONTRAST = 0.3;   // how much of the water art's light-and-dark pattern is kept (all of it before)
 const TILE_LAYER = (() => {
   const N = ATLAS_TILES.length, d = new Float32Array(N * 4 * 2);
-  // fourth channel (0.8193): an animated tile's NEXT frame's layer plus how far towards it it is (0..1), else -1
+  // fourth channel: an animated tile's NEXT frame's layer plus how far towards it it is (0..1), else -1
   for (let i = 0; i < N; i++) { d[i * 4] = i; d[i * 4 + 1] = -1; d[i * 4 + 2] = SWAY_TILES[ATLAS_TILES[i]] || 0; d[i * 4 + 3] = -1; }
   for (const e of ATLAS_EMISSIVE) d[e.tile * 4 + 1] = e.layer;
-  /* Row 1, the climate colour (0.8231): 1 = mix toward the warm tile (.g) or the cold one (.b), 2 = water, tinted.
-     Only tiles the mesher gives a climate value (TINTED in 02) ever read it. */
+  /* Row 1, the climate colour: 1 = mix toward the warm tile (.g) or the cold one (.b), 2 = water, tinted.
+     Only tiles the mesher gives a climate value (TINTED in chunks/voxel-shared.js) ever read it. */
   const R1 = N * 4;
   for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass']) {
     const i = ATLAS_TILES.indexOf(n), w = ATLAS_TILES.indexOf(n + '_warm'), c = ATLAS_TILES.indexOf(n + '_cold');
     if (i >= 0 && w >= 0 && c >= 0) { d[R1 + i * 4] = 1; d[R1 + i * 4 + 1] = w; d[R1 + i * 4 + 2] = c; }
   }
   for (const n of ['water', 'water_flow', 'water_flow_fast', 'water_fall']) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4] = 2; }
-  // row 1's fourth channel (0.835492): a river's top, whose ripples run downstream (04): 1 at the flow's pace, 2 faster
+  // row 1's fourth channel: a river's top, whose ripples run downstream (04): 1 at the flow's pace, 2 faster
   for (const [n, v] of [['water_flow', 1], ['water_flow_fast', 2]]) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4 + 3] = v; }
   const t = new THREE.DataTexture(d, N, 2, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
@@ -451,7 +457,7 @@ function updateTileAnimation(nowMs) {
   const d = TILE_LAYER.image.data;
   const layerOf = (a, f) => (f === 0 ? a.tile : a.first + f - 1);
   for (const a of ATLAS_ANIM) {
-    // `reverse` (0.83549): the frames played backwards, so the flow art runs DOWN a face instead of up it
+    // `reverse`: the frames played backwards, so the flow art runs DOWN a face instead of up it
     const t = nowMs / a.ms, k = Math.floor(t) % a.frames, f = a.reverse ? a.frames - 1 - k : k;
     d[a.tile * 4] = layerOf(a, f);
     d[a.tile * 4 + 3] = layerOf(a, a.reverse ? (f + a.frames - 1) % a.frames : (f + 1) % a.frames) + Math.min(0.999, t - Math.floor(t));
@@ -459,7 +465,7 @@ function updateTileAnimation(nowMs) {
   if (ATLAS_ANIM.length) TILE_LAYER.needsUpdate = true;
 }
 
-// a canvas copy of `img` laid over `base`, the overlay tinted: the grass side and the gem ores (0.8093)
+// a canvas copy of `img` laid over `base`, the overlay tinted: the grass side and the gem ores
 function _composite(base, over, tint, grassTint) {
   const S = Math.max(base.width, over.width);
   const c = document.createElement('canvas'); c.width = c.height = S;
@@ -497,7 +503,7 @@ async function buildAtlas() {
   _checkTileOrder();
   const cached = await _loadCachedAtlas();
   if (cached) return cached;                                         // no network at all
-  /* A missing file used to reject the whole Promise.all and the game never got past loading (0.808).
+  /* A missing file used to reject the whole Promise.all and the game never got past loading.
      Now it becomes a magenta checker, it is named in the console, and the sheet is not cached, so the
      real file is picked up as soon as it exists. */
   const missing = [];
@@ -520,7 +526,7 @@ async function buildAtlas() {
 
   // tall_grass.png is one 2-tall sprite (e.g. 60x120): split it into a top and bottom half so
   // each of the two stacked blocks samples the correct portion instead of the whole squished image
-  // ...and the tall dry grass the same way (0.84)
+  // ...and the tall dry grass the same way
   for (const [sheet, bot, top] of [['tallgrass', 'tallgrass_bottom', 'tallgrass_top'], ['dry_tall_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top']]) {
     if (!IMAGES[sheet]) continue;
     const src = IMAGES[sheet], hw = src.width, hh = src.height / 2;
@@ -541,7 +547,7 @@ async function buildAtlas() {
     g.fillRect(0, 0, c.width, c.height);
     IMAGES.tnt_lit = c;
   }
-  // ...and the same flash over its top, so a blinking TNT keeps its fuse face (0.804)
+  // ...and the same flash over its top, so a blinking TNT keeps its fuse face
   if (IMAGES.tnt_top) {
     const src = IMAGES.tnt_top;
     const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
@@ -553,27 +559,18 @@ async function buildAtlas() {
     IMAGES.tnt_top_lit = c;
   }
 
-  // sample the grass colour from the coloured rim of the grass side's item picture (the block's side is
-  // plain dirt with a grey fringe since 0.8093), so the tinted top and the fringe match it exactly
-  const probe = document.createElement('canvas');
-  probe.width = probe.height = 64;
-  const pctx = probe.getContext('2d', { willReadFrequently: true });
-  pctx.imageSmoothingEnabled = false;
-  pctx.drawImage(IMAGES.grass_side_item || IMAGES.grass_side_base, 0, 0, 64, 64);   // any art size onto the 64 probe (0.808)
-  const px = pctx.getImageData(0, 0, 64, 16).data;
-  let r = 0, g = 0, b = 0, cnt = 0;
-  for (let i = 0; i < px.length; i += 4)
-    if (px[i + 1] > px[i] + 8 && px[i + 1] > px[i + 2] + 8) { r += px[i]; g += px[i + 1]; b += px[i + 2]; cnt++; }
-  const grassRGB = cnt ? [r / cnt, g / cnt, b / cnt] : [110, 190, 74];
+  // the grass colour (GRASS_RGB, top of this file): the tinted top, the side's fringe and the grass plants all
+  // take it, so they match exactly
+  const grassRGB = GRASS_RGB;
   const tint = `rgb(${grassRGB[0] | 0},${grassRGB[1] | 0},${grassRGB[2] | 0})`;
 
-  // the built tiles: a base with an overlay on it (01-textures-data.js, 0.8093)
+  // the built tiles: a base with an overlay on it (01-textures-data.js)
   for (const [name, [baseN, overN, tn]] of Object.entries(COMPOSITE_TILES))
     if (IMAGES[baseN] && IMAGES[overN]) IMAGES[name] = _composite(IMAGES[baseN], IMAGES[overN], tn, grassRGB);
 
-  /* The grass in a warm and a cold climate (0.823; blended in by the shader since 0.8231, climAt in 55-biomes.js): the same art in a pale dry green and a
-     dark cool one. The top is tinted as its layer is drawn (below), the side composited like the usual one, the tall
-     grass tinted with the usual below, and the short grass (already coloured) shifted with a canvas filter. */
+  /* The grass in a warm and a cold climate (blended in by the shader since 0.8231, climAt in biomes/biomes.js): the same art in a pale dry green and a
+     dark cool one. The top is tinted as its layer is drawn (below), the side composited like the usual one, and
+     the tall and the short grass (grey art, both) tinted with the usual below. */
   const mixRGB = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
   const warmRGB = mixRGB(grassRGB, [196, 188, 104], 0.6), coldRGB = mixRGB(grassRGB, [52, 112, 98], 0.5);
   const rgbStr = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
@@ -582,7 +579,7 @@ async function buildAtlas() {
     IMAGES.grass_block_side_warm = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', warmRGB);
     IMAGES.grass_block_side_cold = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', coldRGB);
   }
-  /* The Dryland's grass (0.8411): very pale and dry, beyond the warm one. Its own tiles, so the climate never moves it. */
+  /* The Dryland's grass: very pale and dry, beyond the warm one. Its own tiles, so the climate never moves it. */
   const dryRGB = mixRGB(grassRGB, [222, 210, 150], 0.82), dryTint = rgbStr(dryRGB);
   if (IMAGES.grass_side_base && IMAGES.grass_side_overlay)
     IMAGES.grass_block_side_dry = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', dryRGB);
@@ -591,18 +588,8 @@ async function buildAtlas() {
   IMAGES.grass_block_top_warm = IMAGES.grass_block_top_cold = IMAGES.grass_block_top;
   IMAGES.tallgrass_bottom_warm = IMAGES.tallgrass_bottom_cold = IMAGES.tallgrass_bottom;
   IMAGES.tallgrass_top_warm = IMAGES.tallgrass_top_cold = IMAGES.tallgrass_top;
-  const shifted = (src, filter) => {
-    if (!src) return src;
-    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
-    const g2 = c.getContext('2d');
-    g2.imageSmoothingEnabled = false;
-    g2.filter = filter;                                 // unsupported (old Safari): the plain picture
-    g2.drawImage(src, 0, 0);
-    return c;
-  };
-  IMAGES.grass_warm = shifted(IMAGES.grass, 'saturate(0.7) hue-rotate(-16deg) brightness(1.12)');
-  IMAGES.grass_cold = shifted(IMAGES.grass, 'saturate(0.9) hue-rotate(18deg) brightness(0.8)');
-  /* A burnt-out glow block (0.834) is its own picture in grey and darker: no art of its own. Pixel by pixel, so it
+  IMAGES.grass_warm = IMAGES.grass_cold = IMAGES.grass;   // the short grass: the same grey art, each tinted below
+  /* A burnt-out glow block is its own picture in grey and darker: no art of its own. Pixel by pixel, so it
      works where a canvas filter does not. */
   const greyed = (src) => {
     if (!src) return src;
@@ -621,12 +608,14 @@ async function buildAtlas() {
   IMAGES.glowstone_spent = greyed(IMAGES.glowstone);
   IMAGES.glowcrystal_spent = greyed(IMAGES.glowcrystal);
 
-  /* tall_grass.png ships grayscale, so it reads as white in the world. Tint it on the source image, where
-     one multiply and one alpha restore do it. The oak leaves are grey art too since 0.809, and the birch
-     leaves since 0.8093, and take their own leaf greens the same way. */
+  /* The grass plants ship grey (the tall grass and the short), so they would read as white in the world. Each
+     is tinted on the source image, where one multiply and one alpha restore do it: the grass colour, and its
+     warm and cold ones. The oak, birch and palm leaves are grey art too and take their own leaf greens the
+     same way. */
   for (const [name, col] of [['tallgrass_bottom', tint], ['tallgrass_top', tint], ['oak_leaves', OAK_LEAF_TINT],
-                             ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],   // 0.823
+                             ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],
                              ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', coldTint],
+                             ['grass', tint], ['grass_warm', warmTint], ['grass_cold', coldTint],
                              ['birch_leaves', BIRCH_LEAF_TINT], ['dry_leaves', DRY_LEAF_TINT],     // dry 0.8411
                              ['palm_leaves', PALM_LEAF_TINT]]) {                                    // palm 0.8445
     const src = IMAGES[name];
@@ -646,7 +635,7 @@ async function buildAtlas() {
 
   /* One layer at a time through a scratch canvas, then its rows copied into the array BOTTOM-UP: a
      DataArrayTexture is not flipped on upload the way a canvas texture was, and the mesher's UVs have
-     v = 1 at the top of the picture (0.809). */
+     v = 1 at the top of the picture. */
   const S = atlasTilePx(), LAYER = S * S * 4, ROW = S * 4;
   const data = new Uint8Array(LAYER * ATLAS_LAYERS);
   const cvs = document.createElement('canvas');
@@ -659,7 +648,7 @@ async function buildAtlas() {
     // per-block alpha baked into the atlas: leaves translucent but mostly opaque (the water art has its own since 0.8231)
     ctx.globalAlpha = name === 'oak_leaves' ? 0.9 : 1.0;
     ctx.drawImage(S >= ART_PX ? img : _halfTile(img), 0, 0, S, S);   // 64px art is stretched with NEAREST
-    /* A model sheet (a mushroom's, 0.8091) goes at its own size in the bottom-left corner, where the mesher's
+    /* A model sheet (a mushroom's) goes at its own size in the bottom-left corner, where the mesher's
        UVs start; the stretched copy under it stays round it, so the mips at its edge keep its colours. */
     if (MUSHROOM_NATIVE.has(name) && IMAGES[name]) {
       const w = img.width * S / ART_PX, h = img.height * S / ART_PX;
@@ -667,7 +656,7 @@ async function buildAtlas() {
       ctx.drawImage(img, 0, S - h, w, h);
     }
     ctx.globalAlpha = 1;
-    // opaque tile: multiply tint (rich); the warm and cold tops their own (0.823)
+    // opaque tile: multiply tint (rich); the warm and cold tops their own
     const topTint = name === 'grass_block_top' ? tint : name === 'grass_block_top_warm' ? warmTint
                   : name === 'grass_block_top_cold' ? coldTint : name === 'grass_block_top_dry' ? dryTint : null;   // dry 0.8411
     if (topTint) {
@@ -677,10 +666,10 @@ async function buildAtlas() {
       ctx.globalCompositeOperation = 'source-over';
     }
     const px2 = ctx.getImageData(0, 0, S, S).data, base = layer * LAYER;
-    // the grey water art (0.8231) multiplied into its usual blue, pixel by pixel so its own alpha stays as drawn
+    // the grey water art multiplied into its usual blue, pixel by pixel so its own alpha stays as drawn
     if (isWater(name)) {
       /* its pale ripple lines (that the climate tint turned greenish) pressed to WATER_ART_CONTRAST of their strength
-         round the layer's mean, so the water reads as water, not as a pattern of lines (0.835492) */
+         round the layer's mean, so the water reads as water, not as a pattern of lines */
       let sum = 0, cnt = 0;
       for (let i = 0; i < px2.length; i += 4) if (px2[i + 3] > 0) { sum += px2[i] + px2[i + 1] + px2[i + 2]; cnt += 3; }
       const mean = cnt ? sum / cnt : 0;
@@ -697,14 +686,14 @@ async function buildAtlas() {
     const img = IMAGES[name] || _missingTile();
     drawLayer(i, name, ANIMATED_TILES[name] && img.height > img.width ? _frameOf(img, 0) : img);
   });
-  // the rest of every animation's frames, on the end (0.8093)
+  // the rest of every animation's frames, on the end
   for (const a of ATLAS_ANIM) {
     const img = IMAGES[a.name];
     for (let k = 1; k < a.frames; k++)
       drawLayer(a.first + k - 1, a.name, img && img.height >= img.width * (k + 1) ? _frameOf(img, k) : (img || _missingTile()));
   }
 
-  /* The glow masks (0.8094): white where the tile glows, clear elsewhere — the shader reads only the alpha. An
+  /* The glow masks: white where the tile glows, clear elsewhere — the shader reads only the alpha. An
      overlay is laid in like any tile; 'auto' takes the tile's finished layer and keeps its bright warm pixels
      (a flame, a fire, an ember-orange cap), so it lines up even with a mushroom's corner-placed sheet. */
   for (const e of ATLAS_EMISSIVE) {
@@ -728,7 +717,7 @@ async function buildAtlas() {
   if (!missing.length) _cacheAtlas(data, S);   // async, off the critical path — next boot skips every fetch above
   return _atlasTexFrom(data, S);
 }
-// the stand-in for a texture file that is not there (0.808)
+// the stand-in for a texture file that is not there
 function _missingTile() {
   const c = document.createElement('canvas'); c.width = c.height = 16;
   const g = c.getContext('2d');

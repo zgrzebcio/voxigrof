@@ -3,7 +3,7 @@
 
 /* ================================================================================================
    MATERIALS — one shared shader for all three passes. The `tile` vertex attribute selects
-   the texture-array layer (0.809); UVs are in tile units and the layer wraps them in hardware.
+   the texture-array layer; UVs are in tile units and the layer wraps them in hardware.
    ================================================================================================ */
 THREE.ColorManagement.enabled = false;   // raw sRGB passthrough — pixels match the source art
 
@@ -23,20 +23,20 @@ const sharedUniforms = {
   uShadowOn:   { value: 0 },
   uLightColor: { value: new THREE.Color(1, 1, 1) },
   uGlowColor:  { value: new THREE.Color(1.0, 0.82, 0.45) },   // warm glowstone block-light tint
-  uColdGlowColor: { value: new THREE.Color(0.48, 0.74, 1.0) },  // a cold light's blue: crystal torch, glowcrystal, glow vine (0.834)
+  uColdGlowColor: { value: new THREE.Color(0.48, 0.74, 1.0) },  // a cold light's blue: crystal torch, glowcrystal, glow vine
   uTime:       { value: 0 },
-  uTileLayer:  { value: TILE_LAYER },          // tile -> texture-array layer: an animated tile's current frame (0.8093)
-  // the wind where the player stands (0.81, 51-seasons.js): which way it blows, and its ground speed in km/h (0.812)
+  uTileLayer:  { value: TILE_LAYER },          // tile -> texture-array layer: an animated tile's current frame
+  // the wind where the player stands (0.81, seasons/seasons.js): which way it blows, and its ground speed in km/h
   uWindDir:    { value: new THREE.Vector2(0, 0) },
   uWindSpeed:  { value: 0 },
   /* Per-tile colour multiplier. The spruce needle art is nearly white, so rather than authoring a
      second PNG the tile is tinted at draw time. One slot is enough today; if a second tinted tile
      ever appears, promote these to small uniform arrays and loop. */
   uTintTile:   { value: -1 },
-  // packed light byte forced onto every vertex, or -1 for "use the baked one" (0.7521: drops)
+  // packed light byte forced onto every vertex, or -1 for "use the baked one" (drops)
   uLightOverride: { value: -1 },
   uTintColor:  { value: new THREE.Color(0.42, 0.66, 0.46) },   // cold blue-green conifer
-  // the cloud layer (0.815, 52-clouds.js): its shape noise, the weather over it, how far it has drifted,
+  // the cloud layer (52-clouds.js): its shape noise, the weather over it, how far it has drifted,
   // and the way to the sun or moon, so the ground under a cloud gets its shade. Off for icons and hands.
   uCloudOn:    { value: 0 },
   uCloudNoise: { value: null },
@@ -44,28 +44,28 @@ const sharedUniforms = {
   uCloudBox:   { value: new THREE.Vector3(0, 0, 256) },   // the weather texture's first region x, z, and a region's size in blocks
   uCloudOff:   { value: new THREE.Vector2(0, 0) },
   uCloudSun:   { value: new THREE.Vector3(0, 1, 0) },
-  // the sky's haze (0.817, 07-sky.js): the sun's halo and the sunset glow, which the fog takes on too so the far
+  // the sky's haze (07-sky.js): the sun's halo and the sunset glow, which the fog takes on too so the far
   // land melts into the sky round the sun; uHaze 0 in water, lava. uSkyFog: how far the sky itself is fogged over.
   uSunDir:     { value: new THREE.Vector3(1, 0, 0) },
   uSunHalo:    { value: new THREE.Color(0, 0, 0) },
   uDuskCol:    { value: new THREE.Color(0, 0, 0) },
   uHaze:       { value: 1 },
   uSkyFog:     { value: 0 },
-  // the moon's pull on the sea (0.8191, 07-sky.js): how far the sea surface stands below full height now, and how big its waves are
+  // the moon's pull on the sea (07-sky.js): how far the sea surface stands below full height now, and how big its waves are
   uTide:       { value: 0 },
   uWaveMul:    { value: 1 },
-  // how much of a chunk is showing, 0..1: a chunk fades in when it arrives and out when it leaves (0.8195, 11-chunks.js).
+  // how much of a chunk is showing, 0..1: a chunk fades in when it arrives and out when it leaves (chunks/chunks.js).
   // Always 1 here; a fading chunk's meshes carry a material of their own with their own value.
   uFade:       { value: 1 },
-  // the water's warm and cold colour as a multiple of its usual one (0.8231, WATER_TINT in 03-atlas.js)
+  // the water's warm and cold colour as a multiple of its usual one (WATER_TINT in 03-atlas.js)
   uWaterWarm:  { value: new THREE.Vector3(...WATER_TINT.warm.map((v, i) => v / WATER_TINT.base[i])) },
   uWaterCold:  { value: new THREE.Vector3(...WATER_TINT.cold.map((v, i) => v / WATER_TINT.base[i])) },
-  // the Dryland's dry grass (0.8442): the grass top and side tiles, and the dry tiles they fade to by a face's dryness (vDry)
+  // the Dryland's dry grass: the grass top and side tiles, and the dry tiles they fade to by a face's dryness (vDry)
   uDryTiles:   { value: new THREE.Vector4(CORE.T.GRASS_TOP, CORE.T.GRASS_SIDE, CORE.T.GRASS_TOP_DRY, CORE.T.GRASS_SIDE_DRY) },
-  // the grass plants' tiles (short, tall bottom, tall top): they pale in dry and warm land (0.8444, FSH)
+  // the grass plants' tiles (short, tall bottom, tall top): they pale in dry and warm land (FSH)
   uDryPlants:  { value: new THREE.Vector3(CORE.T.GRASS_PLANT, CORE.T.TALL_BOT, CORE.T.TALL_TOP) },
 };
-/* The haze of the sky in a direction (0.817): added to the fog colour, so it is the same on the sky dome, the
+/* The haze of the sky in a direction: added to the fog colour, so it is the same on the sky dome, the
    clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
    sun's side. */
 const SKY_GLSL = /* glsl */`
@@ -80,7 +80,7 @@ const SKY_GLSL = /* glsl */`
   }`;
 const GLOW_LEVEL = 14;   // glowstone emission (light reaches this many blocks through open air)
 
-/* ---- clouds (0.815) ----
+/* ---- clouds ----
    One layer of block clouds from CLOUD_Y0, up to CLOUD_H blocks thick. Its shape is a tiling noise texture
    (CLOUD_N cells a side, a cell a block), read in CLOUD SPACE — world minus uCloudOff, so the whole layer
    drifts with the wind. How much of it is cloud comes from the weather under it: uCloudWx holds, per weather
@@ -155,7 +155,7 @@ const VSH = /* glsl */`
     vec4 wp = modelMatrix * vec4(position, 1.0);
     /* The wind (0.81): plants bend from the foot the way it blows, leaves drift a touch. Every term is a
        function of world position and time, so two leaf blocks sharing an edge move it together. */
-    /* 0.812: the bend follows the wind's SPEED, the height bonus added here per vertex (51-seasons.js
+    /* the bend follows the wind's SPEED, the height bonus added here per vertex (seasons/weather.js
        windHeightBonus), and a faster wind shakes it faster too. */
     float sk = fillF > 0.5 ? 0.0 : texelFetch(uTileLayer, ivec2(int(tileId + 0.5), 0), 0).b;
     /* A chunk fading in (0.8196): its grass and flowers grow up out of the ground as it comes, a beat behind the
@@ -434,7 +434,7 @@ const VSH_LAVA = /* glsl */`
     gl_Position = projectionMatrix * mv;
   }`;
 const matLava = makeMat({ vertexShader: VSH_LAVA });
-/* Glass (0.8263): its own pass, blended WITHOUT writing depth and drawn after everything else in its chunk. In the cutout
+/* Glass: its own pass, blended WITHOUT writing depth and drawn after everything else in its chunk. In the cutout
    pass the first glass face drawn hid every glass face behind it, so glass seen through other glass went missing
    from some sides. Blending in any order costs nothing that shows on art this clear. */
 const matGlass  = makeMat({ transparent: true, depthWrite: false, side: THREE.DoubleSide });

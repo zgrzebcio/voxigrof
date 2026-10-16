@@ -1,4 +1,4 @@
-/* voxiGrof — cross-origin isolation (0.8386, MultithreadPlan C10).
+/* voxiGrof — cross-origin isolation (0.8386).
 
    Shared memory (SharedArrayBuffer) is only given to a page served with two headers:
      Cross-Origin-Opener-Policy: same-origin   and   Cross-Origin-Embedder-Policy: require-corp

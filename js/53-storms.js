@@ -1,5 +1,5 @@
 'use strict';
-/* voxiGrof — storms (0.819): lightning, fire, hail, and the aurora's switch.
+/* voxiGrof — storms: lightning, fire, hail, and the aurora's switch.
 
    LIGHTNING  strikes land every LIGHTNING_MIN_S..MAX_S seconds of a full storm (less often at a storm's edge),
               within LIGHTNING_REACH of the player in the thick of it, on the highest thing in that column. Now
@@ -7,11 +7,11 @@
               LIGHTNING_DMG, one close by LIGHTNING_NEAR_DMG, and both set it on fire. Each strike draws a bolt,
               lights up the sky for a moment (skyFlash, 07-sky.js), burns on the ground for a few seconds, and
               is heard: the crack close up, thunder further off, arriving later the further away it fell.
-   FIRE       there is no fire block, so fire is flames on whatever burns: a player (19-vitals.js), a creature
+   FIRE       there is no fire block, so fire is flames on whatever burns: a player (player/hazards.js), a creature
               (below), the ground under a strike. Water puts it out. An animal that burns to death leaves its
-              meat cooked and nothing else (_entBurnDeath, 28-entities.js); a woolly sheep burns twice as fast
+              meat cooked and nothing else (_entBurnDeath, entities/entities.js); a woolly sheep burns twice as fast
               until its fleece has burnt off.
-   HAIL       a third of storms (hailAt, 51-seasons.js): ice falls round each player, and someone out in the
+   HAIL       a third of storms (hailAt, seasons/weather-sky.js): ice falls round each player, and someone out in the
               open without a helmet is hit for 1 health every few seconds.
    AURORA     clear nights over the big snow biomes, most nights but not all (the dome shader in 07-sky.js). */
 
@@ -19,7 +19,7 @@ const LIGHTNING_MIN_S = 4, LIGHTNING_MAX_S = 16;   // seconds between strikes in
 const LIGHTNING_REACH = 96;                          // blocks from the player a strike may land
 const LIGHTNING_AIM_PLAYER = 0.06, LIGHTNING_AIM_ENTITY = 0.12;   // shares of strikes that go for someone in the open
 const LIGHTNING_HIT_R = 1.6, LIGHTNING_NEAR_R = 3.5;
-const LIGHTNING_DMG = 50, LIGHTNING_NEAR_DMG = 20, LIGHTNING_FIRE_S = 6;   // out of 100 health (0.823)   // 6 s alight since 0.8195 (5 before)
+const LIGHTNING_DMG = 50, LIGHTNING_NEAR_DMG = 20, LIGHTNING_FIRE_S = 6;   // out of 100 health   // 6 s alight since 0.8195 (5 before)
 const ENT_FIRE_DPS = 7.5;                            // a creature on fire; a woolly sheep takes twice this
 const SHEEP_WOOL_BURN_S = 1.5;                       // until its fleece is gone
 const THUNDER_SPEED = 250;                           // blocks a second the thunder travels (a bit quicker than sound)
@@ -34,7 +34,7 @@ const _stormAt = (x, z) => weatherAt(x, z).mix.storm || 0;
 const BOLTS = [];
 const _boltMat = new THREE.MeshBasicMaterial({ color: 0xe8eeff, transparent: true, opacity: 1, depthWrite: false,
                                                blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-// ...and a wide faint glow round it, so the bolt reads as a thick burning line from far off (0.8197)
+// ...and a wide faint glow round it, so the bolt reads as a thick burning line from far off
 const _boltGlowMat = new THREE.MeshBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: 0.22, depthWrite: false,
                                                    blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
 const BOLT_W = 0.34, BOLT_GLOW_W = 1.3, BOLT_BRANCH_W = 0.17;   // half widths, blocks (0.14 and 0.07 before 0.8197)
@@ -94,7 +94,7 @@ function _updateBolts(dt) {
 
 /* ---------------------------------- fire ---------------------------------- */
 // flames licking up a body: called every frame it burns, throttled here
-// `cold` (0.83911): the Frozen King's cold fire, blue flames and a pale mist instead of smoke (_bossFlame, 60-bosses.js)
+// `cold`: the Frozen King's cold fire, blue flames and a pale mist instead of smoke (_bossFlame, entities/frozen-king.js)
 function fxOnFire(x, y, z, h, dt, cold = false) {
   if (typeof _fxFlame !== 'function' || Math.random() > dt * 22) return;
   const flame = cold && typeof _bossFlame === 'function' ? _bossFlame : _fxFlame;
@@ -118,11 +118,12 @@ function _updateEntityFire(dt) {
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];
     if (!(e.fireT > 0) || e.active === false) continue;
-    if (e.boss) { e.fireT = 0; continue; }           // the Frozen King does not burn (0.839)
+    if (e.boss) { e.fireT = 0; continue; }           // the Frozen King does not burn
+    if (e.kind === 'hellhound') { e.fireT = 0; e.burnT = 0; continue; }   // nor a hellhound: it is fire
     const wet = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
-    if (wet) { e.fireT = 0; e.burnT = 0; _fireSound('fireOff', e.x, e.y, e.z); continue; }
+    if (wet) { e.fireT = 0; e.burnT = 0; e._fireBy = null; _fireSound('fireOff', e.x, e.y, e.z); continue; }
     e.fireT -= dt;
-    e.burnT = e.fireT > 0 ? 0.2 : 0;                  // a burning villager or monster flickers orange (0.8191)
+    e.burnT = e.fireT > 0 ? 0.2 : 0;                  // a burning villager or monster flickers orange
     let dps = ENT_FIRE_DPS;
     if (e.kind === 'sheep' && e.woolly) {
       dps *= 2;
@@ -134,6 +135,7 @@ function _updateEntityFire(dt) {
     if (typeof isGrazer === 'function' && isGrazer(e)) e.fleeT = Math.max(e.fleeT || 0, 1);   // it runs, burning
     fxOnFire(e.x, e.y, e.z, typeof entH === 'function' ? entH(e) : 1, dt);
     if (e.hp <= 0) _entBurnDeath(e);
+    else if (!(e.fireT > 0)) e._fireBy = null;       // out: whoever lit it has no more claim on how it dies
   }
 }
 
@@ -147,7 +149,7 @@ function _strikeTop(x, z) {
   }
   return -1;
 }
-/* Sand that lightning strikes fuses into glassy sand (0.824): the whole sand block it hit and a root of 1-3 more
+/* Sand that lightning strikes fuses into glassy sand: the whole sand block it hit and a root of 1-3 more
    straight under it. Each sand into its own glassy kind (red and pink 0.8241). Since 0.826 the heat spreads: the
    sand round it fuses too, in a patch up to FUSE_R across, likelier and deeper the nearer the strike (FUSE_CHANCE:
    right beside it 80%, then 55%, at the edge 25%), each column from its own top within a block of the strike's. */
@@ -182,9 +184,9 @@ const _thunders = [];                        // sounds on their way: { t: second
 function strikeLightning(x, y, z) {
   _spawnBolt(x, y, z);
   skyFlash = 1;
-  if (typeof cameraFilterLightning === 'function') cameraFilterLightning(x, y, z);   // a flash on near lenses (0.837)
+  if (typeof cameraFilterLightning === 'function') cameraFilterLightning(x, y, z);   // a flash on near lenses
   GROUND_FIRES.push({ x, y, z, t: 3 });
-  // what it struck catches, if it burns: a tree, leaves, grass (0.8191)
+  // what it struck catches, if it burns: a tree, leaves, grass
   { const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
     if (_BURN.has(getBlock(bx, by - 1, bz) & 255)) igniteAt(bx, by, bz);
     _fuseSand(bx, by - 1, bz); }
@@ -201,7 +203,7 @@ function strikeLightning(x, y, z) {
   // creatures the same
   if (typeof ENTITIES !== 'undefined')
     for (const e of [...ENTITIES]) {
-      if (e.active === false || !(e.hp > 0) || e.boss) continue;   // lightning leaves a boss alone (0.839)
+      if (e.active === false || !(e.hp > 0) || e.boss) continue;   // lightning leaves a boss alone
       const d = Math.hypot(e.x - x, e.z - z), dy = e.y - y;
       if (d > LIGHTNING_NEAR_R || dy < -2 || dy > 4) continue;
       e.hp -= d <= LIGHTNING_HIT_R ? LIGHTNING_DMG : LIGHTNING_NEAR_DMG;
@@ -259,7 +261,7 @@ function _updateHail(dt) {
   // per seat: the ice falls round whoever is in it, and hurts a bare head out in the open
   forEachPlayerSlot(() => {
     if (!player.spawned || player.dead) return;
-    // none above the clouds it falls from (0.8197)
+    // none above the clouds it falls from
     const h = player.pos.y > CLOUD_Y0 + CLOUD_H ? 0 : hailAt(player.pos.x, player.pos.z);
     if (h < 0.3) { player._hailWarned = false; return; }
     const p = player.pos;
@@ -319,7 +321,7 @@ function updateStorms(dt) {
   const live = PLAYERS.filter(p => p.spawned && !p.dead);
   if (!live.length) return;
   _updateEntityFire(dt);
-  _updateFires(dt);                          // burning blocks (0.8191)
+  _updateFires(dt);                          // burning blocks
   _updateLightning(dt, live);
   _updateHail(dt);
 }
@@ -329,8 +331,8 @@ function clearStorms() {
   FIRE_CELLS.clear(); _fireWorld = null;
 }
 
-/* ================================== fire blocks (0.8191) ==================================
-   A burning cell is a FIRE block (58-blocks.js): nothing is drawn — the flames are particles — but it lights
+/* ================================== fire blocks ==================================
+   A burning cell is a FIRE block (blocks/blocks.js): nothing is drawn — the flames are particles — but it lights
    its surroundings (light 13) and burns what touches it. Each cell burns through its fuel on its own clock: a log in
    about 9 s, leaves in 3.5, the grass under it in 2.5; wood leaves a little ash on the ground below (1-2 layers,
    60% of logs), grass turns to dirt with an ash carpet on it, leaves and plants just go. Fire passes on readily in
@@ -346,18 +348,17 @@ const FIRE_ASH_CHANCE = 0.6;                 // a log burnt away leaves ash belo
 const FIRE_PLANT_SPREAD = 0.06;              // a tick's chance to catch a plant beside a fire
 // block id -> [seconds to burn away, chance a tick to pass the fire on]
 const _BURN = new Map();
-const _WOOD = new Set([B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG, B.STRIPPED_LOG, B.STRIPPED_BIRCH_LOG, B.STRIPPED_SPRUCE_LOG,
-                       B.HOLLOW_LOG, B.HOLLOW_BIRCH_LOG, B.HOLLOW_SPRUCE_LOG,
-                       B.RIME_LOG, B.STRIPPED_RIME_LOG, B.HOLLOW_RIME_LOG,     // 0.836
-                       B.PALM_LOG, B.STRIPPED_PALM_LOG]);                      // 0.84
-/* 0.8241: fire runs through wood and leaves. Logs and planks pass it on as readily as each other (planks 0.15 before),
-   everything a little more, and a burnt log, plank or leaf block leaves the fire standing where it was (_BURN_INTO). */
-for (const id of _WOOD) _BURN.set(id, [9, 0.3]);
-for (const id of [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES]) _BURN.set(id, [3.5, 0.5]);
-_BURN.set(B.DRY_LEAVES, [2, 0.7]);           // the Dryland's dry bushes go up fast and pass it on (0.8411)
-for (const id of [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS]) _BURN.set(id, [8, 0.3]);
-const _BURN_INTO = new Set([..._WOOD, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.DRY_LEAVES,
-                            B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS]);   // palm 0.84
+/* Fire runs through wood and leaves. Which blocks those are, and how each burns, comes from the woods table
+   (woods/woods.js): WOOD_BURN there has the numbers (a log 9 s, planks 8, leaves 3.5), and a wood's own `burn` wins
+   (the Dryland's dry bushes go up faster and pass it on more). `_WOOD`: every wood's log, stripped and hollow log
+   (they may leave ash). A burnt log, plank or leaf block leaves the fire standing where it was (_BURN_INTO). */
+const _WOOD = new Set([...woodBlocks('log'), ...woodBlocks('stripped'), ...woodBlocks('hollow')]);
+for (const w of woodList()) {
+  for (const part of ['log', 'stripped', 'hollow']) if (w[part] != null) _BURN.set(w[part], woodBurn(w, 'log'));
+  if (w.leaves != null) _BURN.set(w.leaves, woodBurn(w, 'leaves'));
+  if (w.planks != null) _BURN.set(w.planks, woodBurn(w, 'planks'));
+}
+const _BURN_INTO = new Set([..._WOOD, ...woodBlocks('leaves'), ...woodBlocks('planks')]);
 for (const id of [B.HAY, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
 _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blades go, the block turns to dirt
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }
@@ -367,14 +368,18 @@ function _fireSound(key, x, y, z) {
   if (typeof playSound === 'function') playSound(key, { gain: key === 'fire' ? 0.5 : 0.8, pos: { x, y, z } });
 }
 // light a cell: an empty one, or one with a plant in it (burnt where it stands)
-function igniteAt(x, y, z) {
+/* `by` is the player who lit it (the Fire item, player/placing.js); a fire it spreads to keeps the name, and what
+   burns to death in it is that player's kill by fire (fireKillBy, entities/hellhound.js). `keep`: seconds it burns on with
+   nothing to burn (a placed fire, FIRE_ITEM_S), on top of FIRE_IDLE_S. */
+const FIRE_ITEM_S = 10;
+function igniteAt(x, y, z, by = null, keep = 0) {
   if (FIRE_CELLS.size >= FIRE_MAX) return false;
   const v = getBlock(x, y, z);
   if (v !== B.AIR && !_isPlant(v)) return false;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.data) return false;                           // never into a chunk that is not there
   setBlock(x, y, z, B.FIRE);
-  FIRE_CELLS.set(x + ',' + y + ',' + z, { x, y, z, age: 0, idle: 0, ash: false });
+  FIRE_CELLS.set(x + ',' + y + ',' + z, { x, y, z, age: 0, idle: -keep, ash: false, by });
   _fireSound('fireIgnite', x + 0.5, y + 0.5, z + 0.5);
   return true;
 }
@@ -438,13 +443,13 @@ function _updateFires(dt) {
       const b = _BURN.get(id);
       if (!b || (id === B.GRASS && dy !== -1)) continue;                          // grass burns from above only
       fuel++;
-      /* pass it on: into an open cell beside this fuel. Every side is tried from a random one (0.8241) — one random
+      /* pass it on: into an open cell beside this fuel. Every side is tried from a random one — one random
          side alone was mostly more wood or leaves, so a fire inside a tree or a wall hardly ever spread. */
       if (born < FIRE_NEW_PER_TICK && Math.random() < b[1] * (wet ? 0.4 : 1)) {
         const s0 = (Math.random() * 6) | 0;
         for (let k = 0; k < 6; k++) {
           const [ex, ey, ez] = _FIRE_DIRS[(s0 + k) % 6];
-          if (igniteAt(nx + ex, ny + ey, nz + ez)) { born++; break; }
+          if (igniteAt(nx + ex, ny + ey, nz + ez, f.by)) { born++; break; }
         }
       }
       // ...and burn it away once its time is up (a little different for every block)
@@ -452,16 +457,16 @@ function _updateFires(dt) {
       if (id === B.GRASS) { setBlock(nx, ny, nz, B.DIRT); f.ash = true; continue; }
       setBlock(nx, ny, nz, B.AIR);
       if (_WOOD.has(id) && Math.random() < FIRE_ASH_CHANCE) _dropAsh(nx, ny, nz);
-      // the fire takes the burnt block's place (0.8241), eating its way on through the wood (not if ash settled there)
-      if (_BURN_INTO.has(id) && born < FIRE_NEW_PER_TICK && igniteAt(nx, ny, nz)) born++;
+      // the fire takes the burnt block's place, eating its way on through the wood (not if ash settled there)
+      if (_BURN_INTO.has(id) && born < FIRE_NEW_PER_TICK && igniteAt(nx, ny, nz, f.by)) born++;
     }
     // a plant beside it catches now and then: grass fires creep, they do not race
     if (born < FIRE_NEW_PER_TICK) {
       const [dx, , dz] = _FIRE_DIRS[(Math.random() * 6) | 0];
       if (_isPlant(getBlock(f.x + dx, f.y, f.z + dz)) && Math.random() < FIRE_PLANT_SPREAD * (wet ? 0.4 : 1)
-          && igniteAt(f.x + dx, f.y, f.z + dz)) born++;
+          && igniteAt(f.x + dx, f.y, f.z + dz, f.by)) born++;
     }
-    f.idle = fuel ? 0 : f.idle + FIRE_TICK;
+    f.idle = fuel ? Math.min(0, f.idle) : f.idle + FIRE_TICK;   // a placed fire's own time (below 0) is not given back by fuel
     if (f.idle >= FIRE_IDLE_S || f.age >= FIRE_LIFE_MAX || (wet && f.idle > 0.5)) _putOut(f, k, false);
   }
   // anyone standing in it catches fire
@@ -474,14 +479,17 @@ function _updateFires(dt) {
   }
   if (typeof ENTITIES !== 'undefined')
     for (const e of ENTITIES) {
-      if (e.active === false || e.fireT > 1) continue;
-      if ((getBlock(Math.floor(e.x), Math.floor(e.y + 0.3), Math.floor(e.z)) & 255) !== B.FIRE) continue;
+      if (e.active === false || e.fireT > 1 || e.kind === 'hellhound') continue;   // a hellhound does not catch
+      const ex = Math.floor(e.x), ey = Math.floor(e.y + 0.3), ez = Math.floor(e.z);
+      if ((getBlock(ex, ey, ez) & 255) !== B.FIRE) continue;
       if (!(e.fireT > 0)) _fireSound('fireIgnite', e.x, e.y, e.z);
       e.fireT = 4;
+      const fc = FIRE_CELLS.get(ex + ',' + ey + ',' + ez);
+      e._fireBy = (fc && fc.by) || null;               // whose fire it is burning in
     }
 }
 
-/* ================================== the blood moon (0.8192) ==================================
+/* ================================== the blood moon ==================================
    A night event, like a weather of its own: the moon rises red and full, the night sky and its light turn red, and
    twice the monsters come out. One is due BLOOD_GAP days after the last — the first on day 7 to 20, never in the
    first 7 days — so two are always at least 15 days apart. When one is due it comes the first night that falls clear,

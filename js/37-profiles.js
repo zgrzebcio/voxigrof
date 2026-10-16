@@ -129,7 +129,7 @@ function renderProfiles() {
       del.className = 'wdel';
       del.textContent = '✕';
       del.title = 'delete profile';
-      // the game's own window since 0.7991 (48-menu-ui.js), so a pad can answer it
+      // the game's own window since 0.7991 (ui/menus.js), so a pad can answer it
       del.onclick = () => uiConfirm('Delete this profile?', `"${p.name}" goes; worlds and builds are kept.`, () => {
         deleteProfile(p.id); renderProfiles(); paintProfileLabel(); renderSplitPanel();
       }, 'Delete');
@@ -145,7 +145,7 @@ function paintProfileLabel() {
 profilesBtn.addEventListener('click', () => refreshMenu('profiles'));
 profilesBackBtn.addEventListener('click', () => refreshMenu(currentWorld ? 'pause' : 'home'));
 profileAddBtn.addEventListener('click', () => {
-  const first = PROFILES.length === 0;             // the very first profile of this device (0.807)
+  const first = PROFILES.length === 0;             // the very first profile of this device
   const p = createProfile(profileNameIn.value);
   if (!p) return;
   // ...goes straight on to the main menu: there is nothing else to do on this screen yet

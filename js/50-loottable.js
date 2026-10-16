@@ -1,5 +1,5 @@
 'use strict';
-/* voxiGrof — loot tables (0.806)
+/* voxiGrof — loot tables
 
    Every drop count in the game rolls here. A drop is no longer "1 to 3" but a list of rolls, each
    tried on its own, and the counts that land add up:
@@ -8,7 +8,7 @@
 
    so the first number of a roll is how many it gives and the second its chance (1 = always). The
    tables are LOOT below, one per kind of drop, and the few places that pay a drop out (blockDrop here,
-   _entDropLoot in 28-entities.js, bush pickup in 13-actions.js, felling in 33-felling.js) read them.
+   _entDropLoot in entities/entities.js, bush pickup in player/placing.js, felling in woods/felling.js) read them.
 
    Skills: Prospector and Butcher give a 20% chance of one more of the FIRST drop (the ore, the meat).
    Canopy Forager scales the leaf chances. */
@@ -30,31 +30,33 @@ const LOOT = {
   coal:        [[1, 1], [1, 0.8], [1, 0.5]],
   coalChunk:   [[2, 1], [1, 0.7], [1, 0.4], [1, 0.25]],
   gem:         [[1, 1], [1, 0.4]],                        // diamond, emerald, ruby, sapphire, topaz
-  orePebble:   [[1, 0.75], [1, 0.25]],                    // the rock round any ore: stone pebbles, 0-2 (0.8445)
+  orePebble:   [[1, 0.75], [1, 0.25]],                    // the rock round any ore: stone pebbles, 0-2
   // plants
   berry:       [[1, 1], [1, 0.75], [1, 0.35]],            // a ripe bush picked
   wheat:       [[1, 1], [1, 0.4]],
   melon:       [[2, 1], [1, 0.7], [1, 0.5], [1, 0.3], [1, 0.15]],
-  salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second (0.8097)
-  fiberCarpet: [[1, 0.85], [1, 0.1625]],                      // a fiber carpet layer: 85% one fiber, 16% a second (0.819; 25% more 0.827; +10 points each 0.8441)
-  ashLayer:    [[1, 0.5]],                                    // an ash layer: ashes half the time (0.8191)
-  flower:      [[1, 0.6]],                                    // a flower picked or broken: 60% one fiber (0.826; 50% until 0.8441)
+  salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second
+  fiberCarpet: [[1, 0.85], [1, 0.1625]],                      // a fiber carpet layer: 85% one fiber, 16% a second (25% more 0.827; +10 points each 0.8441)
+  ashLayer:    [[1, 0.5]],                                    // an ash layer: ashes half the time
+  flower:      [[1, 0.6]],                                    // a flower picked or broken: 60% one fiber (50% until 0.8441)
   // leaves, as they decay (or cut with a tool); by bare hand every chance is halved
   stick:       [[1, 0.21], [1, 0.105], [1, 0.021], [1, 0.0035]],   // 30% rarer since 0.826 (0.3, 0.15, 0.03, 0.005)
   apple:       [[1, 0.01]],
   sapling:     [[1, 0.05]],
-  dryBush:     [[1, 0.7], [1, 0.2]],                          // sticks from a dry bush picked (0.84)
+  dryBush:     [[1, 0.7], [1, 0.2]],                          // sticks from a dry bush picked
   // half as likely each since 0.8442 (1, 0.6, 0.3 and 0.9, 0.5, 0.1 before): a bone block may give nothing now
   // ...and a tenth of that since 0.8444 (0.5, 0.3, 0.15 and 0.45, 0.25, 0.05): most bone blocks give nothing
-  boneBlock:   [[1, 0.05], [1, 0.03], [1, 0.015]],            // a bone block broken: bones... (0.84)
+  boneBlock:   [[1, 0.05], [1, 0.03], [1, 0.015]],            // a bone block broken: bones...
   boneBlockAsh:[[1, 0.045], [1, 0.025], [1, 0.005]],          // ...and bone ash
   // animals
   meat:        [[1, 1], [1, 0.4], [1, 0.05]],             // mutton, beef, pork
   fish:        [[1, 1]],                                  // always exactly one
-  leather:     [[1, 1], [1, 0.5], [1, 0.2]],                    // cow, horse; 0.8443: the first 40% likelier, the second 20% (0.7, 0.4 before)
+  leather:     [[1, 1], [1, 0.5], [1, 0.2]],                    // cow, horse; the first 40% likelier, the second 20% (0.7, 0.4 before)
   fat:         [[1, 0.4], [1, 0.15]],
-  bearLeather: [[1, 1], [1, 0.6], [1, 0.3], [1, 0.05]],              // a polar bear's thick hide, 1-3 (0.835)
+  bearLeather: [[1, 1], [1, 0.6], [1, 0.3], [1, 0.05]],              // a polar bear's thick hide, 1-3
   bearFat:     [[1, 1], [1, 0.8], [1, 0.5], [1, 0.2]],    // ...and all that fat, 1-4
+  houndFire:   [[1, 1], [1, 0.33], [1, 0.33]],            // a hellhound: fire, 1-3
+  fireKill:    [[1, 1]],                                  // what a hound killed, or a player killed with fire, leaves: 1 fire
   woolString:  [[1, 0.7], [1, 0.2]],                      // a woolly sheep killed
   shearWool:   [[1, 1], [1, 0.6], [1, 0.25]],             // shearing
   // monsters
@@ -65,7 +67,7 @@ const LOOT = {
   glowCrystal: [[1, 1], [1, 0.4]],
   cobwebString:[[1, 1], [1, 0.5], [1, 0.2]],
   glassShard:  [[2, 1], [1, 0.6], [1, 0.3]],
-  glassySand:  [[1, 1], [1, 0.3]],           // lightning-fused sand (0.824): 1-3 shards
+  glassySand:  [[1, 1], [1, 0.3]],           // lightning-fused sand: 1-3 shards
   snowball:    [[2, 1], [1, 0.5], [1, 0.25]],
   sulfur:      [[1, 0.6], [1, 0.25]],
   bark:        [[1, 1], [1, 0.4],[1, 0.05]],
@@ -81,7 +83,7 @@ const BLOCK_DROP = {
 };
 const FLOWER_BLOCKS = new Set([B.POPPY, B.ORCHID, B.PINCUSHION]);   // 0.826
 const GRAVEL_FLINT_CHANCE = 0.05;          // a gravel block, and since 0.799 a gravel layer too (22-main-loop.js)
-const GOURD_FIBER_CHANCE = 0.5;            // a melon or pumpkin also gives a fiber (0.799; 40% until 0.8441)
+const GOURD_FIBER_CHANCE = 0.5;            // a melon or pumpkin also gives a fiber (40% until 0.8441)
 const ORE_LOOT = {
   [B.IRON_ORE]: [ITEM.RAW_IRON, 'iron'], [B.GOLD_ORE]: [ITEM.RAW_GOLD, 'gold'],
   [B.COPPER_ORE]: [ITEM.RAW_COPPER, 'copper'], [B.TIN_ORE]: [ITEM.RAW_TIN, 'tin'],
@@ -97,44 +99,42 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
   if (blockId === B.STONE_PEBBLE) return [{ id: ITEM.STONE_PEBBLE, count: 1 }];   // 0.8095
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
-  if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash (0.8191)
+  if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash
   if (blockId === B.FIRE) return [];
-  if (blockId === B.ICE) return [];                                                // breaks into water (0.8321)
-  /* Torches (0.834; 0.8444): a lit one, fire or crystal, comes off as an unlit torch, so breaking and placing again
+  if (blockId === B.ICE) return [];                                                // breaks into water
+  /* Torches: a lit one, fire or crystal, comes off as an unlit torch, so breaking and placing again
      never buys a fresh light; an unlit one is a burnt stick, a stick back one time in four. (0.8443 gave a stick for
      any fire torch, and a crystal torch kept its crystal half the time.) */
   if (blockId === B.TORCH || blockId === B.CRYSTAL_TORCH) return [{ id: B.TORCH_UNLIT, count: 1 }];
   if (blockId === B.TORCH_UNLIT) return Math.random() < 0.25 ? [{ id: ITEM.STICK, count: 1 }] : [];
-  // a lit glow block gives back half of the five it took (2 or 3); a spent one nothing (0.834)
+  // a lit glow block gives back half of the five it took (2 or 3); a spent one nothing
   if (blockId === B.GLOWSTONE) return [{ id: ITEM.GLOW_DUST, count: 2 + (Math.random() < 0.5 ? 1 : 0) }];
   if (blockId === B.GLOWCRYSTAL_BLOCK) return [{ id: ITEM.GLOW_CRYSTAL, count: 2 + (Math.random() < 0.5 ? 1 : 0) }];
   if (blockId === B.GLOWSTONE_SPENT || blockId === B.GLOWCRYSTAL_SPENT) return [];
-  // a flower comes apart into fiber, never the flower (0.826; its dye, picked with shears, comes with the paint update)
+  // a flower comes apart into fiber, never the flower (its dye, picked with shears, comes with the paint update)
   if (FLOWER_BLOCKS.has(blockId)) return _drop(ITEM.FIBER, rollLoot(LOOT.flower));
   /* Glassy sand, and its red and pink looks (variants since 0.8263), always break into glass shards: ahead of the
      variant rule below, which would hand a red one back as plain glassy sand */
   if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
     return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
-  // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone (0.794)
+  // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
-  // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster (0.7947)
+  // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster
   if (vBase != null) return PROPS[blockId]?.dropsAsBase ? blockDrop(vBase, isNatural) : [{ id: vBase, count: 1 }];
   if (LEAF_BLOCKS.has(blockId)) {
-    /* Leaves (0.806): the full chances when a leaf decays or is cut with a tool, half of them when it is
-       torn off by hand. Canopy Forager (45-skills.js) scales all three. */
+    /* Leaves: the full chances when a leaf decays or is cut with a tool, half of them when it is
+       torn off by hand. Canopy Forager (player/skills.js) scales all three. */
     const hand = !isNatural && typeof heldUseId === 'function' && !isToolItem(heldUseId());
     const mul = (hand ? 0.5 : 1) * (typeof skillLeafMul === 'function' ? skillLeafMul() : 1);
-    // rime leaves (0.836): sticks only, no apple and no sapling (it has none yet)
-    if (blockId === B.RIME_LEAVES) return _drop(ITEM.STICK, rollLoot(LOOT.stick, mul));
-    // the Dryland's dry leaves (0.8411): sticks only too, no apple and no sapling
-    if (blockId === B.DRY_LEAVES) return _drop(ITEM.STICK, rollLoot(LOOT.stick, mul));
-    const sap = blockId === B.BIRCH_LEAVES ? B.BIRCH_SAPLING : blockId === B.SPRUCE_LEAVES ? B.SPRUCE_SAPLING
-              : blockId === B.PALM_LEAVES ? B.PALM_SAPLING : B.OAK_SAPLING;   // palm 0.84
+    /* By its wood (the woods table, woods/woods.js): sticks from every leaf; an apple from the woods that bear
+       them (`apples`: not a palm); its own sapling if the wood has one (rime and the dry bush have none, so they
+       give sticks only). */
+    const wood = woodOf(blockId);
     return [..._drop(ITEM.STICK, rollLoot(LOOT.stick, mul)),
-            ...(blockId === B.PALM_LEAVES ? [] : _drop(ITEM.APPLE, rollLoot(LOOT.apple, mul))),   // no apple off a palm (0.84)
-            ..._drop(sap, rollLoot(LOOT.sapling, mul))];
+            ...(wood.apples ? _drop(ITEM.APPLE, rollLoot(LOOT.apple, mul)) : []),
+            ...(wood.sapling != null ? _drop(wood.sapling, rollLoot(LOOT.sapling, mul)) : [])];
   }
-  // 0.8445: an ore also gives the stone it sat in as pebbles (LOOT.orePebble; Prospector's extra one is added where
+  // an ore also gives the stone it sat in as pebbles (LOOT.orePebble; Prospector's extra one is added where
   // the block is mined, 22-main-loop.js)
   if (blockId === B.COAL_ORE) return [
     { id: ITEM.COAL, count: rollLoot(LOOT.coal) },
@@ -151,10 +151,10 @@ function blockDrop(blockId, isNatural = false) {
     if (Math.random() < GRAVEL_FLINT_CHANCE) return [{ id: ITEM.FLINT, count: 1 }];
     return [{ id: B.GRAVEL, count: 1 }];
   }
-  // a gourd comes off its vine with a 40% chance of a fiber too (0.799), picked or broken
+  // a gourd comes off its vine with a 40% chance of a fiber too, picked or broken
   if (blockId === B.MELON || blockId === B.PUMPKIN || blockId === B.CANTALOUPE) {
     const out = blockId === B.MELON ? _drop(ITEM.MELON_SLICE, rollLoot(LOOT.melon))
-              : blockId === B.CANTALOUPE ? _drop(ITEM.CANTALOUPE_SLICE, rollLoot(LOOT.melon))   // sliced like the melon (0.8091)
+              : blockId === B.CANTALOUPE ? _drop(ITEM.CANTALOUPE_SLICE, rollLoot(LOOT.melon))   // sliced like the melon
               : [{ id: B.PUMPKIN, count: 1 }];
     if (Math.random() < GOURD_FIBER_CHANCE) out.push({ id: ITEM.FIBER, count: 1 });
     return out;
@@ -163,16 +163,15 @@ function blockDrop(blockId, isNatural = false) {
   // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
   if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];
-  // ...nor do the dry plants (0.84)
+  // ...nor do the dry plants
   if (blockId === B.DRY_GRASS || blockId === B.DRY_TALL_LOWER || blockId === B.DRY_TALL_UPPER || blockId === B.DRY_BUSH) return [];
   // a bone block breaks into bones and bone ash, never itself (0.84; ten bones still press into one)
   if (blockId === B.BONE_BLOCK) return [..._drop(ITEM.BONE, rollLoot(LOOT.boneBlock)), ..._drop(ITEM.BONE_ASH, rollLoot(LOOT.boneBlockAsh))];
   if (blockId === B.GLASS) return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassShard));
-  if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs (0.769)
+  if (blockId === B.CLAY)  return [{ id: ITEM.CLAY_BALL, count: 5 }];   // 5, what the block costs
   if (blockId === B.SNOW)  return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
   if (blockId === B.SUGAR_CANE) return [{ id: ITEM.SUGAR_CANE, count: 1 }];
-  if (blockId === B.OAK_SAPLING || blockId === B.BIRCH_SAPLING || blockId === B.SPRUCE_SAPLING || blockId === B.PALM_SAPLING)
-    return [{ id: blockId, count: 1 }];
+  if (isSapling(blockId)) return [{ id: blockId, count: 1 }];   // any wood's sapling (woods/woods.js)
   // legacy DOWN_TIP still drops sulfur so terrain-generated tips work; both drop sulfur only, never the tip
   if (blockId === B.SULFUR_DOWN_TIP || blockId === B.SULFUR_UP_TIP) return _drop(ITEM.SULFUR, rollLoot(LOOT.sulfur));
   const override = BLOCK_DROP[blockId];

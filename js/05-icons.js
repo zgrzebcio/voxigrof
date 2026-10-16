@@ -24,13 +24,13 @@ function renderItemIcon(id) {
 // shared tail: render a prepared icon scene to a transparent data URL
 /* An icon is a PHOTOGRAPH: rasterised once and cached for the session. So it must never be taken
    under the world's current lighting, or an icon first drawn at dusk — or underwater, or in a cave
-   — is dark for as long as the tab is open. The crafting list is where this showed (0.7293): its
+   — is dark for as long as the tab is open. The crafting list is where this showed: its
    recipe icons are rendered when the panel is first built, mid-game, rather than warmed at load
    with the rest.
 
    Pinning the uniforms to their neutral defaults makes every icon deterministic whenever it is
    taken. Same trick renderHandPass uses to stop a held block going black at night. */
-/* One render target, pixel buffer and canvas, reused by every icon (0.752). Allocating and freeing
+/* One render target, pixel buffer and canvas, reused by every icon. Allocating and freeing
    a fresh GPU target for each one — hundreds of them during warm-up — is exactly the churn mobile
    drivers handle worst. The LOW texture tier also renders at 128px instead of 256: roughly what an
    inventory slot covers on a 3x phone screen, for a quarter of the GPU readback. */
@@ -52,8 +52,8 @@ function _renderIconScene(scene, cam) {
   const save = { a: u.uAmbient.value, d: u.uDirect.value, s: u.uShadowOn.value,
                  fn: u.fogNear.value, ff: u.fogFar.value, lc: u.uLightColor.value.clone(), wa: u.uWindSpeed.value,
                  co: u.uCloudOn.value };
-  u.uWindSpeed.value = 0;                             // an icon never bends in the wind (0.81)
-  u.uCloudOn.value = 0;                               // ...nor sits under a cloud (0.815)
+  u.uWindSpeed.value = 0;                             // an icon never bends in the wind
+  u.uCloudOn.value = 0;                               // ...nor sits under a cloud
   u.uAmbient.value = 0.30; u.uDirect.value = 0.70;   // the material defaults: a flat, full 1.0
   u.uShadowOn.value = 0.0;
   u.uLightColor.value.set(1, 1, 1);
@@ -83,8 +83,8 @@ function _renderIconScene(scene, cam) {
    ready yet is neither drawn nor cached: the next call renders it properly. */
 const ICON_MESH_ART = {
   [B.CHEST]: ['chest_wood', 'chest_metal',                                   // one sheet each since 0.843
-              'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks'],   // metal and the wood colours (0.809; CHEST_WOODS in 30-chest.js; rime 0.8392)
-  // the metal chest (0.843): its body is the iron, copper or gold block's art
+              'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks'],   // metal and the wood colours (CHEST_WOODS in blocks/chest.js; rime 0.8392)
+  // the metal chest: its body is the iron, copper or gold block's art
   [B.METAL_CHEST]: ['chest_wood', 'chest_metal', ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])],
   [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342
   [B.DOOR]:  ['oak_door'],
@@ -95,7 +95,7 @@ function renderBlockIcon(id, variant) {
   if (id >= 256) return renderItemIcon(id);
   // a berry bush shows RIPE in the inventory: stage 0 is a bare sprout, and the two bushes are
   // identical until they fruit, so the sprout icon could not tell red from blue
-  // ...unless a stage is asked for: the variant bar's sprout IS stage 0 (0.827)
+  // ...unless a stage is asked for: the variant bar's sprout IS stage 0
   if (variant == null && isBerryBush(id)) variant = BERRY_STAGE.GROWN;
   variant = variant || 0;
   // inventory logs read as a full block, matching the item they place
@@ -105,7 +105,7 @@ function renderBlockIcon(id, variant) {
   if (!iconArtReady(id)) return '';               // art still loading — ask again, don't cache
   if (isChestId(id)) {                    // chest has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
-    const m = buildChestMesh(chestLookOf(id | (variant << 8)));   // its wood (0.809) or metal (0.843), picked on the variant bar
+    const m = buildChestMesh(chestLookOf(id | (variant << 8)));   // its wood or metal, picked on the variant bar
     m.group.position.set(-0.5, -0.5, -0.5);   // centre the cell on the origin
     scene.add(m.group);
     const cam = new THREE.OrthographicCamera(-0.95, 0.95, 0.95, -0.95, 0.1, 10);
@@ -120,10 +120,10 @@ function renderBlockIcon(id, variant) {
   }
   if (id === B.BED) {                     // bed has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
-    const m = bedMesh(bedWoodOf(variant));  // its wood, picked on the variant bar (0.8342)
+    const m = bedMesh(bedWoodOf(variant));  // its wood, picked on the variant bar
     const g = new THREE.Group();
     g.add(m.mesh);
-    g.position.set(-0.5, -0.25, -1);      // centre the 1x2 footprint on the origin (half a block tall, 0.8342)
+    g.position.set(-0.5, -0.25, -1);      // centre the 1x2 footprint on the origin (half a block tall)
     scene.add(g);
     const cam = new THREE.OrthographicCamera(-1.5, 1.5, 1.5, -1.5, 0.1, 12);
     cam.position.set(2.0, 1.9, 2.2);
@@ -159,7 +159,7 @@ function renderBlockIcon(id, variant) {
   // faces too so the icon reads as "lit" (glowstone faces get glow level 15 in the icon mesh)
   const lightArr = new Uint16Array(CHUNK_X * CHUNK_Y * CHUNK_Z).fill(0xF0);
   if (PROPS[id].light) {
-    for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]]) lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue (0.834)
+    for (const d of [[9,64,8],[7,64,8],[8,65,8],[8,63,8],[8,64,9],[8,64,7]]) lightArr[CORE.idx(d[0], d[1], d[2])] = PROPS[id].coldLight ? 0x1FF : 0xFF;   // a blue one blue
   }
   const r = CORE.meshChunk(data.buffer, empty(), empty(), empty(), empty(),
                            lightArr.buffer, lite(), lite(), lite(), lite());
@@ -175,7 +175,7 @@ function renderBlockIcon(id, variant) {
     geo.setAttribute('tile',     new THREE.BufferAttribute(g.tile, 1, false));
     geo.setAttribute('shade',    new THREE.BufferAttribute(g.shade, 1, true));
     geo.setAttribute('blockLight', new THREE.BufferAttribute(g.lite, 1, false));
-    geo.setAttribute('clim', new THREE.BufferAttribute(g.clim, 1, true));   // all 0: the usual colour (0.8231)
+    geo.setAttribute('clim', new THREE.BufferAttribute(g.clim, 1, true));   // all 0: the usual colour
     geo.setIndex(new THREE.BufferAttribute(g.index, 1));
     geo.translate(-8.5, -64.5, -8.5);           // centre the block on the origin
     const mesh = new THREE.Mesh(geo, MATERIALS[p]);

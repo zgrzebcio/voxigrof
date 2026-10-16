@@ -116,7 +116,7 @@ function forEachPlayerState(fn) {
 }
 const activePlayerSlot = () => activeSlot;
 const hudPanes = () => PSTATE.map(s => s.pane);
-/* Players are named (0.721). The name is what the pane tag shows, what a "someone else has the
+/* Players are named. The name is what the pane tag shows, what a "someone else has the
    inventory open" message uses, and what the world save keys the roster on — so the same people
    come back with the same pockets next time the world is opened. */
 const defaultPlayerName = (i) => 'Player ' + (i + 1);
@@ -131,7 +131,7 @@ function setPlayerName(slot, name) {
 }
 
 /* ================================================================================================
-   NAME TAGS (0.727)
+   NAME TAGS
 
    The label floating over a player's head, for everyone else on the couch. A THREE.Sprite, because
    a sprite re-faces the camera at render time — which is exactly what four viewports rendering the
@@ -145,7 +145,7 @@ function setPlayerName(slot, name) {
    keeps the tag out of both shadow passes.                                                       */
 const NAME_TAG_FONT = "600 44px 'Segoe UI', system-ui, sans-serif";
 const NAME_TAG_H = 0.26;              // world units tall
-/* `plate: false` (0.757) drops the dark plate for an outlined label instead: what an entity shows above
+/* `plate: false` drops the dark plate for an outlined label instead: what an entity shows above
    its head while you look at it, where a plate would read as a second player's tag. */
 function _nameTagTexture(name, plate = true) {
   const pad = 14, fs = 44;
@@ -251,9 +251,9 @@ function _makePane(index) {
     if (!src) continue;
     inner.appendChild(index === 0 ? src : src.cloneNode(true));
   }
-  // the damage vignette is created (not appended) by 19-vitals.js — one per pane
+  // the damage vignette is created (not appended) by player/hazards.js — one per pane
   inner.appendChild(index === 0 ? hurtEl : hurtEl.cloneNode(true));
-  // ...and the heatstroke blur (0.825), FIRST so every other part of the HUD draws over it, sharp
+  // ...and the heatstroke blur, FIRST so every other part of the HUD draws over it, sharp
   inner.insertBefore(index === 0 ? heatBlurEl : heatBlurEl.cloneNode(false), inner.firstChild);
   /* ...and this seat's cursor / drag ghost / tooltip. These stay on the body in unscaled screen
      space, so they are hung off the pane object rather than nested inside it. */
@@ -266,7 +266,7 @@ function _makePane(index) {
     pane._cursors[id] = el;
   }
   // a corner tag naming whose quarter this is; hidden when playing solo
-  // the death mark (0.827) on the pane itself, outside the scaled HUD: it is placed in the view's own pixels
+  // the death mark on the pane itself, outside the scaled HUD: it is placed in the view's own pixels
   pane.appendChild(index === 0 ? deathMarkEl : deathMarkEl.cloneNode(false));
   const tag = document.createElement('div');
   tag.className = 'paneTag';
@@ -283,8 +283,8 @@ function _bindPaneDom(pane, g) {
   g.blocknameEl  = q('#blockname');
   g.hotbarEl     = q('#hotbar');
   g.interactEl   = q('#interact');
-  g.questEl      = q('#quest');                  // each seat's own starter quest (0.798)
-  g.progRingEl   = q('#progRing');               // ...and its own progress ring round the crosshair (0.8446)
+  g.questEl      = q('#quest');                  // each seat's own starter quest
+  g.progRingEl   = q('#progRing');               // ...and its own progress ring round the crosshair
   g.vitalsEl     = q('#vitals');
   g.vctx         = g.vitalsEl.getContext('2d');
   g.vctx.imageSmoothingEnabled = false;
@@ -309,7 +309,7 @@ function _bindPaneDom(pane, g) {
   g.dragFrom = null; g.dragHeld = null; g.lastHoverEl = null; g._invSeq = 0;
   g.craftMode = 'basic'; g.craftCat = 'all'; g._craftScroll = 0;
   g.activeFurnace = null; g.activeChest = null; g.activeChest2 = null; g.activeStructBlock = null; g.activeBench = null;
-  g.crackMat = newCrackMat();          // this seat mines at its own stage — see 14-mining.js
+  g.crackMat = newCrackMat();          // this seat mines at its own stage — see player/mining.js
   g._interactShown = '';
   g.blocknameTimer = 0;
   // a seat that had its debug text hidden last session opens that way again
@@ -317,7 +317,7 @@ function _bindPaneDom(pane, g) {
   if (typeof debugHudHidden === 'function' && debugHudHidden(slot)) g.hudEl.style.display = 'none';
   const btn = q('#respawnBtn');
   if (btn) btn.addEventListener('click', () => { const p = g.player; withPlayer(p, respawnPlayer); });
-  // ...and out to the title screen from the same box (0.74511). The world is one thing, so this
+  // ...and out to the title screen from the same box. The world is one thing, so this
   // one is NOT per seat: whoever clicks it saves and leaves for everybody.
   const backBtn = q('#deathMenuBtn');
   if (backBtn) backBtn.addEventListener('click', () => quitToMenu());
@@ -376,7 +376,7 @@ function relayoutSplitScreen() {
        a 1080p screen lands near 0.87 instead of 0.5, and a tall narrow pane (vertical 2-player)
        gets more still, because it genuinely has the room. */
     const s = clampi(Math.min(r.w / HUD_FIT_W, r.h / HUD_FIT_H) * 100, 45, 100) / 100;
-    // the HUD's scaled wrapper by its class: the camera filter's canvas sits first in the pane (0.8372)
+    // the HUD's scaled wrapper by its class: the camera filter's canvas sits first in the pane
     const pane = st.pane, inner = pane.querySelector(':scope > .hudScale');
     pane.style.left = r.x + 'px';   pane.style.top    = r.y + 'px';
     pane.style.width = r.w + 'px';  pane.style.height = r.h + 'px';
@@ -400,7 +400,7 @@ function _newPlayerState(index) {
   p.sleepingAt = null;                // ...nor player one's bed, which Object.assign would copy
   p.spawnPos = null; p.homeSpawn = null; p.spawnBedKey = null;
   p.vy = 0; p.fallStart = null; p.dead = false; p.spawned = false;
-  fillVitals(p);                      // every bar full (0.82, 54-stats-effects.js)
+  fillVitals(p);                      // every bar full (0.82, player/stats.js)
   p.flying = src.canFly; p.fast = false; p.sneaking = false;
   p.aliveT = 0; p._dmgCause = null; p._kick = { x: 0, z: 0 };
   p.yaw = Math.random() * Math.PI * 2; p.pitch = 0;
@@ -528,7 +528,7 @@ function seatNewPlayer(p) {
 }
 
 /* ================================================================================================
-   INPUT ROUTING (0.722)
+   INPUT ROUTING
 
    A browser does not hand a page its gamepads on request: nothing appears in navigator.getGamepads
    until the page has seen a user gesture AND the pad itself has sent something — a pad sitting
@@ -549,7 +549,7 @@ function seatNewPlayer(p) {
    The keyboard always drives player one whatever their bind says; the bind only decides pads. */
 const INPUT_BIND = ['auto'];
 
-/* Read the pad list. Deliberately paranoid (0.723), because this is the one call everything else
+/* Read the pad list. Deliberately paranoid, because this is the one call everything else
    depends on and it behaves differently in every engine:
      - the result is a GamepadList in some browsers, which is array-LIKE but not iterable, so a
        for...of over it throws rather than returning nothing;
@@ -741,7 +741,7 @@ function renderAllViews(dt) {
        else's — that is the whole point of sharing a world. */
     for (let j = 0; j < n; j++) {
       const other = PSTATE[j];
-      other.selfModel.root.visible = menuScene ? false : (j === i)   // nobody stands in the title view (0.8194)
+      other.selfModel.root.visible = menuScene ? false : (j === i)   // nobody stands in the title view
         ? !!other.player._bodyVisibleToSelf
         : (other.player.spawned && !menuScene);
       // a name tag is for everyone ELSE — nobody needs their own name hanging over their head
@@ -756,17 +756,17 @@ function renderAllViews(dt) {
     if (sel) { selBox.position.set(sel.px, sel.py, sel.pz); selBox.scale.set(sel.sx, sel.sy, sel.sz); selBox.updateMatrix(); }
     const cr = st.crack;
     crackMesh.visible = !!cr;
-    // the seat's OWN material, so its stage is the one this viewport shows (0.734)
+    // the seat's OWN material, so its stage is the one this viewport shows
     if (crackMesh.material !== crackMat) crackMesh.material = crackMat;
     if (cr) { crackMesh.position.set(cr.px, cr.py, cr.pz); crackMesh.scale.set(cr.sx, cr.sy, cr.sz); }
-    // each seat's wand outline (0.8374) shows in its own view only
+    // each seat's wand outline shows in its own view only
     for (let j = 0; j < PSTATE.length; j++) {
       const wp = PSTATE[j].player, L = wp && wp._wandLines;
       if (L) L.visible = !menuScene && j === i && !!wp._wandShow;
     }
     alignSkyTo(camera);                  // the dome is drawn around THIS eye
     applyEyeVolumeFog();                 // water / lava murk for THIS eye, restored per pass
-    if (typeof showMiragesFor === 'function') showMiragesFor(st.player);   // heatstroke's mirages: this player's own (0.825)
+    if (typeof showMiragesFor === 'function') showMiragesFor(st.player);   // heatstroke's mirages: this player's own
     renderer.render(scene, camera);
     /* first-person hand — its own depth buffer, always on top. Only the active player's rig is
        visible; clearDepth is scissored to this viewport, so it never wipes a finished one. */
@@ -775,7 +775,7 @@ function renderAllViews(dt) {
       const off = HAND_RIGS[j].root.userData.off;       // the shield arm follows the same rule
       if (off) off.root.visible = (j === i) && !!PSTATE[j].offVisible;
     }
-    if (!menuScene && camView === 0 && PSTATE[i].handVisible && !(typeof hudHidden !== 'undefined' && hudHidden)) {   // no hand on the title (0.8194)   // Backspace hides it (0.801)
+    if (!menuScene && camView === 0 && PSTATE[i].handVisible && !(typeof hudHidden !== 'undefined' && hudHidden)) {   // no hand on the title   // Backspace hides it
       handCam.aspect = v.w / Math.max(1, v.h);
       handCam.updateProjectionMatrix();
       renderHandPass();
@@ -799,7 +799,7 @@ function renderAllViews(dt) {
 }
 
 /* ================================================================================================
-   PERSISTENCE — keyed by PROFILE, not by slot (0.721)
+   PERSISTENCE — keyed by PROFILE, not by slot
 
    A save holds one record per person who has played that world, tagged with their profile id.
    Slot numbers are not stable across sessions — being player three yesterday and player two today
@@ -816,7 +816,7 @@ function _serializeSlot(i) {
     name: p.name || defaultPlayerName(i),
     pos: [+p.pos.x.toFixed(2), +p.pos.y.toFixed(2), +p.pos.z.toFixed(2)],
     yaw: p.yaw, pitch: p.pitch, hp: p.hp, food: p.food, saturation: p.saturation,
-    vit: serializeVitals(p),              // thirst, stamina, energy... and the mark that these are out of 100 (0.82)
+    vit: serializeVitals(p),              // thirst, stamina, energy... and the mark that these are out of 100
     flying: p.flying, hotSel: g.hotbarSel,
     spawnPos: p.spawnPos ? p.spawnPos.toArray() : null,
     homeSpawn: p.homeSpawn ? p.homeSpawn.toArray() : null,
@@ -824,9 +824,9 @@ function _serializeSlot(i) {
     aliveT: +(p.aliveT || 0).toFixed(1), dead: !!p.dead, cause: p._dmgCause || null, deathDay: p._deathDay ?? null,   // 0.757
     deathMark: serializeDeathMark(p),                                                                       // 0.827
     feats: serializeFeats(p),                                                                               // 0.8283
-    craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken (0.76)
-    skills: serializeSkills(p),           // learned skills (0.79)
-    quest: serializeQuests(p),            // the starter quest reached (0.798)
+    craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken
+    skills: serializeSkills(p),           // learned skills
+    quest: serializeQuests(p),            // the starter quest reached
     saltT: p._saltT || 0,                 // 0.8099
     survHot: g.survStash.hot, survInv: g.survStash.inv, survInv2: g.survStash.inv2,
     survEquip: _packSlots(g.survEquip || []), survBelt: _packSlots(g.survBelt || []),   // packed, as restoreEquip reads it
@@ -950,11 +950,11 @@ function applyExtraPlayerRestore(slot) {
   player.homeSpawn = Array.isArray(rec.homeSpawn)
     ? new THREE.Vector3(rec.homeSpawn[0], rec.homeSpawn[1], rec.homeSpawn[2]) : null;
   player.spawnBedKey = rec.spawnBedKey || null;
-  // a death saved by leaving comes back as a death (0.757): updateVitals reopens its screen
+  // a death saved by leaving comes back as a death: updateVitals reopens its screen
   player.aliveT = +rec.aliveT || 0; player.dead = !!rec.dead; player._dmgCause = rec.cause || null;
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
   player._deathMarks = restoreDeathMark(rec.deathMark);  // 0.827; a list since 0.8442
-  player._restacked = false;                             // stacks fitted once the inventory is back (0.8442, 15-drops.js)
+  player._restacked = false;                             // stacks fitted once the inventory is back (15-drops.js)
   player._feats = restoreFeats(rec.feats);               // 0.8283
   player.craftQueue = restoreCraftQueue(rec.craftQueue);
   player.skills = restoreSkills(rec.skills);   // 0.79

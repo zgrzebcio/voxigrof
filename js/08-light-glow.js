@@ -7,8 +7,8 @@
    Propagation runs on the main thread (glowstones are rare, player-placed, tracked in glowLights),
    crossing chunk borders via getBlock/getLightWorld, and marks touched chunks dirty to re-mesh.
    ================================================================================================ */
-function chunkLightArr(c) { return c.light || (c.light = newSharedArr(Uint8Array, CHUNK_X * CHUNK_Y * CHUNK_Z)); }   // shared when it can be (0.8386)
-/* Light COLOUR (0.834): a cell's byte is its level (bits 0-4, up to the 20 of a glow dust block) and LIGHT_COLD_BIT when
+function chunkLightArr(c) { return c.light || (c.light = newSharedArr(Uint8Array, CHUNK_X * CHUNK_Y * CHUNK_Z)); }   // shared when it can be
+/* Light COLOUR: a cell's byte is its level (bits 0-4, up to the 20 of a glow dust block) and LIGHT_COLD_BIT when
    that level came from a cold source (`coldLight` in PROPS: crystal torch, glowcrystal block, glow vine). The flood
    carries it, the brightest light wins a cell and its colour with it; the mesh packing (11) hands it to the shader. */
 const LIGHT_LEVEL_MASK = 31, LIGHT_COLD_BIT = 0x80;
@@ -18,10 +18,10 @@ function getLightWorld(x, y, z) {
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.light) return 0;
   /* A light brighter than 15 (the glowcrystal block's 18) reaches further, but every reader works in 0..15: capped
-     here, since 16-18 used to spill into the sky nibble and come out BLACK next to the light (0.8094). */
+     here, since 16-18 used to spill into the sky nibble and come out BLACK next to the light. */
   return Math.min(15, c.light[(x & 15) + ((z & 15) << 4) + (y << 8)] & LIGHT_LEVEL_MASK);
 }
-// is the block light at (x, y, z) a cold (blue) one? (0.834)
+// is the block light at (x, y, z) a cold (blue) one?
 function lightColdWorld(x, y, z) {
   if (y < 0 || y > WORLD_TOP) return false;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
@@ -33,7 +33,7 @@ function setLightWorld(x, y, z, val) {
   chunkLightArr(c)[(x & 15) + ((z & 15) << 4) + (y << 8)] = val;
 }
 const LIGHT_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
-/* How far any light can reach (0.8094): the brightest emitter, not GLOW_LEVEL — the glowcrystal block's 18 lit
+/* How far any light can reach: the brightest emitter, not GLOW_LEVEL — the glowcrystal block's 18 lit
    cells past the 14-block box relight() clears, and they kept stale light when it was broken. */
 const LIGHT_REACH = Math.max(GLOW_LEVEL, ...Array.from(PROPS, p => (p && p.light) || 0));   // Array.from: PROPS has gaps
 // effective light emission of a raw voxel value — variant-aware (lit furnace glows, unlit doesn't)
@@ -49,7 +49,7 @@ function blockLightOf(val) {
   const id = val & 255;
   if (id === B.FURNACE) return ((val >> 8) & V.FURNACE_ON) ? FURNACE_GLOW : 0;   // lit bit (facing bits below it)
   const p = PROPS[id];
-  if (p?.lightByVar) return p.lightByVar[(val >> 8) & 7] || 0;   // by stage: the yellow berry bush as it ripens (0.827)
+  if (p?.lightByVar) return p.lightByVar[(val >> 8) & 7] || 0;   // by stage: the yellow berry bush as it ripens
   return p?.light || 0;
 }
 // per-position emission: read the block's own light level (torch 10, glowstone 14, furnace 5...)
@@ -60,10 +60,10 @@ const glowSrcAt = (gx, gy, gz) => {
   return [gx, gy, gz, blockLightOf(v) || GLOW_LEVEL, lightColdOf(v)];
 };
 
-/* Virtual held-light sources — one slot per split-screen player (0.72), each null or
+/* Virtual held-light sources — one slot per split-screen player, each null or
    [x, y, z, level]. Every consumer treats them exactly like placed emitters; the only reason they
    are not in `glowLights` is that they move every block step and are diffed rather than added. */
-// held-light sources: slots 0-3 the split-screen players, 4-7 villagers' torches (0.8242, NPC_LIGHT_SLOT0 in 28-entities.js)
+// held-light sources: slots 0-3 the split-screen players, 4-7 villagers' torches (NPC_LIGHT_SLOT0 in entities/entities.js)
 const _plyGlows = new Array(8).fill(null);
 const _plyGlowSources = (out) => { for (const g of _plyGlows) if (g) out.push(g); return out; };
 
@@ -87,11 +87,11 @@ function _lightSrcActive(sx, sz) {
 function propagateLight(gx, gy, gz, level = GLOW_LEVEL) {
   propagateLightMany([[gx, gy, gz, level]]);
 }
-/* Every source in ONE flood (0.8196). Relighting beside a lava lake meant thousands of sources, and flooding them
+/* Every source in ONE flood. Relighting beside a lava lake meant thousands of sources, and flooding them
    one by one visited the same cells thousands of times: one relight took 300 ms. Here each source seeds a bucket
    by level, the buckets are worked from the brightest down, and a cell is only ever lit at its highest level, so
    each cell is expanded once however many sources reach it. `srcs`: [[x, y, z, level, colour bit], ...]. The colour
-   (0.834, LIGHT_COLD_BIT) rides along with each cell, so a cell takes the colour of the brightest light reaching it. */
+   (LIGHT_COLD_BIT) rides along with each cell, so a cell takes the colour of the brightest light reaching it. */
 function propagateLightMany(srcs) {
   if (!srcs.length) return;
   const B = [];                          // B[lv]: flat x,y,z,colour of cells whose light leaves them at lv
@@ -120,17 +120,17 @@ function propagateLightMany(srcs) {
         }
         if (!cData) continue;             // unloaded: relightForChunk handles it on load
         const i = (nx & 15) + ((nz & 15) << 4) + (ny << 8);
-        if (CORE.opaqueVal(cData[i])) continue;       // by value: chiseled shapes let light through (0.783)
+        if (CORE.opaqueVal(cData[i])) continue;       // by value: chiseled shapes let light through
         if ((cLight[i] & LIGHT_LEVEL_MASK) >= nl) continue;
         cLight[i] = nl | cb;
-        const out = nl - CORE.lightDim(cData[i]);     // passes on less out of a shaped cell (0.819)
+        const out = nl - CORE.lightDim(cData[i]);     // passes on less out of a shaped cell
         if (out >= 2) (B[out] || (B[out] = [])).push(nx, ny, nz, cb);
       }
     }
     B[lv] = null;
   }
 }
-// zero block light in a box, a chunk's row at a time (0.8196; was one lookup per cell). No light array: already dark.
+// zero block light in a box, a chunk's row at a time (was one lookup per cell). No light array: already dark.
 function _clearLightBox(x0, y0, z0, x1, y1, z1) {
   for (let cz = Math.floor(z0 / 16); cz <= Math.floor(z1 / 16); cz++)
     for (let cx = Math.floor(x0 / 16); cx <= Math.floor(x1 / 16); cx++) {
@@ -145,7 +145,7 @@ function _clearLightBox(x0, y0, z0, x1, y1, z1) {
 }
 
 // recompute block light in a bounded box around a change, then re-mesh the chunks it touches.
-// x2, y2, z2 (0.8193): the far corner of a whole area of changes, relit once for all of them
+// x2, y2, z2: the far corner of a whole area of changes, relit once for all of them
 function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   const R = LIGHT_REACH;
   const near = [];
@@ -163,9 +163,9 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   let x0 = bx0 - R, x1 = bx1 + R, y0 = by0 - R, y1 = by1 + R, z0 = bz0 - R, z1 = bz1 + R;
   for (const g of near) { x0 = Math.min(x0, g[0]-R); x1 = Math.max(x1, g[0]+R); y0 = Math.min(y0, g[1]-R); y1 = Math.max(y1, g[1]+R); z0 = Math.min(z0, g[2]-R); z1 = Math.max(z1, g[2]+R); }
   y0 = Math.max(0, y0); y1 = Math.min(WORLD_TOP, y1);
-  if (_lightW) { _lightPost('lbox', near, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread (0.8386)
+  if (_lightW) { _lightPost('lbox', near, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread
   _clearLightBox(x0, y0, z0, x1, y1, z1);
-  propagateLightMany(near);                // all of them in one flood (0.8196)
+  propagateLightMany(near);                // all of them in one flood
   for (let ccz = Math.floor(z0/16); ccz <= Math.floor(z1/16); ccz++)
     for (let ccx = Math.floor(x0/16); ccx <= Math.floor(x1/16); ccx++) {
       const c = getChunk(ccx, ccz); if (c && c.data) markDirty(c);
@@ -174,7 +174,7 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
 
 // Update one player's virtual held-light source (`slot` is the split-screen player index).
 // Call when that player moves a block or changes held item. level=0 clears their light.
-// cold (0.834): a cold light in the hand (the crystal torch) lights blue
+// cold: a cold light in the hand (the crystal torch) lights blue
 function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   const old = _plyGlows[slot];
   const now = level > 0 ? [nx, ny, nz, level, cold ? LIGHT_COLD_BIT : 0] : null;
@@ -201,7 +201,7 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   if (!skipOld && old) { x0=Math.min(x0,old[0]-R); x1=Math.max(x1,old[0]+R); y0=Math.min(y0,old[1]-R); y1=Math.max(y1,old[1]+R); z0=Math.min(z0,old[2]-R); z1=Math.max(z1,old[2]+R); }
   for (const g of sources) { x0=Math.min(x0,g[0]-R); x1=Math.max(x1,g[0]+R); y0=Math.min(y0,g[1]-R); y1=Math.max(y1,g[1]+R); z0=Math.min(z0,g[2]-R); z1=Math.max(z1,g[2]+R); }
   y0=Math.max(0,y0); y1=Math.min(WORLD_TOP,y1);
-  if (_lightW) { _lightPost('lbox', sources, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread (0.8386)
+  if (_lightW) { _lightPost('lbox', sources, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(sources);             // 0.8196
   for (let ccz=Math.floor(z0/16);ccz<=Math.floor(z1/16);ccz++)
@@ -216,7 +216,7 @@ function relightForChunk(cx, cz) {
   // calls this again the moment it comes back into range, so nothing is lost by skipping here
   if (!inSimRangeChunk(cx, cz)) return;
   // only emitters in the chunks this one can be reached from — not every light in the world
-  const srcs = [];                         // gathered, then poured in one flood (0.8196)
+  const srcs = [];                         // gathered, then poured in one flood
   forEachGlowNear(cx * 16 + 8, cz * 16 + 8, LIGHT_REACH + 8, (gx, gy, gz) => {
     if (!_lightSrcActive(gx, gz)) return;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
@@ -226,13 +226,13 @@ function relightForChunk(cx, cz) {
     if (!g) continue;
     const [gx, gy, gz, lv] = g;
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
-    if (dx <= lv && dz <= lv) srcs.push(g);                 // with its colour (0.834)
+    if (dx <= lv && dz <= lv) srcs.push(g);                 // with its colour
   }
-  if (_lightW) { if (srcs.length) _lightPost('ladd', srcs, null); return; }   // the light thread (0.8386)
+  if (_lightW) { if (srcs.length) _lightPost('ladd', srcs, null); return; }   // the light thread
   propagateLightMany(srcs);
 }
 
-/* ---- the light thread (0.8386, MultithreadPlan C9: LIGHT_THREAD, only with shared memory, SHARED_OK) ----
+/* ---- the light thread (LIGHT_THREAD, only with shared memory, SHARED_OK) ----
    A worker of its own (started from 10-workers, `lightThreadStart`) runs every block-light flood: relight (an edit),
    updatePlayerLight (a held light moving), relightForChunk (a chunk arriving near lights). The main thread still
    gathers the sources (it owns glowLights and the held lights) and the box, posts them as a job, and when the answer

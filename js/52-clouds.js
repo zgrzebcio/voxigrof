@@ -1,5 +1,5 @@
 'use strict';
-/* voxiGrof — clouds (0.815)
+/* voxiGrof — clouds
 
    One layer of block clouds, y CLOUD_Y0 to CLOUD_Y0 + CLOUD_H (04-materials.js), cells a block wide. They are
    not blocks and not in the world data: nothing collides with them and nothing is meshed. The layer is drawn
@@ -9,24 +9,24 @@
    SHAPE   a tiling value noise (CLOUD_N cells a side) read in cloud space, world minus uCloudOff. A cell is
            cloud where the noise reaches the weather's level, and stands 1 to CLOUD_THICK blocks tall the further
            past it the noise goes, so edges are thin and the middle is full height. A second noise lifts each
-           column up or down within CLOUD_H (0.816), so neither the top nor the underside is flat.
-   WEATHER each weather region (51-seasons.js) has a cover and a darkness (CLOUD_COVER, CLOUD_DARK). The cover
+           column up or down within CLOUD_H, so neither the top nor the underside is flat.
+   WEATHER each weather region (seasons/seasons.js) has a cover and a darkness (CLOUD_COVER, CLOUD_DARK). The cover
            is turned into a noise level through the noise's own spread (_cloudLevel), so a cover of 0.7 really
            is 70% of the sky. A change of weather fades in over CLOUD_FADE_S rather than popping.
    WIND    the whole layer drifts the way the wind blows at cloud height where player one is, at a quarter of
            its speed (a km/h is 1/3.6 blocks a second).
    SHADE   the ground under a cloud, measured up the ray to the sun or moon, loses a little light, and 75% of
            it under a dark one (cloudShade in 04).
-   FOG     (0.816) foggy weather closes the view to FOG_DENSE_FAR; morning and after-rain fog (mistAt in 51) to
+   FOG foggy weather closes the view to FOG_DENSE_FAR; morning and after-rain fog (mistAt in seasons/weather-sky.js) to
            FOG_LIGHT_FAR. It greys the sky and hides the sun, moon and stars (applyMist, per eye).
-   RAINBOW (0.816) a ring of 42 degrees round the point opposite the sun, only above the horizon and by day. */
+   RAINBOW a ring of 42 degrees round the point opposite the sun, only above the horizon and by day. */
 
 const CLOUD_COVER = { clear: 0.12, sunny: 0.04, cloudy: 0.7, windy: 0.35, rainy: 0.85, darky: 0.95, storm: 1, foggy: 0.6, blizzard: 1 };
-const CLOUD_DARK = { rainy: 0.5, darky: 1, storm: 1, blizzard: 0.6 };   // dark clouds: darky and storm; rain is grey; a blizzard heavy grey (0.83)
+const CLOUD_DARK = { rainy: 0.5, darky: 1, storm: 1, blizzard: 0.6 };   // dark clouds: darky and storm; rain is grey; a blizzard heavy grey
 const CLOUD_WIND = 0.1;                                   // share of the wind's speed the clouds drift at (0.25 until 0.818)
 const CLOUD_FADE_S = 40;                                  // real seconds a change of weather takes to reach the sky
 const CLOUD_STEP_H = 0.035;                               // noise past the level for each block of height
-const CLOUD_THICK = 5;                                    // the most a cloud is tall; it floats up and down within CLOUD_H (0.816)
+const CLOUD_THICK = 5;                                    // the most a cloud is tall; it floats up and down within CLOUD_H
 const CLOUD_STEPS = 160;                                  // cells a ray may walk before it gives up
 
 /* ---- the shape noise: three octaves of tiling value noise, stretched to 0..1 ---- */
@@ -53,7 +53,7 @@ function _cloudField(octaves, seed) {
   for (let i = 0; i < v.length; i++) v[i] = (v[i] - lo) / (hi - lo);
   return v;
 }
-// r: the shape; g: where in the layer's height a column sits (0.816), so undersides are not flat
+// r: the shape; g: where in the layer's height a column sits, so undersides are not flat
 function _cloudNoiseBytes() {
   const shape = _cloudField([[32, 0.5], [16, 0.3], [8, 0.2]], 0), lift = _cloudField([[16, 0.6], [8, 0.4]], 1000);
   const bytes = new Uint8Array(CLOUD_N * CLOUD_N * 4);
@@ -97,7 +97,7 @@ function _cloudWeatherTick(dt, px, pz) {
   const H = worldClockDays() * 24, k = Math.min(1, dt / CLOUD_FADE_S);
   const rx0 = Math.floor(px / REGION_BLOCKS - 0.5) - 3, rz0 = Math.floor(pz / REGION_BLOCKS - 0.5) - 3;
   if (_cloudCur.size > 512) _cloudCur.clear();
-  // a new world, or the title: its sky starts from its own weather, not the last world's storm (0.8198)
+  // a new world, or the title: its sky starts from its own weather, not the last world's storm
   const scene = (typeof menuScene !== 'undefined' && menuScene) ? 'title' : (typeof currentWorld !== 'undefined' && currentWorld ? currentWorld.id : '');
   if (scene !== _cloudScene) { _cloudScene = scene; _cloudCur.clear(); }
   for (let j = 0; j < CLOUD_WX_N; j++) for (let i = 0; i < CLOUD_WX_N; i++) {
@@ -118,7 +118,7 @@ function _cloudWeatherTick(dt, px, pz) {
 sharedUniforms.uCloudNoise.value = cloudNoiseTex;
 sharedUniforms.uCloudWx.value = cloudWxTex;
 
-/* ---- the same clouds on the CPU (0.817): the sky's overcast grey and the lens flare's clouds (07-sky.js) ---- */
+/* ---- the same clouds on the CPU: the sky's overcast grey and the lens flare's clouds (07-sky.js) ---- */
 // the weather's cloud at a world xz as the sky shows it now: [level, dark, cover] (cloudWx in 04)
 function cloudWxAt(x, z) {
   const B = sharedUniforms.uCloudBox.value, W = CLOUD_WX_N, hi = W - 1.001;
@@ -160,7 +160,7 @@ function _cloudTex(url) {
   t.minFilter = THREE.NearestMipmapLinearFilter;
   return t;
 }
-const CLOUD_ALPHA = 0.92;                   // clouds let 8% of what is behind them through (0.8195)
+const CLOUD_ALPHA = 0.92;                   // clouds let 8% of what is behind them through
 const cloudMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3,
   side: THREE.BackSide,
@@ -170,7 +170,7 @@ const cloudMat = new THREE.ShaderMaterial({
     uCloudTex:  { value: _cloudTex('textures/Blocks/Natures/cloud.png') },
     uCloudDark: { value: _cloudTex('textures/Blocks/Natures/dark_cloud.png') },
     uCloudPx:   { value: 0.001 },           // world size of one screen pixel a block away, for the mip level
-    uCloudLit:  { value: 1 },               // how lit the clouds are: day, or a little moonlight (0.819)
+    uCloudLit:  { value: 1 },               // how lit the clouds are: day, or a little moonlight
   },
   vertexShader: /* glsl */`
     out vec3 vWorld;
@@ -278,7 +278,7 @@ scene.add(cloudMesh);
 function updateClouds(dt) {
   const p = typeof PLAYERS !== 'undefined' && PLAYERS[0] ? PLAYERS[0] : (typeof player !== 'undefined' ? player : null);
   if (!p || !p.pos) return;
-  // a world made without clouds (0.837): no layer and no shadows from it
+  // a world made without clouds: no layer and no shadows from it
   const none = typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.clouds === false && !menuScene;
   cloudMesh.visible = !none && _cloudTexReady === 2;
   if (none) { sharedUniforms.uCloudOn.value = 0; return; }
@@ -289,22 +289,22 @@ function updateClouds(dt) {
   off.set(((off.x + wx * v) % M + M) % M, ((off.y + wz * v) % M + M) % M);
   // the way to the light that casts the shadows: the sun, or the moon on its own orbit since 0.817 (07-sky.js)
   sharedUniforms.uCloudSun.value.copy(skyLightDir);
-  // clouds by night are all but as dark as the sky round them; a bright moon picks them out a little (0.819)
+  // clouds by night are all but as dark as the sky round them; a bright moon picks them out a little
   cloudMat.uniforms.uCloudLit.value = Math.min(1, 0.035 + 0.965 * _skyDayF + 0.16 * _skyMoonGlow + 0.9 * skyFlash);   // + lightning
   sharedUniforms.uCloudOn.value = 1;
 }
 
-/* ================================== fog and the rainbow (0.816) ================================== */
+/* ================================== fog and the rainbow ================================== */
 const FOG_LIGHT_FAR = 40, FOG_DENSE_FAR = 8;   // how far you see in morning / after-rain fog, and in foggy weather
 const FOG_EASE_S = 8;                          // real seconds the fog takes to thicken or clear round you
-/* How far out of the weather a height is (0.8197): 0 in or under the cloud layer, 1 once clear of its top, eased over
+/* How far out of the weather a height is: 0 in or under the cloud layer, 1 once clear of its top, eased over
    the top few blocks. Above the clouds there is no fog, no overcast grey and no hail: a clear sky, as in real life. */
 const cloudsBelow = (y) => { const t = Math.min(1, Math.max(0, (y - (CLOUD_Y0 + CLOUD_H - 2)) / 4)); return t * t * (3 - 2 * t); };
 const _mistGrey = new THREE.Color(0.74, 0.77, 0.8), _mistCol = new THREE.Color();
 scene.fog = new THREE.Fog(0xffffff, 1e6, 1e7);   // three's own materials follow the land's fog (22, applyEyeVolumeFog)
 /* The fog where this eye stands, eased per camera so walking into a foggy region (or the weather turning) closes
    in over a few seconds. Called on the surface branch of applyEyeVolumeFog, after it set the clear-air fog. */
-/* A SANDSTORM (0.825, sandstormAt in 51-seasons.js) is a murk of its sand's colour, yellow or red by the ground under
+/* A SANDSTORM (sandstormAt in seasons/weather-sky.js) is a murk of its sand's colour, yellow or red by the ground under
    it. Round each eye it thickens over SAND_FOG_EASE_S (most of the way in 30-60 s) down to SAND_FOG_FAR blocks of
    sight; under a roof or in a cave it thins to SAND_FOG_ROOF_FAR, so the room is clear but the storm outside is not. */
 const SAND_FOG_FAR = 3.5, SAND_FOG_ROOF_FAR = 18, SAND_FOG_EASE_S = 15, SAND_FOG_CLEAR_S = 8;
@@ -322,7 +322,7 @@ function _sandAround(st, cam, now, dts) {
   st.sandIn += (st.sandInAim - st.sandIn) * (1 - Math.exp(-dts / 1.2));
   if (st.sand < 0.003) st.sand = 0;
 }
-/* RAIN AND SNOW FOG (0.83, precipAt in 51-seasons.js): a light grey haze in the rain, thicker the harder it falls
+/* RAIN AND SNOW FOG (0.83, precipAt in seasons/weather-sky.js): a light grey haze in the rain, thicker the harder it falls
    (RAIN_FOG_FAR at its heaviest), a whiter one in falling snow (SNOW_FOG_FAR), and a blizzard's white-out
    (BLIZZARD_FOG_FAR; BLIZZARD_ROOF_FAR under a roof). Eased per eye like the sand. */
 // a blizzard closes in to about 3 blocks (7 before 0.837), 14 under a roof (18)
@@ -347,9 +347,9 @@ function applyMist(cam) {
   st.dense += (m.dense - st.dense) * k; st.light += (m.light - st.light) * k; st.bow += (m.bow - st.bow) * k;
   _sandAround(st, cam, now, dts);
   _precipAround(st, cam, now, dts);                       // 0.83
-  // above the cloud layer the air is clear, whatever the weather below (0.8197)
-  // ...and Clear Eyes takes 30% off fog and sand alike (0.828, 45-skills.js)
-  const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // vegetable sickness too (0.8323)
+  // above the cloud layer the air is clear, whatever the weather below
+  // ...and Clear Eyes takes 30% off fog and sand alike (player/skills.js)
+  const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // vegetable sickness too
   const sky = 1 - cloudsBelow(cam.position.y), clear = sky * sm, dense = st.dense * clear, light = st.light * clear, sand = st.sand * clear;
   // under a roof the rain and snow are outside: a third of their haze (a blizzard's has its own roof distance)
   const roof = 1 - 0.65 * st.sandIn, rain = st.rain * clear * roof, snow = st.snow * clear * roof, bliz = st.bliz * clear;
@@ -373,10 +373,10 @@ function applyMist(cam) {
   if (rain > 0.01) U.fogColor.value.lerp(_wxCol.copy(_rainGrey).multiplyScalar(0.2 + 0.8 * _skyDayF), rain * 0.6);
   const white = Math.min(1, snow * 0.7 + bliz);
   if (white > 0.01) U.fogColor.value.lerp(_wxCol.copy(_snowWhite).multiplyScalar(0.18 + 0.82 * _skyDayF), white);
-  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.85 * bliz);   // the sun comes through soft (a blizzard all but hides it, 0.837)
+  U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.85 * bliz);   // the sun comes through soft (a blizzard all but hides it)
   const wx = 0.3 * rain + 0.4 * snow + bliz;
   skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand - wx));
-  // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades (0.817)
+  // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades
   U.uSkyFog.value = Math.min(1, dense + 0.6 * light + sand + wx);
   U.uHaze.value = (1 - 0.8 * a) * (1 - 0.8 * sand) * Math.max(0, 1 - 0.8 * wx);
   const bow = st.bow * _skyDayF * sky * (1 - sand) * Math.max(0, 1 - 2 * (rain + snow));   // no rainbow while it still falls
@@ -420,7 +420,7 @@ rainbowMesh.layers.set(1);                  // with the sky: never in the shadow
 const _bowDir = new THREE.Vector3();
 rainbowMesh.onBeforeRender = function (_r, _s, cam) {
   // the point opposite the sun, held no lower than 24 degrees under the horizon so a high sun still shows an arc
-  const sx = sunDirW.x, sy = sunDirW.y, sz = sunDirW.z;   // the sun's real path, seasons and all (07-sky.js, 0.818)
+  const sx = sunDirW.x, sy = sunDirW.y, sz = sunDirW.z;   // the sun's real path, seasons and all (07-sky.js)
   const hl = Math.hypot(sx, sz) || 1, e = Math.max(-Math.asin(Math.max(-1, Math.min(1, sy))), -0.42);
   _bowDir.set(-sx / hl * Math.cos(e), Math.sin(e), -sz / hl * Math.cos(e));
   const R = cam.far * 0.7;

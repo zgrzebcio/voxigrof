@@ -11,16 +11,16 @@ simInput.value = simRadius;
 sensInput.value = Math.round(sens * 100);
 rawMouseSel.value = rawMouse ? 'on' : 'off';   // 0.8443
 shadowSel.value = String(shadowR);
-// render scale (0.83852, 06-renderer): applied the moment it is picked
+// render scale (06-renderer): applied the moment it is picked
 const scaleSel = document.getElementById('scaleSel');
 scaleSel.value = String(renderScale);
 if (scaleSel.value !== String(renderScale)) scaleSel.value = '100';
 scaleSel.addEventListener('change', () => applyRenderScale(scaleSel.value));
-// leaves fancy or fast (0.8386, 10-workers): every chunk remeshes when it changes
+// leaves fancy or fast (10-workers): every chunk remeshes when it changes
 const leavesSel = document.getElementById('leavesSel');
 leavesSel.value = fastLeaves ? 'fast' : 'fancy';
 leavesSel.addEventListener('change', () => applyFastLeaves(leavesSel.value === 'fast'));
-// texture quality (0.752): the saved choice, and what "auto" resolves to on this device
+// texture quality: the saved choice, and what "auto" resolves to on this device
 const texSel = document.getElementById('texSel');
 texSel.value = (() => { try { return localStorage.getItem(TEX_Q_KEY) || 'auto'; } catch { return 'auto'; } })();
 texSel.options[0].textContent = 'auto (' + (detectLowTextures() ? 'low' : 'high') + ')';
@@ -72,14 +72,14 @@ buildAtlas().then((tex) => {
   tex.anisotropy = Math.min(tex.anisotropy, renderer.capabilities.getMaxAnisotropy());   // 1 on the LOW tier
   applyViewDist();
   requestAnimationFrame(frame);                   // start drawing the panorama immediately
-  /* ...then pull the in-world art in behind it (0.724). Nothing on the title screen needs any of
+  /* ...then pull the in-world art in behind it. Nothing on the title screen needs any of
      it, so this costs the menu nothing, and by the time anyone has picked a world it is normally
      already in hand — which is the difference between joining and staring at invisible items for
      five seconds. ensureGameArt is idempotent; world entry awaits the same promise. */
   ensureGameArt();
 });
 
-/* ---- deferred game assets (0.7146) ----
+/* ---- deferred game assets ----
    Everything below is needed to PLAY and useless on the title screen, so none of it happens at
    boot any more. The HUD is hidden behind the menu, prefabs cannot spawn without a currentWorld,
    and the inventory is built by toggleInventory() the first time it is opened.
@@ -90,7 +90,7 @@ buildAtlas().then((tex) => {
    actually being entered, where there is a loading screen to hide it behind.
 
    Idempotent: entering a second world re-uses everything the first one warmed. */
-/* `gameAssetsReady` is what the loading screen waits on (0.732). It used to dismiss purely on
+/* `gameAssetsReady` is what the loading screen waits on. It used to dismiss purely on
    CHUNK readiness, so entering a world with a cold cache dropped you into a finished landscape
    holding invisible items, next to black chests and doors — the art was still in flight. The
    screen now stays up until the art has landed AND every icon has been rasterised.
@@ -100,7 +100,7 @@ buildAtlas().then((tex) => {
    screen for ever. Fifteen seconds in, the world opens regardless. */
 let _gameAssetsStarted = false;
 var gameAssetsReady = false;
-var gameIconsLeft = -1;                           // -1: not started (0.804)
+var gameIconsLeft = -1;                           // -1: not started
 const GAME_ASSET_TIMEOUT = 15000;
 function ensureGameAssets() {
   if (_gameAssetsStarted) return;
@@ -110,7 +110,7 @@ function ensureGameAssets() {
   const iconsWarm = new Promise((resolve) => {
     /* Icons are cached for the life of the session the moment they are first drawn, and the chest,
        bed and door draw themselves from IMAGES — so warming them before their art has arrived bakes
-       a black square in permanently. WAIT for the art (0.724); the loading screen is up anyway. */
+       a black square in permanently. WAIT for the art; the loading screen is up anyway. */
     ensureGameArt().then(() => {
       /* Rebuild for EVERY player, not just whoever is installed: loadWorld already drew each seat's
          hotbar while this art was still in flight, so those slots are holding the empty string
@@ -120,7 +120,7 @@ function ensureGameAssets() {
       const warmIcons = () => {
         const t0 = performance.now();
         while (i < PLACEABLE.length && performance.now() - t0 < 3) renderBlockIcon(PLACEABLE[i++]);
-        gameIconsLeft = PLACEABLE.length - i;       // the loading screen counts these down (0.804)
+        gameIconsLeft = PLACEABLE.length - i;       // the loading screen counts these down
         if (i < PLACEABLE.length) { requestAnimationFrame(warmIcons); return; }
         buildInventory();                           // icons are cached by now, so this is cheap
         forEachPlayerSlot(() => buildHotbar());     // ...and the hotbars once more, now fully warm

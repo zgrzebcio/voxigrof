@@ -61,7 +61,7 @@ const DEFAULT_LOOT = {
       { id: 'B:LOG',          min: 1, max: 5, chance: 0.45 },
     ],
   },
-  /* The sealed metal chests found about the world (0.843, trySpawnWorldChest in 30-chest.js), rolled when a key opens
+  /* The sealed metal chests found about the world (trySpawnWorldChest in blocks/supply-chests.js), rolled when a key opens
      one: copper the commonest, gold the rarest and richest. */
   copper_chest: {
     name: 'copper chest', rolls: [4, 7], xp: [6, 12],
@@ -125,13 +125,13 @@ function resolveLootId(name) {
   return v == null ? null : v;
 }
 
-// NOT `_ri` — 28-entities.js already owns that name, and these are classic scripts sharing one
+// NOT `_ri` — entities/entities.js already owns that name, and these are classic scripts sharing one
 // global lexical scope, so a duplicate top-level const throws and takes the whole file with it
 const _lootRange = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
 /* Roll a table into a slot array, scattering stacks across random EMPTY slots. Returns how many
    stacks landed. Slots already holding something are left alone, so re-rolling is harmless. */
-/* NO TOOLS OR WEAPONS IN LOOT (0.7443). Every pick, hatchet, shovel, hoe, sword, shears and bow
+/* NO TOOLS OR WEAPONS IN LOOT. Every pick, hatchet, shovel, hoe, sword, shears and bow
    is earned at a bench — a chest that hands out a pickaxe skips the whole tool ladder. Enforced
    HERE, at roll time, rather than by editing each table, because structure files are authored
    with the structure block and ship their own tables: an entry naming a tool simply never lands,
@@ -140,7 +140,7 @@ function isGearLoot(id) {
   const p = id != null && id >= 256 ? ITEM_PROPS[id] : null;
   return !!(p && (p.tool || p.ranged));
 }
-const LOOT_MIN_KINDS = 3;                       // different things a loot chest always holds (0.833)
+const LOOT_MIN_KINDS = 3;                       // different things a loot chest always holds
 function rollLootInto(slots, table) {
   if (!table || !Array.isArray(table.entries)) return 0;
   const entries = table.entries.filter((e) => {
@@ -151,8 +151,8 @@ function rollLootInto(slots, table) {
   const [rMin, rMax] = Array.isArray(table.rolls) ? table.rolls : [1, 3];
   const rolls = _lootRange(Math.max(0, rMin | 0), Math.max(rMin | 0, rMax | 0));
   let placed = 0;
-  const got = new Set();                         // the different things this roll has put in (0.833)
-  /* `once` (0.8394): entries sharing a tag give at most one of them a chest — the snow castle's one gem (60-bosses.js) */
+  const got = new Set();                         // the different things this roll has put in
+  /* `once`: entries sharing a tag give at most one of them a chest — the snow castle's one gem (entities/frozen-king.js) */
   const tags = new Set();
   const put = (e, id) => {
     if (e.once) { if (tags.has(e.once)) return true; tags.add(e.once); }
@@ -221,7 +221,7 @@ function rollLootExtra(slots, table) {
   slots[free[Math.floor(Math.random() * free.length)]] = mkSlot(id, Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1))));
   return true;
 }
-const TREASURE_KEY_CHANCE = 0.01, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose (0.8446)
+const TREASURE_KEY_CHANCE = 0.01, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose
 function fillPendingLoot(x, y, z, slots) {
   const k = lootKey(x, y, z);
   const rec = PENDING_LOOT.get(k);
@@ -229,10 +229,10 @@ function fillPendingLoot(x, y, z, slots) {
   PENDING_LOOT.delete(k);
   const prefab = STRUCTURES.get(rec.struct), table = resolveLootTable(prefab, rec.table);
   rollLootInto(slots, table);
-  /* Treasure Nose (0.79): one chest in four holds one item more. Chance ignored on the extra roll,
+  /* Treasure Nose: one chest in four holds one item more. Chance ignored on the extra roll,
      the same way the empty-chest guarantee below ignores it — "one more" should mean one more. */
   if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < 0.25) rollLootExtra(slots, table);
-  /* ...and one chest in a hundred holds a key (0.8446): a wooden, copper, iron or golden one, each as likely, in a
+  /* ...and one chest in a hundred holds a key: a wooden, copper, iron or golden one, each as likely, in a
      free slot. The only other way to a wooden key is the bench; the metal ones drop from monsters. */
   if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < TREASURE_KEY_CHANCE) {
     const free = [];
@@ -242,7 +242,7 @@ function fillPendingLoot(x, y, z, slots) {
   awardLootXP(table, lootXpMul(prefab)); // finding the chest is the achievement, not its contents
   return true;
 }
-/* What a loot chest's XP is multiplied by (0.833): twice its table's for any, three times in a desert village, and a
+/* What a loot chest's XP is multiplied by: twice its table's for any, three times in a desert village, and a
    prefab's own `lootXpMul` over both (the igloo's is 4). */
 const LOOT_XP_MUL = 2, LOOT_XP_MUL_GROUP = { desert_village: 3 };
 const lootXpMul = (prefab) => !prefab ? LOOT_XP_MUL
@@ -462,7 +462,7 @@ function _readManifest(raw, src) {
 }
 
 async function loadStructures() {
-  /* The structure block no longer keeps copies in the browser (0.82424): it only downloads JSON, and what exists is
+  /* The structure block no longer keeps copies in the browser: it only downloads JSON, and what exists is
      what the manifest ships. Old copies (vg_structures) are cleared here; worlds and profiles are other keys. */
   try { localStorage.removeItem(STRUCT_LS_KEY); } catch {}
 
@@ -500,7 +500,7 @@ async function loadStructures() {
     if (!members.length) _structReport('error', 'manifest.json', `group "${name}" has no prefabs — no file sets "group": "${name}"`);
     else console.log(`[structure] group "${name}" (${g.type}): ${members.map(p => p.id).join(', ')}`);
   }
-  /* ...and now the chunks that arrived while this was loading get their one try after all (0.799).
+  /* ...and now the chunks that arrived while this was loading get their one try after all.
      Only the ones still in memory: an unloaded chunk is stamped when it streams back in. */
   if (_structWaiting.size) {
     const waited = [..._structWaiting];
@@ -536,7 +536,7 @@ function captureStructure(bx, by, bz, size, name) {
         if (id === B.AIR || id === B.STRUCTURE_BLOCK) continue;
         blocks.push([dx, dy, dz, id, (val >> 8) & 255]);
         // every captured container is wired to the default table; edit the JSON to retarget it
-        if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too (0.843)
+        if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too
       }
   return {
     id: name,
@@ -571,7 +571,7 @@ function downloadStructure(prefab) {
    edit store, re-floods light and runs the per-block hooks. A dungeon is well over a thousand
    cells and a village several hundred, so doing one in a single frame is a visible freeze. The
    caller feeds this a budget and comes back next frame. */
-// `swap` (0.82426): block id -> block id while stamping, a group's `replace` (a desert village's dirt is sand)
+// `swap`: block id -> block id while stamping, a group's `replace` (a desert village's dirt is sand)
 function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
   const blocks = prefab.blocks;
   const end = Math.min(blocks.length, from + budget);
@@ -584,8 +584,8 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;
     setBlock(x, y, z, id | ((variant & 255) << 8));
-    if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind (0.843)
-    // a door's mesh comes up with its bottom half in setBlock (0.842: doors are shapes of their material)
+    if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind
+    // a door's mesh comes up with its bottom half in setBlock (doors are shapes of their material)
     if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342
   }
   return end;
@@ -614,7 +614,7 @@ function stampStructure(prefab, ox, oy, oz) {
    chunk unloads and streams back in — the blocks themselves persist as edits, so a second stamp
    would just be wasted work, and would re-arm loot in a chest the player already emptied. */
 const _structPlaced = new Set();
-const _structWaiting = new Set();    // chunks that landed before the prefabs did (0.799)
+const _structWaiting = new Set();    // chunks that landed before the prefabs did
 function structChunkKey(cx, cz) { return cx + ',' + cz; }
 
 // cheap deterministic hash of (seed, chunk, salt) -> 0..1
@@ -631,7 +631,7 @@ function _structHash(cx, cz, salt) {
    across the countryside. */
 function _spawnCandidates() {
   const out = [];
-  // ...nor the supply crate (0.8442): it is the wooden supply chest now, placed on the chests' own spacing (30-chest.js)
+  // ...nor the supply crate: it is the wooden supply chest now, placed on the chests' own spacing (blocks/chest.js)
   for (const p of STRUCTURES.values())
     if (!_groupOf(p) && p.spawn && (p.spawn.chance || 0) > 0 && p.id !== SUPPLY_CRATE) out.push(p);
   return out;
@@ -706,7 +706,7 @@ function _footprint(ax, az, w, l) {
 /* Cut the prefab's own volume out of the hillside, then prop up anything left overhanging.
    Without the carve an embedded building is packed solid with dirt; without the pillars a slope
    that falls away leaves its lower corner hanging in mid-air. */
-/* o (0.82426): `from` — the first layer carved (1 keeps the ground the prefab stands in, a village house sunk to its
+/* o: `from` — the first layer carved (1 keeps the ground the prefab stands in, a village house sunk to its
    doorstep); `cols` — carve only these columns (a well's own shaft and collar, so no sand is left in it); `top` /
    `deep` — the pillar blocks (sand in a desert village, not dirt and stone). */
 function _blendIntoTerrain(prefab, ox, oy, oz, o = {}) {
@@ -729,7 +729,7 @@ function _blendIntoTerrain(prefab, ox, oy, oz, o = {}) {
     for (let dx = 0; dx < w; dx++) {
       if (!filled.has(dx + ',0,' + dz)) continue;
       const x = ox + dx, z = oz + dz;
-      // how deep the gap goes, then filled from the bottom up (0.82426): a sand pillar never stands on air, so none falls
+      // how deep the gap goes, then filled from the bottom up: a sand pillar never stands on air, so none falls
       let n = 0;
       while (n < PILLAR_MAX && oy - n - 1 >= 1) {
         const cur = getBlock(x, oy - n - 1, z) & 255;
@@ -740,7 +740,7 @@ function _blendIntoTerrain(prefab, ox, oy, oz, o = {}) {
     }
 }
 
-/* A building set into the snow (0.8351, the igloo): blending carves the hillside out of its box and leaves bare dirt and
+/* A building set into the snow (the igloo): blending carves the hillside out of its box and leaves bare dirt and
    grass round it, the snow gone. In the snow's climate every column round the footprint, SNOW_BACK_R blocks out, whose
    ground is dirt or grass gets a snow layer back (the snow hook in setBlock makes the grass under it snowy), and bare
    dirt turns to that snowy grass first. Cells something else stands in are left alone. */
@@ -782,13 +782,13 @@ function _resnowAround(prefab, ox, oz) {
 
 const PLACE_QUEUE = [];              // { kind, prefab|cells, ox, oy, oz, tries }
 const PLACE_MAX_TRIES = 240;
-/* "cx,cz" -> the kinds of settlement holding that chunk (0.82425: a Set of group types, 'village' / 'dungeon'). A chunk
+/* "cx,cz" -> the kinds of settlement holding that chunk (a Set of group types, 'village' / 'dungeon'). A chunk
    keeps out a second one of the SAME kind only — a dungeon may lie under a village — and a village's keeps out lone
    prefabs built on the ground (no shed in the square). */
 const _groupClaimed = new Map();
 const _claim = (k, kind) => { let s = _groupClaimed.get(k); if (!s) _groupClaimed.set(k, s = new Set()); s.add(kind); };
 
-/* A prefab's group (0.82422): its own `group`, or else the declared group its id begins with — `desert_village_house1`
+/* A prefab's group: its own `group`, or else the declared group its id begins with — `desert_village_house1`
    is a desert_village member — so one saved fresh from a structure block (which writes no group) still joins. */
 function _groupOf(p) {
   if (p.group) return p.group;
@@ -871,7 +871,7 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
       if (++j.tries > PLACE_MAX_TRIES) { PLACE_QUEUE.splice(i--, 1); }
       continue;
     }
-    if (j.kind === 'sweep') {                          // a village's sand carpets (0.82422)
+    if (j.kind === 'sweep') {                          // a village's sand carpets
       const before = j.step;
       _bulkWrite(j.ox, j.oz, w, l, () => { j.step = _sweepSand(j.cells, j.step, left * 2); });
       left -= (j.step - before) >> 1;                  // mostly reads: half the charge of a write
@@ -934,11 +934,11 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
     left -= j.step - before;
     if (j.step >= j.prefab.blocks.length) {
       applyStructureLoot(j.prefab, j.ox, j.oy, j.oz);
-      // ...and the snow it was set into closes back round it (0.8351, the igloo)
+      // ...and the snow it was set into closes back round it (the igloo)
       if (j.blend) _bulkWrite(j.ox - SNOW_BACK_R, j.oz - SNOW_BACK_R, w + 2 * SNOW_BACK_R, l + 2 * SNOW_BACK_R,
                               () => _resnowAround(j.prefab, j.ox, j.oz));
       PLACE_QUEUE.splice(i--, 1);
-      if (typeof j.onDone === 'function') j.onDone();   // whoever queued it finishes off (0.8393: the snow castle, 60)
+      if (typeof j.onDone === 'function') j.onDone();   // whoever queued it finishes off (the snow castle, 60)
     }
   }
   // one chunk re-lit per call, and only once the writes for this frame are done
@@ -952,7 +952,7 @@ function clearPlacementQueue() {
 }
 
 /* ---- village ---- */
-/* 0.8242: at least three houses and a well for every four of them, the first in the middle of the square; every
+/* at least three houses and a well for every four of them, the first in the middle of the square; every
    doorstep joins the paths, and no path ever runs through a building.
    Houses are the group's members with a door, wells its members without one. Houses scatter round a centre on a
    jittered ring, each dropped onto its own local ground with the embed rules so slopes are fine. The ground is read
@@ -989,7 +989,7 @@ function _planFootprint(ax, az, w, l) {
    cell that way outside the prefab's whole box (a porch or an overhanging roof is part of the box), where the path
    starts. `dx, dz` are that doorstep, from the prefab's corner (so -1 or the width). null: no door, a well. The outer
    wall is the ring round the blocks at the door's own height, so a door set back behind a porch still counts. */
-// the prefab's columns with something at ground level (y 0-2): what a path must go round (0.82422)
+// the prefab's columns with something at ground level (y 0-2): what a path must go round
 function _prefabLowCols(p) {
   if (!p._lowCols) { p._lowCols = new Set(); for (const b of p.blocks || []) if (Array.isArray(b) && b[1] <= 2) p._lowCols.add(b[0] + ',' + b[2]); }
   return p._lowCols;
@@ -998,7 +998,7 @@ function _prefabDoor(p) {
   if (p._door !== undefined) return p._door;
   const [w, , l] = p.size || [1, 1, 1];
   p._door = null;
-  // a prefab can name its path's start itself (0.82422): `"entry": [x, z]`, e.g. beside the foot of a stair
+  // a prefab can name its path's start itself: `"entry": [x, z]`, e.g. beside the foot of a stair
   if (Array.isArray(p.entry)) return (p._door = { dx: p.entry[0] | 0, dz: p.entry[1] | 0, out: [0, 0] });
   for (const b of p.blocks || []) {
     // the lower half only; a door is a shape of its material since 0.842 (old oak doors are converted on load)
@@ -1009,14 +1009,14 @@ function _prefabDoor(p) {
     }
     const out = b[2] === z0 ? [0, -1] : b[2] === z1 ? [0, 1] : b[0] === x0 ? [-1, 0] : b[0] === x1 ? [1, 0] : null;
     if (!out) continue;                                                             // a door inside the house
-    // out to the first column with nothing at ground level — right against a porch step (0.82422), else past the box
+    // out to the first column with nothing at ground level — right against a porch step, else past the box
     let sx = b[0] + out[0], sz = b[2] + out[1];
     const low = _prefabLowCols(p);
     while (sx >= 0 && sz >= 0 && sx < w && sz < l && low.has(sx + ',' + sz)) { sx += out[0]; sz += out[1]; }
     p._door = { dx: sx, dz: sz, out };
     break;
   }
-  /* No door block (0.82422): a doorway is a gap two high (y 1 and 2) in the ground-floor wall ring, not at a corner —
+  /* No door block: a doorway is a gap two high (y 1 and 2) in the ground-floor wall ring, not at a corner —
      so a house saved without its door still gets its path. */
   if (!p._door) {
     const has = new Set((p.blocks || []).filter(Array.isArray).map(c => c[0] + ',' + c[1] + ',' + c[2]));
@@ -1044,7 +1044,7 @@ function _planVillage(g, cx, cz) {
   const originX = cx * 16 + 8, originZ = cz * 16 + 8;
   const gy = structGroundY(originX, originZ);
   if (gy < (g.minY ?? 0) || gy > (g.maxY ?? 255)) return false;
-  if (Array.isArray(g.biomes) && g.biomes.length && !g.biomes.includes(BIOMES.biomeBase(mainGen.biomeAt(originX, originZ)))) return false;   // base name (0.823)
+  if (Array.isArray(g.biomes) && g.biomes.length && !g.biomes.includes(BIOMES.biomeBase(mainGen.biomeAt(originX, originZ)))) return false;   // base name
 
   const [nMin, nMax] = Array.isArray(g.count) ? g.count : [3, 6];
   const nHouses = Math.max(VILLAGE_MIN_HOUSES, nMin + Math.floor(_structHash(cx, cz, 301) * (nMax - nMin + 1)));
@@ -1064,24 +1064,24 @@ function _planVillage(g, cx, cz) {
     /* Anchor on the HIGHEST ground under the footprint, not a centre sample: on uneven ground a centre sample buries
        the uphill half. Sitting on the high point only ever leaves a gap underneath, which the blend pass pillars into
        a foundation. Steep sites are skipped rather than stilted. */
-    // every house in the group's own biome, not only the square (0.82423): no desert house on the plains next door
+    // every house in the group's own biome, not only the square: no desert house on the plains next door
     if (Array.isArray(g.biomes) && g.biomes.length && !g.biomes.includes(BIOMES.biomeBase(mainGen.biomeAt(bx + (w >> 1), bz + (l >> 1))))) return null;
     const fp = _planFootprint(bx, bz, w, l);
     if (fp.wet || fp.hi - fp.lo > 4) return null;
-    // `sink` (0.82422): layers of it set into the ground, a well's shaft. Sunk on the LOWEST ground (0.82423), so its
+    // `sink`: layers of it set into the ground, a well's shaft. Sunk on the LOWEST ground, so its
     // collar meets the surface all round instead of standing proud of a dip; nothing is carved round it (no blend)
     let y = (p.sink ? fp.lo : fp.hi) + 1 - (p.sink | 0);
-    /* A house sits with its bottom layer IN the ground at its doorstep (0.82426): the porch and floor level with the
+    /* A house sits with its bottom layer IN the ground at its doorstep: the porch and floor level with the
        path, not perched on the highest ground under it with a band of dirt and stone foundation showing. Higher ground
        round it is carved away (from the layer above), lower is pillared up. */
     const door = !well && _prefabDoor(p);
     if (door) y = Math.max(fp.lo, Math.min(fp.hi, _planGround(bx + door.dx, bz + door.dz).y));
-    y += p.lift | 0;                                 // `lift` (0.8351): a prefab set this many blocks higher, its floor on the ground
+    y += p.lift | 0;                                 // `lift`: a prefab set this many blocks higher, its floor on the ground
     const t = { p, x: bx, z: bz, w, h, l, y, well, sunkHouse: !!door };
     taken.push(t);
     return t;
   }
-  // by each member's `weight` (0.82422, default 1): a desert village is mostly big houses
+  // by each member's `weight` (default 1): a desert village is mostly big houses
   const pick = (list, salt) => {
     let r = _structHash(cx, cz, salt) * list.reduce((a, p) => a + (p.weight ?? 1), 0);
     for (const p of list) { r -= p.weight ?? 1; if (r < 0) return p; }
@@ -1090,7 +1090,7 @@ function _planVillage(g, cx, cz) {
   // the square's well goes first, so no house takes the middle; kept only if four houses come
   if (wellKinds.length && nHouses >= VILLAGE_WELL_EVERY) site(pick(wellKinds, 700), originX, originZ, true);
   /* houses on the ring, each with a few tries round its own spot; where the picked kind does not fit (a big house
-     wants more flat ground), the other kinds try the same spots (0.82422), so the big ones are not crowded out */
+     wants more flat ground), the other kinds try the same spots, so the big ones are not crowded out */
   let houses = 0;
   for (let i = 0; i < nHouses; i++) {
     const first = pick(houseKinds, 400 + i * 13);
@@ -1115,7 +1115,7 @@ function _planVillage(g, cx, cz) {
       const dist = radius * (0.45 + 0.4 * _structHash(cx, cz, 900 + j * 7 + k));
       if (site(pick(wellKinds, 710 + j), originX + Math.cos(ang) * dist, originZ + Math.sin(ang) * dist, true)) break;
     }
-  /* A group's `replace` (0.82426): block swaps for everything it builds, its foundations too — a desert village's dirt
+  /* A group's `replace`: block swaps for everything it builds, its foundations too — a desert village's dirt
      is sand ({"2": 7}); its paths keep their own block. */
   const swap = g.replace && typeof g.replace === 'object' ? g.replace : null;
   const sand = swap && swap[B.DIRT] != null ? swap[B.DIRT] : null;
@@ -1138,7 +1138,7 @@ function _planVillage(g, cx, cz) {
   const gi = (x, z) => (x - x0) + (z - z0) * G;
   const wall = new Uint8Array(G * G), road = new Uint8Array(G * G), wet = new Uint8Array(G * G);
   const hgt = new Int16Array(G * G).fill(-32768);
-  // walls: each building's columns with something at ground level, so a path can run up to a porch step (0.82422)
+  // walls: each building's columns with something at ground level, so a path can run up to a porch step
   for (const t of taken)
     for (const k of _prefabLowCols(t.p)) { const [dx, dz] = k.split(',').map(Number), x = t.x + dx, z = t.z + dz; if (inG(x, z)) wall[gi(x, z)] = 1; }
   const ground = (i) => {
@@ -1267,7 +1267,7 @@ function _planVillage(g, cx, cz) {
                        w: Math.max(...xs) - Math.min(...xs), l: Math.max(...zs) - Math.min(...zs) });
     }
   }
-  // sweep the loose sand carpets off the village and a little round it (0.82422), a chunk at a time like the paths
+  // sweep the loose sand carpets off the village and a little round it, a chunk at a time like the paths
   const SWEEP = radius + 6, sweep = new Map();
   for (let z = originZ - SWEEP; z <= originZ + SWEEP; z++)
     for (let x = originX - SWEEP; x <= originX + SWEEP; x++) {
@@ -1283,11 +1283,11 @@ function _planVillage(g, cx, cz) {
   }
   // claim the footprint so lone prefabs do not drop a shed in the middle of the square
   const rc = Math.ceil((radius + 8) / 16);
-  for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) _claim((cx + dx) + ',' + (cz + dz), g.type);   // by kind (0.82425)
+  for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) _claim((cx + dx) + ',' + (cz + dz), g.type);   // by kind
   return true;
 }
 
-/* Take the loose sand carpets (sand, red or pink, a layer or a few) off the top of each column (0.82422): drifted
+/* Take the loose sand carpets (sand, red or pink, a layer or a few) off the top of each column: drifted
    over a village's yards and paths they read as clutter. Whole sand blocks stay. */
 const _SWEEP_SANDS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND]);
 function _sweepSand(cells, from, budget) {
@@ -1304,13 +1304,13 @@ function _sweepSand(cells, from, budget) {
 }
 /* Replace the surface cell of each path column, and clear the one above it so a path never runs
    under a bush. Sampling the surface per cell is what lets a path climb a hill. The ground is found under any tree
-   standing there (0.8242, _planGround): paving the top of a trunk put gravel up in the air. */
+   standing there (_planGround): paving the top of a trunk put gravel up in the air. */
 function _layPath(cells, block, from, budget, bridge = false) {
   const end = Math.min(cells.length, from + budget);
   for (let i = from; i < end; i++) {
     const [x, z] = cells[i];
     const y = _planGround(x, z).y;                 // NOT surfaceY — that lands on the grass or a tree, not the soil
-    // a bridge (0.8242): a plank on the water's top cell, level with the surface
+    // a bridge: a plank on the water's top cell, level with the surface
     if (bridge) {
       let top = y;
       while (top < WORLD_TOP - 1 && (getBlock(x, top + 1, z) & 255) === B.WATER) top++;
@@ -1381,7 +1381,7 @@ function _planDungeon(g, cx, cz) {
   if (!placed.length) return false;
   const spread = g.spread ?? 24;
   const rc = Math.ceil(spread / 16);
-  for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) _claim((cx + dx) + ',' + (cz + dz), g.type);   // by kind (0.82425)
+  for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) _claim((cx + dx) + ',' + (cz + dz), g.type);   // by kind
   return true;
 }
 
@@ -1413,7 +1413,7 @@ function _digCorridor(cells, height, from, budget) {
 
 /* One roll per group per chunk. Returns true if a settlement was planned, so the caller skips its
    lone-prefab pass for this chunk. */
-/* Spacing (0.82425). A structure never starts within `apart` blocks of another of its own kind — every village
+/* Spacing. A structure never starts within `apart` blocks of another of its own kind — every village
    (village, desert village) is one kind, every dungeon one, each lone prefab its own — while different kinds may sit
    together: a supply crate beside a village, a dungeon under it. Where two sites of a kind roll too close, the one
    with the lower roll wins, decided from the hashes alone, so it comes out the same whichever chunk loads first. */
@@ -1459,11 +1459,11 @@ function _trySpawnGroups(cx, cz) {
 /* Called once per chunk, right after its terrain lands. Deliberately conservative: one structure
    per chunk at most, and the site must satisfy that prefab's placement mode. */
 function trySpawnStructureInChunk(cx, cz) {
-  // a world created with structures switched off never gets any (0.7594); older worlds have no flag and keep them
+  // a world created with structures switched off never gets any; older worlds have no flag and keep them
   if (menuScene || !currentWorld || currentWorld.structures === false) return;
   /* The prefabs are fetched once, on the first world opened, and the chunks around spawn land while that
      is still in flight. They used to be dropped on the floor here — one try per chunk, ever — so the whole
-     area a player starts in could never hold a structure. They wait in line instead now (0.799). */
+     area a player starts in could never hold a structure. They wait in line instead now. */
   if (!STRUCTURES.size) {
     if (_structWaiting.size < 4096) _structWaiting.add(cx + ',' + cz);
     return;
@@ -1474,9 +1474,9 @@ function trySpawnStructureInChunk(cx, cz) {
   const ck = structChunkKey(cx, cz);
   if (_structPlaced.has(ck)) return;
   _structPlaced.add(ck);            // one attempt per chunk either way — never retried on reload
-  trySpawnWorldChest(cx, cz);       // a sealed metal chest, now and then (0.843, 30-chest.js)
+  trySpawnWorldChest(cx, cz);       // a sealed metal chest, now and then (blocks/chest.js)
 
-  /* Settlements first, each kind apart from its own (0.82425); then one lone prefab, which may stand beside a
+  /* Settlements first, each kind apart from its own; then one lone prefab, which may stand beside a
      settlement of another kind — only not on the ground inside a village (a crate in the square). */
   _trySpawnGroups(cx, cz);
   const inVillage = !!_groupClaimed.get(ck)?.has('village');
@@ -1489,7 +1489,7 @@ function trySpawnStructureInChunk(cx, cz) {
     const mine = _structHash(cx, cz, mySalt);
     if (mine >= (s.chance || 0)) continue;
     if (inVillage && !['cave', 'underground', 'air'].includes(structMode(s))) continue;
-    // ...and apart from its own kind (0.82425)
+    // ...and apart from its own kind
     if (_rivalNear(cx, cz, mine, s.apart ?? STRUCT_APART_LONE, (x, z) => { const r = _structHash(x, z, mySalt); return r < (s.chance || 0) ? r : -1; })) continue;
     const [w, h, l] = p.size || [1, 1, 1];
     /* The prefab is stamped the moment this chunk's terrain lands, and setBlock silently drops
@@ -1499,7 +1499,7 @@ function trySpawnStructureInChunk(cx, cz) {
     const ax = cx * 16 + 1 + Math.floor(_structHash(cx, cz, 91) * Math.max(1, 15 - w));
     const az = cz * 16 + 1 + Math.floor(_structHash(cx, cz, 97) * Math.max(1, 15 - l));
     if (Array.isArray(s.biomes) && s.biomes.length) {
-      const bio = BIOMES.biomeBase(mainGen.biomeAt(ax, az));   // base name (0.823)
+      const bio = BIOMES.biomeBase(mainGen.biomeAt(ax, az));   // base name
       if (!s.biomes.includes(bio)) continue;
     }
     const minY = s.minY ?? 0, maxY = s.maxY ?? 255;
@@ -1551,7 +1551,7 @@ function trySpawnStructureInChunk(cx, cz) {
     if (mode === 'embed') {
       // sit on the LOWEST ground so no column can overhang, then carve the hill out of the walls
       if (fp.hi - fp.lo > 10) continue;                     // a cliff, not a slope
-      /* `pillar` (0.84): [top, deep] block ids to prop it up with instead of dirt and stone (the desert ruins: sand over
+      /* `pillar`: [top, deep] block ids to prop it up with instead of dirt and stone (the desert ruins: sand over
          sandstone); `sink`: layers of it set into the ground, so it stands half buried */
       const sink = s.sink | 0, o = { from: sink };
       if (Array.isArray(s.pillar)) { o.top = s.pillar[0] | 0; o.deep = s.pillar[1] | 0; }
@@ -1702,7 +1702,7 @@ const _clampSpan = (v, d) => Math.max(1, Math.min(STRUCT_MAX_SPAN, parseInt(v, 1
 function buildStructPanel() {
   const panel = invPanel('structPanel');
   if (!panel) return;
-  if (!activeStructBlock || invRightTab() !== 'struct') { panel.style.display = 'none'; return; }   // or another tab (0.795)
+  if (!activeStructBlock || invRightTab() !== 'struct') { panel.style.display = 'none'; return; }   // or another tab
   const p = activeStructBlock.split(',').map(Number);
   if ((getBlock(p[0], p[1], p[2]) & 255) !== B.STRUCTURE_BLOCK) {
     activeStructBlock = null; panel.style.display = 'none'; return;
@@ -1717,7 +1717,7 @@ function buildStructPanel() {
     // JSON only since 0.82424: the browser keeps no copy; the file goes in structures/ and the manifest
     '<div class="strow"><button id="stDl">JSON</button></div>' +
     '<div id="stMsg"></div>';
-  addInvTabs(panel, 'struct');                                // Structure / Equipment / Skill tree (0.795)
+  addInvTabs(panel, 'struct');                                // Structure / Equipment / Skill tree
 
   const nameEl = panel.querySelector('#stName');
   const wEl = panel.querySelector('#stW'), hEl = panel.querySelector('#stH'), lEl = panel.querySelector('#stL');
@@ -1738,7 +1738,7 @@ function buildStructPanel() {
   });
 }
 
-/* Deferred to world load (0.7146). Prefabs are a gameplay asset — trySpawnStructureInChunk bails
+/* Deferred to world load. Prefabs are a gameplay asset — trySpawnStructureInChunk bails
    out on `menuScene || !currentWorld`, so nothing on the title screen can ever consult them — yet
    this used to fire a manifest fetch plus one request per prefab while the player was still
    waiting for the menu to appear. `ensureStructuresLoaded` runs the load exactly once, on the

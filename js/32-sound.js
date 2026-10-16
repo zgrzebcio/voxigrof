@@ -14,7 +14,7 @@
 
    BLOCK SOUNDS
    ------------
-   Blocks don't name a sound file — they carry a `type` in PROPS (58-blocks.js): 'stone',
+   Blocks don't name a sound file — they carry a `type` in PROPS (blocks/blocks.js): 'stone',
    'ground', 'wood', 'grass', 'glass', 'snow', 'wool', 'tnt'. BLOCK_TYPE_SOUND maps that type to
    a file, so a new block picks up the right sound just by declaring its type.
 
@@ -23,7 +23,7 @@
 
 const SOUND_MASTER = 0.5;                 // global scale — all sounds are quiet by design
 
-/* Three volume sliders (0.804; they replaced the two mute buttons), 0-100, kept in localStorage.
+/* Three volume sliders (they replaced the two mute buttons), 0-100, kept in localStorage.
    Master scales everything. Effects scale every sound through SOUND_MASTER as before. Music is quieter
    by design: 100% is MUSIC_BASE, and it starts at 50%. A mute saved by an older version comes back as 0. */
 const MUSIC_BASE = 0.1;
@@ -77,17 +77,17 @@ const SOUND_FILES = {
   fillWater: 'Sound/VFX/Items/fill_water.ogg',
   snowball:  'Sound/VFX/Items/throw_snowball.ogg',
   toolBreak: 'Sound/VFX/Items/tool_break.ogg',
-  // weather (0.819, 53-storms.js): the crack of a strike close by, and its thunder near, far and rolling
+  // weather (53-storms.js): the crack of a strike close by, and its thunder near, far and rolling
   lightningImpact: 'Sound/Weather/lightning_impact.ogg',
   thunder:         'Sound/Weather/thunder.ogg',
   thunderFar:      'Sound/Weather/thunder_distance.ogg',
   thunderLong:     'Sound/Weather/thunder_long.ogg',
-  rain:            'Sound/Weather/rain.ogg',      // looped while it rains (updateWeatherSound, 0.831)
-  // fire (0.8191): the crackle of something burning, catching light, and being put out
+  rain:            'Sound/Weather/rain.ogg',      // looped while it rains (updateWeatherSound)
+  // fire: the crackle of something burning, catching light, and being put out
   fire:            'Sound/Fire/fire.ogg',
   fireIgnite:      'Sound/Fire/ignite.ogg',
   fireOff:         'Sound/Fire/off.ogg',
-  // gui — one chime for the feed, pitched per row kind (42-feed.js, 0.7576)
+  // gui — one chime for the feed, pitched per row kind (ui/feed.js)
   feedAlert: 'Sound/VFX/GUI/feed_alert.wav',
 };
 
@@ -136,9 +136,9 @@ function playSound(key, opts) {
   const pool = _soundPool(key);
   if (!pool) return;
   const o = opts || {};
-  let vol = (o.gain != null ? o.gain : 1) * sfxGain();          // master x effects slider (0.804)
+  let vol = (o.gain != null ? o.gain : 1) * sfxGain();          // master x effects slider
   /* One pair of speakers, up to four listeners: attenuate from whichever player is CLOSEST, so
-     a sound next to player three is still heard even while player one is a mile away (0.72). */
+     a sound next to player three is still heard even while player one is a mile away. */
   if (o.pos && typeof PLAYERS !== 'undefined') {
     let d = Infinity;
     for (const p of PLAYERS) {
@@ -174,7 +174,7 @@ function playBlockSound(id, kind, x, y, z) {
   const k = SOUND_KIND[kind] || SOUND_KIND.break;
   const pos = x != null ? { x: x + 0.5, y: y + 0.5, z: z + 0.5 } : null;
   playSound(blockSoundKey(id), { gain: k.gain, rate: k.rate * (0.95 + Math.random() * 0.1), pos });
-  // every placement makes this sound, so this is where a placed block kicks up its bits (0.801)
+  // every placement makes this sound, so this is where a placed block kicks up its bits
   if (kind === 'place' && x != null && typeof fxPlace === 'function') fxPlace(x, y, z, getBlock(x, y, z));
 }
 
@@ -184,7 +184,7 @@ function playBlockSound(id, kind, x, y, z) {
    sneaking and sprinting space out correctly without extra state. */
 const STEP_DIST = 2.1;
 
-/* The accumulator lives ON THE PLAYER (0.729), the same way entities carry their own.
+/* The accumulator lives ON THE PLAYER, the same way entities carry their own.
 
    It used to be three module-level variables, but updateFootsteps runs once per player per frame —
    so with split screen `_stepLastX/Z` was overwritten by whoever ticked last, and the "distance
@@ -217,7 +217,7 @@ const ENT_STEP_RANGE = 16;
 
 function entityStepSound(e, dt, spd) {
   if (!e.onGround || spd < 0.6) { e._stepAccum = 0; return; }
-  const lp = nearestPlayerTo(e.x, e.z);                    // audible near ANY player (0.72)
+  const lp = nearestPlayerTo(e.x, e.z);                    // audible near ANY player
   const dx = e.x - lp.pos.x, dy = e.y - lp.pos.y, dz = e.z - lp.pos.z;
   if (dx * dx + dy * dy + dz * dz > ENT_STEP_RANGE * ENT_STEP_RANGE) { e._stepAccum = 0; return; }
   if (typeof fxEntityWalk === 'function') fxEntityWalk(e, dt, spd);   // prints by the size of its feet (0.8)
@@ -242,13 +242,13 @@ _bgm.volume = musicGain();
 
 function updateMusic() {
   const wantMusic = _soundReady && musicGain() > 0 && (typeof menuScene === 'undefined' || menuScene);
-  _bgm.volume = Math.min(1, musicGain());                    // follows the sliders live (0.804)
+  _bgm.volume = Math.min(1, musicGain());                    // follows the sliders live
   if (wantMusic) { if (_bgm.paused) _bgm.play().catch(() => {}); }
   else if (!_bgm.paused) _bgm.pause();
 }
 
-/* ---- rain and snow (0.831) ----
-   A loop each, as loud as what falls where the players are (precipAt, 51-seasons.js; the loudest seat counts),
+/* ---- rain and snow ----
+   A loop each, as loud as what falls where the players are (precipAt, seasons/weather-sky.js; the loudest seat counts),
    muffled to a third under a roof or in a cave, eased over WX_SOUND_EASE_S. Rain plays rain.ogg, louder the harder
    it falls. Snow has no file, so it is made here with Web Audio: brown noise through a low-pass filter, a soft hush,
    which a blizzard opens up into a gusting, howling wind. The audio context sleeps whenever nothing falls. */

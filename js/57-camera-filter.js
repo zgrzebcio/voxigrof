@@ -1,5 +1,5 @@
 'use strict';
-/* voxiGrof — the camera filter (0.837): what lands on the lens of each player's eye, drawn on a canvas over that
+/* voxiGrof — the camera filter: what lands on the lens of each player's eye, drawn on a canvas over that
    player's view (one per split-screen pane, under its HUD):
      RAIN   drops land while it rains on you (open sky over your head), sit a moment, then run down the glass
      WATER  coming up out of water the lens is wet all over: a sheen that clears and a crowd of drops running off
@@ -7,7 +7,7 @@
             edges of the view
      FLASH  lightning close by whites the view out for a moment, more the nearer it struck (cameraFilterLightning)
      FIRE   on fire, flames lick up from the bottom of the view
-   Under water no drop or flake sits on the lens, but the view takes the wet lens's own blue (0.8444, CF_UNDER_*): the
+   Under water no drop or flake sits on the lens, but the view takes the wet lens's own blue (CF_UNDER_*): the
    same sheen as just out of the water, a little stronger, easing in as you go under and off as you come up. The
    canvas is hidden whenever there is nothing on it. Sizes are shares of the view's height, so a split-screen quarter
    looks the same as a whole window. */
@@ -136,13 +136,13 @@ function _cfStep(f, p, pane, dt) {
     } else f.snowAcc = 0;
   }
   f.wasUnder = under;
-  // the water over the lens (0.8444): eased, so it does not snap on at the surface
+  // the water over the lens: eased, so it does not snap on at the surface
   f.under = (f.under || 0) + ((under ? 1 : 0) - (f.under || 0)) * (1 - Math.exp(-dt / (under ? CF_UNDER_IN_S : CF_UNDER_OUT_S)));
   // a blizzard's frost round the edges, creeping in and slowly going
   const frostAim = !under && f.open ? pr.blizzard : 0;
   f.frost += (frostAim - f.frost) * (1 - Math.exp(-dt / (frostAim > f.frost ? CF_FROST_IN_S : CF_FROST_OUT_S)));
   f.fire += ((p.fireT > 0 && !under ? 1 : 0) - f.fire) * (1 - Math.exp(-dt / (p.fireT > 0 ? 0.25 : 0.7)));
-  // cold fire (0.8391, the Frozen King's: p._fireCold, 60-bosses.js) burns blue; the mark goes with the fire
+  // cold fire (the Frozen King's: p._fireCold, entities/frozen-king.js) burns blue; the mark goes with the fire
   if (!(p.fireT > 0)) p._fireCold = false;
   f.cold = (f.cold || 0) + ((p._fireCold ? 1 : 0) - (f.cold || 0)) * (1 - Math.exp(-dt / 0.3));
   f.flash = Math.max(0, f.flash - dt * 2.6);
@@ -164,7 +164,7 @@ function _cfStep(f, p, pane, dt) {
   if (!any) { if (f.shown) { g.clearRect(0, 0, w, h); f.c.style.display = 'none'; f.shown = false; } return; }
   if (!f.shown) { f.c.style.display = 'block'; f.shown = true; }
   g.clearRect(0, 0, w, h);
-  // under water: the wet lens's colours over the whole view (0.8444)
+  // under water: the wet lens's colours over the whole view
   if (f.under > 0.01) {
     const u = g.createLinearGradient(0, 0, 0, h);
     u.addColorStop(0, `rgba(170,200,225,${(CF_UNDER_TOP * f.under).toFixed(3)})`);
@@ -210,7 +210,7 @@ function _cfStep(f, p, pane, dt) {
     g.drawImage(_cfDrop, d.x - d.r, d.y - d.r * sy, d.r * 2, d.r * 2 * sy);
   }
   g.globalAlpha = 1;
-  // on fire: an orange glow and flames licking up from the bottom; cold fire the same in blue (0.8391)
+  // on fire: an orange glow and flames licking up from the bottom; cold fire the same in blue
   if (f.fire > 0.01) {
     const k = Math.max(0, Math.min(1, f.cold || 0));
     const mix = (warm, cold) => warm.map((v, i) => Math.round(v + (cold[i] - v) * k)).join(',');

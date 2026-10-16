@@ -6,7 +6,7 @@
    ================================================================================================ */
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-/* Render scale (0.83852, MultithreadPlan C4): Options > Video "Render scale" draws the world at 100/85/75/50 % of the
+/* Render scale: Options > Video "Render scale" draws the world at 100/85/75/50 % of the
    screen's pixels and stretches it to fit. The screen's own density is capped at 2: a hi-DPI or 4K screen drew up to 4x
    the pixels of 1080p, the biggest cost on a weak graphics card. Stars (07, uPx) follow it; particles read the viewport. */
 let renderScale = clampi(parseInt(localStorage.getItem('vg_scale')) || 100, 25, 100);
@@ -35,7 +35,7 @@ const CAMERAS = [camera];
 function newPlayerCamera() {
   const c = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, camera.near, camera.far);
   c.rotation.order = 'YXZ';
-  /* Copy the VISIBILITY MASK from player one (0.725). Chunk geometry is split across render
+  /* Copy the VISIBILITY MASK from player one. Chunk geometry is split across render
      layers so the shadow pass can treat it differently — 0 solid, 2 cutout (leaves, glass and
      every billboard), 3 water and lava — and the sky dome, selection box and crack overlay sit on
      layer 1. 07-sky.js enables those three on `camera` once at load, which only ever reached the
@@ -48,7 +48,7 @@ function newPlayerCamera() {
 }
 
 window.addEventListener('resize', () => {
-  renderer.setPixelRatio(renderPixelRatio());   // the window may have moved to a screen of another density (0.83852)
+  renderer.setPixelRatio(renderPixelRatio());   // the window may have moved to a screen of another density
   renderer.setSize(window.innerWidth, window.innerHeight);
   // aspect is per-viewport in split screen; the layout pass owns it
   if (typeof relayoutSplitScreen === 'function') relayoutSplitScreen();
@@ -56,7 +56,7 @@ window.addEventListener('resize', () => {
 });
 
 function applyViewDist(persist = true) {
-  const far = drawDist() * 16;              // the fog reaches over the far ring (0.8193)
+  const far = drawDist() * 16;              // the fog reaches over the far ring
   sharedUniforms.fogNear.value = far * 0.55;
   sharedUniforms.fogFar.value  = far * 0.98;
   for (const c of CAMERAS) { c.far = far + 96; c.updateProjectionMatrix(); }

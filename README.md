@@ -11,6 +11,29 @@ square. Every door opens onto a gravel path 2-3 wide that winds round the buildi
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
 ones, grass paths, and no loose sand drifted over the yards.
 
+**Hellhounds, fire and bottles (0.845).** A **hellhound** lives in the Deep Desert, alone or in a pair: a dog of
+magma, 150 health, a 40 bite that sets you alight. Fire and lava do not hurt it (lava heals it); water and rain do,
+slowly. It drops 1-3 **fire**: an item (stack 30) you place to set a spot alight. Hold a **lava mushroom** and a wild
+one leaves you alone; give it the mushroom and its **taming** starts. For one game day (20 minutes) it follows you
+and goes for whatever you strike. It wants 5 animals, or 3 monsters, or 2 villagers killed (they add up). The
+taming's effectiveness starts at 100% and only goes down (0.8451): each kill the hound makes itself takes some (an
+animal 10%, a monster 17%, a villager 25%), and so does any health it loses; kills you make **with fire** (a torch's
+blow, fire you set) take nothing. Effectiveness (never under 10%) sets the health (up to +50) and bite (up to +10)
+it gains. A kill by a hound, or yours by fire, leaves 1 fire; a hurt hound eats one it
+finds (full health while being tamed, a spell of healing after). If the day runs out, it turns on you for good.
+Tamed, you name it. **Use** it: the next behaviour, taking hold after 2 seconds: passive, defense (what struck you or
+it), aggressive (also anything within 8 blocks), attack (also what you strike). **Sneak + use**: the next stance:
+follow (left 26 blocks behind, it comes to you), sit, lie, wait. It eats from your hand: lava mushroom 50, fire 80,
+coal 20, charcoal 10 (food out of 120). Its "water" is fire (out of 100): it fills beside lava or a burning fire and
+from fire it eats; at 0 its bite no longer burns and it stops healing on its own.
+A **glass bottle** (4 glass, at the bench) fills at water with the right button held half a second; a bottle of
+water gives 25 thirst and the bottle back. New quest after the glass: fill a bottle of water.
+0.8451: **E pets** an animal you tamed. A tamed **horse** takes a stance with sneak + use: lie, wait, wander (as
+before) or follow. A saddled horse now faces and runs the way you look (it went the other way, the rider sitting
+backward). Horses walk half as fast when left to wander. An animal that is yours, or wants what you hold, turns its
+head to you. Mobs jump 1.2 blocks, so they get up a one-block ledge again; a fall hurts them from 6 blocks (3 before),
+a horse from 8. The naming window says the animal's sex and level; the riding panel is numbers only.
+
 **Ice Spikes and polar bears (0.835).** New worlds have an Ice Spikes biome in the snow: a floor of snow and packed ice
 with spikes of packed ice standing out of it, a few of them huge, and icebergs in the snow's seas. Packed ice is only
 mined, and never melts. Polar bears live on the snow's shores, its sea ice and the Ice Spikes, 2-5 together: 250
@@ -508,9 +531,10 @@ but is most common in its best band.
 | Sapphire | 93–97 | 80–130 | Bronze | 1–2 sapphires |
 | Emerald | 150–160 | 120–200 (mountains) | Bronze | 1–2 emeralds |
 
-Pickaxe tiers go flint, stone, iron (gold is the same tier), bronze, then diamond. Every gem ore and
-diamond need bronze or better; obsidian needs diamond. Mining an ore with too weak a pickaxe gives
-nothing. Iron, copper, tin, gold, diamond and the gem ores glow faintly, so they are easier to spot
+Pickaxe tiers go flint, stone, iron (gold is the same tier), bronze, then steel. Every gem ore and
+diamond need bronze or better; obsidian needs steel. Steel tools and armor took the place of the diamond ones
+(0.8454, same strength; one you already had is steel now); there is no recipe for steel yet. Mining
+an ore with too weak a pickaxe gives nothing. Iron, copper, tin, gold, diamond and the gem ores glow faintly, so they are easier to spot
 in the dark. **Prospector** gives a 20% chance of one more of the ore from every ore block you break.
 
 **Gems grow as clusters.** Diamond, ruby, topaz, sapphire and emerald are not buried in the rock: they
@@ -586,7 +610,7 @@ The golden apple never spoils. It gives 15 energy (0.832) and 20 s of **Rapid re
 
 ## Block shapes
 
-Craft a **hammer** and wear it in the Others slot of the equipment panel, then hold `Q` (or B on a
+Craft an **iron hammer** and wear it in the Others slot of the equipment panel, then hold `Q` (or B on a
 gamepad) to open a wheel of block shapes. The shape you pick shows right of the hotbar, and blocks
 that take it show as that shape in your inventory and in your hand. Each placement uses the block
 and 1 point of the hammer's durability; breaking it gives the block back. In creative the wheel
@@ -621,7 +645,7 @@ fall through it too.
 
 ## Block variants
 
-The **chisel** (bench: 5 iron ingots, 4 copper nuggets, 2 sticks, 1 fiber block, 5 string) is worn in the
+The **iron chisel** (bench: 5 iron ingots, 4 copper nuggets, 2 sticks, 1 fiber block, 5 string) is worn in the
 Neck slot and unlocks block variants. Since 0.803 only the hammer cuts shapes and only the chisel picks variants.
 
 With a chisel worn in the Neck slot, seven slots above the health bar show the other
@@ -763,7 +787,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
   makes powders: glow dust, gunpowder, flour and sugar are made here and nowhere else. The pestle
   circles the bowl while you grind.
 - **Bronze.** At the mortar, 2 copper powder and 1 tin powder make 2 bronze powder, which smelts into
-  bronze ingots (10 bronze nuggets make an ingot). Bronze tools sit between iron and diamond, and a
+  bronze ingots (10 bronze nuggets make an ingot). Bronze tools sit between iron and steel, and a
   bronze pickaxe is needed for diamond and gem ores.
 - **Metal powder.** At the mortar, 1 raw iron, tin, copper or gold grinds into 2 powder (a raw ore
   block gives 20, but takes ten times as long). Each powder smelts into one ingot, so grinding doubles
@@ -782,13 +806,14 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 | Furnace | 12 cobblestone | Bench |
 | Chest | 10 planks, 1 iron ingot, 10 fiber | Bench |
 | Bed | 4 wool, 4 planks, 5 cloth, 10 fiber | Bench |
-| Bow | 10 string, 5 sticks, 12 fiber | Bench |
+| Basic bow | 10 string, 5 sticks, 12 fiber | Bench |
 | Arrows ×2 | 1 flint, 2 sticks, 6 fiber | Inventory |
-| Backpack | 14 leather, 10 cloth, 8 fiber, 6 copper nuggets | Bench |
-| Hammer | 1 iron block, 8 copper nuggets, 4 sticks, 2 fiber blocks, 10 string | Bench |
+| Leather backpack | 14 leather, 10 cloth, 8 fiber, 6 copper nuggets | Bench |
+| Iron hammer | 1 iron block, 8 copper nuggets, 4 sticks, 2 fiber blocks, 10 string | Bench |
 
 **Cloth** is spun from 20 fiber at the bench and goes into beds, backpacks and metal tools. A
-**backpack** adds two more rows of carrying space, a **belt** five quick slots.
+**leather backpack** adds two more rows of carrying space, a **leather belt** five quick slots. Both show on
+your body: the pack on your back with its straps over the chest, the belt round your waist.
 
 After a death you come back with full health, stamina and oxygen, but food, thirst, energy, fruit, vegetables and protein at 75% (0.833; half in 0.8324). Sleeping in a bed sets your respawn point and, once everyone is in bed, runs the night past as a 10 s time-lapse to sunrise (0.8323; getting up stops it). Stuck? The pause menu's **Respawn** (keep the cursor on it 1 s, then click) kills you on the spot, once every 20 minutes. Hold `Shift` in the crafting list to
 craft as many as you can afford in one click.

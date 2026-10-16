@@ -3,7 +3,7 @@
 
 /* ================================================================================================
    DAY/NIGHT SKY — a gradient dome, a round sun, the moon in its phase and the stars orbit the
-   player on a slightly south-tilted celestial wheel (rise east, set west); see "the sky (0.817)".
+   player on a slightly south-tilted celestial wheel (rise east, set west); see "the sky".
    They render with depth-test on but no fog, so terrain silhouettes occlude them naturally.
 
    SHADOWS — hand-rolled shadow mapping (our chunk shader is custom, so three.js lights
@@ -20,14 +20,14 @@ if (isNaN(shadowR)) shadowR = 110;          // shadow render distance in blocks 
 
 camera.layers.enable(1); camera.layers.enable(2); camera.layers.enable(3);
 
-/* ---------- the sky (0.817) ----------
+/* ---------- the sky ----------
    The DOME is a shader on a box round the eye, drawn first and behind everything: the fog colour at the horizon
    rising to the zenith colour, the sun's halo and the sunset glow (skyHaze, 04), grey under an overcast sky, and
    the Milky Way at night. On it ride a round SUN, the MOON with its phase (lit from the real sun direction, on
    its own orbit: new beside the sun, full opposite it), twinkling STARS of different colours and brightness, and
    now and then a SHOOTING STAR. A small LENS FLARE follows the sun while no block or cloud is in the way.
    All of it is a handful of draws: the dome's pixels, one point cloud, four quads and a line. */
-/* THE SUN'S PATH BY SEASON (0.818). The wheel is tilted by the world's latitude (SKY_LAT, about 40 degrees
+/* THE SUN'S PATH BY SEASON. The wheel is tilted by the world's latitude (SKY_LAT, about 40 degrees
    north; 0.12 before), and the sun sits off its middle by the season's declination, up to 23.4 degrees:
    north of it in summer (up early, down late, high at noon), south of it in winter. So a July day runs about
    04:35 to 19:25 and a January one about 07:25 to 16:35, with a noon sun of 73 and 27 degrees. The clock is
@@ -35,9 +35,9 @@ camera.layers.enable(1); camera.layers.enable(2); camera.layers.enable(3);
    asks whether it is night (mobs, beds, fireflies) goes by those. The moon runs opposite the sun's
    declination when full, beside it when new. */
 const SKY_LAT = 0.7;                        // radians: the wheel leans south by this much
-const TIDE_MIN = 0.15, TIDE_MAX = 0.4;      // blocks the sea drops at low water: neap and spring tides (0.8191)
+const TIDE_MIN = 0.15, TIDE_MAX = 0.4;      // blocks the sea drops at low water: neap and spring tides
 const SUN_DECL_MAX = 23.44 * Math.PI / 180;
-const LUNAR_DAYS = 7;                       // one moon a month (MONTH_DAYS, 51): new on the 1st, full on the 4th
+const LUNAR_DAYS = 7;                       // one moon a month (MONTH_DAYS, seasons/calendar.js): new on the 1st, full on the 4th
 const _skyVS = /* glsl */`
   out vec2 vUv;
   void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -46,7 +46,7 @@ const _skyVS = /* glsl */`
 const skyDomeMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3, side: THREE.BackSide, depthWrite: false, depthTest: false,
   uniforms: { ...sharedUniforms, uZenith: { value: new THREE.Color() }, uStarVis: { value: 0 }, uSkyInv: { value: new THREE.Matrix3() },
-              uAurora: { value: 0 } },   // 0.819: the northern lights, 0..1 (53-storms.js)
+              uAurora: { value: 0 } },   // the northern lights, 0..1 (53-storms.js)
   vertexShader: /* glsl */`
     out vec3 vWorld;
     void main() {
@@ -172,7 +172,7 @@ const moonMat = new THREE.ShaderMaterial({
 });
 const sunMesh  = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), sunMat);
 const moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), moonMat);
-sunMesh.position.set(100, 0, 0);            // each wheel's rotation carries them round; off its middle by season (0.818)
+sunMesh.position.set(100, 0, 0);            // each wheel's rotation carries them round; off its middle by season
 moonMesh.position.set(100, 0, 0);
 
 // the stars: faint ones by the hundred, a few bright; white, blue-white, yellow and orange; more along the Milky Way
@@ -199,7 +199,7 @@ const starGeo = new THREE.BufferGeometry();
 }
 const starMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  uniforms: { uVis: { value: 0 }, uTime: sharedUniforms.uTime, uPx: { value: renderPixelRatio() } },   // follows the render scale (0.83852)
+  uniforms: { uVis: { value: 0 }, uTime: sharedUniforms.uTime, uPx: { value: renderPixelRatio() } },   // follows the render scale
   vertexShader: /* glsl */`
     in float aSize;
     in float aBright;
@@ -340,7 +340,7 @@ let shadowKey = 1e9, shadowTX = 1e9, shadowTY = 1e9;
 const BIAS_MAT = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
 const _sv = new THREE.Vector3(), _sr = new THREE.Vector3(), _su = new THREE.Vector3();
 const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Color(), _c4 = new THREE.Color();
-/* Sky colours (0.817): a plainer blue by day, a near-black night with only a little blue, a warm horizon at
+/* Sky colours: a plainer blue by day, a near-black night with only a little blue, a warm horizon at
    dusk. HORIZON is also the fog colour; the sunset glow and the sun's halo come on top (skyHaze, 04). */
 const DAY_ZENITH = new THREE.Color(0.33, 0.52, 0.82), DAY_HORIZON = new THREE.Color(0.7, 0.79, 0.88);
 const NIGHT_ZENITH = new THREE.Color(0.008, 0.011, 0.022), NIGHT_HORIZON = new THREE.Color(0.03, 0.038, 0.06);
@@ -349,7 +349,7 @@ const MOON_SKY = new THREE.Color(0.03, 0.042, 0.07);           // what a full mo
 const OVERCAST = new THREE.Color(0.6, 0.63, 0.67);             // a sky under full cloud, by day
 const SUN_HALO = new THREE.Color(1, 0.92, 0.75), DUSK_HALO = new THREE.Color(1, 0.62, 0.32), DUSK_GLOW = new THREE.Color(0.95, 0.42, 0.14);
 const SUN_COL = new THREE.Color(1, 0.96, 0.86), SUN_LOW = new THREE.Color(1, 0.55, 0.25);
-const DAY_LIGHT = new THREE.Color(1, 1, 1), NIGHT_LIGHT = new THREE.Color(0.62, 0.68, 0.86), DUSK_LIGHT = new THREE.Color(1, 0.74, 0.52);   // night less blue (0.817)
+const DAY_LIGHT = new THREE.Color(1, 1, 1), NIGHT_LIGHT = new THREE.Color(0.62, 0.68, 0.86), DUSK_LIGHT = new THREE.Color(1, 0.74, 0.52);   // night less blue
 const smoothstepJS = (a, b, t) => { t = Math.min(1, Math.max(0, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 const _sf = new THREE.Vector3(), _sd = new THREE.Vector3();
@@ -375,7 +375,7 @@ function renderShadowMaps(dir, key) {
   // snap the window centre to whole texels IN THE LIGHT'S FIXED BASIS — the world-to-map
   // alignment then never shifts sub-texel as the player moves, so edges don't shimmer
   /* One shadow map serves every split-screen viewport, so it is centred on the MIDPOINT of the
-     players rather than on any one of them (0.72). Solo that is exactly the old behaviour; with
+     players rather than on any one of them. Solo that is exactly the old behaviour; with
      players spread further apart than `shadowR` the outermost ones simply fall outside the map,
      which is the same graceful degradation distance already causes in single player. */
   const p = _shadowCenter();
@@ -406,7 +406,7 @@ function renderShadowMaps(dir, key) {
   renderer.setRenderTarget(null);
 }
 
-// where the sun and the moon are (unit vectors from the eye), and which of them the shadows come from (0.817)
+// where the sun and the moon are (unit vectors from the eye), and which of them the shadows come from
 const sunDirW = new THREE.Vector3(1, 0, 0), moonDirW = new THREE.Vector3(-1, 0, 0), skyLightDir = new THREE.Vector3(0, 1, 0);
 /* A point on the tilted wheel at angle a (the sun's is worldTime * 2 PI) and declination dec: the sky groups'
    own rotation (SKY_LAT about x, then a about z) applied to (cos dec, 0, -sin dec), worked out. */
@@ -420,7 +420,7 @@ function sunDeclination(t = worldDay + worldTime) {
   const d = gameDate(t), yf = (d.month * MONTH_DAYS + d.day - 1 + (t - Math.floor(t))) / (12 * MONTH_DAYS);
   return SUN_DECL_MAX * Math.sin(2 * Math.PI * (yf - 0.22));   // 0.22 of the year: the March equinox
 }
-/* Today's sunrise and sunset as worldTime (0.818): rise is before 0 in summer (06:00 is 0), set = 0.5 - rise.
+/* Today's sunrise and sunset as worldTime: rise is before 0 in summer (06:00 is 0), set = 0.5 - rise.
    Worked out once a day. isDarkTime: is it night at t, counting `early` before sunset as night already. */
 let _sunTimesKey = null, _sunTimes = { rise: 0, set: 0.5 };
 function sunTimes() {
@@ -447,7 +447,7 @@ const moonPhaseName = (p = moonPhase()) => MOON_PHASE_NAMES[Math.round(p * 8) % 
 /* The sky dome is drawn around whichever eye is rendering, so in split screen it has to be
    re-seated for every viewport — otherwise players standing far apart would see the sun hanging
    off to one side. Rotation and brightness are world state and stay in updateDayNight.
-   The lens flare is worked out here too, per eye (0.817); updateDayNight's own call skips it. */
+   The lens flare is worked out here too, per eye; updateDayNight's own call skips it. */
 function alignSkyTo(cam, flare = true) {
   const s = cam.far * 0.008;                             // children sit at radius 100
   for (const g of [sky, moonSky, meteor]) { g.position.copy(cam.position); g.scale.setScalar(s); }
@@ -455,7 +455,7 @@ function alignSkyTo(cam, flare = true) {
   moonMesh.lookAt(cam.position);
   if (flare) _aimFlare(cam);
 }
-/* ---- the lens flare (0.817): only while the sun is in view and nothing stands in front of it ---- */
+/* ---- the lens flare: only while the sun is in view and nothing stands in front of it ---- */
 const _fv = new THREE.Vector3(), _fd = new THREE.Vector3();
 let _flareRaw = 0;
 // how much of the sun a block hides from here: 1 behind anything solid, a leaf takes a share
@@ -490,11 +490,11 @@ function _aimFlare(cam) {
    viewport left in the uniforms. */
 const _skyFogColor = new THREE.Color();
 let _skyAmbient = 0, _skyDirect = 0;
-// ...and how much day it is, and how clear the sun, moon and stars are, before any fog hides them (0.816)
-let _skyDayF = 1, _skySunO = 1, _skyMoonO = 0, _skyStarO = 0, _skyMoonGlow = 0;   // moon glow: how moonlit the night is (0.819)
-// a lightning flash, 1 at the strike and fading (53-storms.js sets it): lights the sky and the land for a moment (0.819)
+// ...and how much day it is, and how clear the sun, moon and stars are, before any fog hides them
+let _skyDayF = 1, _skySunO = 1, _skyMoonO = 0, _skyStarO = 0, _skyMoonGlow = 0;   // moon glow: how moonlit the night is
+// a lightning flash, 1 at the strike and fading (53-storms.js sets it): lights the sky and the land for a moment
 let skyFlash = 0;
-// the blood moon, 0..1 (53-storms.js sets it, 0.8192): a red moon, full whatever its phase, a red night sky and light
+// the blood moon, 0..1 (53-storms.js sets it): a red moon, full whatever its phase, a red night sky and light
 let skyBlood = 0;
 const BLOOD_HORIZON = new THREE.Color(0.2, 0.035, 0.03), BLOOD_ZENITH = new THREE.Color(0.07, 0.01, 0.012), BLOOD_LIGHT = new THREE.Color(1, 0.42, 0.36);
 const FLASH_COL = new THREE.Color(0.78, 0.83, 1);
@@ -511,7 +511,7 @@ function skyVisibility(k) {
   flareMesh.visible = fl > 0.003;
 }
 
-/* ---- shooting stars (0.817): one at a time, every 20 to 70 seconds of a clear night ---- */
+/* ---- shooting stars: one at a time, every 20 to 70 seconds of a clear night ---- */
 const _meteor = { t: 1, dur: 0, wait: 30, a: new THREE.Vector3(), b: new THREE.Vector3() };
 const _mh = new THREE.Vector3(), _mt = new THREE.Vector3();
 function _updateMeteor(dt, vis) {
@@ -537,26 +537,26 @@ function _updateMeteor(dt, vis) {
 }
 
 const _skyRot = new THREE.Matrix4();
-// the world clock moves on (0.8378: on its own, so the fixed tick can move it and the sky only draws from it)
+// the world clock moves on (on its own, so the fixed tick can move it and the sky only draws from it)
 function advanceWorldClock(dt) {
   const _prevTime = worldTime;
-  // a world made with day and night off (0.837) stands at noon for ever, its days never passing
+  // a world made with day and night off stands at noon for ever, its days never passing
   if (typeof currentWorld !== 'undefined' && currentWorld && currentWorld.dayNight === false) worldTime = 0.25;
   else worldTime = (worldTime + dt / DAY_LEN) % 1;
   if (worldTime < _prevTime) worldDay++;
 }
-// `advance` false (0.8378): the fixed tick moves the clock (simTick), this only draws the sky from it
+// `advance` false: the fixed tick moves the clock (simTick), this only draws the sky from it
 function updateDayNight(dt, advance = true) {
   if (advance) advanceWorldClock(dt);
   const a = worldTime * Math.PI * 2, ph = moonPhase(), lit = moonLit(ph), am = a - ph * Math.PI * 2;
-  // the season moves the sun off the wheel's middle, and a full moon the other way (0.818)
+  // the season moves the sun off the wheel's middle, and a full moon the other way
   const dec = sunDeclination(), decM = dec * Math.cos(ph * Math.PI * 2);
   sky.rotation.set(SKY_LAT, 0, a);                     // tilt south + spin east->west
-  moonSky.rotation.set(SKY_LAT, 0, am);                // the moon trails the sun by its phase (0.817)
+  moonSky.rotation.set(SKY_LAT, 0, am);                // the moon trails the sun by its phase
   sunMesh.position.set(100 * Math.cos(dec), 0, -100 * Math.sin(dec));
   moonMesh.position.set(100 * Math.cos(decM), 0, -100 * Math.sin(decM));
   _skyDir(sunDirW, a, dec); _skyDir(moonDirW, am, decM);
-  /* The tides (0.8191): high water twice a day, when the moon is overhead and when it is underfoot, low between.
+  /* The tides: high water twice a day, when the moon is overhead and when it is underfoot, low between.
      Round a new or full moon the range is widest and the waves biggest (spring tides), at the quarters least. */
   const spring = Math.abs(Math.cos(ph * Math.PI * 2));
   sharedUniforms.uTide.value = (TIDE_MIN + (TIDE_MAX - TIDE_MIN) * spring) * (1 - Math.cos(2 * (am - Math.PI / 2))) / 2;
@@ -570,14 +570,14 @@ function updateDayNight(dt, advance = true) {
   // cloud cover where player one is (52-clouds.js): a grey sky, no sunset glow, a hidden halo
   const p1 = typeof PLAYERS !== 'undefined' && PLAYERS[0] ? PLAYERS[0] : (typeof player !== 'undefined' ? player : null);
   const cw = typeof cloudWxAt === 'function' && p1 && p1.pos ? cloudWxAt(p1.pos.x, p1.pos.z) : null;
-  // ...unless player one is up above the clouds, where the sky is clear (0.8197)
+  // ...unless player one is up above the clouds, where the sky is clear
   const above = typeof cloudsBelow === 'function' && p1 && p1.pos ? cloudsBelow(p1.pos.y) : 0;
   const cover = cw ? cw[2] * (1 - above) : 0, dark = cw ? cw[1] * (1 - above) : 0, clearSky = 1 - cover * 0.85;
   _c4.copy(OVERCAST).multiplyScalar((0.12 + 0.88 * dayF) * (1 - 0.45 * dark));
   // the horizon, which is also the fog colour, and the zenith
   _c1.copy(NIGHT_HORIZON).lerp(DAY_HORIZON, dayF).lerp(DUSK_HORIZON, duskF * 0.35).add(_c2.copy(MOON_SKY).multiplyScalar(moonGlow)).lerp(_c4, cover * 0.7);
   _c3.copy(NIGHT_ZENITH).lerp(DAY_ZENITH, dayF).lerp(DUSK_ZENITH, duskF * 0.4).add(_c2.copy(MOON_SKY).multiplyScalar(moonGlow * 0.6)).lerp(_c4, cover * 0.85);
-  if (skyBlood > 0.001) {                             // the blood moon's red night (0.8192)
+  if (skyBlood > 0.001) {                             // the blood moon's red night
     const k = skyBlood * (1 - dayF);
     _c1.lerp(BLOOD_HORIZON, k * 0.75); _c3.lerp(BLOOD_ZENITH, k * 0.6);
   }
@@ -595,16 +595,16 @@ function updateDayNight(dt, advance = true) {
   skyDomeMat.uniforms.uSkyInv.value.setFromMatrix4(_skyRot).transpose();   // world -> the stars' own frame
 
   _c2.copy(NIGHT_LIGHT).lerp(DAY_LIGHT, dayF).lerp(DUSK_LIGHT, duskF * 0.45);
-  if (skyBlood > 0.001) _c2.lerp(BLOOD_LIGHT, skyBlood * (1 - dayF) * 0.7);   // red light under a blood moon (0.8192)
+  if (skyBlood > 0.001) _c2.lerp(BLOOD_LIGHT, skyBlood * (1 - dayF) * 0.7);   // red light under a blood moon
   sharedUniforms.uLightColor.value.copy(_c2);
-  // 0.8242: 0.048 of the sun moved into the day's ambient below (shadows 15% lighter), so sunlit faces stay as they were
+  // 0.048 of the sun moved into the day's ambient below (shadows 15% lighter), so sunlit faces stay as they were
   const sunI  = 0.692 * smoothstepJS(0.0, 0.22, sunElev);   // day peak ~0.98 total: no overexposure
-  // moonlight follows the phase (0.817): a full moon as bright as before, a new moon a fifth of it
+  // moonlight follows the phase: a full moon as bright as before, a new moon a fifth of it
   // the night lighter since 0.8442 (NIGHT_LIGHTEN, 00-config.js; 1.5 since 0.8443): the moon's light and the night's ambient
   const moonI = 0.12 * NIGHT_LIGHTEN * (0.2 + 0.8 * lit) * smoothstepJS(0.0, 0.22, moonElev);
-  // a moonlit night is lighter all round, by the phase (0.8191): up to +0.08 under a full moon high up
+  // a moonlit night is lighter all round, by the phase: up to +0.08 under a full moon high up
   const ambNight = 0.17 * NIGHT_LIGHTEN;                 // 0.32 since 0.8444; the day's stays 0.368, so its share of dayF shrinks to fit
-  sharedUniforms.uAmbient.value = ambNight + (0.368 - ambNight) * dayF + 0.08 * NIGHT_LIGHTEN * moonGlow + 0.75 * skyFlash;   // day 0.32 -> 0.368 (0.8242)   // ambient floor: how dark cast shadows get; + a flash
+  sharedUniforms.uAmbient.value = ambNight + (0.368 - ambNight) * dayF + 0.08 * NIGHT_LIGHTEN * moonGlow + 0.75 * skyFlash;   // day 0.32 -> 0.368   // ambient floor: how dark cast shadows get; + a flash
   sharedUniforms.uDirect.value  = Math.max(sunI, moonI);
   _skySunO  = Math.min(1, Math.max(0, (sunElev + 0.10) * 8));
   _skyMoonO = Math.min(1, Math.max(0, (moonElev + 0.10) * 8)) * (0.35 + 0.65 * (1 - dayF));   // pale by day
