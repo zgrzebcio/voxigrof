@@ -74,10 +74,27 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   `notePlayerEdit()` (tickPlayer: either button held, or E) marks the block changes a player makes; their re-mesh
   is a `rush`: pump sends it at once, the worker takes it before its other jobs, the page shows it on arrival. A
   worker in the middle of MAKING a chunk cannot take it, so each worker counts the chunks it has to make
-  (`w.genOut`: `pump`, and the answers in 10-workers.js), a rush goes to the one with fewest (`_soonestWorker`),
+  (`w.genOut`: `pump`, and the answers in 10-workers.js), a rush goes to the one with fewest (`_bestWorker`),
   and while a player works (and `EDIT_LANE_MS` after) one worker, the lane, is given no chunk to make. A new kind
   of long worker job must stay out of the lane; a new way for a player to change blocks must be covered by
-  `notePlayerEdit`.
+  `notePlayerEdit`. 0.8457: pump hands its jobs out ONE AT A TIME, each to `_bestWorker(depth, skip)` (fewest
+  chunks to make, then fewest jobs), so chunks are made side by side on every worker; never go back to filling one
+  worker up to `depth` before the next (that made them one after another on one or two workers).
+- **Making chunks fast** (0.8458; a worker makes a chunk 2.1x faster, land exactly the same).
+  1. `genChunk` is all its parts glued into ONE function, too big for the browser to optimise: a loop written straight
+     in it ran 10-40x slower. Every heavy pass is wrapped in `(() => { ... })();` (SPEED in worldgen/gen-chunk.js): a
+     new pass with loops goes in one too, and what later parts read is declared outside the wrappers. (The mesher
+     is not like that: wrapping its loops made it slower, it is left alone.)
+  2. The column cache (worldgen/column-cache.js, `colGet` / `colPut`): the wet grid's five numbers of a column, kept,
+     so terrainInfo runs about once a column instead of once per chunk round it. ONE table for all workers in shared
+     memory (`cols` in the `init` message, made per world in `initWorkers`, 10-workers.js), each its own without.
+     Only exact whole numbers go in. `makeGen(seed, type, rev, colBuf)`.
+  3. Pacing (`_genThrottle`, chunks/stream.js): inside `viewDist` a chunk to make for every worker that may make one,
+     plus one; the far ring keeps 2 at a time. A chunk's terrain-cache read comes before a worker is chosen
+     (`_genFromCache`), and a chunk let go during the read gives its place back (it used to leak one for good).
+  The first chunk in a new region still costs about a second in each worker: its rivers and lakes are traced
+  (biomes/rivers-lakes.js, up to ~2,700 blocks round). Proving the land unchanged: hash chunks from fixed seeds before and
+  after (the test page 8408 keeps 244 of them in localStorage `perf_baseline_8458`, several world kinds and revs).
 - **A new chunk's daylight** (0.8455, 09-light-sky.js). `propagateSky(q, touched, own)` floods only chunks that are
   `lit` (their own lighting pass has run, finishChunkGen) and `own`, the one being lit now. A chunk that has its
   cells but still waits in `genFinishQueue` takes NOTHING: at its own pass it pulls its lit neighbours' borders in
@@ -92,7 +109,10 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   through a `MessageChannel` (timers are slowed too) so the workers' answers get in. Traps that look like bugs:
   water put down with plain `setBlock` never moves (the bucket also calls `queueWaterAt`), and nothing drops in
   creative (`player.canFly`). Light can be checked by numbers: across every border between two lit chunks no cell
-  may be darker than the light beside it allows.
+  may be darker than the light beside it allows. To play it at 60 fps / 20 tps by hand: keep the real
+  `requestAnimationFrame` in a window property first and put it back in a `finally` (a stub left behind kills the
+  game's loop), and wake each frame from a small timer worker (`setInterval` posting every 16.67 ms) instead of
+  spinning on MessageChannel: a spinning main thread starves the workers and every chunk number comes out wrong.
 - **Version numbers.** The steps after 0.845 are 0.8451 to 0.8455. They were first numbered 0.8501 to 0.8505 (the
   roadmap's 0.85 is the jungle), and the backup refs keep those names (`before-0.8504`, `at-0.8505`).
 - **The grass colour** is `GRASS_RGB` at the top of 03-atlas.js: the grass block's top, the fringe on its side,
@@ -139,6 +159,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   single letter; and a script that rewrites more than one file runs FIRST as a dry run that prints what each
   changed line would become and writes nothing, then for real with a guard that skips a file whose size or line
   count moved more than the change explains.
+- **Git: never commit or push.** The user commits. Asked if things are ready to commit: check, fix, report.
 - **Backup before a big step.** Between commits, before a step that touches many files, save the tree as a ref: a temporary index (`$env:GIT_INDEX_FILE`), `git add -A`, `git write-tree`,
   `git commit-tree`, `git update-ref refs/backup/<name>`. It touches neither the branch nor the real index, and
   it is what the 14 files came back from. `git for-each-ref refs/backup` lists them.

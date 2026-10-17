@@ -3,6 +3,7 @@
    A part of genChunk's body (worldgen/gen-chunk.js). */
 
 corePart('gen.chunk', function () {
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- dirt in caves: patches of it on cave floors, a block deep, where a 3D noise says so (some 10-block
          blobs, a pure function of world position, so chunk borders agree). Mushrooms grow on it as on stone, and the
          yellow berry bush grows only on it down there. ---- */
@@ -93,4 +94,5 @@ corePart('gen.chunk', function () {
           }
         }
       }
+      })();
 });

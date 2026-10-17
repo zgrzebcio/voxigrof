@@ -180,10 +180,13 @@ function _genThrottle() {
   if (_loadingWorld || menuScene) return { max: 8, gap: 0 };
   const g = genQueue[0];
   const d2 = g ? g.d2 : 0;                             // squared chunk distance of the next job
-  if (d2 <= 16)  return { max: 4, gap: 3 };            // within 4 chunks: you can see the gap, so as fast as it goes
-  if (d2 <= 64)  return { max: 3, gap: 8 };            // within 8
-  if (d2 <= 144) return { max: 2, gap: 18 };           // within 12
-  return { max: 2, gap: 40 };                          // far horizon: ~25/sec, steady and cool
+  /* Inside the render distance (`viewDist`, full detail: a hole there is one you see): a chunk to make for every
+     worker that may make one, and one more on its way, so none of them stands idle. A job is out for a few hundred
+     ms (its cache read, its turn in the worker's queue, the making), and the old 2 or 3 at a time held the land to
+     about 9 chunks a second at render 10. Beyond it, the far ring drawn at LOD 2: a steady pace, ~25 a second. */
+  const makers = Math.max(1, workers.length - (_editLane ? 1 : 0));
+  if (d2 <= viewDist * viewDist) return { max: makers + 1, gap: 3 };
+  return { max: 2, gap: 40 };
 }
 function noteGenDone() { if (_genInflight > 0) _genInflight--; }
 function resetGenThrottle() { _genInflight = 0; _lastGenAt = 0; _genTokens = 1; }
@@ -197,15 +200,20 @@ function resetGenThrottle() { _genInflight = 0; _lastGenAt = 0; _genTokens = 1; 
    none, kept for as long as that holds. A new kind of long job for the workers must stay out of the lane too. */
 const EDIT_LANE_MS = 2500;
 let _editLane = null;
-// the worker to start a player's job soonest: the fewest chunks to make first (0 = it is not in a long job), then the fewest jobs
-function _soonestWorker() {
-  let best = workers[0];
-  for (const w of workers) if (w.genOut < best.genOut || (w.genOut === best.genOut && w.busy < best.busy)) best = w;
+/* the worker best placed to take a job: the fewest chunks to make (0 = it is not in a long job, and can start at
+   once), then the fewest jobs. Only workers holding fewer than `room` jobs count, and never `skip` (null when none
+   has room). */
+function _bestWorker(room = Infinity, skip = null) {
+  let best = null;
+  for (const w of workers) {
+    if (w === skip || w.busy >= room) continue;
+    if (!best || w.genOut < best.genOut || (w.genOut === best.genOut && w.busy < best.busy)) best = w;
+  }
   return best;
 }
 function _editLaneWorker(now) {
   if (_loadingWorld || menuScene || now - _playerEditAt > EDIT_LANE_MS) return (_editLane = null);
-  if (!_editLane || _editLane.genOut > 0) _editLane = _soonestWorker();
+  if (!_editLane || _editLane.genOut > 0) _editLane = _bestWorker();
   return _editLane;
 }
 
@@ -225,9 +233,9 @@ function pump() {
   /* A PLAYER'S EDIT FIRST. The re-mesh of a chunk you just dug into or built on (editRush; markDirty puts it
      at the head of the queue) used to wait for a worker with a free place, and then behind whatever that worker
      already held: under stress, several frames in which the hole or the new block was simply not drawn. It goes out
-     at once now, to the worker that can start it soonest (the edit lane above: one with no chunk to make), over the
-     usual limit of jobs a worker may hold, and the worker takes it ahead of its other jobs (WORKER_MAIN's job list,
-     chunks/worker.js). */
+     at once now, to the worker that can start it soonest (_bestWorker: one with no chunk to make, the edit lane above),
+     over the usual limit of jobs a worker may hold, and the worker takes it ahead of its other jobs (WORKER_MAIN's job
+     list, chunks/worker.js). */
   const lane = _editLaneWorker(now);
   while (meshQueue.length) {
     const m = meshQueue[0], c = getChunk(m.cx, m.cz);
@@ -235,60 +243,63 @@ function pump() {
     meshQueue.shift();
     // ...even over a mesh of it already out (markDirty): this one is newer, that one's answer will be dropped
     if (c.data && c.queuedMesh && neighborsReady(c)) {
-      const w = _soonestWorker();
+      const w = _bestWorker();
       w.busy++;
       dispatchMesh(w, c);
     } else c.queuedMesh = false;
   }
-  for (const w of workers) {
-    while (w.busy < depth) {
-      // gen is allowed only while under the concurrency cap and the pacing has one to give, and never in the edit lane
-      const genOk = w !== lane && _genInflight < genMax && _genTokens >= 1;
-      let job = null, kind = null;
-      while (meshQueue.length || (genQueue.length && genOk)) {
-        const m = meshQueue[0], g = genOk ? genQueue[0] : null;
-        if (m && (!g || m.d2 <= g.d2 + 2)) {
-          meshQueue.shift();
-          const c = getChunk(m.cx, m.cz);
-          if (c && c.data && c.queuedMesh && !c.meshing && neighborsReady(c)) { job = c; kind = 'mesh'; break; }
-          if (c) c.queuedMesh = false;
-        } else if (g) {
-          genQueue.shift();
-          const c = getChunk(g.cx, g.cz);
-          if (c && !c.data && !c.generating) { job = c; kind = 'gen'; break; }
-        }
-      }
-      // nothing for this worker: nothing for any, unless it is the edit lane, which was only refused the chunks to make
-      if (!job) { if (w === lane) break; return; }
-      w.busy++;
-      if (kind === 'gen') { _genInflight++; _genTokens -= 1; w.genOut++; }
-      if (kind === 'gen') {
-        job.generating = true;
-        if (currentWorld && !menuScene) {
-          const _cx = job.cx, _cz = job.cz, _w = w, _wid = currentWorld.id;
-          idbGet(TERRAIN_KEY + _wid + ':' + key(_cx, _cz)).then(buf => {
-            if (buf instanceof ArrayBuffer) {
-              const c = getChunk(_cx, _cz);
-              /* a cached chunk still goes by the worker, which lists its light emitters and lights its own sky;
-                 its answer comes back as a 'gen' marked _fromSave, so it is not cached again */
-              if (c && c.generating && LIGHT_WORKER) { _w.postMessage({ type: 'prep', cx: _cx, cz: _cz, data: buf }, [buf]); return; }
-              _w.busy--;
-              if (_w.genOut > 0) _w.genOut--;          // answered here, without the worker
-              if (c && c.generating) onWorkerMessage({ type: 'gen', cx: _cx, cz: _cz, data: buf, _fromSave: true });
-              else if (c) c.generating = false;
-              pump();
-            } else {
-              _w.postMessage({ type: 'gen', cx: _cx, cz: _cz });
-            }
-          });
-        } else {
-          w.postMessage({ type: 'gen', cx: job.cx, cz: job.cz });
-        }
-      } else {
-        dispatchMesh(w, job);
+  /* SPREAD OVER THE WORKERS. The jobs go out one at a time, each to the worker best placed for it (_bestWorker): a
+     chunk to make to the worker with the fewest chunks to make already (never the edit lane), so the chunks are made
+     side by side; a mesh to the one with the fewest chunks to make too, so it does not wait behind a long job; then the
+     fewest jobs. Filling one worker up to `depth` before the next had the chunks made one after another on one or two
+     workers while the others stood idle. */
+  for (;;) {
+    const meshW = _bestWorker(depth), genW = _bestWorker(depth, lane);
+    if (!meshW) return;                       // every worker holds as many jobs as it may
+    // gen is allowed only while under the concurrency cap and the pacing has one to give, and a worker other than the lane has room
+    const genOk = genW !== null && _genInflight < genMax && _genTokens >= 1;
+    let job = null, kind = null;
+    while (meshQueue.length || (genQueue.length && genOk)) {
+      const m = meshQueue[0], g = genOk ? genQueue[0] : null;
+      if (m && (!g || m.d2 <= g.d2 + 2)) {
+        meshQueue.shift();
+        const c = getChunk(m.cx, m.cz);
+        if (c && c.data && c.queuedMesh && !c.meshing && neighborsReady(c)) { job = c; kind = 'mesh'; break; }
+        if (c) c.queuedMesh = false;
+      } else if (g) {
+        genQueue.shift();
+        const c = getChunk(g.cx, g.cz);
+        if (c && !c.data && !c.generating) { job = c; kind = 'gen'; break; }
       }
     }
+    if (!job) return;
+    if (kind === 'mesh') { meshW.busy++; dispatchMesh(meshW, job); continue; }
+    _genInflight++; _genTokens -= 1;
+    job.generating = true;
+    if (currentWorld && !menuScene) _genFromCache(job.cx, job.cz, currentWorld.id);
+    else _genSend(genW, { type: 'gen', cx: job.cx, cz: job.cz });
   }
+}
+// a chunk to make goes to a worker, which counts it from now on (busy, genOut; its answer counts it off, 10-workers.js)
+function _genSend(w, msg, transfer) { w.busy++; w.genOut++; w.postMessage(msg, transfer); }
+/* A chunk to make in a world: its terrain cache is read first, and the worker is chosen only once the read is in, so
+   the read (tens of ms) holds up no worker. A chunk let go meanwhile is not made, and its place among the jobs in
+   flight is given back (it used to stay taken when the cache had the chunk: each such chunk left generation one job
+   short for the rest of the session). A read from a world left meanwhile is dropped: the throttle was reset with it. */
+function _genFromCache(cx, cz, wid) {
+  idbGet(TERRAIN_KEY + wid + ':' + key(cx, cz)).then(buf => {
+    if (!currentWorld || currentWorld.id !== wid) return;
+    const c = getChunk(cx, cz);
+    if (!c || !c.generating) { noteGenDone(); pump(); return; }
+    const cached = buf instanceof ArrayBuffer;
+    // without the light settings a cached chunk is used as it is, here
+    if (cached && !LIGHT_WORKER) { onWorkerMessage({ type: 'gen', cx, cz, data: buf, _fromSave: true }); pump(); return; }
+    /* else it still goes by a worker, which lists its light emitters and lights its own sky; the answer comes back
+       as a 'gen' marked _fromSave, so it is not cached again */
+    const w = _bestWorker(Infinity, _editLane) || _bestWorker();
+    if (cached) _genSend(w, { type: 'prep', cx, cz, data: buf }, [buf]);
+    else _genSend(w, { type: 'gen', cx, cz });
+  });
 }
 
 /* Chunks whose data has landed but whose lighting/decoration pass has not run yet. Drained a few

@@ -9,6 +9,7 @@ corePart('gen.chunk', function () {
          testbed, so the whole region is skipped rather than left to riddle it with holes. */
       if (!FLAT) {
 
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- ore veins (before caves so cave walls naturally expose ore faces) ---- */
       {
         const ORE_TYPES = [
@@ -90,6 +91,8 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- gravel patches: mountain slopes and underground cave floors ---- */
       {
         // mountain surface patches — near surface of tall columns
@@ -164,6 +167,7 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
       /* may a cave cut this cell (rev 16)? Not in the crust under water (9), nor beside a water cell, which it
          would open: water does not flow, so it would stand hanging over the hole. Older worlds cut as they did. */
       const keepsWater = (lx, gy, lz) => {
@@ -173,6 +177,7 @@ corePart('gen.chunk', function () {
         for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && gy > H[n] && gy <= WLV[n]) return false;
         return true;
       };
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- caves: two 3D-noise bands intersect into winding tunnels ("spaghetti"), plus
          large low-altitude "cheese" caverns. A solid crust stays under the surface (6 land /
          9 underwater) so caves only reach daylight through the entrance shafts below. */
@@ -226,6 +231,8 @@ corePart('gen.chunk', function () {
           }
         }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- cave entrances: one dice roll per 16-block cell; a winding shaft bores from the
          surface down into cave depth. Land: 5% of cells (14% in mountains), r~2.4 with a
          flared mouth. Underwater: 0.5% and a tighter r~1.5. Pure function of world position.
@@ -311,6 +318,8 @@ corePart('gen.chunk', function () {
           }
         }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- rooms, tunnels, cave mouths, arches and overhangs (biomeRev 15) ----
          Rooms: round caves 4-14 across (now and then a hall up to 26), one in most ROOM_CELL squares at any depth under
          the crust, each joined to its east and south neighbours' by a winding tunnel. Mouths: from the foot of a slope
@@ -432,6 +441,8 @@ corePart('gen.chunk', function () {
           }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       // ---- cave lava pools (pool-seeded grid, bowl-shaped multi-y crater) ----
       // 22×22 cells, 22% chance each, radius up to ~6 blocks. Per-cell pool y is deterministic;
       // each column within radius carves a lava column from (poolY - bowlDepth) up to poolY, with
@@ -467,6 +478,8 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       // ---- surface lava ponds (crater-shape, biome-biased, cross-chunk consistent) ----
       // Uses terrainInfo(wx,wz) — a pure noise function — for every decision (rim y, biome bias,
       // flatness, water proximity), so any chunk overlapping a pool computes IDENTICAL results.
@@ -553,6 +566,8 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- glow vines: strands hanging down cave walls, lighting the tunnels. A rare roll
          per open cave cell picks one side; if that side is rock, a strand of 2-6 hangs down it for
          as long as the rock face and the open air beside it both last. ---- */
@@ -576,6 +591,8 @@ corePart('gen.chunk', function () {
           }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- cobwebs: strung in cave corners. A rare roll per open cave cell, kept only where at
          least two sides are rock, so a web sits in a nook — on the floor, a wall or the ceiling. ---- */
       {
@@ -597,6 +614,8 @@ corePart('gen.chunk', function () {
           }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       // ---- sulfur deposits ----
       // Two spawn modes:
       //   (a) under lava: 5-10 blocks below any lava cell, replace stone with a small cluster,
@@ -666,6 +685,8 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- gem clusters ----
          Each gem keeps the depth band its ore vein had. A try picks a column and a height in that band, then
          looks up and down from there for the nearest open cave cell touching rock, and grows the cluster out
@@ -724,5 +745,6 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
       }   // end !FLAT underground section
 });

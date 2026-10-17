@@ -4,6 +4,7 @@
    The last part of genChunk's body (worldgen/gen-chunk.js). */
 
 corePart('gen.chunk', function () {
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* waterfalls (rev 17): where water stands 2+ over the water beside it (a river's fall, a lake's outlet, a
          river reaching the sea off a cliff), the falling water hangs down the face as a sheet in the lower column, from
          its surface up to the higher one, its top running the upper water's way */
@@ -52,6 +53,8 @@ corePart('gen.chunk', function () {
             }
           }
       }
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* the last word on leaks (rev 18): water beside open air whose column stands on dry ground below (not on
          lower water, which is a fall's open face) gets that air filled with the ground's top block, upward, so no water
          ever stands open over a ledge however the passes above left it. Inside this chunk, from what is really there. */
@@ -73,6 +76,7 @@ corePart('gen.chunk', function () {
               }
             }
           }
+      })();
       /* water up in the land stays water: anything a later pass set in it (a plant, a pebble, a log) goes */
       if (HIWET)
         for (let z = 0; z < CZ; z++)

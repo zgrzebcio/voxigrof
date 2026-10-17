@@ -12,6 +12,16 @@
      biomes/gen-ice-spikes.js, gen-rime-ice.js, gen-deep-desert.js, gen-mines.js
      worldgen/water-finish.js             waterfalls, leaks, the result
    The order is the order things are built in, and every part draws random numbers: keep it.
+   SPEED. All these parts glued together make genChunk one huge function, and the browser does not optimise a
+   function that big: its loops ran slow, 2 to 40 times slower than the same loop in a small function (measured: the
+   cobweb check 4 ms against 0.1, the leak pass 14 against 0.4). So every heavy pass sits in a function of its own,
+   called at once where it stands:
+       (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+       ...the pass, as it was...
+       })();
+   That made a chunk 2.3 times faster to make, the land exactly the same. A new pass with loops goes in such a
+   function too. What a pass declares inside it is seen only there: something later parts read (the grids, H, WLV,
+   keepsWater...) is declared outside the wrappers.
    A part of makeGen's body (worldgen/make-gen.js). */
 
 corePart('gen.make', function () {

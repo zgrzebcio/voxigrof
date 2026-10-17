@@ -33,18 +33,31 @@ corePart('gen.chunk', function () {
       const FFV = new Uint8Array(400);                                                                // FFV: it runs fast
       const HG = new Int16Array(WG * WG), RVG = new Uint8Array(WG * WG), FDG = new Uint8Array(WG * WG);   // the grid's ground, a river's water and way
       let HIWET = false, HIWL = WATER_LEVEL;
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       for (let gz = 0; gz < WG; gz++)
         for (let gx = 0; gx < WG; gx++) {
-          const ti = terrainInfo(cx * 16 + gx - WM, cz * 16 + gz - WM);
-          let ww = 0;
-          if (ti.h < ti.wl) ww = (ti.rT > 0.3 || ti.lk > 0.3) ? 2 : 1;
+          const wx = cx * 16 + gx - WM, wz = cz * 16 + gz - WM;
+          const inner = gx >= WM - 2 && gx <= WM + 17 && gz >= WM - 2 && gz <= WM + 17;
+          /* the wet grid's five numbers of a column outside the 20 x 20 come from the column cache when some chunk worked
+             them out already (worldgen/column-cache.js); the 20 x 20 needs all of terrainInfo and puts its five in */
+          const cached = inner ? -1 : colGet(wx, wz);
+          let ti = null, h, wl, ww, rv, fd;
+          if (cached >= 0) {
+            h = cached & 255; wl = (cached >> 8) & 255; ww = (cached >> 16) & 3; rv = (cached >> 18) & 1; fd = (cached >> 19) & 15;
+          } else {
+            ti = terrainInfo(wx, wz);
+            h = ti.h; wl = ti.wl; ww = 0;
+            if (h < wl) ww = (ti.rT > 0.3 || ti.lk > 0.3) ? 2 : 1;
+            rv = ww && ti.rT > ti.lk ? 1 : 0; fd = ti.fd || 0;
+            colPut(wx, wz, h, wl, ww, rv, fd);
+          }
           WW[gx + gz * WG] = ww;
-          WLG[gx + gz * WG] = ti.wl;
-          HG[gx + gz * WG] = ti.h;
-          RVG[gx + gz * WG] = ww && ti.rT > ti.lk ? 1 : 0;
-          FDG[gx + gz * WG] = ti.fd || 0;
-          if (ww && ti.wl > WATER_LEVEL) { HIWET = true; HIWL = Math.max(HIWL, ti.wl); }
-          if (gx >= WM - 2 && gx <= WM + 17 && gz >= WM - 2 && gz <= WM + 17) {
+          WLG[gx + gz * WG] = wl;
+          HG[gx + gz * WG] = h;
+          RVG[gx + gz * WG] = rv;
+          FDG[gx + gz * WG] = fd;
+          if (ww && wl > WATER_LEVEL) { HIWET = true; HIWL = Math.max(HIWL, wl); }
+          if (inner) {
             const i = (gx - WM + 2) + (gz - WM + 2) * 20;
             H[i] = ti.h;
             WLV[i] = ti.wl;
@@ -69,6 +82,8 @@ corePart('gen.chunk', function () {
             CLF[i] = ti.cliff || 0;
           }
         }
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       // no puddles (rev 14): a pond the grid sees whole, under POND_MIN cells (8-connected), is dry land at the water's level
       if (HILLS) {
         const seen = new Uint8Array(WG * WG), stack = [], cells = [];
@@ -96,6 +111,8 @@ corePart('gen.chunk', function () {
           }
         }
       }
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* no slivers (rev 17): a patch of water at one level (4-connected, under POND_MIN cells, seen whole) that
          stands over lower water beside it - the edge of one lake poking past another's - takes the lower water's level,
          and where its ground stands at or over that, is dry. Judged alike by every chunk, as the ponds are. */
@@ -158,6 +175,8 @@ corePart('gen.chunk', function () {
         }
       }
 
+      })();
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       for (let z = 0; z < CZ; z++) {
         for (let x = 0; x < CX; x++) {
           const gi = (x + 2) + (z + 2) * 20;
@@ -358,4 +377,5 @@ corePart('gen.chunk', function () {
           if (FDV[gi] && h < wl) data[idx(x, wl, z)] = B.WATER | (FDV[gi] << 11) | (FFV[gi] << 15);
         }
       }
+      })();
 });

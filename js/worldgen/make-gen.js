@@ -1,6 +1,6 @@
 'use strict';
-/* worldgen/make-gen.js: makeGen(seed, type, biomeRev), the generator of one world. This file holds its first and last
-   line; its body is the parts named gen.make: worldgen/gen-setup.js, gen-caves-plan.js, gen-chunk.js.
+/* worldgen/make-gen.js: makeGen(seed, type, biomeRev, colBuf), the generator of one world. This file holds its first and
+   last line; its body is the parts named gen.make: worldgen/gen-setup.js, gen-caves-plan.js, column-cache.js, gen-chunk.js.
    A part of VOXEL_CORE (chunks/voxel-core.js). */
 
 corePart('voxel', function () {
@@ -12,8 +12,9 @@ corePart('voxel', function () {
 
   /* ---------- terrain generator ---------- */
   /* biomeRev: 1 for worlds made before 0.819, so their unexplored land still joins what they already have;
-     2 gives bigger snow and desert biomes (see `temp` below). Fixed per world at creation (w.biomeRev). */
-  function makeGen(seedStr, terrainType, biomeRev = 1) {
+     2 gives bigger snow and desert biomes (see `temp` below). Fixed per world at creation (w.biomeRev).
+     colBuf: the workers' shared column cache (worldgen/column-cache.js), or null for a table of its own. */
+  function makeGen(seedStr, terrainType, biomeRev = 1, colBuf = null) {
     /*@include gen.make*/
   }
 });

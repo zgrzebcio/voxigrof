@@ -38,8 +38,12 @@ function initWorkers(seed, terrainType, biomeRev = 1) {
   const light = LIGHT_WORKER ? { top: WORLD_TOP, sky: SKY_LEVEL, water: WATER_ABSORB } : null;
   // how a mesh job's light packs (the workers pack it now, 02 packLight)
   const pack = { mask: LIGHT_LEVEL_MASK, cold: LIGHT_COLD_BIT, sky: SKY_LEVEL };
-  for (const w of workers) w.postMessage({ type: 'init', seed, terrainType: terrainType || 'default', biomeRev, light, pack });
+  /* the column cache all of them share (worldgen/column-cache.js), new for every world: what terrainInfo gave a column,
+     so the workers work each one out about once instead of once per chunk round it. Without shared memory each keeps its own */
+  const cols = SHARED_OK ? new SharedArrayBuffer(16 << COLUMN_CACHE_BITS) : null;
+  for (const w of workers) w.postMessage({ type: 'init', seed, terrainType: terrainType || 'default', biomeRev, light, pack, cols });
 }
+const COLUMN_CACHE_BITS = 18;               // 262,144 columns, 4 MB: the land of some thousand chunks
 initWorkers(SEED, TERRAIN_TYPE);
 lightThreadStart();                         // block light floods off the main thread, with shared memory (08)
 

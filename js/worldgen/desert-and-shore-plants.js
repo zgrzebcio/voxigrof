@@ -160,6 +160,7 @@ corePart('gen.chunk', function () {
             }
           }
         }
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* A cobweb must hang ON something: floor, wall or ceiling. Later passes — caves, ravines,
          water — can carve away the rock it was strung from, so every web is checked last and one with no
          solid face under, over or beside it (inside this chunk) is taken down. */
@@ -178,4 +179,5 @@ corePart('gen.chunk', function () {
           if (!held) data[i] = B.AIR;
         }
       }
+      })();
 });

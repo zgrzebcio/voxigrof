@@ -287,7 +287,7 @@ function WORKER_MAIN() {
   const handle = (m) => {
     try {
       if (m.type === 'init') {
-        gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1);   // biome sizes by world
+        gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1, m.cols || null);   // biome sizes by world; the shared column cache
         CORE.setTintSampler(gen.climAt, gen.dryAt);                        // the grass and water climate colour, the Dryland's dry grass
         L = m.light || null;                                               // 0.8383
         if (m.pack) PK = m.pack;                                           // how light packs for the mesher
