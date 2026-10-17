@@ -81,6 +81,12 @@ corePart('biomes.make', function () {
        a wobble of its own so it is not a ring), `fDry`. Pale dry grass, many dry plants and half the green ones, big dry
        bushes, no trees, and now and then bones (genChunk, worldgen/gen-chunk.js). */
     const DRYLAND = biomeRev >= 23, DRY_FROM = 1.08, DRY_TO = 1.22;
+    /* Level shores (biomeRev 27): about half of a river's or a lake's shore lies level with its water, its first FLUSH_W
+       columns' ground at the water's top, so a swimmer walks out instead of jumping a block; genChunk lays each such
+       stretch as a little beach of sand (gravel on a gravel shore: worldgen/terrain-columns.js). A slow noise along the
+       shore picks them, more of them where the shore is sand already (under FLUSH_SAND there, FLUSH_ELSE elsewhere).
+       Never within FLUSH_SAFE of a higher water: its rim has to stand (terrainInfo, biomes/terrain.js). */
+    const FLUSH = biomeRev >= 27, FLUSH_W = 2, FLUSH_SAND = 0.55, FLUSH_ELSE = 0.2, FLUSH_SAFE = 4;
     // two waters that may meet at different heights: one group, or a river and a lake it leaves or enters
     const _kin = (a, b) => a.g === b.g || (!a.lake && b.lake && (a.up === b.g || a.dn === b.g)) || (!b.lake && a.lake && (b.up === a.g || b.dn === a.g));
     // the mountain valleys' depth 0..1 at a place, from the same mask the mountains use (0 outside mountain country)

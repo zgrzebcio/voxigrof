@@ -65,10 +65,15 @@ function _weatherStretch(rx, rz, H) {
 // the title's backdrop, or a world made with its weather off: always clear, no fog, sand, hail, rain or snow
 const _titleCalm = () => (typeof menuScene !== 'undefined' && !!menuScene)
   || (typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.weather === false);
+/* A world's first day (the first 24 hours of its clock, so a new world's) has fair weather only: clear, sunny or cloudy,
+   by the season's own odds among them. No rain, storm, dark sky, fog, wind, sandstorm or blizzard on the day a player
+   starts out. (The first blood moon comes on day 7 at the earliest, 53-storms.js.) */
+const FAIR_FIRST_H = 24, FAIR_WEATHER = new Set(['clear', 'sunny', 'cloudy']);
 function _pickWeather(rx, rz, start) {
   if (_titleCalm()) return 'clear';
-  const season = gameDate(start / 24).season, kind = regionKind(rx, rz);
+  const season = gameDate(start / 24).season, kind = regionKind(rx, rz), firstDay = start < FAIR_FIRST_H;
   const w = WEATHER_TYPES.map((t, i) => {
+    if (firstDay && !FAIR_WEATHER.has(t)) return 0;
     let v = WEATHER_BY_SEASON[season][i];
     if (kind === 'warm') v *= { sunny: 3, rainy: 0.2, windy: 1.5, foggy: 0.2, cloudy: 0.6, blizzard: 0 }[t] ?? 1;
     if (kind === 'snow') v *= { sunny: 0.5, rainy: 1.3 }[t] || 1;

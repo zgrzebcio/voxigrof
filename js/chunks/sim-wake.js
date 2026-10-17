@@ -128,19 +128,19 @@ function _scanWakeSlice(budget) {
        the step that lights a structure's torches — chunk load already tried, but at the time the
        chunk was outside the simulation radius and relightForChunk correctly declined.
 
-       Then RE-MESH the neighbourhood, which is the part that actually makes it visible.
-       propagateLight only writes into the light arrays; it marks nothing dirty, because its other
-       caller (relight) marks the affected box itself and its remaining caller (chunk load) runs
-       before the chunk has ever been meshed. Here the chunks are already on screen with stale
-       vertex light, so without this the torch data says 15 and the picture stays black — which is
-       exactly what you were looking at. A source reaches GLOW_LEVEL blocks, under one chunk, so
-       the 3x3 ring around the woken chunk is the full blast radius. */
-    relightForChunk(w.cx, w.cz);
-    for (let dz = -1; dz <= 1; dz++)
-      for (let dx = -1; dx <= 1; dx++) {
-        const n = getChunk(w.cx + dx, w.cz + dz);
-        if (n && n.data) markDirty(n);
-      }
+       Then the light has to be SEEN: the chunks round it are on screen with their old vertex light.
+       With the light thread its answer re-meshes the chunks whose light changed (_lightThreadAnswer, 08). Without it,
+       propagateLight only writes into the light arrays and marks nothing, so the 3x3 round the woken chunk (a source
+       reaches GLOW_LEVEL blocks, under one chunk) is meshed again here. With no light poured nothing changed at all:
+       no re-mesh. (Nine meshes for every chunk coming into range, light or not, were some 160 at each chunk border
+       while flying.) */
+    const poured = relightForChunk(w.cx, w.cz);
+    if (poured && !_lightW)
+      for (let dz = -1; dz <= 1; dz++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const n = getChunk(w.cx + dx, w.cz + dz);
+          if (n && n.data) markDirty(n);
+        }
     _simWoken.add(w.cx + ',' + w.cz);
     _wake = null;
   }

@@ -102,46 +102,112 @@ function chunkLod(d2, cur = 0) {
   return past(b, 2) ? 2 : past(a, 1) ? 1 : 0;
 }
 
-// rebuild the load/mesh/unload sets — runs when the player crosses a chunk border,
-// the view distance changes, or the world resets
+/* Rebuild the load/mesh/unload sets: when a player crosses a chunk border, the view distance changes, or the world resets.
+   A STEP. Flying across chunk borders, each crossing moves the rings by one: of the ~700 places of the load ring only the
+   ~30 at its front edge are new. The full rebuild looked every place up (by its text key), queued every waiting mesh
+   again and sent two messages for every chunk let go: 4-5 ms in the frame of each crossing. So a step of one chunk (one
+   player, the same view distance) only updates: the queues keep what they hold, their distances worked out again; the
+   places that came into the load ring are looked at, and those that came within the render distance are meshed.
+   Anything else (a teleport, a respawn, another world, the view distance, split screen) rebuilds it all. `_rqAt` is
+   where the last one was made from (queuesReset forgets it). */
+let _rqAt = null;
+function queuesReset() { _rqAt = null; _rqWalk = null; }
+/* A STEP'S WALK over all the chunks (let go, meshes let go, level of detail) is nothing that must happen in the frame
+   of the crossing: it is spread over the next frames, RQ_WALK_PER_FRAME chunks a frame (runChunkStream, 22), each
+   chunk judged by the distances of the moment. A rebuild while one is still going finishes it first. */
+const RQ_WALK_PER_FRAME = 200;
+let _rqWalk = null;                         // { it: an iterator over `chunks`, R, lodChange, gone }
+function _rqWalkSome(n) {
+  const w = _rqWalk;
+  if (!w) return;
+  for (let i = 0; i < n; i++) {
+    const r = w.it.next();
+    if (r.done) {
+      _rqWalk = null;
+      lightForgetMany(w.gone);
+      if (typeof fluidForgetMany === 'function') fluidForgetMany(w.gone);
+      for (const [c, d2] of w.lodChange) tryQueueMesh(c, d2);   // inserted by distance
+      pump();
+      return;
+    }
+    _rqVisit(r.value[0], r.value[1], w.R, true, null, w.lodChange, w.gone);
+  }
+}
+/* one chunk of rebuildQueues' walk over them all: let go, its meshes let go, or its level of detail changed. A function of
+   its own, called for every chunk, so the engine optimises it: written in the loop, which runs once a chunk border, it
+   stayed slow (1.2 ms for the ~750 chunks of render 10) */
+function _rqVisit(k, c, R, step, requeue, lodChange, gone) {
+  if (!step && c.queuedMesh) { c.queuedMesh = false; requeue.push(c); }  // queue was just cleared
+  const d2 = chunkDist2ToPlayers(c.cx, c.cz);
+  if (d2 > (R + 2) * (R + 2)) {             // unload: dispose GPU resources, drop voxel data
+    retireChunkMeshes(c);                   // ...after a short fade out
+    chunks.delete(k);                       // (edits are kept in editStore)
+    _chunkCacheClear();
+    gone.push(c.cx, c.cz);
+  } else if (d2 > R * R) {
+    // data ring beyond render radius: keep data only (fading out); one already let go of its meshes is left alone
+    if (c.shownAt != null || c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3] || c.meshes[4]) retireChunkMeshes(c);
+  } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
+    if (c.meshing) c.dirty = true; else lodChange.push([c, d2]);
+  }
+}
 function rebuildQueues() {
   // entry 0 IS player one; 36-splitscreen.js owns entries 1..3
   PLAYER_CHUNKS[0][0] = playerCX; PLAYER_CHUNKS[0][1] = playerCZ;
-  genQueue.length = 0;
-  meshQueue.length = 0;
+  if (_rqWalk) _rqWalkSome(Infinity);       // the last step's walk, finished first
   const R = drawDist(), RG = R + 1;         // the far ring too
-  const requeue = [];                       // chunks that were awaiting a (re-)mesh
+  const at = _rqAt;
+  const step = at !== null && PLAYER_CHUNKS.length === 1 && at.R === R &&
+               Math.abs(playerCX - at.cx) <= 1 && Math.abs(playerCZ - at.cz) <= 1;
+  _rqAt = PLAYER_CHUNKS.length === 1 ? { cx: playerCX, cz: playerCZ, R } : null;
+  if (!step) { genQueue.length = 0; meshQueue.length = 0; }
+  const requeue = [];                       // chunks that were awaiting a (re-)mesh (a full rebuild only)
   const lodChange = [];                     // drawn chunks whose level of detail moved
+  const gone = [];                          // chunks let go: [cx, cz, ...], one message for each thread after
 
   /* Distances are to the NEAREST player. With split screen the loaded set is the union of
      every player's ring, so a chunk only unloads once it is out of range of all of them — and the
      queue priority a chunk gets is whichever player is closest to it. */
-  for (const [k, c] of chunks) {
-    if (c.queuedMesh) { c.queuedMesh = false; requeue.push(c); }  // queue was just cleared
-    const d2 = chunkDist2ToPlayers(c.cx, c.cz);
-    if (d2 > (R + 2) * (R + 2)) {           // unload: dispose GPU resources, drop voxel data
-      retireChunkMeshes(c);                 // ...after a short fade out
-      chunks.delete(k);                     // (edits are kept in editStore)
-      _chunkCacheClear();                   // 0.83851
-      lightForget(c.cx, c.cz);              // 0.8386
-      if (typeof fluidForget === 'function') fluidForget(c.cx, c.cz);   // 0.844
-    } else if (d2 > R * R) {
-      retireChunkMeshes(c);                 // data ring beyond render radius: keep data only (fading out)
-    } else if ((c.meshes[0] || c.meshes[1] || c.meshes[2] || c.meshes[3]) && chunkLod(d2, c.lod | 0) !== (c.lod | 0)) {
-      if (c.meshing) c.dirty = true; else lodChange.push([c, d2]);
-    }
+  if (step) _rqWalk = { it: chunks.entries(), R, lodChange: [], gone: [] };   // walked over the next frames
+  else {
+    for (const [k, c] of chunks) _rqVisit(k, c, R, step, requeue, lodChange, gone);
+    lightForgetMany(gone);
+    if (typeof fluidForgetMany === 'function') fluidForgetMany(gone);
   }
-  const seen = PLAYER_CHUNKS.length > 1 ? new Set() : null;   // rings overlap only in split screen
-  for (const pc of PLAYER_CHUNKS) {
-    for (let dz = -RG; dz <= RG; dz++) {
+  if (step) {
+    // what the queues hold, its distance worked out again; a place out of the load ring now is dropped
+    let j = 0;
+    for (const g of genQueue) {
+      const d2 = chunkDist2ToPlayers(g.cx, g.cz);
+      if (d2 <= RG * RG) { g.d2 = d2; genQueue[j++] = g; }
+    }
+    genQueue.length = j;
+    for (const m of meshQueue) if (m.d2 > 0) m.d2 = chunkDist2ToPlayers(m.cx, m.cz);   // 0: a player's edit, at the front
+    // the places new to the load ring, and the ones of it new to the render distance
+    for (let dz = -RG; dz <= RG; dz++)
       for (let dx = -RG; dx <= RG; dx++) {
-        if (dx * dx + dz * dz > RG * RG) continue;
-        const cx = pc[0] + dx, cz = pc[1] + dz;
-        if (seen) { const sk = key(cx, cz); if (seen.has(sk)) continue; seen.add(sk); }
-        const d2 = chunkDist2ToPlayers(cx, cz);      // priority follows the closest player
+        const d2 = dx * dx + dz * dz;
+        if (d2 > RG * RG) continue;
+        const cx = playerCX + dx, cz = playerCZ + dz, ox = cx - at.cx, oz = cz - at.cz, od2 = ox * ox + oz * oz;
+        const wasInRing = od2 <= RG * RG;
+        if (wasInRing && (od2 <= R * R || d2 > R * R)) continue;   // nothing new for this place
         const c = ensureChunk(cx, cz);
-        if (!c.data && !c.generating) genQueue.push({ cx, cz, d2 });
+        if (!c.data && !c.generating) { if (!wasInRing) genQueue.push({ cx, cz, d2 }); }   // one already in the ring is queued
         else if (c.data && d2 <= R * R && !c.meshes[0] && !c.meshes[1] && !c.meshes[2] && !c.meshes[3]) tryQueueMesh(c, d2);
+      }
+  } else {
+    const seen = PLAYER_CHUNKS.length > 1 ? new Set() : null;   // rings overlap only in split screen
+    for (const pc of PLAYER_CHUNKS) {
+      for (let dz = -RG; dz <= RG; dz++) {
+        for (let dx = -RG; dx <= RG; dx++) {
+          if (dx * dx + dz * dz > RG * RG) continue;
+          const cx = pc[0] + dx, cz = pc[1] + dz;
+          if (seen) { const sk = key(cx, cz); if (seen.has(sk)) continue; seen.add(sk); }
+          const d2 = chunkDist2ToPlayers(cx, cz);      // priority follows the closest player
+          const c = ensureChunk(cx, cz);
+          if (!c.data && !c.generating) genQueue.push({ cx, cz, d2 });
+          else if (c.data && d2 <= R * R && !c.meshes[0] && !c.meshes[1] && !c.meshes[2] && !c.meshes[3]) tryQueueMesh(c, d2);
+        }
       }
     }
   }

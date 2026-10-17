@@ -50,6 +50,7 @@ function resetWorld(seed, terrainType, biomeRev = 1) {
     if (p._kick) { p._kick.x = 0; p._kick.z = 0; }
   }
   playerCX = 1e9; playerCZ = 1e9;           // force queue rebuild
+  queuesReset();                            // ...a whole one, never a step from the last world (rebuildQueues)
   for (const pc of PLAYER_CHUNKS) { pc[0] = 1e9; pc[1] = 1e9; }
 }
 

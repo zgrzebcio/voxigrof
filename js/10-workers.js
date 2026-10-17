@@ -8,7 +8,12 @@
 // takes all its block registry from (blocks/blocks.js)
 const workerSrc = `'use strict';\nconst BIOMES = (${BIOME_CORE.toString()})();\nconst BLOCKS = (${BLOCK_CORE.toString()})();\nconst CORE = (${VOXEL_CORE.toString()})();\n(${WORKER_MAIN.toString()})();`;
 const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-const WORKER_COUNT = Math.min(4, Math.max(2, (navigator.hardwareConcurrency || 4) - 2));
+/* the workers making and meshing chunks: all cores but two (the page, and the light and fluid threads), at most 4, and at
+   most 8 on a machine of 12 cores or more, where 4 left most of it idle while land came in */
+const WORKER_COUNT = (() => {
+  const cores = navigator.hardwareConcurrency || 4;
+  return Math.min(cores >= 12 ? 8 : 4, Math.max(2, cores - 2));
+})();
 
 let SEED = (new URLSearchParams(location.search).get('seed') || '').replace(/[^a-z0-9]/gi, '')
         || Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -21,7 +26,12 @@ for (let i = 0; i < WORKER_COUNT; i++) {
   const w = new Worker(workerURL);
   w.busy = 0;                               // jobs it holds
   w.genOut = 0;                             // ...and how many of them are chunks to make, the long ones (the edit lane, chunks/stream.js)
-  w.onmessage = (e) => { w.busy--; if (e.data.type === 'gen' && w.genOut > 0) w.genOut--; onWorkerMessage(e.data); pump(); };
+  w.onmessage = (e) => {
+    w.busy--;
+    const d = e.data, made = d.type === 'gen' || (d.type === 'error' && (d.job === 'gen' || d.job === 'prep'));   // a chunk to make, done or failed
+    if (made && w.genOut > 0) w.genOut--;
+    onWorkerMessage(d); pump();
+  };
   workers.push(w);
 }
 // a side job (a chunk's season scan) to the least busy worker, counted like a gen or mesh job

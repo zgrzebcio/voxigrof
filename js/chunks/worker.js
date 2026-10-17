@@ -231,8 +231,10 @@ function WORKER_MAIN() {
       FREG.set(CORE.flChunkKey(m.cx, m.cz), m.data); fcx = 1e9;
       fsim.scanChunk(m.cx, m.cz);
     } else if (m.type === 'fforget') {
-      FREG.delete(CORE.flChunkKey(m.cx, m.cz)); fcx = 1e9;
-      fsim.forget(m.cx, m.cz);
+      // the chunks let go at one crossing come as one list [cx, cz, cx, cz...] (fluidForgetMany); one as cx, cz
+      const list = m.list || [m.cx, m.cz];
+      for (let i = 0; i + 1 < list.length; i += 2) { FREG.delete(CORE.flChunkKey(list[i], list[i + 1])); fsim.forget(list[i], list[i + 1]); }
+      fcx = 1e9;
     } else if (m.type === 'fstep') {
       const P = m.players, r2 = m.r2;
       const inRange = (cx, cz) => { for (let i = 0; i < P.length; i += 2) { const dx = cx - P[i], dz = cz - P[i + 1]; if (dx * dx + dz * dz <= r2) return true; } return false; };
@@ -297,7 +299,8 @@ function WORKER_MAIN() {
         const k = m.cx + ',' + m.cz;
         LREG.set(k, { key: k, lid: m.lid, data: m.data, light: m.light || null });
       } else if (m.type === 'lforget') {
-        LREG.delete(m.cx + ',' + m.cz);
+        const list = m.list || [m.cx, m.cz];                             // many at once from lightForgetMany
+        for (let i = 0; i + 1 < list.length; i += 2) LREG.delete(list[i] + ',' + list[i + 1]);
       } else if (m.type === 'lreset') {
         LREG.clear();
         if (m.top) LTOP = m.top;
@@ -330,7 +333,8 @@ function WORKER_MAIN() {
         self.postMessage({ type: 'mesh', cx: m.cx, cz: m.cz, rev: m.rev, passes: r.passes, minY: r.minY, maxY: r.maxY }, transfers);
       }
     } catch (err) {
-      self.postMessage({ type: 'error', message: String(err && err.stack || err) });
+      // which job failed, so the page can give back what that job held (onWorkerMessage, chunks/stream.js)
+      self.postMessage({ type: 'error', message: String(err && err.stack || err), job: m && m.type, cx: m && m.cx, cz: m && m.cz });
     }
   };
 }

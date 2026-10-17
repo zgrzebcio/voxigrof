@@ -60,8 +60,8 @@ function frame(now) {
      of these was individually harmless there — their queues are empty on a backdrop — but they
      were still called every frame, and gating them in one place makes the rule explicit rather
      than relying on each system to notice where it is. Boot spends its frames on the panorama. */
-  // a world still joining is held the same way until its chunks are in
-  if (!menuScene && !worldJoining()) {
+  // a world still joining is held the same way until its chunks are in, and so is one under the pause menu (worldHeld)
+  if (!menuScene && !worldHeld()) {
     /* the fixed tick (SIM_FIXED in 00-config): the world's clockwork steps SIM_DT at a time, as many times as
        the real time since the last frame holds; a gap over SIM_MAX_FRAME is dropped (a hidden tab: the world waits) */
     if (SIM_FIXED) {
@@ -212,6 +212,7 @@ function runChunkStream(dt) {
   let tp = perfNow();                       // F3 timings
   /* ---- chunk streaming, centred on the union of every player's position ---- */
   syncPlayerChunks();
+  _rqWalkSome(RQ_WALK_PER_FRAME);           // a chunk border's walk over the chunks, a share a frame (rebuildQueues)
   /* Finish arrived chunks before uploading meshes — a chunk must be lit before it is meshed.
      Generous while the loading screen is up (nothing is on screen to stutter), tight in play.
 
@@ -245,16 +246,20 @@ function runChunkStream(dt) {
      STREAM_MS_BEHIND ms and STREAM_SHARE_BEHIND of the frame, twice the chunks finished and shown a frame. What it
      takes, the background gives up (LAND FIRST, chunks/stream.js), so the frame is not much longer for it. */
   streamBehind = !_rush && (_catchUp || streamLandWaiting());
-  const _slow = _rush ? 1 : Math.min(STREAM_COUNT_MAX, Math.max(1, frameMsAvg / 16.7));
-  const _streamMs = _rush ? 30 : Math.min(STREAM_MS_MAX, Math.max(_catchUp ? 12 : streamBehind ? STREAM_MS_BEHIND : 5,
+  /* ...and above 60 fps the other way: the counts and the least slice are a 60 fps frame's share, so a frame of half
+     the length (120 fps) finishes and shows half as many chunks and takes at most half the time, the same land each
+     second. A whole 60 fps slice (up to 12 ms) in an 8 ms frame was a dropped frame every time land came in. */
+  const _slow = _rush ? 1 : Math.min(STREAM_COUNT_MAX, Math.max(0.5, frameMsAvg / 16.7));
+  const _least = Math.min(1, frameMsAvg / 16.7);
+  const _streamMs = _rush ? 30 : Math.min(STREAM_MS_MAX, Math.max((_catchUp ? 12 : streamBehind ? STREAM_MS_BEHIND : 5) * _least,
                                                                   frameMsAvg * (streamBehind ? STREAM_SHARE_BEHIND : STREAM_SHARE)));
   const _streamDeadline = performance.now() + _streamMs;
   tp = perfLap('stream', tp);
-  processGenFinish(Math.round((_rush ? 8 : _catchUp ? 6 : streamBehind ? 4 : 2) * _slow), _streamDeadline);
+  processGenFinish(Math.max(1, Math.round((_rush ? 8 : _catchUp ? 6 : streamBehind ? 4 : 2) * _slow)), _streamDeadline);
   tp = perfLap('chunk finish', tp);
   updateChunkFades(dt);                     // chunks fading in and out
   // the uploads keep at least a third of the slice to themselves, however long the finishing took
-  applyMeshResults(Math.round((_rush ? 48 : _catchUp ? 32 : streamBehind ? 24 : 12) * _slow), Math.max(_streamDeadline, performance.now() + _streamMs * STREAM_UPLOAD_KEEP));
+  applyMeshResults(Math.max(1, Math.round((_rush ? 48 : _catchUp ? 32 : streamBehind ? 24 : 12) * _slow)), Math.max(_streamDeadline, performance.now() + _streamMs * STREAM_UPLOAD_KEEP));
   tp = perfLap('mesh upload', tp);
   updateFarRegions();                       // settled far chunks drawn 4x4 to a mesh (C8)
   tp = perfLap('far regions', tp);
@@ -363,9 +368,9 @@ function runWorldTick(dt, now) {
   /* The whole simulation block is skipped on the title screen. The panorama has no physics, no
      fluids, no mobs and no growth — it is a camera pointed at generated terrain — so every one of
      these is dead weight there, and the boot frames are better spent streaming the backdrop in. */
-  // ...and while a world is joining nothing runs either: no mobs, fluids, drops or growth
+  // ...and while a world is joining or paused nothing runs either: no mobs, fluids, drops or growth
   tp = perfLap('stream', tp);
-  if (!menuScene && !worldJoining()) {
+  if (!menuScene && !worldHeld()) {
     updateSimWake();                        // seed physics for chunks entering the sim radius
     processFalling(dt);
     tp = perfLap('falling', tp);
@@ -412,12 +417,12 @@ function runWorldTick(dt, now) {
 
   /* ---- sky, lighting & shadow maps, then one render pass per player ---- */
   // the clock waits for the world too; with the fixed tick it moves in simTick, but on the title here
-  updateDayNight(worldJoining() ? 0 : dt, !SIM_FIXED || !!menuScene);
-  updateClouds(worldJoining() ? 0 : dt);        // the cloud layer drifts with the wind
+  updateDayNight(worldHeld() ? 0 : dt, !SIM_FIXED || !!menuScene);
+  updateClouds(worldHeld() ? 0 : dt);           // the cloud layer drifts with the wind
   tp = perfLap('sky+clouds', tp);
   renderAllViews(dt);
   tp = perfLap('render', tp);
-  if (typeof updateCameraFilter === 'function') updateCameraFilter(worldJoining() ? 0 : dt);   // what is on each lens
+  if (typeof updateCameraFilter === 'function') updateCameraFilter(worldHeld() ? 0 : dt);   // what is on each lens
   tp = perfLap('lens', tp);
 
   /* ---- HUD text (after the render so draw/tri stats reflect the main pass) ---- */

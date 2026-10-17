@@ -210,11 +210,11 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
     }
 }
 
-// a freshly loaded chunk: pour in any glowstone within reach so it isn't dark
+// a freshly loaded chunk: pour in any glowstone within reach so it isn't dark. Returns how many lights it poured.
 function relightForChunk(cx, cz) {
   // outside the simulation radius the chunk is drawn but not maintained; the sim-wake pass
   // calls this again the moment it comes back into range, so nothing is lost by skipping here
-  if (!inSimRangeChunk(cx, cz)) return;
+  if (!inSimRangeChunk(cx, cz)) return 0;
   // only emitters in the chunks this one can be reached from — not every light in the world
   const srcs = [];                         // gathered, then poured in one flood
   forEachGlowNear(cx * 16 + 8, cz * 16 + 8, LIGHT_REACH + 8, (gx, gy, gz) => {
@@ -228,8 +228,9 @@ function relightForChunk(cx, cz) {
     const dx = Math.max(cx*16 - gx, gx - (cx*16+15), 0), dz = Math.max(cz*16 - gz, gz - (cz*16+15), 0);
     if (dx <= lv && dz <= lv) srcs.push(g);                 // with its colour
   }
-  if (_lightW) { if (srcs.length) _lightPost('ladd', srcs, null); return; }   // the light thread
+  if (_lightW) { if (srcs.length) _lightPost('ladd', srcs, null); return srcs.length; }   // the light thread
   propagateLightMany(srcs);
+  return srcs.length;
 }
 
 /* ---- the light thread (LIGHT_THREAD, only with shared memory, SHARED_OK) ----
@@ -257,6 +258,8 @@ function lightRegister(c) {
   _lightW.postMessage({ type: 'lreg', cx: c.cx, cz: c.cz, lid: c._lid, data: c.data, light: c.light || null });
 }
 function lightForget(cx, cz) { if (_lightW) _lightW.postMessage({ type: 'lforget', cx, cz }); }
+// the chunks let go at one chunk border, [cx, cz, cx, cz...]: one message, not one each
+function lightForgetMany(list) { if (_lightW && list.length) _lightW.postMessage({ type: 'lforget', list }); }
 function lightForgetAll() { if (_lightW) { _lightW.postMessage({ type: 'lreset' }); _lightJobs.clear(); } }
 function _lightPost(type, srcs, box) {
   const id = ++_lightJobN;

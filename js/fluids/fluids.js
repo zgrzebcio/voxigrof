@@ -62,6 +62,12 @@ function fluidForget(cx, cz) {
   if (_fluidSim) _fluidSim.forget(cx, cz);
   for (let i = _fluidScanQ.length - 1; i >= 0; i--) if (_fluidScanQ[i][0] === cx && _fluidScanQ[i][1] === cz) _fluidScanQ.splice(i, 1);
 }
+// the chunks let go at one chunk border, [cx, cz, cx, cz...]: to the thread as one message
+function fluidForgetMany(list) {
+  if (!list.length) return;
+  if (_fluidW) { _fluidW.postMessage({ type: 'fforget', list }); return; }
+  for (let i = 0; i + 1 < list.length; i += 2) fluidForget(list[i], list[i + 1]);
+}
 // a world swap (21 resetWorld): everything let go; an answer still on its way is dropped (_fluidGen)
 function fluidReset() {
   _fluidGen++;

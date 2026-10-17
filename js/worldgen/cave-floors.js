@@ -3,6 +3,9 @@
    A part of genChunk's body (worldgen/gen-chunk.js). */
 
 corePart('gen.chunk', function () {
+      // where a brown mushroom grows, a black, a white or a yellow one may instead, a quarter each. Outside the pass's
+      // function below: a later part reads it too (woods/gen-fallen-logs.js, the mushrooms on a fallen log)
+      const brownish = (r) => r < 0.25 ? B.BROWN_MUSHROOM : r < 0.5 ? B.BLACK_MUSHROOM : r < 0.75 ? B.WHITE_TALL_MUSHROOM : B.YELLOW_MUSHROOM;
       (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- dirt in caves: patches of it on cave floors, a block deep, where a 3D noise says so (some 10-block
          blobs, a pure function of world position, so chunk borders agree). Mushrooms grow on it as on stone, and the
@@ -19,8 +22,6 @@ corePart('gen.chunk', function () {
         }
 
       /* ---- red mushrooms: cave floors + shadowed ground under leaves ---- */
-      // where a brown mushroom grows, a black, a white or a yellow one may instead, a quarter each
-      const brownish = (r) => r < 0.25 ? B.BROWN_MUSHROOM : r < 0.5 ? B.BLACK_MUSHROOM : r < 0.75 ? B.WHITE_TALL_MUSHROOM : B.YELLOW_MUSHROOM;
       // is there lava within 3 blocks across and 1 up or down? (the lava mushroom's ground)
       const lavaNear = (x, y, z) => {
         for (let dy = -1; dy <= 1; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {

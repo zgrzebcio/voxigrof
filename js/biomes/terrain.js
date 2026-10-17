@@ -22,6 +22,14 @@ corePart('biomes.make', function () {
     const _warm = (temp) => BIG_CLIMATE ? smooth01(temp, 0.0, 0.22) : smooth01(temp, 0.02, 0.30);
     const _cold = (temp) => BIG_CLIMATE ? smooth01(-temp, 0.0, 0.22) : smooth01(-temp, 0.02, 0.30);
 
+    /* is a water higher than level L within FLUSH_SAFE of this column's bank (the river `rv0`, the lake `lw`, and the
+       waters near them)? A level shore (FLUSH) is not laid there: that water's rim has to stand */
+    const _higherNear = (rv, rv0, lw, L) => {
+      for (const w of [rv0, lw]) if (w && w !== rv && w.level > L && w.edge < WET_EDGE + FLUSH_SAFE) return true;
+      for (const list of [rv0 && rv0.near, lw && lw.near])
+        if (list) for (const w of list) if (w.level > L && w.edge < WET_EDGE + FLUSH_SAFE) return true;
+      return false;
+    };
     // world-space column terrain sample: continents + biome-weighted hills + ridged mountains.
     // The biome selector `t` sweeps forest -> plains -> desert; fPlains rises through BOTH
     // plains and desert (it flattens hills/mountains and fades out trees), while fDesert
@@ -312,6 +320,9 @@ corePart('biomes.make', function () {
               if (RIV2) h = Math.max(h, L + 1 + into * 0.5);
               else if (into > -1.6) h = L + 1;
             }
+            // rev 27: a level shore, the ground of the first FLUSH_W columns at the water's top (FLUSH, biomes/fields.js)
+            if (FLUSH && into > -FLUSH_W && h > L && !_higherNear(rv, rv0, lw, L)
+                && fbm(x * 0.045 + 1913.7, z * 0.045 - 2671.3, 2) < (shoreKindAt(x, z) === 1 ? FLUSH_SAND : FLUSH_ELSE)) h = L;
           }
           const c = smooth01(into, 0, 0.6);
           if (rv.lake) lk = Math.max(lk, c); else rT = Math.max(rT, c);

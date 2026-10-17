@@ -133,6 +133,7 @@ function _soundPool(key) {
    attenuates with distance from the player. */
 function playSound(key, opts) {
   if (!_soundReady || sfxGain() <= 0) return;
+  if (typeof worldPaused === 'function' && worldPaused()) return;   // the pause menu: silence (pauseWorldSounds)
   const pool = _soundPool(key);
   if (!pool) return;
   const o = opts || {};
@@ -278,7 +279,23 @@ function _wxSnowNode() {
   } catch { _wxCtx = null; return false; }
   return true;
 }
+/* THE PAUSE MENU: every sound of the world stops when it opens (sounds already playing too) and the loops come back
+   as they were when it shuts: rain and snow are picked up by updateWeatherSound, a furnace's crackle by its tick (its
+   watchdog stops it while the world is held), and nothing new starts in between (playSound). The title's music is
+   not a world sound. */
+let _soundsPaused = false;
+function pauseWorldSounds(on) {
+  if (on === _soundsPaused) return;
+  _soundsPaused = on;
+  if (!on) return;
+  for (const pool of _soundPools.values()) for (const a of pool.list) if (!a.paused) a.pause();
+  if (_rainAudio && !_rainAudio.paused) _rainAudio.pause();
+  if (_wxCtx && _wxCtx.state === 'running') _wxCtx.suspend().catch(() => {});
+}
 function updateWeatherSound(dt) {
+  const paused = typeof worldPaused === 'function' && worldPaused();
+  pauseWorldSounds(paused);
+  if (paused) return;                       // held where they were: back as they were when the menu shuts
   const s = _wxSnd;
   s.t -= dt;
   if (s.t <= 0) {                                    // looked at twice a second

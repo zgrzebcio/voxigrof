@@ -308,19 +308,33 @@ sunMesh.renderOrder = moonMesh.renderOrder = -2;
 stars.renderOrder = -3;
 for (const o of [sky, moonSky, skyDome, meteor, flareMesh]) { o.traverse(c => c.layers.set(1)); scene.add(o); }   // sky never casts shadows
 
-/* ---------- shadow rig ---------- */
-const SHADOW_SIZE = 1024;
+/* ---------- shadow rig ----------
+   Two maps, solid blocks (full shadows) and leaves/glass (weak ones), drawn from the sun or the moon over shadowR round
+   the players. Drawing them is two more passes over every chunk near the players: about 13 ms of a laptop's CPU, a whole
+   frame at 120 fps, and it used to happen in nearly every frame while a player moved or land came in. So now:
+     - they are drawn again only when something moved: the sun a SHADOW_SUN_STEP (a quarter second of its way: a
+       shadow moves far less than a texel), the players' middle out of its SHADOW_SNAP cell (~14 blocks; the map
+       reaches shadowR round the cell, so the land near the players is always in it), a player's edit near
+       (shadowDirty: at once), or new land near (shadowSoftDirty: at most every SHADOW_SOFT_MS);
+     - a new pair is drawn over SHADOW_SLICES frames, a share of the scene's objects each frame, into the BACK pair,
+       and swapped in whole when done (its textures and its matrix together): no frame pays for all of it, and none
+       shows half a map. */
+const SHADOW_SIZE = 1024, SHADOW_SLICES = 4, SHADOW_SNAP = 64, SHADOW_SOFT_MS = 500;
+const SHADOW_SUN_STEP = Math.PI / 2400;     // the sun's wheel turns 2 PI a day (DAY_LEN 1200 s): 4 steps a second
 function makeShadowRT() {
   const dt = new THREE.DepthTexture(SHADOW_SIZE, SHADOW_SIZE);
   dt.compareFunction = THREE.LessCompare;   // sampler2DShadow + linear filter = hardware PCF
   dt.minFilter = dt.magFilter = THREE.LinearFilter;
   return new THREE.WebGLRenderTarget(SHADOW_SIZE, SHADOW_SIZE, { depthTexture: dt });
 }
-const rtShadowS = makeShadowRT(), rtShadowL = makeShadowRT();
-sharedUniforms.tShadS.value = rtShadowS.depthTexture;
-sharedUniforms.tShadL.value = rtShadowL.depthTexture;
-renderer.setRenderTarget(rtShadowS); renderer.clear();  // prime: everything lit until first pass
-renderer.setRenderTarget(rtShadowL); renderer.clear();
+// [solid, leaves]: the front pair is what the world is drawn with, the back pair is being drawn
+let shadowFront = [makeShadowRT(), makeShadowRT()], shadowBack = [makeShadowRT(), makeShadowRT()];
+function _setShadowTextures() {
+  sharedUniforms.tShadS.value = shadowFront[0].depthTexture;
+  sharedUniforms.tShadL.value = shadowFront[1].depthTexture;
+}
+_setShadowTextures();
+for (const rt of [...shadowFront, ...shadowBack]) { renderer.setRenderTarget(rt); renderer.clear(); }   // prime: everything lit until the first pair
 renderer.setRenderTarget(null);
 
 const shadowCam = new THREE.OrthographicCamera(-110, 110, 110, -110, 1, 560);
@@ -329,14 +343,18 @@ function applyShadowDist() {
   shadowCam.top = Math.max(shadowR, 1);   shadowCam.bottom = -Math.max(shadowR, 1);
   shadowCam.updateProjectionMatrix();
   shadowDirty = true;
+  _shadowBuild = null;                      // a pair half drawn at the old reach is not finished
   localStorage.setItem('vg_shadow', shadowR);
 }
 // slope-scaled offset while drawing the maps kills the "crawling stripes" acne on faces
 // that are near-parallel to low morning/evening sun
 const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide,
   polygonOffset: true, polygonOffsetFactor: 2.5, polygonOffsetUnits: 6 });
-let shadowDirty = true;                     // world changed since the maps were rendered
+let shadowDirty = true;                     // a player changed the world near: a new pair at once
+let shadowSoftDirty = false;                // new land came in near: a new pair, but not more often than SHADOW_SOFT_MS
 let shadowKey = 1e9, shadowTX = 1e9, shadowTY = 1e9;
+let _shadowBuild = null, _shadowBuiltAt = -1e9;   // the pair being drawn: { step, casters }; when the last was begun
+const _shadowMat = new THREE.Matrix4();     // the pair being drawn's matrix, shown with it
 const BIAS_MAT = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
 const _sv = new THREE.Vector3(), _sr = new THREE.Vector3(), _su = new THREE.Vector3();
 const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Color(), _c4 = new THREE.Color();
@@ -362,6 +380,7 @@ function _shadowCenter() {
   return n ? _shadowMid.multiplyScalar(1 / n) : player.pos;
 }
 function renderShadowMaps(dir, key) {
+  if (_shadowBuild) { _shadowSlice(); return; }   // a pair under way is finished first; what moved meanwhile starts the next
   _sd.copy(dir);                            // defensive copy: callers pass shared temps
   // establish the light's basis independent of the player (rotation only depends on dir)
   shadowCam.up.set(0, 0, 1);                // never parallel to the tilted sun path
@@ -378,32 +397,52 @@ function renderShadowMaps(dir, key) {
      players rather than on any one of them. Solo that is exactly the old behaviour; with
      players spread further apart than `shadowR` the outermost ones simply fall outside the map,
      which is the same graceful degradation distance already causes in single player. */
+  // ...on a cell of SHADOW_SNAP texels: a whole number of texels still, so the alignment holds
   const p = _shadowCenter();
-  const texel = (Math.max(shadowR, 1) * 2) / SHADOW_SIZE;
-  const tx = Math.round(p.dot(_sr) / texel) * texel;
-  const ty = Math.round(p.dot(_su) / texel) * texel;
-  if (!shadowDirty && key === shadowKey && tx === shadowTX && ty === shadowTY) return;
-  shadowDirty = false; shadowKey = key; shadowTX = tx; shadowTY = ty;
+  const texel = (Math.max(shadowR, 1) * 2) / SHADOW_SIZE, snap = texel * SHADOW_SNAP;
+  const tx = Math.round(p.dot(_sr) / snap) * snap;
+  const ty = Math.round(p.dot(_su) / snap) * snap;
+  const now = performance.now(), soft = shadowSoftDirty && now - _shadowBuiltAt >= SHADOW_SOFT_MS;
+  if (!shadowDirty && !soft && key === shadowKey && tx === shadowTX && ty === shadowTY) return;
+  shadowDirty = shadowSoftDirty = false; shadowKey = key; shadowTX = tx; shadowTY = ty; _shadowBuiltAt = now;
 
   _sv.copy(_sr).multiplyScalar(tx).addScaledVector(_su, ty).addScaledVector(_sf, p.dot(_sf));
   shadowCam.position.copy(_sv).addScaledVector(_sd, 250);
   shadowCam.lookAt(_sv.x, _sv.y, _sv.z);
   shadowCam.updateMatrixWorld(true);
-  sharedUniforms.uShadowMat.value.copy(BIAS_MAT)
-    .multiply(shadowCam.projectionMatrix)
-    .multiply(shadowCam.matrixWorldInverse);
-
+  _shadowMat.copy(BIAS_MAT).multiply(shadowCam.projectionMatrix).multiply(shadowCam.matrixWorldInverse);
+  // the scene's objects as they are now, each drawn in one slice (an object added meanwhile is drawn in every slice left)
+  _shadowBuild = { step: 0, casters: scene.children.slice() };
+  _shadowSlice();
+}
+/* one slice of the pair being drawn: its share of the objects, both maps; the last one swaps the pair in. The objects
+   are dealt out in turn (every SHADOW_SLICES-th to a slice), not cut into runs: the scene keeps them in the order they
+   came, and the chunks near the players, which have the most to draw, all came first */
+function _shadowSlice() {
+  const b = _shadowBuild, n = b.casters.length;
+  const hidden = [];
+  for (let i = 0; i < n; i++) {
+    const o = b.casters[i];
+    if (i % SHADOW_SLICES !== b.step && o.visible) { o.visible = false; hidden.push(o); }
+  }
+  const autoClear = renderer.autoClear;
+  renderer.autoClear = false;               // the slices draw over each other: only the first clears
   scene.overrideMaterial = depthMat;
-  shadowCam.layers.set(0);                  // solid chunks -> full shadows
-  renderer.setRenderTarget(rtShadowS);
-  renderer.clear();
-  renderer.render(scene, shadowCam);
-  shadowCam.layers.set(2);                  // leaves/glass -> low-intensity shadows
-  renderer.setRenderTarget(rtShadowL);
-  renderer.clear();
-  renderer.render(scene, shadowCam);
+  for (let k = 0; k < 2; k++) {
+    shadowCam.layers.set(k === 0 ? 0 : 2);  // solid chunks -> full shadows; leaves/glass -> low-intensity ones
+    renderer.setRenderTarget(shadowBack[k]);
+    if (b.step === 0) renderer.clear();
+    renderer.render(scene, shadowCam);
+  }
   scene.overrideMaterial = null;
   renderer.setRenderTarget(null);
+  renderer.autoClear = autoClear;
+  for (const o of hidden) o.visible = true;
+  if (++b.step < SHADOW_SLICES) return;
+  const done = shadowBack; shadowBack = shadowFront; shadowFront = done;
+  _setShadowTextures();
+  sharedUniforms.uShadowMat.value.copy(_shadowMat);
+  _shadowBuild = null;
 }
 
 // where the sun and the moon are (unit vectors from the eye), and which of them the shadows come from
@@ -614,11 +653,13 @@ function updateDayNight(dt, advance = true) {
   const useSun = sunI >= moonI;
   skyLightDir.copy(useSun ? sunDirW : moonDirW);
   if (shadowR > 0 && Math.max(sunI, moonI) > 0.02) {
-    // near real-time: the shadow sun steps ~0.015° (~20/s). The soft PCF filter blurs each
-    // step's sub-texel edge shift into a smooth crawl, so even at this rate there's no flicker
-    // — shadows track the sun almost continuously (verify FPS holds; it's the pricier setting)
-    const STEP = Math.PI / 12000;
-    const qa = Math.floor((useSun ? a : am) / STEP) * STEP;   // the moon on its own wheel since 0.817
+    /* the shadow sun steps SHADOW_SUN_STEP (4 times a second) while it stands high: a step then moves an edge far less
+       than a texel, and the soft PCF filter blurs it. Low in the sky a shadow is long and moves further each step (a
+       block for a tall tree at sunset), so the step halves under 30 degrees and again under 15: 8 and 16 a second.
+       Halvings only: a step that changed smoothly would move `qa` every frame, and every frame would start a new pair */
+    const elevSin = Math.max(0, useSun ? sunElev : moonElev);     // the sine of its height
+    const step = SHADOW_SUN_STEP / (elevSin >= 0.5 ? 1 : elevSin >= 0.25 ? 2 : 4);
+    const qa = Math.floor((useSun ? a : am) / step) * step;   // the moon on its own wheel since 0.817
     _skyDir(_sv, qa, useSun ? dec : decM);
     renderShadowMaps(_sv, qa + (useSun ? 0 : 7));
     sharedUniforms.uShadowOn.value = 1;

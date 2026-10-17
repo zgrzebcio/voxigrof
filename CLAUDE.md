@@ -92,9 +92,40 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   3. Pacing (`_genThrottle`, chunks/stream.js): inside `viewDist` a chunk to make for every worker that may make one,
      plus one; the far ring keeps 2 at a time. A chunk's terrain-cache read comes before a worker is chosen
      (`_genFromCache`), and a chunk let go during the read gives its place back (it used to leak one for good).
+  THE TRAP of 1: a name declared inside a wrapper is gone for the parts after it. `brownish` (worldgen/cave-floors.js)
+  was, and every chunk with mushrooms on a fallen log failed in the worker; 244 hashed chunks never reached that line.
+  Before wrapping a pass, search each name it declares at its top level in the parts after it.
   The first chunk in a new region still costs about a second in each worker: its rivers and lakes are traced
   (biomes/rivers-lakes.js, up to ~2,700 blocks round). Proving the land unchanged: hash chunks from fixed seeds before and
   after (the test page 8408 keeps 244 of them in localStorage `perf_baseline_8458`, several world kinds and revs).
+- **Frames at 120 fps while land comes in** (0.8459).
+  1. Shadow maps (07-sky.js, above `makeShadowRT`): drawing them is two more passes over every chunk near the players.
+     They are drawn again only when something moved: the sun a `SHADOW_SUN_STEP` (4 a second high up, 8 and 16 low,
+     in halvings only: a step that changed smoothly would start a new pair every frame), the players' middle out of its
+     `SHADOW_SNAP` cell (~14 blocks), a player's edit (`shadowDirty`, at once), other new geometry (`shadowSoftDirty`,
+     at most every `SHADOW_SOFT_MS`). A new pair is drawn over `SHADOW_SLICES` frames into the BACK pair (the scene's
+     objects dealt out in turn, `_shadowSlice`) and swapped in whole with its matrix. Checked: the image is the same
+     as with a pair drawn whole. The shadow camera is only placed for a pair being drawn: between pairs it is not where
+     the shown pair was drawn from.
+  2. The stream's counts and least slice are a 60 fps frame's share (`_slow` from 0.5, `_least`, runChunkStream in 22):
+     the same land a second at any frame rate, never a whole 60 fps slice in an 8 ms frame.
+  3. Workers: up to 8 on a machine of 12+ cores (`WORKER_COUNT`, 10-workers.js), 4 below.
+  4. A worker's error names its job; a failed chunk to make gives its place back and is asked for again, twice at most;
+     a failed mesh is counted off and asked for again (`onWorkerMessage`): before, each one left a job slot taken and a
+     chunk "being made" for good.
+  5. Crossing a chunk border (chunks/chunks.js above `rebuildQueues`): a STEP of one chunk (one player, the same view
+     distance) only updates the queues (distances again, the new places of the load ring, the places new to the render
+     distance); its walk over all the chunks (`_rqVisit`: let go, meshes let go, level of detail) is spread over the
+     next frames (`_rqWalk`, `RQ_WALK_PER_FRAME`); the chunks let go go to the light and fluid threads as one list
+     (`lightForgetMany`, `fluidForgetMany`). Anything else rebuilds it all. Since the queues are no longer rebuilt at
+     every crossing, a chunk that drops out of them must be queued again where it drops (as the worker error does).
+  6. Sim-wake (chunks/sim-wake.js) re-meshes the 3x3 round a woken chunk only when light was poured and there is no
+     light thread (the thread's answer re-meshes what changed): it was nine meshes for every chunk coming into range.
+  7. The terrain cache's list (`_terrainHave`, `terrainCacheIndex` from loadWorld, `terrainCacheAdded`): a chunk not
+     in the cache is not read first. Reads of new land waited behind the writes of new land (median 0.36 s, up to 3 s,
+     a job slot held all along): 8 chunks a second flying, 45 now.
+  8. The fast generation lane reaches `viewDist + 1` (`_genThrottle`): a chunk at the edge of the render distance is
+     meshed only when the four round it are made, and they were in the slow far-ring lane.
 - **A new chunk's daylight** (0.8455, 09-light-sky.js). `propagateSky(q, touched, own)` floods only chunks that are
   `lit` (their own lighting pass has run, finishChunkGen) and `own`, the one being lit now. A chunk that has its
   cells but still waits in `genFinishQueue` takes NOTHING: at its own pass it pulls its lit neighbours' borders in
@@ -113,6 +144,9 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   `requestAnimationFrame` in a window property first and put it back in a `finally` (a stub left behind kills the
   game's loop), and wake each frame from a small timer worker (`setInterval` posting every 16.67 ms) instead of
   spinning on MessageChannel: a spinning main thread starves the workers and every chunk number comes out wrong.
+  GPU times from the pane are not to be trusted (the same render read 2.4 ms and then 58 ms minutes later): judge
+  frames by the CPU time of their parts, and a GPU cost by one call between two `gl.finish()`. `renderer.render` is
+  the renderer's OWN property in this three.js: wrap it by assigning and put the saved one back, never `delete` it.
 - **Version numbers.** The steps after 0.845 are 0.8451 to 0.8455. They were first numbered 0.8501 to 0.8505 (the
   roadmap's 0.85 is the jungle), and the backup refs keep those names (`before-0.8504`, `at-0.8505`).
 - **The grass colour** is `GRASS_RGB` at the top of 03-atlas.js: the grass block's top, the fringe on its side,

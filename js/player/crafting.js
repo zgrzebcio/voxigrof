@@ -221,11 +221,11 @@ function cancelCraftQueue() {
 // once per frame per seat: advance the front slot, then keep both views of the queue current
 function updateCraftQueue(dt) {
   const q = player.craftQueue;
-  const running = !!(q && q.length && !player.canFly && !player.dead && !worldJoining() && craftSpeed() > 0);
+  const running = !!(q && q.length && !player.canFly && !player.dead && !worldHeld() && craftSpeed() > 0);
   // Precise Focus: the longer the queue has run without a stop, the faster it goes (queueFocusMul)
   player._queueFocusT = running ? (player._queueFocusT || 0) + dt : 0;
   const qSpeed = craftSpeed() * queueFocusMul();
-  if (q && q.length && !player.canFly && !player.dead && !worldJoining()) {
+  if (q && q.length && !player.canFly && !player.dead && !worldHeld()) {
     const e = q[0], r = e.rep ? null : recipeAt(e.ri);
     if (e.rep) {                                       // a repair (Mender, 0.79): the tool comes back whole
       if (craftSpeed() > 0) {

@@ -14,6 +14,7 @@ corePart('gen.make', function () {
     const FOSSIL2 = biomeRev >= 24;                   // 70% fewer skeletons in the Dryland
     const LAVA2 = biomeRev >= 25;                     // 20% more surface lava ponds in warm plains and the Dryland
     const PALM2 = biomeRev >= 26;                     // shore palms only where the land is level +1 or warmer
+    const FLUSH = biomeRev >= 27;                     // a river's or lake's shore level with its water is a little beach (FLUSH, biomes/fields.js)
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
     const seedInt = seedFn();

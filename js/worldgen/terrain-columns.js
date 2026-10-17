@@ -210,8 +210,11 @@ corePart('gen.chunk', function () {
               }
             if (hitType && SHORES) {
               const dist = Math.sqrt(minD2), w = shoreWidth(wx, wz, hitType);
+              // rev 27: a river's or a lake's shore level with its water (terrainInfo's FLUSH) is a little beach: sand,
+              // gravel where the shore is gravel
+              if (FLUSH && hitType === 2 && h === hitWl && dist < 2.5) { nearWater = true; shore = shoreKindAt(wx, wz) === 2 ? 2 : 1; }
               // the cliff and the ledge at its foot (no wider for the wider beaches)
-              if (hitType === 1 && CLF[gi] > 0.45 && hitWl === WATER_LEVEL) rock = h <= shoreTop && dist < (HILLS ? Math.min(w, 5) : w) + 2;
+              else if (hitType === 1 && CLF[gi] > 0.45 && hitWl === WATER_LEVEL) rock = h <= shoreTop && dist < (HILLS ? Math.min(w, 5) : w) + 2;
               else if (h <= hitWl + 3 && h >= hitWl && dist < w) { nearWater = true; shore = OAS[gi] ? 1 : shoreKindAt(wx, wz); }   // an oasis's shore sand
             } else if (hitType) {
               const bn = (fbm(wx * 0.007 + 217.3, wz * 0.007 - 803.7, 2) + 1) * 0.5;

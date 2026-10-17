@@ -184,8 +184,9 @@ function _genThrottle() {
      worker that may make one, and one more on its way, so none of them stands idle. A job is out for a few hundred
      ms (its cache read, its turn in the worker's queue, the making), and the old 2 or 3 at a time held the land to
      about 9 chunks a second at render 10. Beyond it, the far ring drawn at LOD 2: a steady pace, ~25 a second. */
+  // (one ring further than viewDist: a chunk at the very edge is meshed only once the four round it are made and lit)
   const makers = Math.max(1, workers.length - (_editLane ? 1 : 0));
-  if (d2 <= viewDist * viewDist) return { max: makers + 1, gap: 3 };
+  if (d2 <= (viewDist + 1) * (viewDist + 1)) return { max: makers + 1, gap: 3 };
   return { max: 2, gap: 40 };
 }
 function noteGenDone() { if (_genInflight > 0) _genInflight--; }
@@ -282,11 +283,43 @@ function pump() {
 }
 // a chunk to make goes to a worker, which counts it from now on (busy, genOut; its answer counts it off, 10-workers.js)
 function _genSend(w, msg, transfer) { w.busy++; w.genOut++; w.postMessage(msg, transfer); }
+/* WHICH CHUNKS THE TERRAIN CACHE HOLDS, known without asking it. Every chunk to make used to read the cache first, and
+   flying into new land every read found nothing, after waiting its turn behind the writes of the chunks just made: a
+   median 0.36 s, up to 3 s, holding a job slot all the while (8 chunks a second from 8 workers). Now one keys-only read
+   when a world opens lists what it holds, and each chunk stored is added: a chunk not on the list goes straight to a
+   worker. Until the list is in, every chunk is read as before. A list that missed one only costs a chunk made again,
+   the same land (the cache holds the generator's output; edits are kept apart). */
+let _terrainHave = null, _terrainHaveWid = null;   // Set of "cx,cz" for world _terrainHaveWid; null while not known
+let _terrainAdded = new Set();                     // stored while the list was being read
+function terrainCacheIndex(wid) {
+  _terrainHave = null; _terrainHaveWid = wid; _terrainAdded = new Set();
+  if (!idb || !wid) return;
+  try {
+    const prefix = TERRAIN_KEY + wid + ':';
+    const rq = idb.transaction('worlds', 'readonly').objectStore('worlds').getAllKeys(IDBKeyRange.bound(prefix, prefix + '￿'));
+    rq.onsuccess = () => {
+      if (_terrainHaveWid !== wid) return;          // another world opened meanwhile
+      const have = new Set(_terrainAdded);
+      for (const k of rq.result || []) have.add(String(k).slice(prefix.length));
+      _terrainHave = have;
+    };
+  } catch (e) { /* no list: every chunk is read, as before */ }
+}
+// a chunk just stored in the cache
+function terrainCacheAdded(wid, k) {
+  if (wid !== _terrainHaveWid) return;
+  if (_terrainHave !== null) _terrainHave.add(k); else _terrainAdded.add(k);
+}
 /* A chunk to make in a world: its terrain cache is read first, and the worker is chosen only once the read is in, so
    the read (tens of ms) holds up no worker. A chunk let go meanwhile is not made, and its place among the jobs in
    flight is given back (it used to stay taken when the cache had the chunk: each such chunk left generation one job
    short for the rest of the session). A read from a world left meanwhile is dropped: the throttle was reset with it. */
 function _genFromCache(cx, cz, wid) {
+  // new land, which the cache does not hold: straight to a worker, no read (terrainCacheIndex below)
+  if (_terrainHave !== null && _terrainHaveWid === wid && !_terrainHave.has(key(cx, cz))) {
+    _genSend(_bestWorker(Infinity, _editLane) || _bestWorker(), { type: 'gen', cx, cz });
+    return;
+  }
   idbGet(TERRAIN_KEY + wid + ':' + key(cx, cz)).then(buf => {
     if (!currentWorld || currentWorld.id !== wid) return;
     const c = getChunk(cx, cz);
@@ -384,7 +417,27 @@ function processGenFinish(maxPerFrame, deadline) {
 }
 
 function onWorkerMessage(m) {
-  if (m.type === 'error') { console.error('[worker]', m.message); return; }
+  if (m.type === 'error') {
+    console.error('[worker]', m.message);
+    /* the failed job gives back what it held, so one bad chunk leaves no job slot taken for good and no chunk waiting
+       for ever, and it is asked for again: twice at most, so a fault that repeats does not go round and round (a step
+       across a chunk border no longer rebuilds the queues, which used to pick such a chunk up: rebuildQueues) */
+    const c = m.cx != null ? getChunk(m.cx, m.cz) : null;
+    if (m.job === 'gen' || m.job === 'prep') {
+      noteGenDone();
+      if (c) {
+        c.generating = false;
+        if ((c._genErrs = (c._genErrs | 0) + 1) <= 2) {
+          genQueue.push({ cx: c.cx, cz: c.cz, d2: chunkDist2ToPlayers(c.cx, c.cz) });
+          genQueue.sort((a, b) => a.d2 - b.d2);
+        }
+      }
+    } else if (m.job === 'mesh' && c) {
+      c.meshOut = Math.max(0, (c.meshOut | 0) - 1); c.meshing = c.meshOut > 0;
+      if ((c._meshErrs = (c._meshErrs | 0) + 1) <= 2) tryQueueMesh(c, chunkDist2ToPlayers(c.cx, c.cz));
+    }
+    return;
+  }
   if (m.type === 'probe') { if (typeof bossLairProbe === 'function') bossLairProbe(m); return; }   // a castle site looked at
   const c = getChunk(m.cx, m.cz);
   if (m.type === 'gen') {
@@ -397,9 +450,12 @@ function onWorkerMessage(m) {
     // the cells that may give light, found by the worker; without them (LIGHT_WORKER off and cached): a full scan
     c._emit = m.emit ? new Int32Array(m.emit) : null;
     c._skyW = m.sky ? new Uint8Array(m.sky) : null;   // and its own sky light, worked out there
-    if (!m._fromSave && currentWorld && !menuScene)
+    if (!m._fromSave && currentWorld && !menuScene) {
       // shared memory cannot be stored: then the worker's own buffer goes in, untouched since c.data copied it
-      idbPut(TERRAIN_KEY + currentWorld.id + ':' + key(m.cx, m.cz), c.data.buffer === m.data ? c.data.buffer.slice() : m.data).catch(() => {});
+      const wid = currentWorld.id, k = key(m.cx, m.cz);
+      idbPut(TERRAIN_KEY + wid + ':' + k, c.data.buffer === m.data ? c.data.buffer.slice() : m.data)
+        .then(() => terrainCacheAdded(wid, k)).catch(() => {});
+    }
     const edits = editStore.get(key(m.cx, m.cz));
     if (edits) for (const [i, v] of edits) c.data[i] = v;   // re-apply player edits
     /* The voxel data is installed immediately — it is only a typed-array wrap and the edit
@@ -458,16 +514,19 @@ function applyMeshResults(maxPerFrame, deadline) {
     // stop at the frame's deadline rather than trusting the count. The rest wait one frame.
     if (deadline && performance.now() > deadline) break;
   }
-  // new/changed geometry must reach the shadow maps — but only geometry the maps can see: far chunks
-  // streaming in used to redraw both maps every frame they arrived
-  if (_shadowTouched) { shadowDirty = true; _shadowTouched = false; }
+  /* new or changed geometry the shadow maps can see must reach them: a player's edit at once, everything else (new land,
+     water flowing, sand falling) at the maps' own pace, at most every SHADOW_SOFT_MS (07-sky.js) */
+  if (_shadowTouched) {
+    if (_shadowUrgent) shadowDirty = true; else shadowSoftDirty = true;
+    _shadowTouched = _shadowUrgent = false;
+  }
 }
-let _shadowTouched = false;
+let _shadowTouched = false, _shadowUrgent = false;
 function applyOneMesh(m) {
   {
     const c = getChunk(m.cx, m.cz);
     if (!c || m.rev !== c.rev) return false;
-    { const r = shadowR / 16 + 2; if (chunkDist2ToPlayers(m.cx, m.cz) <= r * r) _shadowTouched = true; }   // inside the shadow maps
+    { const r = shadowR / 16 + 2; if (chunkDist2ToPlayers(m.cx, m.cz) <= r * r) { _shadowTouched = true; if (m.rush) _shadowUrgent = true; } }   // inside the shadow maps
     // still a rush while a follow-up of the same edit waits its turn (markDirty's EDIT_FOLLOW_MS)
     c.editRush = !!c.queuedMesh && performance.now() - (c.editAt || -1e9) < EDIT_FOLLOW_MS;
     _regionTouch(c);                        // its far region (if built) comes apart first

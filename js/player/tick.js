@@ -11,7 +11,7 @@ function tickPlayer(dt, now, slot) {
   /* ---- input & movement ---- */
   const _preYaw = player.yaw, _prePitch = player.pitch;
   const gp = pollGamepad(dt);
-  const joining = worldJoining();           // world still loading in: frozen like the dead
+  const joining = worldHeld();              // world still loading in, or the pause menu up: frozen like the dead
   // ...and the same while a cow is being milked (updateMilking in entities/taming.js): you stand still for it
   const benching = !!player._benchWork || !!player._milk;     // holding E at a crafting bench: nothing else answers
   if (player.dead || joining || benching) {             // dead: no look (mouse gated in input, pad undone here),

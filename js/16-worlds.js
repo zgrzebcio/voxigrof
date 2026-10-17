@@ -57,6 +57,11 @@ let _loadingWorld = false;   // true while initial chunks are generating; hides 
    moves while it holds: no controls, no physics, no vitals, no mobs, no clock. A player used to drown,
    starve or get mauled behind the loading screen before they could see anything. */
 const worldJoining = () => _loadingWorld && !menuScene;
+/* The pause menu is up over a world (Esc, or the mouse lost): the world is held as while it joins. No clock, no
+   creatures, no hunger, thirst, cold or heat, no falls or lava, no crafting, and no sound (32-sound.js); the land
+   keeps streaming in. The inventory is not a pause: the world runs on behind it. */
+const worldPaused = () => !playing && !!currentWorld && !menuScene;
+const worldHeld = () => worldJoining() || worldPaused();
 
 let WORLDS = (() => { try { const a = JSON.parse(localStorage.getItem('vg_worlds')); return Array.isArray(a) ? a : []; } catch { return []; } })();
 let currentWorld = null;
@@ -332,6 +337,7 @@ async function loadWorld(w) {
   if (currentWorld && currentWorld !== w) saveWorld();   // switching worlds: save the old one first
   currentWorld = w;
   menuScene = false;
+  terrainCacheIndex(w.id);                   // which of its chunks the terrain cache holds (chunks/stream.js)
   showTitleDate(false);                      // the title's date goes with it
   setHudVisible(true);
   _loadingWorld = true;
