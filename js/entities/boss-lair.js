@@ -77,7 +77,7 @@ function _castlePrefab() {
     let [x, y, z, id, v = 0] = b;
     if (id === B.FURNACE) { gate = [x, y, z]; continue; }                       // the gate: left open
     if (id === B.BEDROCK) { boss = [x, y, z]; continue; }                       // where he appears
-    if (id === B.CHEST && ((v >> CHEST_WOOD_SHIFT) & 3) === 0) v |= 3 << CHEST_WOOD_SHIFT;   // oak -> rime
+    if (id === B.CHEST && chestWoodOf(v) === 0) v |= chestWoodBits(3);                  // oak -> rime
     if (id === B.SNOW && CORE.layerCount(id | (v << 8)) > 0) v = 0;             // a snow carpet -> a snow block
     if (id === B.TORCH_UNLIT) id = B.TORCH;                                     // lit (same wall, same variant)
     if (id === B.GLOWCRYSTAL_SPENT) id = B.GLOWCRYSTAL_BLOCK;

@@ -63,11 +63,13 @@ const CHEST_WALL = 1 / 16;                            // the body is a box you c
 /* WOOD: the chest art is grey wood with its metal fittings on separate overlay sheets. Each wood
    tints the grey by the colour of its planks, then the metal goes on top untinted. The wood sits in bits
    4-5 of the variant byte, picked on the variant bar (blocks/variants.js); 0 is oak, as every older chest is. */
-// rime wood: the fourth and last the two bits hold, tinted by the frozen planks like the rest
-const CHEST_WOODS = ['oak', 'birch', 'spruce', 'rime'];
-const CHEST_WOOD_SHIFT = 4;
-const chestWoodOf = (va) => { const w = (va >> CHEST_WOOD_SHIFT) & 3; return w < CHEST_WOODS.length ? w : 0; };
-const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33], [1.4, 1.5, 1.62]];
+/* rime wood the fourth the two bits hold; acacia the fifth, its third bit bit 7 (CHEST_WOOD_HIGH: free, a metal chest
+   keeps its metal in bits 4-5 alone). Read and write the wood only through chestWoodOf / chestWoodBits. */
+const CHEST_WOODS = ['oak', 'birch', 'spruce', 'rime', 'acacia'];
+const CHEST_WOOD_SHIFT = 4, CHEST_WOOD_HIGH = 128;
+const chestWoodOf = (va) => { const w = ((va >> CHEST_WOOD_SHIFT) & 3) | ((va & CHEST_WOOD_HIGH) ? 4 : 0); return w < CHEST_WOODS.length ? w : 0; };
+const chestWoodBits = (w) => ((w & 3) << CHEST_WOOD_SHIFT) | ((w & 4) ? CHEST_WOOD_HIGH : 0);
+const _CHEST_TINT_FALLBACK = [[1.2, 0.91, 0.57], [1.54, 1.4, 1.11], [0.82, 0.56, 0.33], [1.4, 1.5, 1.62], [1.6, 0.92, 0.5]];
 /* THE ART: four sheets, 128 px a face. chest_wood / chest_metal hold a single chest, one row: front | side |
    top | bottom. chest_wood_double / chest_metal_double hold a double's two halves, three rows (front, top, bottom),
    the left half in the first column and the right in the second, so each row reads as the whole wide face. The
@@ -365,7 +367,7 @@ function tryPairChest(x, y, z, facing) {
     if ((nva & 3) !== facing || (nva & CHEST_PAIRED)) continue;
     if (chestWoodOf(nva) !== chestWoodOf(va)) continue;   // one wood (or metal, the same bits) per double chest
     if (chestLocked(x + dx, y, z + dz, nv)) continue;     // a sealed or locked chest stays on its own
-    const wood = chestWoodOf(va) << CHEST_WOOD_SHIFT;     // kept through the pairing
+    const wood = (va & 255) & (3 << CHEST_WOOD_SHIFT | CHEST_WOOD_HIGH);   // its wood (or metal), kept through the pairing
     const mine  = facing | CHEST_PAIRED | (i === 1 ? CHEST_PAIR_NEG : 0) | wood;
     const their = facing | CHEST_PAIRED | (i === 1 ? 0 : CHEST_PAIR_NEG) | wood;
     setBlock(x, y, z, id | (mine << 8));
@@ -384,7 +386,7 @@ function unpairChestNeighbour(x, y, z, oldVal) {
   const [dx, dz] = chestPairDirs(va & 3)[(va & CHEST_PAIR_NEG) ? 1 : 0];
   const nv = getBlock(x + dx, y, z + dz);
   if ((nv & 255) !== id) return;
-  const keep = ((nv >> 8) & 3) | (chestWoodOf((nv >> 8) & 255) << CHEST_WOOD_SHIFT);   // facing and wood
+  const keep = ((nv >> 8) & 3) | ((nv >> 8) & (3 << CHEST_WOOD_SHIFT | CHEST_WOOD_HIGH));   // facing and wood (or metal)
   setBlock(x + dx, y, z + dz, id | (keep << 8));
   rebuildChestMesh(x + dx, y, z + dz);                    // a whole chest again
 }
@@ -466,14 +468,8 @@ function useChest(x, y, z) {
     if (held?.id !== m.key) { deny(`Locked: it takes ${m.keyText}`); return; }
     if (keyBoundCode(held) != null) { deny(`That ${ITEM_PROPS[m.key].name.toLowerCase()} locks something else: unlock it first`); return; }
     if (covered) { deny(CHEST_COVERED_MSG); return; }            // before the key is spent
-    if ((held.count | 0) > 1) held.count--; else HOTBAR[hotbarSel] = null;   // the key stays in its lock
-    saveHotbar(); buildHotbar();
-    for (const c of cells) {
-      const cv = getBlock(c.x, c.y, c.z);
-      if (chestSealed(cv)) setBlock(c.x, c.y, c.z, (cv & ~(CHEST_SEALED << 8)) >>> 0);
-    }
-    feedInfo(`Unlocked: ${m.keyText} stays in its lock`);
-    openChest(x, y, z);
+    // the key is turned with the button held, CHEST_UNSEAL_S, the progress ring round the crosshair (updateChestUnseal)
+    if (!player._unseal) player._unseal = { x, y, z, sel: hotbarSel, key: m.key, t: 0 };
     return;
   }
   const lock = cells.map(c => DOOR_LOCKS.get(chestKey(c.x, c.y, c.z))).find(c => c != null);
@@ -499,6 +495,33 @@ function useChest(x, y, z) {
   }
   if (covered) { deny(CHEST_COVERED_MSG); return; }
   openChest(x, y, z);
+}
+/* A sealed chest opens with its key held in it a moment: the right button down CHEST_UNSEAL_S with the key in hand,
+   standing by it (started by useChest). Let go, change hands or walk off and it stays sealed. Once a frame per seat
+   (tickPlayer, player/tick.js); returns how far it is, 0..1, for the progress ring (interactProgress, ui/hud.js). */
+const CHEST_UNSEAL_S = 0.8, CHEST_UNSEAL_REACH = 6;
+function updateChestUnseal(dt, held) {
+  const u = player._unseal;
+  if (!u) return 0;
+  const slot = HOTBAR[hotbarSel];
+  const ok = held && playing && !invOpen && !player.dead && hotbarSel === u.sel && slot && slot.id === u.key
+    && chestSealed(getBlock(u.x, u.y, u.z))
+    && Math.hypot(player.pos.x - u.x - 0.5, player.pos.y - u.y, player.pos.z - u.z - 0.5) <= CHEST_UNSEAL_REACH;
+  if (!ok) { player._unseal = null; return 0; }
+  player._milkLatch = true;                          // the held button is the key's, not a block placed (tickPlayer)
+  u.t += dt;
+  if (u.t < CHEST_UNSEAL_S) return u.t / CHEST_UNSEAL_S;
+  player._unseal = null;
+  const [a, b] = chestPairOrdered(u.x, u.y, u.z), m = chestSealOf(getBlock(u.x, u.y, u.z));
+  if ((slot.count | 0) > 1) slot.count--; else HOTBAR[hotbarSel] = null;   // the key stays in its lock
+  saveHotbar(); buildHotbar();
+  for (const c of b ? [a, b] : [a]) {
+    const cv = getBlock(c.x, c.y, c.z);
+    if (chestSealed(cv)) setBlock(c.x, c.y, c.z, (cv & ~(CHEST_SEALED << 8)) >>> 0);
+  }
+  feedInfo(`Unlocked: ${m.keyText} stays in its lock`);
+  openChest(u.x, u.y, u.z);
+  return 0;
 }
 // something on top of the chest that is not another chest
 const CHEST_COVERED_MSG = 'Clear the top of the chest first';

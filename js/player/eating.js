@@ -83,7 +83,7 @@ function updateEating(dt, wantPlace) {
       if (returnId != null) {
         const cap = stackSize(returnId);
         let placed = false;
-        for (let k = 0; k < HOTBAR.length && !placed; k++) {
+        for (let k = 0; k < hotbarLen() && !placed; k++) {
           const s = HOTBAR[k]; if (s && s.id === returnId && s.count < cap) { s.count++; placed = true; }
         }
         if (!placed) for (let k = 0; k < invSlots.length && !placed; k++) {

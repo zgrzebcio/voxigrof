@@ -6,7 +6,7 @@
      mobOf(e)                      the entry of a creature
 
    Each creature's own file adds its entry with defineMob, at its end (sheep.js, cow.js, pig.js, horse.js,
-   polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js). A creature's numbers, what the
+   polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js, termite.js). A creature's numbers, what the
    save keeps of it, what it drops and where it lives are all in that one entry: the files named below read them
    from here, so none of them lists the kinds itself.
 
@@ -17,8 +17,9 @@
        group      'animal', 'monster', 'villager', 'fish' or 'boss': who a world made without animals or without
                   monsters leaves out, whose meat the Butcher skill adds to, what a hound's kill counts as
        body       what moves it: 'grazer' (four legs, entities/grazers.js), 'fish' (entities/fish.js), 'humanoid'
-                  (entities/update.js) or 'boss' (entities/frozen-king.js)
+                  (entities/update.js), 'insect' (entities/termite.js) or 'boss' (entities/frozen-king.js)
        night      true: it comes with the dark, burns at dawn and is never saved (zombie, skeleton)
+       unsaved    true: never saved, something else brings it back (a termite hill its termites)
 
      its numbers
        hp         full health. Or `maxHp: (e) =>` when each one has its own (a horse's is rolled, a tamed hound's

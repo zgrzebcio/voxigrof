@@ -53,7 +53,7 @@ function showTitleDate(on) {
 /* ================================== the seasons on the land ================================== */
 const SEASON_LEAVES = new Set(woodBlocks('leaves', w => w.seasonal));    // the woods marked `seasonal` (woods/woods.js): oak, birch; spruce keeps its needles
 // mushrooms left this list in 0.821: they have their own year now (mushroom growth, below)
-const SEASON_PLANTS = new Set([B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
+const SEASON_PLANTS = new Set([B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
   B.WHEAT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
 // "cx,cz" -> Map(cell index -> the value that stood there): what autumn took and spring may give back. Saved.

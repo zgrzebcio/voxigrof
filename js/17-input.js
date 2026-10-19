@@ -169,7 +169,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // 0.837, fixed at creation: off = always noon / a clear sky / no clouds / no animals / no monsters
               dayNight: !!newDayNightChk.checked, weather: !!newWeatherChk.checked, clouds: !!newCloudsChk.checked,
               animals: !!newAnimalsChk.checked, monsters: !!newMonstersChk.checked,
-              biomeRev: 27,                         // 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
+              biomeRev: 30,                         // 30: the Savanna a big biome, its termite hills fewer and apart; 29: half the grass plants short grass; 28: the Savanna (acacias, termite hills) at the Dryland's hot edge; 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
               createdVersion: APP_VERSION, lastVersion: APP_VERSION,   // the game's alpha number
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);
@@ -340,8 +340,8 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR' && !e.repeat && !invOpen && typeof variantBindTap === 'function') variantBindTap();   // double tap: default
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !e.repeat && !invOpen) player.fast = !player.fast;
   if (!invOpen && e.code.startsWith('Digit')) {
-    const n = +e.code.slice(5);
-    if (n >= 1 && n <= HOTBAR.length) hotbarSel = n - 1, updateHotbar();
+    const n = +e.code.slice(5) || 10;                // 0 is the tenth slot (a belt's second)
+    if (n >= 1 && n <= hotbarLen()) hotbarSel = n - 1, updateHotbar();
   }
   if (e.code === 'BracketLeft')  { viewDist = clampi(viewDist - 1, 4, 32); distInput.value = viewDist; applyViewDist(); rebuildQueues(); }
   if (e.code === 'BracketRight') { viewDist = clampi(viewDist + 1, 4, 32); distInput.value = viewDist; applyViewDist(); rebuildQueues(); }
@@ -358,7 +358,7 @@ document.addEventListener('wheel', (e) => {
      the ring covers the hotbar anyway, so scrolling the selection under it is invisible work. */
   if (typeof chiselWheel === 'function' && chiselWheel(e.deltaY)) return;
   if (typeof variantWheel === 'function' && variantWheel(e.deltaY)) return;   // R held: the variant bar
-  hotbarSel =(hotbarSel + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
+  hotbarSel = (hotbarSel + (e.deltaY > 0 ? 1 : -1) + hotbarLen()) % hotbarLen();
   updateHotbar();
 });
 // suppress the browser context menu everywhere while in-game (incl. fullscreen + inventory UI)
@@ -680,8 +680,8 @@ function pollGamepad(dt) {
   /* Bumpers cycle the hotbar — but while the shape radial is open they turn its pages instead
 , matching what the wheel does for mouse and keyboard. */
   // ...and with D-pad Right held they step the variant bar instead
-  if (edge(4)) { if (!(player._variantHold && stepHeldVariant(-1)) && !chiselRadialPage(-1)) { hotbarSel = (hotbarSel + HOTBAR.length - 1) % HOTBAR.length; updateHotbar(); } }
-  if (edge(5)) { if (!(player._variantHold && stepHeldVariant(1))  && !chiselRadialPage(1))  { hotbarSel = (hotbarSel + 1) % HOTBAR.length; updateHotbar(); } }
+  if (edge(4)) { if (!(player._variantHold && stepHeldVariant(-1)) && !chiselRadialPage(-1)) { hotbarSel = (hotbarSel + hotbarLen() - 1) % hotbarLen(); updateHotbar(); } }
+  if (edge(5)) { if (!(player._variantHold && stepHeldVariant(1))  && !chiselRadialPage(1))  { hotbarSel = (hotbarSel + 1) % hotbarLen(); updateHotbar(); } }
 
   // double-tap A toggles flying (same rule as double-tap Space); L3 toggles sprint
   if (edge(0)) jumpTap();

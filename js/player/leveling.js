@@ -57,6 +57,8 @@ function addXP(n, why) {
   const gain = Math.round(n * (typeof bossXpMul === 'function' ? bossXpMul() : 1));
   if (why && gain > 0 && typeof feedXP === 'function') feedXP(gain, why);
   playerXP += gain;
+  // the last few gains and what for, shown under the XP bar's tooltip (xpTipHTML)
+  if (gain > 0) { _xpRecent.unshift({ n: gain, why: why || 'experience' }); if (_xpRecent.length > XP_RECENT_N) _xpRecent.length = XP_RECENT_N; }
   const leveled = _recalcLevel();
   xpBarDirty = true;
   _queueXPPop(gain);
@@ -96,7 +98,7 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
   // lightning's glassy sand is rare to come across
   set(B.GLASSY_SAND, 20); set(B.GLASSY_RED_SAND, 20); set(B.GLASSY_PINK_SAND, 20);
   // scenery is free — you are not going to grind a level out of grass
-  set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
+  set(B.SHORT_GRASS, 0); set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
   for (const id of woodBlocks('leaves')) set(id, 0);                   // every wood's leaves (the woods table, woods/woods.js)
   set(B.DRY_GRASS, 0); set(B.DRY_TALL_LOWER, 0); set(B.DRY_TALL_UPPER, 0); set(B.DRY_BUSH, 0);
   // a log that pays its own XP: a wood's `xp.log` in the woods table (rime 3, palm 2; the rest pay what any block pays)
@@ -121,7 +123,7 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
    from a cod's 20 to a horse's 150 — a zombie about 36, a villager 38 — plus XP_KILL_PER_LEVEL a level (1-50). Was
    a base by kind (animals 200, villagers 300, monsters 400) plus the level since 0.791. */
 // ...a monster (a zombie, a skeleton: isNightMob) a flat XP_KILL_MONSTER plus the level
-const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 150, XP_KILL_PER_LEVEL = 100, XP_KILL_MONSTER = 600;
+const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 75, XP_KILL_PER_LEVEL = 50, XP_KILL_MONSTER = 300;
 function mobKillXP(ent) {
   if (!ent) return XP_KILL_MIN;
   if (typeof isNightMob === 'function' && isNightMob(ent)) return XP_KILL_MONSTER + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
@@ -129,7 +131,7 @@ function mobKillXP(ent) {
   const f = Math.max(0, Math.min(1, (hp - XP_KILL_HP_LO) / (XP_KILL_HP_HI - XP_KILL_HP_LO)));
   return Math.round(XP_KILL_MIN + (XP_KILL_MAX - XP_KILL_MIN) * f) + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
 }
-const XP_HARVEST = 3;              // a bush pickup that actually yielded something
+const XP_HARVEST = 2;              // a bush pickup that actually yielded something
 /* ...and since 0.8281 one more for every berry, wheat, melon or cantaloupe slice, flint and stone pebble it hands you
    (player/placing.js). A pumpkin is XP_PUMPKIN in all; a carved one or a jack o'lantern picked back up pays nothing, but
    carving a face pays XP_CARVE and putting the torch in XP_LANTERN. */
@@ -144,12 +146,12 @@ const XP_WEATHER = 10, XP_WEATHER_S = 300;
    dismantling pays nothing), a sapling you planted growing into a tree, each biome the first time you set foot in
    it, the top and the bottom of the world once each, and a night outside: more than half of it under the open sky
    and alive at dawn (a blood moon instead pays XP_BLOOD_MOON). */
-const XP_TAME = 6000, XP_TAME_PER_LEVEL = 500;   // 10 and 1 a level until 0.831
+const XP_TAME = 2500, XP_TAME_PER_LEVEL = 250;   // 10 and 1 a level until 0.831
 const XP_SHEAR = 500, XP_MILK = 500, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_WORLD_EDGE = 20;   // milk 500 since 0.8447 (5): it takes a 2 s hold now
 /* A biome found: the more you have found already, the more the next one pays — XP_BIOME for the first, rising
    by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (biomes/biomes.js biomeAt names them: 9 kinds of
    water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last. */
-const XP_BIOME_LAST = 100000, BIOME_COUNT = 39;   // 10000 for the last since 0.8446 (1000): 10, 12, 14... about 316 half way   // 39 the Dryland   // 38 the Deep Red Desert   // 37 the Deep Desert and the Oasis   // 35 the Coldest Deep Snow Forest   // 500 in 0.8324; 28 with the Ice Spikes, 29 the Snowy Hills; 33 the plains' and forests' Hills; 34 the Coldest Deep Snow
+const XP_BIOME_LAST = 100000, BIOME_COUNT = 40;   // 10000 for the last since 0.8446 (1000): 10, 12, 14... about 316 half way   // 40 the Savanna   // 39 the Dryland   // 38 the Deep Red Desert   // 37 the Deep Desert and the Oasis   // 35 the Coldest Deep Snow Forest   // 500 in 0.8324; 28 with the Ice Spikes, 29 the Snowy Hills; 33 the plains' and forests' Hills; 34 the Coldest Deep Snow
 const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
 // sapling id -> XP when it grows: each wood's `xp.sapling` in the woods table (oak 30, birch 40, spruce 50, palm 100)
 const XP_SAPLING = {};
@@ -242,6 +244,21 @@ var xpLevelEl = document.getElementById('xpLevel');
 var xpPopsEl = document.getElementById('xpPops');
 var xpBarDirty = true;
 var _xpFlash = 0;                  // seconds of level-up glow left
+var _xpRecent = [];                // the last XP_RECENT_N gains, newest first: { n, why } (per seat, 36-splitscreen.js)
+const XP_RECENT_N = 3;
+/* The XP bar's tooltip, shown when the cursor (the mouse or the pad's) is on the bar with the inventory open
+   (getInfoElements, ui/inventory-cursor.js): the level, the XP into it and what the next takes, and the last gains. */
+function xpTipHTML() {
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  let h = `<div class="tipName">Level ${playerLevel}</div>`
+        + `<div class="tipDesc">${Math.floor(playerXPInLevel)} / ${playerXPNeeded} XP to level ${playerLevel + 1}</div>`
+        + `<div class="tipDesc">${Math.floor(playerXP)} XP in all</div>`;
+  if (_xpRecent.length) {
+    h += `<div class="tipDesc" style="margin-top:4px;opacity:.8">Last earned:</div>`;
+    for (const r of _xpRecent) h += `<div class="tipDesc">+${r.n} ${esc(r.why)}</div>`;
+  }
+  return h;
+}
 
 /* ---- gain popups ----
    A "+N" that drifts up off the RIGHT end of the bar and fades. Every gain gets its OWN number:

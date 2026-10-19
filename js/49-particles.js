@@ -933,7 +933,7 @@ function _fxPlantBits(x, y, z, rgb, n, L) {
 . False when `val` is not one of these plants. */
 function _fxPlantBurst(x, y, z, val, L) {
   const id = val & 255;
-  if (id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxGrassCol(), _fxN(8), L); return true; }
+  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxGrassCol(), _fxN(8), L); return true; }
   if (id === B.WHEAT) { _fxPlantBits(x, y, z, _FX_WHEAT, _fxN(8), L); return true; }
   // the desert's dry plants: straw-coloured bits, a dry bush's twigs browner
   if (id === B.DRY_GRASS || id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER) { _fxPlantBits(x, y, z, _FX_DRY, _fxN(8), L); return true; }

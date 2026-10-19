@@ -1,6 +1,6 @@
 'use strict';
-/* woods/wood-blocks.js: the blocks of the woods. Stripped logs, spruce, rime and palm (log, planks, leaves), and the
-   Dryland's dry leaves.
+/* woods/wood-blocks.js: the blocks of the woods. Stripped logs, spruce, rime, palm and acacia (log, planks, leaves),
+   and the Dryland's dry leaves.
    A part of BLOCK_CORE (blocks/blocks.js): it fills PROPS for its blocks. */
 
 corePart('blocks', function () {
@@ -27,6 +27,12 @@ corePart('blocks', function () {
   PROPS[B.STRIPPED_PALM_LOG] = { name:'Stripped palm log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:2.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG_TOP,T.STRIPPED_PALM_LOG_TOP,T.STRIPPED_PALM_LOG,T.STRIPPED_PALM_LOG], desc: '' };
   PROPS[B.PALM_PLANKS]       = { name:'Palm planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:Array(6).fill(T.PALM_PLANKS), desc: '' };
   PROPS[B.PALM_LEAVES]       = { name:'Palm leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.PALM_LEAVES), desc: '' };
+  /* Acacia: the Savanna's flat-topped tree. Its sapling takes grass, as an oak's. */
+  PROPS[B.ACACIA_SAPLING]      = { name:'Acacia sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.ACACIA_SAPLING], desc: '' };
+  PROPS[B.ACACIA_LOG]          = { name:'Acacia log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.ACACIA_LOG,T.ACACIA_LOG,T.ACACIA_LOG_TOP,T.ACACIA_LOG_TOP,T.ACACIA_LOG,T.ACACIA_LOG], desc: 'Grows in the Savanna' };
+  PROPS[B.STRIPPED_ACACIA_LOG] = { name:'Stripped acacia log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:2.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG_TOP,T.STRIPPED_ACACIA_LOG_TOP,T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG], desc: '' };
+  PROPS[B.ACACIA_PLANKS]       = { name:'Acacia planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:Array(6).fill(T.ACACIA_PLANKS), desc: '' };
+  PROPS[B.ACACIA_LEAVES]       = { name:'Acacia leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.ACACIA_LEAVES), desc: '' };
   /* Dry leaves: the Dryland's big dry bushes, oak leaves gone pale. They stand on the ground with no wood, so they
      never decay (not leaves to 22-main-loop.js), and give sticks only (50-loottable.js). */
   PROPS[B.DRY_LEAVES]        = { name:'Dry leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.DRY_LEAVES),

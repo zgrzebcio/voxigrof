@@ -16,7 +16,7 @@ corePart('gen.chunk', function () {
         const sandLayer = (b) => { const t = b & 255; return (t === B.SAND || t === B.RED_SAND) && layerCount(b) > 0; };
         // ...and the green grass too, in the Dryland
         const dryPlant = (b) => { const t = b & 255; return t === B.DRY_GRASS || t === B.DRY_BUSH || t === B.DRY_TALL_LOWER || t === B.DRY_TALL_UPPER
-                                                        || t === B.TALLGRASS || t === B.TALL_LOWER || t === B.TALL_UPPER; };
+                                                        || t === B.SHORT_GRASS || t === B.TALLGRASS || t === B.TALL_LOWER || t === B.TALL_UPPER; };
         const soft = (b) => b === B.AIR || sandLayer(b) || dryPlant(b);
         const setSoft = (x, y, z, v) => {
           const lx = x - x0, lz = z - z0;

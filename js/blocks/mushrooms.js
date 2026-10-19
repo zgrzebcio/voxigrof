@@ -51,7 +51,9 @@ corePart('blocks', function () {
                           [5, 4, 5, 11, 6, 11,  [5, 0, 0], null,       null],
                           [3, 6, 3, 13, 9, 13,  [1, 0, 0], [0, 0, 0],  [2, 0, 0]]];
   const SHROOM_MODEL = SHROOM_SHAPE.map(s => [_SHROOM_STD, _SHROOM_WHITE, _SHROOM_YELLOW][s]);
-  PROPS[B.TALLGRASS]     = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
+  /* The grass plants, smallest first: short grass, grass (TALLGRASS, the old "short grass" id), tall grass (two cells) */
+  PROPS[B.SHORT_GRASS]   = { name:'Short grass',   solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.5,0.85]], faces:[T.SHORT_GRASS_PLANT], desc: '' };
+  PROPS[B.TALLGRASS]     = { name:'Grass',         solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',rot:'all',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[T.GRASS_PLANT], desc: '' };
   PROPS[B.POPPY]         = { name:'Poppy',   solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.POPPY], desc: '' };
   PROPS[B.ORCHID]        = { name:'Blue orchid',solid:false,opaque:false,raycast:true, pass:1, model:'cross',topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.85,0.75]], faces:[T.ORCHID], desc: '' };
   PROPS[B.TALL_LOWER]    = { name:'Tall grass', solid:false,opaque:false,raycast:true, noTarget:true, pass:1, model:'cross',topOnly:true, noInv:true, stack:79, type:'grass', hardness:0, boxes:[[0.05,0,0.05,0.95,1,0.95]], faces:[T.TALL_BOT], desc: '' };

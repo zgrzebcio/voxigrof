@@ -82,6 +82,8 @@ const carrySlot = (src, n) => {
    line up on screen and a quick-move lands where you expect. */
 const INV_COLS = 8, INV_ROWS = 4;
 const HOTBAR_SLOTS = INV_COLS;                 // 8
+// ...and up to 2 more a worn belt opens (hotbarLen, player/equipment.js): every hotbar array holds HOTBAR_MAX
+const HOTBAR_MAX = HOTBAR_SLOTS + 2;
 const INV_SLOTS = INV_COLS * INV_ROWS;         // 32
 const INV2_SLOTS = INV_SLOTS;                  // second grid matches (creative palette overflows it)
 
@@ -116,7 +118,7 @@ const CREATIVE_ORDER = [
   B.CRYSTAL_TORCH, B.TORCH_UNLIT,                                                                // 0.834
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   ...woodBlocks('sapling'),
-  B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,   // dry grass and bush 0.84
+  B.SHORT_GRASS, B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,   // dry grass and bush 0.84
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
   B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
   B.GLOW_VINE, B.COBWEB,
@@ -133,7 +135,7 @@ function _defaultCreativeInventory() {
      meant every session opened holding grass, dirt and stone whether or not that was what you
      wanted — and the palette read as if it began at slot nine. The whole palette lives in the
      grids now, and you carry whatever you choose to drag down. */
-  const hot = new Array(HOTBAR_SLOTS).fill(null);
+  const hot = new Array(HOTBAR_MAX).fill(null);
   const inv = new Array(INV_SLOTS).fill(null);
   // overflow palette — scrolls in the UI. Sized well past the current block count so newly
   // registered blocks (structure block, spruce set, ...) don't silently fall off the end.
@@ -151,15 +153,19 @@ function _defaultCreativeInventory() {
    quietly bin whatever sat in the slots that no longer exist. Instead everything is poured into
    one list and dealt back out, so the items survive even though their positions shift once. */
 function migrateStash(hot, inv, inv2) {
+  // a stash already in today's shape keeps every slot where it was (a hotbar of 8 from before the belt's slots is padded)
+  if (Array.isArray(hot) && (hot.length === HOTBAR_SLOTS || hot.length === HOTBAR_MAX) && Array.isArray(inv) && inv.length === INV_SLOTS
+      && (inv2 == null || (Array.isArray(inv2) && inv2.length === INV2_SLOTS)))
+    return { hot: _validArr(hot, HOTBAR_MAX), inv: _validArr(inv, INV_SLOTS), inv2: _validArr(inv2, INV2_SLOTS) };
   const all = [];
   for (const a of [hot, inv, inv2])
     if (Array.isArray(a)) for (const s of a) { const v = _validateSlot(s); if (v) all.push(v); }
-  const out = { hot: new Array(HOTBAR_SLOTS).fill(null),
+  const out = { hot: new Array(HOTBAR_MAX).fill(null),
                 inv: new Array(INV_SLOTS).fill(null),
                 inv2: new Array(INV2_SLOTS).fill(null) };
   let i = 0;
-  for (const key of ['hot', 'inv', 'inv2'])
-    for (let j = 0; j < out[key].length && i < all.length; j++) out[key][j] = all[i++];
+  for (const key of ['hot', 'inv', 'inv2'])   // the hotbar's belt slots stay empty: no belt is known yet
+    for (let j = 0; j < (key === 'hot' ? HOTBAR_SLOTS : out[key].length) && i < all.length; j++) out[key][j] = all[i++];
   return out;
 }
 // Legacy inventories were arrays of raw IDs; migrate on load so old saves stack from 1.
@@ -206,7 +212,7 @@ var currentInvMode = localStorage.getItem('vg_mode') === 'survival' ? 'survival'
 // per-world survival items: lives in memory, persisted inside the world save (vg_world_<id>)
 // inv2 = second grid. Creative: overflow block palette. Survival: the backpack's contents, shown
 // only while one is worn and sized by that pack (41-backpack.js).
-var survStash = { hot: new Array(HOTBAR_SLOTS).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
+var survStash = { hot: new Array(HOTBAR_MAX).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
 var HOTBAR, invSlots, invSlots2;
 function loadInventoryForMode(mode) {
   currentInvMode = mode;

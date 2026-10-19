@@ -186,5 +186,5 @@ function _removeEntity(i) {
 }
 function clearEntities() {
   while (ENTITIES.length) _removeEntity(ENTITIES.length - 1);
-  _zombieSpawnT = -1e9;                   // a new world starts with the spawn cooldown clear
+  if (typeof _nightWas !== 'undefined') _nightWas = false;   // a world joined at night has its loaded land roll again (updateNightMobs)
 }

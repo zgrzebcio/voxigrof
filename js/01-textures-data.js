@@ -133,6 +133,7 @@ const TEXTURES = {
   birch_planks:         'textures/Blocks/Woods/birch/birch_planks.png',
   birch_leaves:         'textures/Blocks/Woods/birch/birch_leaves.png',
   grass:                'textures/Billboards/Plants/Grass/grass.png',
+  short_grass:          'textures/Billboards/Plants/Grass/short_grass.png',          // the smallest grass plant
   wheat_full:           'textures/Billboards/Plants/Wheat/wheat_stage6.png',   // the ripe wheat is stage 6 since 0.8273 (wheat_full.png before)
   wool:                 'textures/Blocks/Decorations/Wool/wool.png',
   pumpkin_top:          'textures/Blocks/Plants/pumpkin_top.png',
@@ -189,6 +190,14 @@ const TEXTURES = {
   palm_planks:              'textures/Blocks/Woods/palm/palm_planks.png',
   palm_leaves:              'textures/Blocks/Woods/palm/palm_leaves.png',
   palm_sapling:             'textures/Billboards/Plants/Saplings/palm_sapling.png',
+  // acacia wood: the Savanna's tree
+  acacia_log:               'textures/Blocks/Woods/acacia/acacia_log_side.png',
+  acacia_log_top:           'textures/Blocks/Woods/acacia/acacia_log_top.png',
+  stripped_acacia_log:      'textures/Blocks/Woods/acacia/acacia_stripped_log_side.png',
+  stripped_acacia_log_top:  'textures/Blocks/Woods/acacia/acacia_stripped_log_top.png',
+  acacia_planks:            'textures/Blocks/Woods/acacia/acacia_planks.png',
+  acacia_leaves:            'textures/Blocks/Woods/acacia/acacia_leaves.png',
+  acacia_sapling:           'textures/Billboards/Plants/Saplings/acacia_sapling.png',
   // the desert's dry plants; the tall one is one 2-tall sprite, split in 03-atlas.js like the tall grass
   dry_grass:                'textures/Billboards/Plants/Warm/short_dry_grass.png',
   dry_tall_grass:           'textures/Billboards/Plants/Warm/dry_tall_grass.png',
@@ -486,6 +495,8 @@ const ITEM_TEXTURES = {
   arrow:           'textures/Items/Weapons/arrow.png',
   bone:            'textures/Items/Materials/bone.png',
   bone_ash:        'textures/Items/Materials/bone_ash.png',               // 0.84
+  chitin_plate:    'textures/Items/Materials/chitin_shell.png',
+  leather_strip:   'textures/Items/Materials/hide_strip.png',           // a termite's
   wooden_key:      'textures/Items/Useables/wooden_key.png',              // keys
   iron_key:        'textures/Items/Useables/iron_key.png',
   golden_key:      'textures/Items/Useables/golden_key.png',
@@ -540,6 +551,11 @@ const ITEM_TEXTURES = {
   steel_chestplate:   'textures/Items/Equipments/Steel/steel_chestplate.png',
   steel_leggings:     'textures/Items/Equipments/Steel/steel_leggings.png',
   steel_boots:        'textures/Items/Equipments/Steel/steel_boots.png',
+  bronze_helmet:      'textures/Items/Equipments/Bronze/bronze_helmet.png',
+  bronze_chestplate:  'textures/Items/Equipments/Bronze/bronze_chestplate.png',
+  bronze_leggings:    'textures/Items/Equipments/Bronze/bronze_leggings.png',
+  bronze_boots:       'textures/Items/Equipments/Bronze/bronze_boots.png',
+  bronze_gloves:      'textures/Items/Equipments/Bronze/bronze_gauntlets.png',
 };
 
 /* Armor on a body (the equipment preview, and every player in the world): one picture per material and body
@@ -548,7 +564,7 @@ const ITEM_TEXTURES = {
    pictures are textures/Entity/equipment/<folder>/<file name>_<part>.png. The folder and file names are written
    exactly as they are on disk: the web server tells `Golden` from `golden`. */
 const EQUIP_MATS = { iron: ['iron', 'iron'], leather: ['leather', 'leather'], cloth: ['cloth', 'cloth'],
-                     golden: ['Golden', 'gold'], steel: ['Steel', 'steel'] };   // armorMat -> [folder, file name]
+                     golden: ['Golden', 'gold'], steel: ['Steel', 'steel'], bronze: ['Bronze', 'bronze'] };   // armorMat -> [folder, file name]
 const EQUIP_PARTS = ['head', 'torso', 'arm', 'hand', 'leg', 'foot'];
 const EQUIP_TEXTURES = {};
 for (const m in EQUIP_MATS) for (const p of EQUIP_PARTS)

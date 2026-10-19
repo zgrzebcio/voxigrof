@@ -109,7 +109,11 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               // keys that lock a door (blocks/doors.js); only the wooden one is made yet, the rest wait for their use
               WOODEN_KEY: 411, IRON_KEY: 412, GOLDEN_KEY: 413, COPPER_KEY: 414,
               // a glass bottle and the water it carries; fire you can hold (what a hellhound leaves and eats)
-              GLASS_BOTTLE: 415, WATER_BOTTLE: 416, FIRE: 417 };   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              GLASS_BOTTLE: 415, WATER_BOTTLE: 416, FIRE: 417,
+              CHITIN_PLATE: 418,                   // a termite's shell plate (entities/termite.js)
+              // bronze armor, between iron and steel: chitin and feathers in it (items/equipment.js)
+              BRONZE_HELMET: 419, BRONZE_CHESTPLATE: 420, BRONZE_LEGGINGS: 421, BRONZE_BOOTS: 422, BRONZE_GLOVES: 423,
+              LEATHER_STRIP: 424 };                // cut from leather at the bench: belts and backpacks   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 
 const ITEM_PROPS = {};
 // a group file's items into the table; each entry remembers its group

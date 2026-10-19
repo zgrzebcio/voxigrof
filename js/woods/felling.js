@@ -335,13 +335,14 @@ function updateBerryGrow(dt) {
 function clearBerryGrow() { berryGrow.clear(); _berrySweep = 0; }
 
 /* ---- grass regrowth ----
-   Bare grass slowly sprouts short grass, and some short grass grows on into tall grass. No queue and
+   Bare grass slowly sprouts short grass, short grass grows into grass, and some grass grows on into tall grass. No queue and
    nothing saved: every few seconds a handful of random columns around one player are looked at, and
    each open grass top (or short grass) found gets a small roll. A crowded patch stops sprouting, so a
    meadow fills in over time without every grass block ending up covered. */
 const GRASS_TICK = 10, GRASS_TRIES = 24, GRASS_RANGE = 32;        // seconds, samples per tick, radius
 const GRASS_SPROUT_CHANCE = 0.06;   // bare grass -> short grass, per sample that lands on it
-const GRASS_TALL_CHANCE = 0.04;     // short grass -> tall grass, per sample that lands on it
+const GRASS_GROW_CHANCE = 0.08;     // short grass -> grass, per sample that lands on it
+const GRASS_TALL_CHANCE = 0.04;     // grass -> tall grass, per sample that lands on it
 const GRASS_CROWD = 3;              // plants in the 3x3 around it that stop a new sprout
 let _sproutTimer = 0;
 function _grassCrowd(x, y, z) {
@@ -360,7 +361,9 @@ function _grassTry(x, z, py) {
     const up = getBlock(x, y + 1, z) & 255;
     if (up === B.AIR) {
       if (Math.random() < GRASS_SPROUT_CHANCE && _grassCrowd(x, y + 1, z) < GRASS_CROWD)
-        setBlock(x, y + 1, z, B.TALLGRASS);
+        setBlock(x, y + 1, z, B.SHORT_GRASS);
+    } else if (up === B.SHORT_GRASS) {
+      if (Math.random() < GRASS_GROW_CHANCE) setBlock(x, y + 1, z, B.TALLGRASS);
     } else if (up === B.TALLGRASS) {
       if ((getBlock(x, y + 2, z) & 255) === B.AIR && Math.random() < GRASS_TALL_CHANCE) {
         setBlock(x, y + 1, z, B.TALL_LOWER);

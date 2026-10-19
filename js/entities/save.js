@@ -20,6 +20,7 @@ function serializeEntities() {
   for (const e of ENTITIES) {
     const def = mobOf(e);
     if (def.night) continue;          // night spawns: dawn is their despawn, never persisted
+    if (def.unsaved) continue;        // a kind something else keeps (a termite hill its termites)
     if (e.boss) continue;             // a boss is placed by its castle, never saved
     const cols = def.cols ? def.cols(e) : null;
     out.push([

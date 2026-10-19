@@ -105,6 +105,14 @@ function _doPlace() {
     spendHeld("placed");
     return;
   }
+  // short grass on short grass -> the grass plant
+  if (heldId === B.SHORT_GRASS && hit.id === B.SHORT_GRASS) {
+    setBlock(hit.x, hit.y, hit.z, B.TALLGRASS);
+    playBlockSound(B.TALLGRASS, 'place', hit.x, hit.y, hit.z);
+    handPlaceSwing = true;
+    spendHeld("placed");
+    return;
+  }
   // a hollow log is a planter: dirt, grass or sand in hand packs into an empty one instead of placing
   if (HOLLOW_FILL_OF[heldId] && isHollowLog(hit.id)) {
     const hv = getBlock(hit.x, hit.y, hit.z);
@@ -182,7 +190,7 @@ function _doPlace() {
   if (vineWall && (hit.ny !== 0 || !(hit.nx || hit.nz) || ontoPlant || !isSolid(hit.x, hit.y, hit.z))) return;
   // flowers and grass plants require a grass block underneath (not any solid — no dirt/stone/etc.)
   // ...or an upright hollow log packed with dirt or grass, the planter
-  if (id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER) {
+  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER) {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;
   }

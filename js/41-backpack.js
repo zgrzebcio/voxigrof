@@ -31,6 +31,7 @@ function backpackCapacity() {
    length — except the backpack's, whose tail stays locked until a bigger pack opens it. Without
    this a quick-move would happily stuff items into rows the player cannot see. */
 function gridLen(arr) {
+  if (arr === HOTBAR) return hotbarLen();       // the belt's hotbar slots only while a belt opens them
   return (arr === invSlots2 && !player.canFly) ? backpackCapacity() : arr.length;
 }
 /* Called after any equipment change, exactly as syncBeltCapacity is. Anything past the new capacity
@@ -44,7 +45,7 @@ function stowIntoBase(s) {
   let left = s.count;
   if (s.dur == null)
     for (const g of [invSlots, HOTBAR])
-      for (let i = 0; i < g.length && left > 0; i++) {
+      for (let i = 0; i < gridLen(g) && left > 0; i++) {
         const o = g[i];
         if (o && o.id === s.id && o.dur == null && o.count < cap) {
           const t = Math.min(cap - o.count, left);
@@ -52,7 +53,7 @@ function stowIntoBase(s) {
         }
       }
   for (const g of [invSlots, HOTBAR])
-    for (let i = 0; i < g.length && left > 0; i++)
+    for (let i = 0; i < gridLen(g) && left > 0; i++)
       if (g[i] == null) { const t = Math.min(cap, left); g[i] = carrySlot(s, t); left -= t; }
   return left;
 }

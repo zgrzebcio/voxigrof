@@ -55,7 +55,7 @@ const SWAP_KEYS = [
   '_drawT', '_drawAmmoId', '_drawDry',
   // vitals + experience
   'camShake', '_hurtA', 'vitalsDirty', 'vitalsShown',
-  'playerXP', 'playerLevel', 'playerXPInLevel', 'playerXPNeeded', 'xpBarDirty', '_xpFlash', '_popSlot',
+  'playerXP', 'playerLevel', 'playerXPInLevel', 'playerXPNeeded', 'xpBarDirty', '_xpFlash', '_popSlot', '_xpRecent',
   // movement bookkeeping + held light
   'wasMoving', 'lastFlying', '_hlId', '_hlLevel', '_hlX', '_hlY', '_hlZ', '_hlRaw',
   // this player's slice of the HUD
@@ -445,14 +445,14 @@ function joinPlayer(name) {
   g.invOpen = false; g._bushCd = 0; g._bushHeldT = 0; g.handPlaceSwing = false; g.handPickSwing = false;
   g._eatTimer = 0;
   // carried items — a fresh set in whichever mode the world is in
-  g.survStash = { hot: new Array(HOTBAR_SLOTS).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
+  g.survStash = { hot: new Array(HOTBAR_MAX).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
   g.survEquip = new Array(EQUIP_SLOTS.length).fill(null);
   g.survBelt  = new Array(BELT_MAX).fill(null);
   // vitals + XP
   g.camShake = { t: 0, dur: 0.25, amp: 0 };
   g._hurtA = 0; g.vitalsDirty = true; g.vitalsShown = false;
   g.playerXP = 0; g.playerLevel = 0; g.playerXPInLevel = 0; g.playerXPNeeded = 40;
-  g.xpBarDirty = true; g._xpFlash = 0; g._popSlot = 0;
+  g.xpBarDirty = true; g._xpFlash = 0; g._popSlot = 0; g._xpRecent = [];
   g.wasMoving = false; g.lastFlying = p.flying;
   g._hlId = undefined; g._hlLevel = 0; g._hlX = null; g._hlY = null; g._hlZ = null; g._hlRaw = 0;
 
@@ -906,7 +906,7 @@ function resetExtraPlayers() {
       player.vy = 0; player.fallStart = null; player.aliveT = 0; player._dmgCause = null;
       fillVitals(player);   // 0.82
       player.spawnPos = null;
-      survStash = { hot: new Array(HOTBAR_SLOTS).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
+      survStash = { hot: new Array(HOTBAR_MAX).fill(null), inv: new Array(INV_SLOTS).fill(null), inv2: new Array(INV2_SLOTS).fill(null) };
       restoreEquip(null, null);
       setXP(0);
       hotbarSel = 0;
@@ -963,7 +963,7 @@ function applyExtraPlayerRestore(slot) {
   survStash = migrateStash(rec.survHot, rec.survInv, rec.survInv2);
   restoreEquip(rec.survEquip, rec.survBelt);
   loadInventoryForMode(currentInvMode);
-  if (typeof rec.hotSel === 'number' && rec.hotSel >= 0 && rec.hotSel < HOTBAR_SLOTS) hotbarSel = rec.hotSel;
+  if (typeof rec.hotSel === 'number' && rec.hotSel >= 0 && rec.hotSel < HOTBAR_MAX) hotbarSel = rec.hotSel;
   if (typeof rec.xp === 'number') setXP(rec.xp);
   buildHotbar();
   player.spawned = true;

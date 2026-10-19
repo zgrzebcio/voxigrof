@@ -37,7 +37,7 @@ corePart('blocks', function () {
     MORTAR_BOXES.push([at(v[i]), v[i + 1] * MORTAR_S, at(v[i + 2]), at(v[i + 3]), v[i + 4] * MORTAR_S, at(v[i + 5]), v[i + 6]]);
   }
   PROPS[B.MORTAR] = { name:'Mortar and pestle', solid:true, opaque:false, raycast:true, pass:0, model:'voxel',
-                      stack:10, hardness:3.0, type:'stone', mortar:true,   // `mortar`: it and its variants work as one
+                      stack:10, hardness:2.0, type:'stone', mortar:true,   // `mortar`: it and its variants work as one
                       boxes:[[0.13, 0, 0.13, 0.87, 0.71, 0.87]],   // the bowl; the pestle is not in the way
                       voxBoxes: MORTAR_BOXES, matFaces: MORTAR_FACES, animMat: 3,   // the pestle moves
                       faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE],

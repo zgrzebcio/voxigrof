@@ -75,7 +75,7 @@ function entityBeatsBlock(entHit, hit) {
    re-arms the full hand delay, so you can't scroll onto a fast sword and hit instantly. */
 const HAND_ATTACK_TIME = 0.5;
 const FIST_ATTACK_TIME = 1.2;                   // bare hand, or anything that is not a tool
-const HAND_DAMAGE = 5;                          // x5 with every health
+const HAND_DAMAGE = 1;                          // a bare hand (or a block, food): one point of a creature's health
 var _atkCooldown = 0;
 var _lastHeldForAtk;
 function attackCooldownFor(id) {

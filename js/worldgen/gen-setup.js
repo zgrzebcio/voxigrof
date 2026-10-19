@@ -12,6 +12,7 @@ corePart('gen.make', function () {
     const BIG_BERGS = biomeRev >= 10;                 // about a third of the icebergs big and high
     const SHROOMS2 = biomeRev >= 20;                  // 30% more mushrooms, by the kind of tree over them
     const FOSSIL2 = biomeRev >= 24;                   // 70% fewer skeletons in the Dryland
+    const SHORTGRASS = biomeRev >= 29;                // half the grass plants come up as short grass, the smallest
     const LAVA2 = biomeRev >= 25;                     // 20% more surface lava ponds in warm plains and the Dryland
     const PALM2 = biomeRev >= 26;                     // shore palms only where the land is level +1 or warmer
     const FLUSH = biomeRev >= 27;                     // a river's or lake's shore level with its water is a little beach (FLUSH, biomes/fields.js)
@@ -37,7 +38,7 @@ corePart('gen.make', function () {
     biome's name (biomeAt) and the sub-biome masks — live in biomes/biomes.js since 0.823 (BIOME_CORE, shipped into the
     worker beside this core). */
     const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
-    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND } = bio;
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2 } = bio;
     /* The desert update (0.84, rev 21, biomes/biomes.js): the Deep Desert's rock is banded sandstone from DD_ROCK_FROM up,
        a band of red every DD_BAND layers (ddStrata: `off` wobbles the bands by column). Rev 22 by its half,
        `kind`: 1 the Deep Desert, sandstone with a thin red band every DD_BAND_Y; 2 the Deep Red Desert, red sandstone

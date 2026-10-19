@@ -64,7 +64,8 @@ function mineDropAllowed(heldId, blockId) {
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
-  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
+  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,
+                   B.TERMITE_HILL]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK, B.ICE, B.BONE_BLOCK, B.PACKED_ICE,   // ice 0.8321; bone 0.833; packed 0.835
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
@@ -78,12 +79,12 @@ const TOOL_BLOCKS = {
                     B.CARVED_PUMPKIN, B.JACK_O_LANTERN]),
   hoe:    new Set([...woodBlocks('leaves'), B.HAY]),          // every wood's leaves, the dry bush's too
   // shears are the wool tool; they also snip plant matter cleanly
-  shears: new Set([B.WOOL, ...woodBlocks('leaves'), B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
+  shears: new Set([B.WOOL, ...woodBlocks('leaves'), B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
                    B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH]),
   // a blade cuts soft, fibrous things fast — plants, leaves, saplings, melons, cane and webbing-like props
   sword:  new Set([B.COBWEB, ...woodBlocks('leaves'), ...woodBlocks('sapling'), B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
                    B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM,
-                   B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
+                   B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
                    B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH,
                    B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };

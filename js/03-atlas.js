@@ -23,6 +23,8 @@ const OAK_LEAF_TINT = 'rgb(104,158,64)';          // the grey oak leaf art, mult
 const BIRCH_LEAF_TINT = 'rgb(128,167,85)';        // birch's paler, yellower green
 const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the oak leaf art gone very pale and dry
 const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green
+const ACACIA_LEAF_TINT = 'rgb(126,156,58)';        // the acacia's crown, grey art: an olive, sun-dried green
+const SAVANNA_GRASS_RGB = [196, 168, 74];          // the Savanna's golden grass, what GRASS_RGB is mixed toward there
 /* ================================================================================================ */
 
 /* ---- texture quality (array 0.809) ----
@@ -191,7 +193,12 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'palm_log', 'palm_log_top', 'stripped_palm_log', 'stripped_palm_log_top', 'palm_planks', 'palm_leaves'
                      ,'palm_sapling', 'dry_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top', 'dry_bush'
                      // the Dryland's pale grass block and its dry leaves (T 396-398), built below, never fetched
-                     ,'grass_block_top_dry', 'grass_block_side_dry', 'dry_leaves'];
+                     ,'grass_block_top_dry', 'grass_block_side_dry', 'dry_leaves'
+                     // acacia wood (T 399-404); the Savanna's golden grass block (T 405-406), built below, never fetched
+                     ,'acacia_log', 'acacia_log_top', 'stripped_acacia_log', 'stripped_acacia_log_top', 'acacia_planks', 'acacia_leaves'
+                     ,'grass_block_top_sav', 'grass_block_side_sav'
+                     // the acacia sapling (T 407); the short grass and its warm and cold look (T 408-410), the last two built below
+                     ,'acacia_sapling', 'short_grass', 'short_grass_warm', 'short_grass_cold'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -414,7 +421,7 @@ function _checkTileOrder() {
 /* every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
    the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
    its segments stay joined; the upper half of tall grass carries on from the lower (3). */
-const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2 };   // rime leaves are frozen stiff; palm 0.84; dry 0.8411
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2, acacia_leaves: 2 };   // rime leaves are frozen stiff; palm 0.84; dry 0.8411
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
@@ -424,7 +431,7 @@ for (let id = 0; id < PROPS.length; id++) {
     if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
 // the warm and cold grass plants sway as their usual selves do
-for (const n of ['grass', 'tallgrass_bottom', 'tallgrass_top'])
+for (const n of ['grass', 'short_grass', 'tallgrass_bottom', 'tallgrass_top'])
   if (SWAY_TILES[n]) SWAY_TILES[n + '_warm'] = SWAY_TILES[n + '_cold'] = SWAY_TILES[n];
 /* The water's colours: the art is grey, drawn in the usual blue below; the shader moves it toward the cold
    or the warm one by the mesh's climate value (04-materials.js). */
@@ -438,7 +445,7 @@ const TILE_LAYER = (() => {
   /* Row 1, the climate colour: 1 = mix toward the warm tile (.g) or the cold one (.b), 2 = water, tinted.
      Only tiles the mesher gives a climate value (TINTED in chunks/voxel-shared.js) ever read it. */
   const R1 = N * 4;
-  for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass']) {
+  for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass', 'short_grass']) {
     const i = ATLAS_TILES.indexOf(n), w = ATLAS_TILES.indexOf(n + '_warm'), c = ATLAS_TILES.indexOf(n + '_cold');
     if (i >= 0 && w >= 0 && c >= 0) { d[R1 + i * 4] = 1; d[R1 + i * 4 + 1] = w; d[R1 + i * 4 + 2] = c; }
   }
@@ -584,11 +591,17 @@ async function buildAtlas() {
   if (IMAGES.grass_side_base && IMAGES.grass_side_overlay)
     IMAGES.grass_block_side_dry = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', dryRGB);
   IMAGES.grass_block_top_dry = IMAGES.grass_block_top;
+  /* The Savanna's grass: golden, beyond the Dryland's pale one (the shader fades pale to it, dryAt in biomes/queries.js) */
+  const savRGB = mixRGB(grassRGB, SAVANNA_GRASS_RGB, 0.85), savTint = rgbStr(savRGB);
+  if (IMAGES.grass_side_base && IMAGES.grass_side_overlay)
+    IMAGES.grass_block_side_sav = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', savRGB);
+  IMAGES.grass_block_top_sav = IMAGES.grass_block_top;
   IMAGES.dry_leaves = IMAGES.oak_leaves;                // the grey oak leaves, tinted pale below (before the oak's own tint)
   IMAGES.grass_block_top_warm = IMAGES.grass_block_top_cold = IMAGES.grass_block_top;
   IMAGES.tallgrass_bottom_warm = IMAGES.tallgrass_bottom_cold = IMAGES.tallgrass_bottom;
   IMAGES.tallgrass_top_warm = IMAGES.tallgrass_top_cold = IMAGES.tallgrass_top;
-  IMAGES.grass_warm = IMAGES.grass_cold = IMAGES.grass;   // the short grass: the same grey art, each tinted below
+  IMAGES.grass_warm = IMAGES.grass_cold = IMAGES.grass;   // the grass plant: the same grey art, each tinted below
+  IMAGES.short_grass_warm = IMAGES.short_grass_cold = IMAGES.short_grass;   // ...and the short grass
   /* A burnt-out glow block is its own picture in grey and darker: no art of its own. Pixel by pixel, so it
      works where a canvas filter does not. */
   const greyed = (src) => {
@@ -616,8 +629,10 @@ async function buildAtlas() {
                              ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],
                              ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', coldTint],
                              ['grass', tint], ['grass_warm', warmTint], ['grass_cold', coldTint],
+                             ['short_grass', tint], ['short_grass_warm', warmTint], ['short_grass_cold', coldTint],
                              ['birch_leaves', BIRCH_LEAF_TINT], ['dry_leaves', DRY_LEAF_TINT],     // dry 0.8411
-                             ['palm_leaves', PALM_LEAF_TINT]]) {                                    // palm 0.8445
+                             ['palm_leaves', PALM_LEAF_TINT],                                     // palm 0.8445
+                             ['acacia_leaves', ACACIA_LEAF_TINT]]) {
     const src = IMAGES[name];
     if (!src) continue;
     const c = document.createElement('canvas');
@@ -658,7 +673,8 @@ async function buildAtlas() {
     ctx.globalAlpha = 1;
     // opaque tile: multiply tint (rich); the warm and cold tops their own
     const topTint = name === 'grass_block_top' ? tint : name === 'grass_block_top_warm' ? warmTint
-                  : name === 'grass_block_top_cold' ? coldTint : name === 'grass_block_top_dry' ? dryTint : null;   // dry 0.8411
+                  : name === 'grass_block_top_cold' ? coldTint : name === 'grass_block_top_dry' ? dryTint   // dry 0.8411
+                  : name === 'grass_block_top_sav' ? savTint : null;
     if (topTint) {
       ctx.globalCompositeOperation = 'multiply';
       ctx.fillStyle = topTint;

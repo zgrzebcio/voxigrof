@@ -49,21 +49,44 @@ function beltCapacity() {
 }
 const beltAccepts = (i, id) =>
   i < beltCapacity() && id != null && id >= 256 && !!ITEM_PROPS[id]?.beltItem;
+/* How many hotbar slots are in use: the bar's own HOTBAR_SLOTS and the worn belt's `hotbarSlots` (the leather
+   belt's 2: slots 9 and 10, keys 9 and 0). HOTBAR always holds HOTBAR_MAX slots (player/inventory.js); the ones past
+   this are empty and hidden. Everything that fills or picks a hotbar slot counts to this, not HOTBAR.length. */
+function hotbarLen() {
+  const s = typeof equipSlots !== 'undefined' ? equipSlots[EQUIP_INDEX.belt] : null;
+  return Math.min(HOTBAR_MAX, HOTBAR_SLOTS + ((s && ITEM_PROPS[s.id]?.hotbarSlots) || 0));
+}
 
 /* Called after any equipment change. Slots beyond the current capacity (belt removed, or
    swapped for a smaller one) spill back into the player's grids, dropping on the floor rather
    than vanishing if there is no room. */
 function syncBeltCapacity() {
   const cap = beltCapacity();
-  for (let i = cap; i < beltSlots.length; i++) {
-    const s = beltSlots[i];
-    if (!s) continue;
-    beltSlots[i] = null;
+  const back = (s) => {
     for (let n = 0; n < s.count; n++)
       if (!tryPickup(s.id, s.dur ?? null, 'unpacked', slotMeta(s)))
         spawnDrop(s.id, Math.floor(player.pos.x), Math.floor(player.pos.y + 0.5), Math.floor(player.pos.z),
                   undefined, undefined, s.dur ?? null, slotMeta(s));
+  };
+  for (let i = cap; i < beltSlots.length; i++) {
+    const s = beltSlots[i];
+    if (!s) continue;
+    beltSlots[i] = null;
+    back(s);
   }
+  // ...and the hotbar slots the belt gave: emptied into the rest of the inventory, the selection pulled back onto the bar
+  const n = hotbarLen();
+  let moved = false;
+  for (let i = n; i < HOTBAR.length; i++) {
+    const s = HOTBAR[i];
+    if (!s) continue;
+    HOTBAR[i] = null;
+    back(s);
+    moved = true;
+  }
+  if (hotbarSel >= n) hotbarSel = n - 1;
+  if (typeof hotbarEl !== 'undefined' && hotbarEl && hotbarSlotEls().length !== n) { saveHotbar(); buildHotbar(); }
+  else if (moved) { saveHotbar(); buildHotbar(); }
 }
 
 // does this item belong in that slot? placeholders accept nothing
@@ -162,6 +185,9 @@ const ARMOR_SET_BONUS = {
      builds 40% slower, and a sandstorm slows you and drains your stamina 40% less. */
   cloth:   { name: 'Weather resistance', sandstormResist: 0.40, heatstrokeResist: 0.40, good: true,
              desc: 'Full set: 40% resistance to sandstorms and heatstroke' },
+  // Bronze: 35% less from what is shot or thrown at you: arrows, a boss's fireballs and beams (playerProjectileMul)
+  bronze:  { name: 'Projectile resistance', projectileResist: 0.35, good: true,
+             desc: 'Full set: 35% less damage from arrows and other projectiles' },
 };
 // the material every body piece shares, or null if the set is incomplete or mismatched
 function playerArmorSet() {
@@ -176,6 +202,8 @@ function playerArmorSet() {
   return mat;
 }
 const armorSetBonus = () => ARMOR_SET_BONUS[playerArmorSet()] || null;
+// what a projectile's damage is multiplied by for player `p` (the bronze set): read with p's own gear installed
+const playerProjectileMul = (p) => 1 - ((typeof withPlayer === 'function' ? withPlayer(p, armorSetBonus) : armorSetBonus())?.projectileResist || 0);
 /* Toughness, move speed and the other stat getters, and the timed effects (EFFECT_DEFS, the effect bar),
    moved to player/stats.js in 0.82. */
 

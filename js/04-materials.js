@@ -62,8 +62,11 @@ const sharedUniforms = {
   uWaterCold:  { value: new THREE.Vector3(...WATER_TINT.cold.map((v, i) => v / WATER_TINT.base[i])) },
   // the Dryland's dry grass: the grass top and side tiles, and the dry tiles they fade to by a face's dryness (vDry)
   uDryTiles:   { value: new THREE.Vector4(CORE.T.GRASS_TOP, CORE.T.GRASS_SIDE, CORE.T.GRASS_TOP_DRY, CORE.T.GRASS_SIDE_DRY) },
-  // the grass plants' tiles (short, tall bottom, tall top): they pale in dry and warm land (FSH)
-  uDryPlants:  { value: new THREE.Vector3(CORE.T.GRASS_PLANT, CORE.T.TALL_BOT, CORE.T.TALL_TOP) },
+  // ...the Savanna's golden ones, which the dryness fades on to past DRY_PALE (dryAt, biomes/queries.js)
+  uSavTiles:   { value: new THREE.Vector2(CORE.T.GRASS_TOP_SAV, CORE.T.GRASS_SIDE_SAV) },
+  uDryPale:    { value: BIOMES.DRY_PALE },
+  // the grass plants' tiles (grass, tall bottom, tall top, short): they pale in dry and warm land (FSH)
+  uDryPlants:  { value: new THREE.Vector4(CORE.T.GRASS_PLANT, CORE.T.TALL_BOT, CORE.T.TALL_TOP, CORE.T.SHORT_GRASS_PLANT) },
 };
 /* The haze of the sky in a direction: added to the fog colour, so it is the same on the sky dome, the
    clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
@@ -205,7 +208,9 @@ const FSH = /* glsl */`
   uniform float uTime;
   uniform vec3 uWaterWarm, uWaterCold;              // water's warm and cold colour over its usual blue (0.8231)
   uniform vec4 uDryTiles;                           // grass top, grass side, and their dry tiles (0.8442)
-  uniform vec3 uDryPlants;                          // short grass, tall grass bottom and top (0.8444)
+  uniform vec2 uSavTiles;                           // the Savanna's grass top and side
+  uniform float uDryPale;                           // the dryness of the Dryland's pale grass (BIOMES.DRY_PALE)
+  uniform vec4 uDryPlants;                          // grass, tall grass bottom and top (0.8444), short grass
   in float vDry;
   in float vClim;
   in vec2 vUv;
@@ -249,22 +254,30 @@ const FSH = /* glsl */`
       else if (tt.r > 0.5) tex = mix(tex, texture(map, vec3(vUv, vClim > 0.0 ? tt.g : tt.b)), k);
     }
     /* The Dryland's dry grass (0.8442): a grass top or side fades into its dry tile by the face's dryness, blended
-       between its corners, so the pale grass comes in over the Dryland's whole edge. Eased, so it starts and ends softly. */
+       between its corners, so the pale grass comes in over the Dryland's whole edge. Eased, so it starts and ends softly.
+       The dryness runs 0 green, uDryPale the Dryland's pale grass, 1 the Savanna's golden grass (dryAt in
+       biomes/queries.js): past uDryPale the pale fades on into the Savanna's own tile. */
+    float dryK = smoothstep(0.0, 1.0, min(1.0, vDry / uDryPale));
+    float savK = smoothstep(0.0, 1.0, clamp((vDry - uDryPale) / (1.0 - uDryPale), 0.0, 1.0));
     if (vDry > 0.004) {
-      float dryT = abs(vTile - uDryTiles.x) < 0.5 ? uDryTiles.z : abs(vTile - uDryTiles.y) < 0.5 ? uDryTiles.w : -1.0;
-      if (dryT >= 0.0) {
-        float dl = texelFetch(uTileLayer, ivec2(int(dryT + 0.5), 0), 0).r;
-        tex = mix(tex, texture(map, vec3(vUv, dl)), smoothstep(0.0, 1.0, vDry));
+      bool top = abs(vTile - uDryTiles.x) < 0.5, side = abs(vTile - uDryTiles.y) < 0.5;
+      if (top || side) {
+        float dl = texelFetch(uTileLayer, ivec2(int((top ? uDryTiles.z : uDryTiles.w) + 0.5), 0), 0).r;
+        tex = mix(tex, texture(map, vec3(vUv, dl)), dryK);
+        if (savK > 0.004) {
+          float sl = texelFetch(uTileLayer, ivec2(int((top ? uSavTiles.x : uSavTiles.y) + 0.5), 0), 0).r;
+          tex = mix(tex, texture(map, vec3(vUv, sl)), savK);
+        }
       }
     }
     /* Grass plants pale with the land (0.8444): short and tall grass take a dry, pale green by the dryness at their
        foot, and a little of it in any warm land (the climate colour from a warm plain on), so they no longer stand
-       bright green on pale ground. The pale colour keeps the texel's own brightness. */
-    if (abs(vTile - uDryPlants.x) < 0.5 || abs(vTile - uDryPlants.y) < 0.5 || abs(vTile - uDryPlants.z) < 0.5) {
-      float pale = max(smoothstep(0.0, 1.0, vDry) * 0.7, clamp((vClim - 0.25) * 1.2, 0.0, 0.3));
+       bright green on pale ground; in the Savanna a golden one. The colour keeps the texel's own brightness. */
+    if (abs(vTile - uDryPlants.x) < 0.5 || abs(vTile - uDryPlants.y) < 0.5 || abs(vTile - uDryPlants.z) < 0.5 || abs(vTile - uDryPlants.w) < 0.5) {
+      float pale = max(dryK * 0.7, clamp((vClim - 0.25) * 1.2, 0.0, 0.3));
       if (pale > 0.004) {
         float lum = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-        tex.rgb = mix(tex.rgb, lum * vec3(1.16, 1.14, 0.66), pale);
+        tex.rgb = mix(tex.rgb, lum * mix(vec3(1.16, 1.14, 0.66), vec3(1.26, 1.06, 0.48), savK), pale);
       }
     }
     /* A river's top (0.835492): ripples run downstream across it. Its UVs are turned so v falls downstream (02 emitWater),

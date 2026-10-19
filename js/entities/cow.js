@@ -75,23 +75,59 @@ function _cowLeg(mat) {
   g.add(m);
   return g;
 }
-function buildCow(bodyHex = COW_COATS.holstein.body, spotHex = COW_COATS.holstein.spot) {
+/* A bull's horns: black, out to the side from the top of the head, then curving up and a little forward, narrowing to a
+   small blunt tip. Plain boxes in a dark horn colour of their own (a 1-texel picture, so the light still multiplies it
+   as it does every creature's colour); no sheet of their own. One side; `s` 1 the left, -1 the right. */
+const _BULL_HORN_HEX = '#26221f';
+let _bullHornTex = null;
+function _bullHornMat() {
+  if (!_bullHornTex) {
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    const g = c.getContext('2d'); g.fillStyle = _BULL_HORN_HEX; g.fillRect(0, 0, 1, 1);
+    _bullHornTex = new THREE.CanvasTexture(c); _bullHornTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return new THREE.MeshBasicMaterial({ map: _bullHornTex });
+}
+function _bullHorn(mat, s) {
+  const g = new THREE.Group();
+  const box = (w, h, d, x, y, z, rz = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w * PX, h * PX, d * PX), mat);
+    m.position.set(x * PX, y * PX, z * PX); m.rotation.z = rz;
+    g.add(m);
+  };
+  box(3.2, 1.8, 1.8, s * 1.6, 0, 0);                    // out from the head
+  box(1.6, 2.4, 1.6, s * 3.4, 1.2, 0.2, -s * 0.25);     // curving up
+  box(1.1, 1.6, 1.1, s * 3.1, 2.8, 0.6, -s * 0.45);     // and in, narrower
+  box(0.7, 0.7, 0.7, s * 2.7, 3.7, 0.9);                // the blunt tip
+  return g;
+}
+// `bull`: a male's model, with the bull's horns in place of the small horn stubs
+function buildCow(bodyHex = COW_COATS.holstein.body, spotHex = COW_COATS.holstein.spot, bull = false) {
   const root = new THREE.Group();
-  const mat = _newCowMat(bodyHex, spotHex);
+  const mat = _newCowMat(bodyHex, spotHex), mats = [mat];
   const body = _part(mat, 10, 10, 16, 0, 0);
   body.position.set(0, 17 * PX, 0);
   const head = new THREE.Group();               // horns ride with the head, so it gets a pivot
   head.position.set(0, 20 * PX, 11.5 * PX);
   const skull = _part(mat, 7, 7, 7, 0, 27);
-  const hornR = _part(mat, 2, 2, 2, 46, 27); hornR.position.set(-4 * PX, 3 * PX, -1 * PX);
-  const hornL = _part(mat, 2, 2, 2, 46, 27); hornL.position.set( 4 * PX, 3 * PX, -1 * PX);
-  head.add(skull, hornR, hornL);
+  head.add(skull);
+  if (bull) {
+    const hm = _bullHornMat();
+    mats.push(hm);
+    const hornL = _bullHorn(hm, 1);  hornL.position.set( 3.5 * PX, 2.6 * PX, -1 * PX);
+    const hornR = _bullHorn(hm, -1); hornR.position.set(-3.5 * PX, 2.6 * PX, -1 * PX);
+    head.add(hornL, hornR);
+  } else {
+    const hornR = _part(mat, 2, 2, 2, 46, 27); hornR.position.set(-4 * PX, 3 * PX, -1 * PX);
+    const hornL = _part(mat, 2, 2, 2, 46, 27); hornL.position.set( 4 * PX, 3 * PX, -1 * PX);
+    head.add(hornR, hornL);
+  }
   const legFL = _cowLeg(mat); legFL.position.set(-3.5 * PX, 12 * PX,  5 * PX);
   const legFR = _cowLeg(mat); legFR.position.set( 3.5 * PX, 12 * PX,  5 * PX);
   const legBL = _cowLeg(mat); legBL.position.set(-3.5 * PX, 12 * PX, -5 * PX);
   const legBR = _cowLeg(mat); legBR.position.set( 3.5 * PX, 12 * PX, -5 * PX);
   root.add(body, head, legFL, legFR, legBL, legBR);
-  return { root, head, body, legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
+  return { root, head, body, legs: [legFL, legFR, legBL, legBR], mat, mats };
 }
 
 /* ---- cows: the other passive grazer ----
@@ -100,13 +136,13 @@ function buildCow(bodyHex = COW_COATS.holstein.body, spotHex = COW_COATS.holstei
 const COW_HP = 60;
 const COW_SPEED = 1.7, COW_FLEE_SPEED = 4.4;
 const COW_FLEE_TIME = 6;
-const COW_BIOMES = { 'Plains': 1, 'Cold Plains': 1 };      // flat land, mild to cool
+const COW_BIOMES = { 'Plains': 1, 'Cold Plains': 1, 'Savanna': 0.4 };   // flat land, mild to cool; a few on the Savanna's grass
 const COW_CHUNK_CHANCE = 0.010;          // a herd in about 1 new chunk in 100, before the biome's weight
 const COW_HERD_MIN = 2, COW_HERD_MAX = 4;
 
 /* What one cow is made of: its model and what only a cow has. summon('cow', x, y, z, opts) writes the rest
    (entities/mobs.js). `opts`: variant (a coat's name), bodyTint, spotTint, size. */
-function makeCow(opts) {
+function makeCow(opts, gender) {
   // coat is rolled once and persisted, so a herd stays the herd you found. A named coat supplies
   // both tints; explicit hex tints (either or both) override it — any cow is two numbers.
   const variant = COW_COATS[opts.variant] ? opts.variant
@@ -115,7 +151,7 @@ function makeCow(opts) {
   const size = _animalSize(opts);
   return {
     model: buildCow(opts.bodyTint != null ? opts.bodyTint : coat.body,
-                    opts.spotTint != null ? opts.spotTint : coat.spot),
+                    opts.spotTint != null ? opts.spotTint : coat.spot, gender === 'M'),   // a bull has horns
     scale: COW_SCALE * size,
     own: {
       variant, size,
@@ -132,7 +168,7 @@ defineMob('cow', {
   walk: COW_SPEED, flee: COW_FLEE_SPEED, fleeTime: COW_FLEE_TIME,
   make: makeCow, gendered: true,
   // a cow's look: a named coat (COW_COATS), or its two tints
-  build: (look) => { const c = COW_COATS[look.coat] || COW_COATS.holstein; return buildCow(look.body != null ? look.body : c.body, look.spot != null ? look.spot : c.spot); },
+  build: (look) => { const c = COW_COATS[look.coat] || COW_COATS.holstein; return buildCow(look.body != null ? look.body : c.body, look.spot != null ? look.spot : c.spot, look.gender === 'M'); },
   herd: { chance: COW_CHUNK_CHANCE, min: COW_HERD_MIN, max: COW_HERD_MAX, biomes: COW_BIOMES },
   // the save: its size, its own two tints if it was given any, gender, level, and the wait for its next milk
   save: (e) => ({ sz: e.size, bt: e.bodyTint, st: e.spotTint, g: e.gender, lv: e.level, mk: e.milkCd > 0 ? Math.round(e.milkCd) : 0 }),

@@ -58,7 +58,7 @@ const SKILLS = [
   { id: 'nimble',      cat: 'crafting', name: 'Work Fingers',   cost: 1, req: [],
     desc: '+10% crafting speed, and crafting slows your walk 25% less' },
   { id: 'walkWork',    cat: 'crafting', name: 'Precise Focus',  cost: 1, req: ['nimble'],
-    desc: 'Crafting without a break gets faster, at a station you keep working or in your pocket queue: after 4 seconds the crafting speed starts to rise, up to +50% at 14 seconds. Any break starts it over' },   // the pocket queue 0.84471
+    desc: 'Crafting without a break gets faster, at a station you keep working or in your pocket queue: after 3 seconds the crafting speed starts to rise, up to +50% at 12 seconds. Any break starts it over' },   // the pocket queue 0.84471
   { id: 'fineWork',    cat: 'crafting', name: 'Fine Work',      cost: 1, req: ['nimble'],
     desc: 'Tools and gear you craft from now on are Well made: 10% chance a use costs no durability' },
   { id: 'spareParts',  cat: 'crafting', name: 'Spare Parts',    cost: 1, req: ['nimble'],
@@ -68,15 +68,15 @@ const SKILLS = [
   { id: 'dismantle',   cat: 'crafting', name: 'Dismantle',      cost: 2, req: ['mender'],   // 0.807
     desc: 'Drop a tool, weapon or piece of armor on the Dismantle zone under the equipment panel to break it down into half its recipe, less the more worn it is' },
   // ---- exploring ----
-  { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 1, req: [],
-    desc: '25% chance a loot chest holds one extra item, and 1% that it holds a key (wooden, copper, iron or golden)' },   // the key 0.8446
+  { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 2, req: [],
+    desc: '25% chance a loot chest holds one extra item, and 2.5% that it holds a key (wooden, copper, iron or golden)' },   // the key 0.8446
   { id: 'prospector',   cat: 'exploring', name: 'Prospector',    cost: 1, req: [],
     desc: '20% chance of one more ore from every ore block you mine' },
-  { id: 'weathered',    cat: 'exploring', name: 'Weathered',     cost: 2, req: [],
+  { id: 'weathered',    cat: 'exploring', name: 'Weathered',     cost: 1, req: ['packRat'],   // after Pack Rat
     desc: '+10% cold and heat resistance' },
-  { id: 'packRat',      cat: 'exploring', name: 'Pack Rat',      cost: 1, req: ['treasureNose'],
+  { id: 'packRat',      cat: 'exploring', name: 'Pack Rat',      cost: 1, req: [],
     desc: 'Item stacks hold 20 more (99) and block stacks 10 more (60); not the small stacks (stews, bowls, buckets)' },   // blocks only until 0.8442
-  { id: 'hazardHide',   cat: 'exploring', name: 'Hazard Hide',   cost: 1, req: ['prospector', 'treasureNose', 'weathered'],
+  { id: 'hazardHide',   cat: 'exploring', name: 'Hazard Hide',   cost: 1, req: ['prospector', 'treasureNose'],
     desc: '30% less damage from falls, lava and cactus' },   // explosions and temperature once they hurt
   // whatever clouds your sight or shakes it is 30% weaker: fog, a sandstorm, murky water, heatstroke's blur,
   // nausea's sway and the jolt of a hit
@@ -85,7 +85,7 @@ const SKILLS = [
   // ---- husbandry ----
   { id: 'butcher',     cat: 'husbandry', name: 'Butcher',        cost: 1, req: [],
     desc: '20% chance of one more meat (or leather) from animals you kill' },
-  { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 1, req: [],
+  { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 2, req: [],
     desc: 'Food you carry spoils 10% slower' },                        // 0.7911
   { id: 'lingering',   cat: 'husbandry', name: 'Lingering',      cost: 1, req: ['preserver'],   // after Preserver since 0.7911
     desc: 'Good food and potion effects last 25% longer' },   // good ones only

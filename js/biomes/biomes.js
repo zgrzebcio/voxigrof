@@ -20,6 +20,9 @@
    Every rule added to the land is switched on from a revision number; CLAUDE.md lists them. */
 
 corePart('biomes', function () {
+  /* The grass's dryness scale (dryAt, biomes/queries.js): 0 green, DRY_PALE the Dryland's pale grass, 1 the Savanna's
+     golden grass. The mesher packs it per corner; the shader (04-materials.js) reads BIOMES.DRY_PALE to split it. */
+  const DRY_PALE = 0.8;
   function makeBiomes(o) {
     /*@include biomes.make*/
   }
@@ -27,7 +30,7 @@ corePart('biomes', function () {
   // ...and a forest's or the plains' hills count as that forest or plain
   // ...but the Deep Desert is its own: no desert village there, and the pyramid will be; the Deep Red one too
   const biomeBase = (name) => String(name || '').replace(/^Deep (?!(Red )?Desert$)/, '').replace(/^(Warm|Cold) /, '').replace(/^((?:Birch |Spruce )?Forest|Plains) Hills$/, '$1');
-  return { makeBiomes, biomeBase, CLIMATE_LADDER };
+  return { makeBiomes, biomeBase, CLIMATE_LADDER, DRY_PALE };
 });
 
 const BIOME_CORE = buildCore('biomes');

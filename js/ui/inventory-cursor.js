@@ -126,11 +126,13 @@ function nearestElement(x, y) {
   }
   return best;
 }
-// the hoverable lines of the equipment panel's Stats and Effects lists, each with its tooltip builder
+// the hoverable lines of the equipment panel's Stats and Effects lists, each with its tooltip builder, and the XP bar
 function getInfoElements() {
-  const panel = invPanel('equipPanel');
-  if (!panel || panel.style.display === 'none' || typeof statTipHTML !== 'function') return [];
   const out = [];
+  // the XP bar (player/leveling.js): its level, XP and last gains, while it is shown (survival)
+  if (typeof xpBarEl !== 'undefined' && xpBarEl && xpBarEl._shown && typeof xpTipHTML === 'function') out.push({ el: xpBarEl, tip: xpTipHTML });
+  const panel = invPanel('equipPanel');
+  if (!panel || panel.style.display === 'none' || typeof statTipHTML !== 'function') return out;
   for (const el of panel.querySelectorAll('.stRow[data-tip]')) out.push({ el, tip: () => statTipHTML(el.dataset.tip) });
   for (const el of panel.querySelectorAll('.stRow[data-eff]')) out.push({ el, tip: () => effectTipHTML(+el.dataset.eff) });
   return out;

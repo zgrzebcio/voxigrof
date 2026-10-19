@@ -50,6 +50,7 @@ var progRingEl = document.getElementById('progRing');
 function interactProgress() {
   if (player.dead || menuScene || !playing) return 0;
   if (player._milkProg > 0) return player._milkProg;
+  if (player._unsealProg > 0) return player._unsealProg;                // a sealed chest's key turning
   if (player._fillProg > 0) return player._fillProg;                    // a bottle filling at water
   if (player._eatProg > 0) return player._eatProg;                      // a meal or a drink
   if (player._drawProg > 0) return Math.min(1, player._drawProg);       // a bow being drawn
@@ -131,12 +132,15 @@ function buildHotbar() {                         // rebuilt on any slot change -
   hotbarEl.innerHTML = '';
   hotbarEl._offKey = undefined;                  // the offhand slot went with the clear
   hotbarEl._chiselKey = undefined;               // ...and the chisel's shape slot and radial
-  HOTBAR.forEach((s, i) => {
+  // the bar's own slots and the ones a worn belt opens (hotbarLen, player/equipment.js); the tenth is key 0
+  const n = typeof hotbarLen === 'function' ? hotbarLen() : HOTBAR.length;
+  if (hotbarSel >= n) hotbarSel = n - 1;
+  for (let i = 0; i < n; i++) {
     const div = document.createElement('div');
-    div.className = 'slot' + (i === hotbarSel ? ' sel' : '');
-    div.innerHTML = `<span class="key">${i + 1}</span>` + slotInner(s);
+    div.className = 'slot' + (i === hotbarSel ? ' sel' : '') + (i >= HOTBAR_SLOTS ? ' beltHot' : '');
+    div.innerHTML = `<span class="key">${(i + 1) % 10}</span>` + slotInner(HOTBAR[i]);
     hotbarEl.appendChild(div);
-  });
+  }
   syncOffhandSlot();
 }
 function updateHotbar() {

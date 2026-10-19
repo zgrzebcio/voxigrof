@@ -326,7 +326,7 @@ function _arrowHitPlayer(x, y, z) {
   return null;
 }
 function _arrowHitsPlayer(a, tp, x, y, z) {
-  tp.hp -= a.dmg;              // out of 100 on both sides since 0.823
+  tp.hp -= a.dmg * playerProjectileMul(tp);   // out of 100 on both sides since 0.823; the bronze set takes 35% off
   tp._dmgCause = `was shot by a ${a.byName}`;
   if (a.shooter) { tp._hitBy = a.shooter; tp._hitByAt = performance.now(); }   // a hound on defense goes for the archer
   const m = Math.hypot(a.vx, a.vz) || 1;

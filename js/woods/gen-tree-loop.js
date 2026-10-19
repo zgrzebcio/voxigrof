@@ -1,7 +1,7 @@
 'use strict';
 /* woods/gen-tree-loop.js: the tree pass. Over a grid of 5-block cells (reaching past the chunk's edge, so a tree's
    crown crosses borders) it decides whether a tree stands there, which one by the biome, and builds oak, birch and
-   spruce in place; rime trees, palms and dry bushes it hands to their own files.
+   spruce in place; rime trees, palms, acacias, dry bushes and termite hills it hands to their own files.
    A part of genChunk's body (worldgen/gen-chunk.js). */
 
 corePart('gen.chunk', function () {
@@ -47,6 +47,14 @@ corePart('gen.chunk', function () {
               (Math.abs(fbm(wx * 0.008 + 911, wz * 0.008 - 477, 2)) < 0.15 ||
                Math.abs(fbm(wx * 0.0035 + 911, wz * 0.011 - 477, 2)) < 0.10 ||
                Math.abs(fbm(wx * 0.011 + 911, wz * 0.0035 - 477, 2)) < 0.10)) continue;
+          /* the Savanna (rev 28): acacias standing well apart (one cell in 11, about one tree in two chunks), and in a few
+             of the cells left a termite hill (woods/gen-acacia.js, biomes/gen-savanna.js) */
+          if (SAVANNA && ti.fSav > 0.5) {
+            if (h > CY - 14) continue;
+            if (r < 0.09) acaciaTree(tx, tz, h, gcx, gcz);
+            else if (!SAV2 && hash2(gcx * 131 - 17, gcz * 127 + 29) < HILL_CHANCE) termiteHill(tx, tz, wx, wz, h, gcx, gcz);   // rev 30: termiteHillPass below
+            continue;
+          }
           if (isRime) {
             /* in groves with open snow between: thick in a grove, a few about its edge, the odd lone one out on the snow */
             const grove = fbm(wx * 0.011 - 4417.1, wz * 0.011 + 2903.3, 2);
@@ -394,6 +402,8 @@ corePart('gen.chunk', function () {
             }
         }
       }
+
+      if (SAV2) termiteHillPass();          // the big Savanna's termite hills, spaced apart (biomes/gen-savanna.js)
 
       /* Snowy grass sides are only correct when snow is actually sitting on the block. The snow
          cap is laid before the tree pass, so any column a trunk landed in still claims a white

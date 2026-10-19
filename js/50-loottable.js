@@ -71,6 +71,11 @@ const LOOT = {
   snowball:    [[2, 1], [1, 0.5], [1, 0.25]],
   sulfur:      [[1, 0.6], [1, 0.25]],
   bark:        [[1, 1], [1, 0.4],[1, 0.05]],
+  // a termite hill broken (its whole hill, once: blocks/termite-hill.js), and a termite
+  hillBrick:   [[2, 0.2]],                                // clay bricks, the earth baked hard
+  hillDirt:    [[1, 0.5]],
+  hillBark:    [[1, 0.7], [1, 0.45], [1, 0.1]],           // wood bark the termites brought in
+  chitin:      [[1, 0.25]],                               // a termite's chitin plate
 };
 // Prospector (ores) and Butcher (animals): 20% for one more
 const lootBonus = (has) => (has && Math.random() < LOOT_BONUS_CHANCE) ? 1 : 0;
@@ -102,6 +107,9 @@ function blockDrop(blockId, isNatural = false) {
   if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash
   if (blockId === B.FIRE) return [];
   if (blockId === B.ICE) return [];                                                // breaks into water
+  // a termite hill: what the whole hill gives, rolled for the one cell broken (the rest of a big one goes with nothing)
+  if (blockId === B.TERMITE_HILL)
+    return [..._drop(ITEM.BRICK, rollLoot(LOOT.hillBrick)), ..._drop(B.DIRT, rollLoot(LOOT.hillDirt)), ..._drop(ITEM.BARK, rollLoot(LOOT.hillBark))];
   /* Torches: a lit one, fire or crystal, comes off as an unlit torch, so breaking and placing again
      never buys a fresh light; an unlit one is a burnt stick, a stick back one time in four. (0.8443 gave a stick for
      any fire torch, and a crystal torch kept its crystal half the time.) */
@@ -161,7 +169,7 @@ function blockDrop(blockId, isNatural = false) {
   }
   if (blockId === B.WHEAT) return _drop(ITEM.WHEAT, rollLoot(LOOT.wheat));
   // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
-  if (blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
+  if (blockId === B.SHORT_GRASS || blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];
   // ...nor do the dry plants
   if (blockId === B.DRY_GRASS || blockId === B.DRY_TALL_LOWER || blockId === B.DRY_TALL_UPPER || blockId === B.DRY_BUSH) return [];

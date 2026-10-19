@@ -126,6 +126,8 @@ function trySpawnEntitiesInChunk(cx, cz) {
 }
 // a herd's and a school's chance is this much more than its entry says; the polar bear's and the hound's is not
 const ANIMAL_SPAWN_MUL = 1.3;
+/* the night's monsters, 30% more: the chunk roll, the cap on how many are about and how soon the next comes up, all by it */
+const MONSTER_SPAWN_MUL = 1.3;
 
 /* Herds of different animals keep apart: a new herd never starts within HERD_APART blocks of an animal of
    another kind, so a field holds sheep or cows or pigs rather than all of them in one heap. */
@@ -158,19 +160,19 @@ function _rollHerd(cx, cz, def) {
    was empty at noon is a candidate again after dusk. Called from finishChunkGen alongside the
    permanent population roll, so a freshly generated chunk and an old one being streamed back in
    are treated identically — which is exactly what "loading old ones" has to mean here, since a
-   chunk you walk away from is regenerated from the seed when you return. */
+   chunk you walk away from is regenerated from the seed when you return. And the land already loaded rolls too:
+   all of it in the simulated range as night falls, then a few of its chunks now and then (updateNightMobs below).
+   Never within ZOMBIE_SPAWN_MIN_DIST of a player; the cap on how many are about is what keeps a night from flooding. */
 function trySpawnNightMobsInChunk(cx, cz) {
   if (menuScene || !currentWorld || !anyPlayerSpawned()) return;
   if (!worldHasMonsters()) return;                     // a world made without monsters
   if (!isNightForMobs()) return;
-  const nowS = performance.now() / 1000;
-  if (nowS - _zombieSpawnT < ZOMBIE_SPAWN_GAP * (typeof isBloodMoon === 'function' && isBloodMoon() ? 0.5 : 1)) return;   // still inside the world-wide cooldown
   /* The moon: a full moon brings half as many again, a new moon a quarter fewer — the chunk roll and
      the cap both scale with how much of it is lit. */
   const blood = typeof isBloodMoon === 'function' && isBloodMoon();   // a blood moon: twice again, twice as often
   const moonMul = (0.75 + 0.75 * (typeof moonLit === 'function' ? moonLit() : 0.5)) * (blood ? 2 : 1);
-  const cap = Math.round(ZOMBIE_CAP * moonMul);
-  if (Math.random() >= ZOMBIE_CHUNK_CHANCE * moonMul) return;
+  const cap = Math.round(ZOMBIE_CAP * moonMul * MONSTER_SPAWN_MUL);
+  if (Math.random() >= ZOMBIE_CHUNK_CHANCE * moonMul * MONSTER_SPAWN_MUL) return;
   let live = 0;
   // one population, two species: the cap, the cooldown and the chunk roll are shared, so adding
   // skeletons made the night more varied rather than twice as crowded
@@ -183,8 +185,8 @@ function trySpawnNightMobsInChunk(cx, cz) {
     const dx = s.x - p.pos.x, dz = s.z - p.pos.z;
     if (dx * dx + dz * dz < ZOMBIE_SPAWN_MIN_DIST * ZOMBIE_SPAWN_MIN_DIST) return;
   }
+  if (!inSimRangeChunk(cx, cz)) return;               // out of the simulated land it would only stand there
   const n = Math.min(cap - live, _ri(ZOMBIE_PACK_MIN, ZOMBIE_PACK_MAX));
-  if (n > 0) _zombieSpawnT = nowS;                  // armed only when one actually comes up
   for (let i = 0; i < n; i++) {
     const kind = Math.random() < SKEL_SPAWN_SHARE ? 'skeleton' : 'zombie';
     const ox = Math.random() * 3 - 1.5, oz = Math.random() * 3 - 1.5;
@@ -194,6 +196,33 @@ function trySpawnNightMobsInChunk(cx, cz) {
     summon(kind, zx, s.y, zz);
   }
   if (n > 0 && typeof fxPuff === 'function') fxPuff(s.x, s.y + 0.8, s.z, [0.22, 0.2, 0.26], 14, 1.6);   // they rise out of a dark puff
+}
+
+/* The land already loaded at night (from the main loop, while the world runs): as night falls (or a world is joined
+   at night) every loaded chunk in the simulated range rolls once, NIGHT_SWEEP_PER_FRAME a frame; after that
+   NIGHT_TRICKLE_N of them every NIGHT_TRICKLE_S, so the night stays peopled where the player stays. */
+const NIGHT_SWEEP_PER_FRAME = 4, NIGHT_TRICKLE_S = 8, NIGHT_TRICKLE_N = 3;
+let _nightWas = false, _nightSweep = [], _nightTrickleT = 0;
+function updateNightMobs(dt) {
+  if (menuScene || !currentWorld || !anyPlayerSpawned() || !worldHasMonsters()) return;
+  const night = isNightForMobs();
+  if (night && !_nightWas) {
+    _nightSweep = [];
+    for (const c of chunks.values()) if (c.data && c.lit && inSimRangeChunk(c.cx, c.cz)) _nightSweep.push([c.cx, c.cz]);
+    for (let i = _nightSweep.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [_nightSweep[i], _nightSweep[j]] = [_nightSweep[j], _nightSweep[i]]; }
+  }
+  _nightWas = night;
+  if (!night) { _nightSweep.length = 0; return; }
+  for (let k = 0; k < NIGHT_SWEEP_PER_FRAME && _nightSweep.length; k++) { const [cx, cz] = _nightSweep.pop(); trySpawnNightMobsInChunk(cx, cz); }
+  _nightTrickleT -= dt;
+  if (_nightTrickleT > 0 || _nightSweep.length) return;
+  _nightTrickleT = NIGHT_TRICKLE_S;
+  const near = [];
+  for (const c of chunks.values()) if (c.data && c.lit && inSimRangeChunk(c.cx, c.cz)) near.push(c);
+  for (let k = 0; k < NIGHT_TRICKLE_N && near.length; k++) {
+    const c = near.splice((Math.random() * near.length) | 0, 1)[0];
+    trySpawnNightMobsInChunk(c.cx, c.cz);
+  }
 }
 
 function serializeEntChunks() { return [..._entChunks]; }

@@ -1,0 +1,977 @@
+{
+  "description": "termite hill (big): box model 2x2 blocks wide and 3 tall, placed from its north-west block. Stepped, tapering mound of packed red-brown earth: base skirt with arched tunnel entrances, buttress lumps, 3 tiers, a tall main spire and two smaller chimneys with dark vent openings. Termite workers / soldiers come out of the tunnels. ONE 512x512 atlas (uv in 1/16 units).",
+  "size_blocks": [
+    2,
+    3,
+    2
+  ],
+  "textures": {
+    "hill": "blocks/models/termite_hill/termite_hill"
+  },
+  "elements": [
+    {
+      "name": "base",
+      "from": [
+        1,
+        0,
+        1
+      ],
+      "to": [
+        31,
+        9,
+        31
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            33.0,
+            1,
+            63.0,
+            10
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            33.0,
+            1,
+            63.0,
+            10
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            33.0,
+            1,
+            63.0,
+            10
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            33.0,
+            1,
+            63.0,
+            10
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            0,
+            32,
+            30,
+            62
+          ]
+        }
+      }
+    },
+    {
+      "name": "lump_w",
+      "from": [
+        0,
+        0,
+        8
+      ],
+      "to": [
+        3,
+        7,
+        18
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            6,
+            9
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            6,
+            9
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            13,
+            9
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            13,
+            9
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            35,
+            5,
+            45
+          ]
+        }
+      }
+    },
+    {
+      "name": "lump_s",
+      "from": [
+        10,
+        0,
+        29
+      ],
+      "to": [
+        22,
+        8,
+        32
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            36,
+            26,
+            48,
+            34
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            36,
+            26,
+            48,
+            34
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            36,
+            26,
+            39,
+            34
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            36,
+            26,
+            39,
+            34
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            36,
+            18,
+            39
+          ]
+        }
+      }
+    },
+    {
+      "name": "lump_e",
+      "from": [
+        29,
+        0,
+        14
+      ],
+      "to": [
+        32,
+        9,
+        25
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            10,
+            4,
+            13,
+            13
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            10,
+            4,
+            13,
+            13
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            10,
+            4,
+            21,
+            13
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            10,
+            4,
+            21,
+            13
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            4,
+            42,
+            7,
+            53
+          ]
+        }
+      }
+    },
+    {
+      "name": "lump_n",
+      "from": [
+        6,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        6,
+        3
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            44,
+            30,
+            54,
+            36
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            44,
+            30,
+            54,
+            36
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            44,
+            30,
+            47,
+            36
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            44,
+            30,
+            47,
+            36
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            10,
+            44,
+            20,
+            47
+          ]
+        }
+      }
+    },
+    {
+      "name": "tier1",
+      "from": [
+        3,
+        9,
+        4
+      ],
+      "to": [
+        27,
+        19,
+        28
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            34,
+            20,
+            58,
+            30
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            34,
+            20,
+            58,
+            30
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            34,
+            20,
+            58,
+            30
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            34,
+            20,
+            58,
+            30
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            0,
+            34,
+            24,
+            58
+          ]
+        }
+      }
+    },
+    {
+      "name": "bump_e",
+      "from": [
+        24,
+        9,
+        6
+      ],
+      "to": [
+        29,
+        15,
+        12
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            2,
+            21,
+            8
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            2,
+            21,
+            8
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            2,
+            22,
+            8
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            2,
+            22,
+            8
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            48,
+            7,
+            54
+          ]
+        }
+      }
+    },
+    {
+      "name": "bump_s",
+      "from": [
+        8,
+        9,
+        25
+      ],
+      "to": [
+        16,
+        14,
+        30
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            52,
+            29,
+            60,
+            34
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            52,
+            29,
+            60,
+            34
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            52,
+            29,
+            57,
+            34
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            52,
+            29,
+            57,
+            34
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            9,
+            52,
+            17,
+            57
+          ]
+        }
+      }
+    },
+    {
+      "name": "tier2",
+      "from": [
+        6,
+        19,
+        6
+      ],
+      "to": [
+        22,
+        29,
+        21
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            3,
+            22,
+            13
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            3,
+            22,
+            13
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            3,
+            21,
+            13
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            3,
+            21,
+            13
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            38,
+            19,
+            53
+          ]
+        }
+      }
+    },
+    {
+      "name": "tier3",
+      "from": [
+        9,
+        29,
+        8
+      ],
+      "to": [
+        19,
+        38,
+        18
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            41,
+            32,
+            51,
+            41
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            41,
+            32,
+            51,
+            41
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            41,
+            32,
+            51,
+            41
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            41,
+            32,
+            51,
+            41
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            12,
+            41,
+            22,
+            51
+          ]
+        }
+      }
+    },
+    {
+      "name": "spire",
+      "from": [
+        11,
+        38,
+        10
+      ],
+      "to": [
+        17,
+        45,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            14,
+            6,
+            20,
+            13
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            14,
+            6,
+            20,
+            13
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            14,
+            6,
+            20,
+            13
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            14,
+            6,
+            20,
+            13
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            46,
+            12,
+            52
+          ]
+        }
+      }
+    },
+    {
+      "name": "spire_tip",
+      "from": [
+        12.5,
+        45,
+        11.5
+      ],
+      "to": [
+        15.5,
+        48,
+        14.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            20,
+            20,
+            23.0,
+            23
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            20,
+            20,
+            23.0,
+            23
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            20,
+            20,
+            23.0,
+            23
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            20,
+            20,
+            23.0,
+            23
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            32,
+            10,
+            40,
+            18
+          ]
+        }
+      }
+    },
+    {
+      "name": "column_e",
+      "from": [
+        18,
+        19,
+        11
+      ],
+      "to": [
+        24,
+        37,
+        17
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            50,
+            24,
+            56,
+            42
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            50,
+            24,
+            56,
+            42
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            50,
+            24,
+            56,
+            42
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            50,
+            24,
+            56,
+            42
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            32,
+            10,
+            40,
+            18
+          ]
+        }
+      }
+    },
+    {
+      "name": "chimney_se",
+      "from": [
+        20,
+        19,
+        20
+      ],
+      "to": [
+        25,
+        30,
+        25
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            2,
+            29,
+            13
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            2,
+            29,
+            13
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            2,
+            29,
+            13
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            2,
+            29,
+            13
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            32,
+            10,
+            40,
+            18
+          ]
+        }
+      }
+    },
+    {
+      "name": "chimney_nw",
+      "from": [
+        6,
+        29,
+        6
+      ],
+      "to": [
+        10,
+        34,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            22,
+            14,
+            26,
+            19
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            22,
+            14,
+            26,
+            19
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            22,
+            14,
+            26,
+            19
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            22,
+            14,
+            26,
+            19
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            32,
+            10,
+            40,
+            18
+          ]
+        }
+      }
+    },
+    {
+      "name": "turret_sw",
+      "from": [
+        4,
+        19,
+        21
+      ],
+      "to": [
+        9,
+        25,
+        26
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            8,
+            29,
+            14
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            8,
+            29,
+            14
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            8,
+            29,
+            14
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            24,
+            8,
+            29,
+            14
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            8,
+            56,
+            13,
+            61
+          ]
+        }
+      }
+    }
+  ],
+  "spawns": [
+    "termite_worker",
+    "termite_soldier"
+  ]
+}

@@ -26,6 +26,7 @@ const V_BLOG   = woodLogs('birch');
 const V_SLOG   = woodLogs('spruce');
 const V_RLOG   = woodLogs('rime');
 const V_PLOG   = woodLogs('palm');
+const V_ALOG   = woodLogs('acacia');
 const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE, B.DOLOMITE];   // dolomite 0.809          // anything that takes cobble takes stone too
 const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
 
@@ -57,7 +58,7 @@ const RECIPES_BASIC = [
   { in: [[ITEM.FLINT, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_PICKAXE, 1], timeToCraft: 5, xpToGive: 15 },
   { in: [[ITEM.FLINT, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_HATCHET, 1], timeToCraft: 5, xpToGive: 15 },
   { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_HOE, 1], timeToCraft: 4, xpToGive: 15 },
-  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6]],                 out: [ITEM.ARROW, 2], timeToCraft: 2.5, xpToGive: 8 },
+  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6], [ITEM.ASHES, 1]], out: [ITEM.ARROW, 2], timeToCraft: 2.5, xpToGive: 8 },
   // the cold crystal torch: twice the fire torch's time, last so saved queues keep their places
   { in: [[ITEM.GLOW_CRYSTAL, 1], [ITEM.FIBER, 2], [ITEM.STICK, 1]],          out: [B.CRYSTAL_TORCH, 5], timeToCraft: 3.5, xpToGive: 5 },
 ];
@@ -116,7 +117,7 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.LEATHER, 5], [ITEM.FIBER, 15], [V_NUGGET, 2]],                out: [ITEM.LEATHER_LEGGINGS, 1], timeToCraft: 8, xpToGive: 120 },
   { in: [[ITEM.LEATHER, 7], [ITEM.FIBER, 18], [V_NUGGET, 2]],                out: [ITEM.LEATHER_CHESTPLATE, 1], timeToCraft: 9, xpToGive: 130 },
   { in: [[ITEM.FIBER, 20], [ITEM.LEATHER, 5], [ITEM.IRON_INGOT, 2], [ITEM.IRON_NUGGET, 5]], out: [ITEM.SADDLE, 1], timeToCraft: 10, xpToGive: 200 },
-  { in: [[ITEM.LEATHER, 14], [ITEM.CLOTH, 10], [ITEM.FIBER, 8], [ITEM.COPPER_NUGGET, 6]], out: [ITEM.BACKPACK, 1], timeToCraft: 15, xpToGive: 350 },
+  { in: [[ITEM.LEATHER, 9], [ITEM.LEATHER_STRIP, 4], [ITEM.CLOTH, 10], [ITEM.FIBER, 8], [ITEM.BRONZE_NUGGET, 6]], out: [ITEM.BACKPACK, 1], timeToCraft: 15, xpToGive: 350 },
   { in: [[ITEM.IRON_INGOT, 6],  [ITEM.FIBER, 4], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_GLOVES, 1], timeToCraft: 8, xpToGive: 140 },
   { in: [[ITEM.IRON_INGOT, 8],  [ITEM.FIBER, 5], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_BOOTS, 1], timeToCraft: 9, xpToGive: 150 },
   { in: [[ITEM.IRON_INGOT, 10], [ITEM.FIBER, 6], [ITEM.CLOTH, 1]],           out: [ITEM.IRON_HELMET, 1], timeToCraft: 10, xpToGive: 160 },
@@ -197,6 +198,18 @@ RECIPES_ADVANCED.push(
   { in: [[V_PLANKS, 4], [V_ANY_NUGGET, 1]], out: [ITEM.WOODEN_KEY, 1], timeToCraft: 3, xpToGive: 10 },
   // a glass bottle from 4 glass, at the bench (appended: recipe indices are saved)
   { in: [[B.GLASS, 4]],       out: [ITEM.GLASS_BOTTLE, 1], timeToCraft: 3, xpToGive: 10 },
+  // acacia planks, appended for the saved indices like the palm's, listed after them
+  { in: [[V_ALOG, 1]],        out: [B.ACACIA_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.PALM_PLANKS },
+  /* bronze armor, at the bench: bronze, leather, the termites' chitin and cloth by the piece's size, feathers for the
+     helmet's crest. XP as written is x CRAFT_XP_MUL below: 600 the gauntlets .. 1100 the chestplate */
+  { in: [[ITEM.BRONZE_INGOT, 15], [ITEM.LEATHER, 2],  [ITEM.CHITIN_PLATE, 1], [ITEM.CLOTH, 3]],  out: [ITEM.BRONZE_GLOVES, 1],     timeToCraft: 14, xpToGive: 400 },
+  { in: [[ITEM.BRONZE_INGOT, 18], [ITEM.LEATHER, 4],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 6]],  out: [ITEM.BRONZE_BOOTS, 1],      timeToCraft: 15, xpToGive: 467 },
+  { in: [[ITEM.BRONZE_INGOT, 21], [ITEM.LEATHER, 5],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 8], [ITEM.FEATHER, 5]], out: [ITEM.BRONZE_HELMET, 1], timeToCraft: 16, xpToGive: 533 },
+  { in: [[ITEM.BRONZE_INGOT, 26], [ITEM.LEATHER, 8],  [ITEM.CHITIN_PLATE, 3], [ITEM.CLOTH, 12]], out: [ITEM.BRONZE_LEGGINGS, 1],   timeToCraft: 17, xpToGive: 633 },
+  { in: [[ITEM.BRONZE_INGOT, 30], [ITEM.LEATHER, 10], [ITEM.CHITIN_PLATE, 4], [ITEM.CLOTH, 15]], out: [ITEM.BRONZE_CHESTPLATE, 1], timeToCraft: 18, xpToGive: 733 },
+  // leather cut into strips, and the leather belt made of them (appended: recipe indices are saved)
+  { in: [[ITEM.LEATHER, 1]],      out: [ITEM.LEATHER_STRIP, 3], timeToCraft: 2, xpToGive: 3 },
+  { in: [[ITEM.LEATHER_STRIP, 15], [ITEM.IRON_NUGGET, 6], [ITEM.ASHES, 4]], out: [ITEM.BELT, 1], timeToCraft: 10, xpToGive: 200 },
 );
 // every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
 const CRAFT_XP_MUL = 1.5;

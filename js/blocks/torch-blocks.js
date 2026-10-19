@@ -76,4 +76,19 @@ corePart('blocks', function () {
   PROPS[B.BED] ={ name:'Bed', solid:true, opaque:false, raycast:true, pass:1, model:'bed', rot:'side',
                    stack:1, hardness:1.0, type:'wood', boxes:[[0, 0, 0, 1, 0.5, 1]],   // half a block, as its art (9/16 before)
                    faces:[T.WOOL,T.WOOL,T.WOOL,T.PLANKS,T.WOOL,T.WOOL], desc: '' };
+  /* Termite hill: the Savanna's mound of packed earth (biomes/gen-savanna.js). Like the bed the mesher emits nothing:
+     blocks/termite-hill.js draws its model (textures/Blocks/Models/termite_hill) and keeps its termites, and
+     `pageModel` has the worker list its cells with the light sources so the page finds them as a chunk comes in.
+     Variant 0: a small hill, one cell. 1 + dx + dz * 2 + dy * 4: a cell of a big one (2 x 2 wide, 3 tall), dx dz dy
+     from its north-west foot cell (variant 1). Its boxes follow the model's shape, roughly: the small one's are its
+     model's own boxes, a big one's cell the box round what of the model is in it. */
+  const _hb = (a) => a.map(n => n / 16);
+  const HILL_SMALL_BOXES = [[1, 0, 1, 15, 4, 15], [3, 4, 3, 13, 8, 12], [10, 4, 9, 14, 9, 13], [5, 8, 5, 10, 11, 10], [6, 11, 6, 9, 14, 9]].map(_hb);
+  const HILL_BIG_BOXES = [null, [0, 0, 0, 16, 16, 16], [0, 0, 1, 16, 16, 16], [0, 0, 0, 16, 16, 16], [0, 0, 0, 16, 16, 16],
+                          [3, 0, 4, 16, 16, 16], [0, 0, 4, 11, 16, 16], [3, 0, 0, 16, 16, 12], [0, 0, 0, 11, 16, 12],
+                          [6, 0, 6, 16, 16, 16], [0, 0, 8, 8, 13, 16], [9, 0, 0, 16, 6, 2], [0, 0, 0, 8, 6, 2]];
+  PROPS[B.TERMITE_HILL] = { name:'Termite hill', solid:true, opaque:false, raycast:true, pass:1, model:'hill', noInv:true, pageModel:true,
+                            stack:1, hardness:5.0, type:'ground', boxes:HILL_SMALL_BOXES,
+                            boxesByVar:[HILL_SMALL_BOXES, ...HILL_BIG_BOXES.slice(1).map(b => [_hb(b)])],
+                            faces:Array(6).fill(T.DIRT), desc: 'Termites live in it. Break it and they come out' };
 });

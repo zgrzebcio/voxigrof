@@ -1,0 +1,317 @@
+{
+  "description": "termite hill (small): fits in ONE block, 14 units tall: low lumpy base with a tunnel entrance, two tiers and a little spire with a vent. ONE 256x256 atlas.",
+  "size_blocks": [
+    1,
+    1,
+    1
+  ],
+  "textures": {
+    "hill": "blocks/models/termite_hill/termite_hill_small"
+  },
+  "elements": [
+    {
+      "name": "base",
+      "from": [
+        1,
+        0,
+        1
+      ],
+      "to": [
+        15,
+        4,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            1.0,
+            16,
+            15.0,
+            20
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            1.0,
+            16,
+            15.0,
+            20
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            1.0,
+            16,
+            15.0,
+            20
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            1.0,
+            16,
+            15.0,
+            20
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            0,
+            30,
+            14
+          ]
+        }
+      }
+    },
+    {
+      "name": "turret",
+      "from": [
+        10,
+        4,
+        9
+      ],
+      "to": [
+        14,
+        9,
+        13
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            6,
+            6,
+            11
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            6,
+            6,
+            11
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            6,
+            6,
+            11
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            2,
+            6,
+            6,
+            11
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            16,
+            20,
+            20
+          ]
+        }
+      }
+    },
+    {
+      "name": "tier1",
+      "from": [
+        3,
+        4,
+        3
+      ],
+      "to": [
+        13,
+        8,
+        12
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            13,
+            6
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            13,
+            6
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            12,
+            6
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            3,
+            2,
+            12,
+            6
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            18,
+            3,
+            28,
+            12
+          ]
+        }
+      }
+    },
+    {
+      "name": "tier2",
+      "from": [
+        5,
+        8,
+        5
+      ],
+      "to": [
+        10,
+        11,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            5,
+            11,
+            8
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            5,
+            11,
+            8
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            5,
+            11,
+            8
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            6,
+            5,
+            11,
+            8
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            21,
+            6,
+            26,
+            11
+          ]
+        }
+      }
+    },
+    {
+      "name": "spire",
+      "from": [
+        6,
+        11,
+        6
+      ],
+      "to": [
+        9,
+        14,
+        9
+      ],
+      "faces": {
+        "north": {
+          "texture": "#hill",
+          "uv": [
+            8,
+            1,
+            11,
+            4
+          ]
+        },
+        "south": {
+          "texture": "#hill",
+          "uv": [
+            8,
+            1,
+            11,
+            4
+          ]
+        },
+        "east": {
+          "texture": "#hill",
+          "uv": [
+            8,
+            1,
+            11,
+            4
+          ]
+        },
+        "west": {
+          "texture": "#hill",
+          "uv": [
+            8,
+            1,
+            11,
+            4
+          ]
+        },
+        "up": {
+          "texture": "#hill",
+          "uv": [
+            16,
+            16,
+            20,
+            20
+          ]
+        }
+      }
+    }
+  ],
+  "spawns": [
+    "termite_worker",
+    "termite_soldier"
+  ]
+}

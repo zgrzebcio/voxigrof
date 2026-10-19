@@ -11,7 +11,9 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
 - **A new file needs a `<script defer>` tag in `index.html`**, placed after everything it uses WHILE LOADING
   (code outside functions) and before whatever uses it while loading. Then run
   `powershell -ExecutionPolicy Bypass -File toolsrc\check-scripts.ps1` (tags against files, brackets, names
-  declared twice, the cores' parts, load order). `toolsrc` is ignored by git: recreate the script if it is gone.
+  declared twice, the cores' parts, load order, a core using a page name, names taken out of a core that its return
+  lacks, names declared nowhere). The work is in `toolsrc\check-scripts.js` (node; `node toolsrc\check-scripts.js <folder>`
+  checks another folder, its own test). `toolsrc` is ignored by git: recreate the scripts if they are gone.
 - **The three worker cores are built from parts** (`js/core-parts.js` explains it; read it before touching
   them). `BIOME_CORE` (built in `biomes/biomes.js`), `BLOCK_CORE` (`blocks/blocks.js`) and `VOXEL_CORE`
   (`chunks/voxel-core.js`) run on the page AND as text in the workers. A file hands over a part with
@@ -35,7 +37,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   over it. There are no `spawnSheep`-style functions any more (only the boss keeps its own `spawn`); to change
   what one kind starts with, change its `make`. `buildEntity(kind, look)` gives the model alone.
 - **Woods: the woods table** (`WOODS`, `woods/woods.js`; its header lists every field and who reads it), one file
-  per wood beside it (`oak.js`, `birch.js`, `spruce.js`, `rime.js`, `palm.js`, `dry-bush.js`: their order in
+  per wood beside it (`oak.js`, `birch.js`, `spruce.js`, `rime.js`, `palm.js`, `dry-bush.js`, `acacia.js`: their order in
   `index.html` is the order of every list). An entry: its blocks (`log`, `stripped`, `hollow`, `planks`, `leaves`,
   `sapling`), `tree`, `seasonal`, `apples`, `shroom`, `charcoalS`, `burn`, `xp`, `saplingOn`, `grow`. NEVER write
   a list of the woods' blocks by hand on the page: use `woodBlocks('planks')`, `woodBlocks('leaves', isTreeWood)`,
@@ -163,7 +165,8 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   in the block core) made from one entry. On the page: one `buildQuadruped` for the four-legged models, pets as
   one shared system (horse and hound: owner, follow, stances, feeding), a shared bear (art for brown and panda
   bears is waiting), a shared base for bosses before the second one. What the user has fixed in time (do not ask
-  again): steel's recipe comes with steel at 0.91, milk as a fluid at 0.89, oil at 0.94.
+  again): steel's recipe comes with steel at 0.903 (alloy smelter), milk as a fluid at 0.857, oil at 0.96
+  (FutureRoadmap.md is the plan).
 - **Old notes**: a file number in the facts below that has no path (`(02)`, `in 54`) means the old flat file:
   02 = the voxel core (now `worldgen/`, `chunks/mesher*.js`, `fluids/rules.js`, `blocks/mining-rules.js`),
   11 = `chunks/`, 19 = `ui/vitals-hud.js` + `player/hazards.js` + `player/death.js`, 28 = `entities/`,
@@ -543,6 +546,47 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   `bossLairs` (16). Markers in the prefab: FURNACE = gate (air + a cut path), BEDROCK = the king's spot (air); oak chests ->
   rime, snow layers -> snow blocks, TORCH_UNLIT/GLOWCRYSTAL_SPENT -> lit (spent glowstone stays: placed so on purpose);
   its lights get BURN_NEVER. Re-saving the castle from a structure block keeps working: the rules run on load (`_castlePrefab`).
+- **The Savanna (0.846, biomeRev 28 `SAVANNA`).** `fSav` (biomes/terrain.js, SAV_FROM/SAV_TO in biomes/fields.js) on
+  the Dryland's own wobble, so it always lies on the desert's side of it; `fDry` is cut by it. genChunk `SAV` grid.
+  The grass colour: `dryAt` (biomes/queries.js) is now 0 green .. `DRY_PALE` (0.8, BIOMES.DRY_PALE, biomes/biomes.js)
+  the Dryland's pale .. 1 the Savanna's gold; the shader (04, `uDryPale`, `uSavTiles`) splits it; old worlds look the
+  same (their dryness is scaled by DRY_PALE). Tiles T 405-406 built from `SAVANNA_GRASS_RGB` (03).
+  Acacia wood (B 230-234, T 399-404, woods/acacia.js, tree woods/gen-acacia.js; no sapling: the art for one waits).
+  **Termite hills**: `B.TERMITE_HILL` 235, variant 0 small, 1 + dx + dz*2 + dy*4 a big one's cell (2x2x3, foot cell
+  variant 1); made by biomes/gen-savanna.js from the tree loop. PROPS `pageModel: true` = a block the page draws: the
+  worker lists it with the light sources (`EMIT`), `EMITTER_ID` (08) too, and finishChunkGen hands it to
+  `termiteHillSeen`; setBlock's hook `termiteHillChanged` (breaking any cell takes the whole hill). blocks/termite-hill.js:
+  `HILLS`, one InstancedMesh per kind, termites kept per hill. Box models from JSON: entities/box-models.js
+  (`boxModel`, `boxModelGeometry`, `buildBoxRig`; uv in 16ths with `texture_size`, else in 8-texel units).
+  **Termites** (entities/termite.js, `TERMITE`): kinds `termite_worker` / `termite_soldier`, body `'insect'`
+  (updateEntities hands them to `updateTermite`), `unsaved: true` (a new table field: serializeEntities skips it). A
+  blow sets `aggroT` (damageEntity's humanoid path); updateTermite turns it into the hill's `angryT`.
+  0.8461: acacia sapling (B 236, T 407, `_growAcacia` in woods/saplings.js copies gen-acacia.js). Chest woods: 5 now,
+  acacia's third bit is variant bit 7 (`CHEST_WOOD_HIGH`): read and write a chest's wood ONLY through `chestWoodOf` /
+  `chestWoodBits` (blocks/chest.js). Grass plants by size: `B.SHORT_GRASS` 237 (T 408-410, its warm and cold built in
+  03 by the `_warm`/`_cold` name rule), `B.TALLGRASS` 49 = "Grass" (the middle one), tall grass. biomeRev 29
+  `SHORTGRASS` (worldgen/gen-setup.js): half the grass plants short. Fiber per pick by size: GRASS_FIBER_PICK and
+  SHORT_GRASS_FIBER_PICK (player/foraging.js, final chances: FIBER_BONUS is taken off before the roll adds it).
+  0.8462, biomeRev 30 `SAV2` (biomes/fields.js): the Savanna from SAV2_FROM and the desert from `DESERT_LVL` 1.75
+  (1.5 before; dryAt's fade reads it too): Savanna ~8% of a world, desert ~17%. Its hills come from `termiteHillPass`
+  (biomes/gen-savanna.js, after the tree loop): one at most per HILL_CELL 32 square, HILL_EDGE in, none by an acacia
+  trunk (it reads the tree loop's rolls again); revs 28-29 keep the tree loop's hills. A hill needs a full block
+  (`termiteHillFloor`: solid and opaque) under each foot cell: setBlock calls `termiteHillUnder`, which breaks it.
+- **0.8463.** Bronze armor: ITEM 419-423 (`armorMat: 'bronze'`, tier 4; EQUIP_MATS / ARMOR_HUD_ART know it), recipes
+  appended to RECIPES_ADVANCED. Sleeping: `bedRoomCheck` (blocks/bed.js) floods the air over the bed (BED_ROOM_MAX
+  cells, else 'open') and wants BED_BUILT_SHARE of the solid blocks round it to be cells in `editStore` (put there by a
+  player or a structure; a natural cave is not). Night monsters x `MONSTER_SPAWN_MUL` (entities/spawning.js: chance,
+  cap and gap). A quest requirement may carry `weight: (id) => n` (one item counts n, player/quests.js).
+  0.8464: a sealed chest opens through `player._unseal` / `updateChestUnseal` (blocks/chest.js, from tickPlayer; ring via
+  `_unsealProg` in interactProgress; holds `_milkLatch`). Set bonus `projectileResist` (bronze) read by
+  `playerProjectileMul(p)` (player/equipment.js): arrows (_arrowHitsPlayer, 38) and `_bossHurt(..., proj)`. A bull
+  (cow gender 'M') is built with `_bullHorn` boxes (entities/cow.js).
+  0.8465: the hotbar: every HOTBAR array holds `HOTBAR_MAX` (10, player/inventory.js), `hotbarLen()` (player/equipment.js)
+  = HOTBAR_SLOTS + the belt's `hotbarSlots`: select, fill and draw only that many (`gridLen(HOTBAR)` too);
+  syncBeltCapacity empties the slots past it. `migrateStash` keeps slots in place for a stash of today's shape. Night
+  monsters: no world-wide gap any more; chunk rolls only in sim range, ZOMBIE_SPAWN_MIN_DIST 24, `updateNightMobs`
+  (entities/spawning.js: the dusk sweep and the trickle). ITEM.LEATHER_STRIP 424. Quests round 3 (`added: 3`,
+  QUEST_SAVE_GEN 3): the backpack after the bronze pickaxe.
 - **localStorage is small (0.8387, 16-worlds).** About 5 MB a site. World saves live in IndexedDB; only the world
   list (`vg_worlds`) and settings live in localStorage, plus a closing-time copy `vg_world_<id>` that `lsWorldsToIdb`
   moves into IndexedDB at boot and when a write finds storage full. Never store anything big there, and wrap any new
@@ -574,6 +618,7 @@ Every file's first comment says what it holds; search inside the file for the na
 | `physics.js`, `combat.js`, `loot.js`, `held-items.js` | boxes (`entR` / `entH`), blocking, hazards, fall damage, bodies apart; `damageEntity` / `damageEntityByMob`; `_entDropLoot` and `_entBurnDeath` (how a kind's `loot` is dropped); what a mob holds |
 | `spawning.js`, `save.js`, `rig.js` | per-chunk rolls (`trySpawnEntitiesInChunk`, `CHUNK_ROLL_FIRST`, `_rollHerd`, night mobs), `serializeEntities` / `restoreEntities` (the row's layout is in its header), the humanoid rig and `_lightAt` |
 | `taming.js`, `boss-lair.js` | `TAMEABLE`, horse stances, petting, milking, mounting and the taming ride; the snow castle (`LAIR`) |
+| `termite.js`, `box-models.js` | the termites (`TERMITE`, `updateTermite`); box models read from JSON (also the termite hill's, `blocks/termite-hill.js`) |
 | **`items/`** | the item table: `items.js` (`ITEM`, `ITEM_PROPS`, `defineItems`, what an entry holds), one file per group (`materials.js`, `tools.js`, `weapons.js`, `equipment.js`, `food.js`, `containers.js`, `useables.js`), `finish.js` (the passes, last); `recipes.js` (`RECIPES_BASIC`, `RECIPES_ADVANCED`: add at the end only) |
 | **`blocks/`** | |
 | core parts: `ids.js`, `tiles.js`, `basic.js`, `glow-and-storage.js`, `gem-clusters.js`, `ladder-mortar.js`, `mushrooms.js`, `dry-plants.js`, `torch-blocks.js`, `plants.js`, `looks.js`, then `blocks.js` | BLOCK_CORE: ids `B`, tiles `T`, `PROPS`, variant bits `V`, model boxes, `VARIANT_BLOCKS`; `blocks.js` builds it and holds its return (see also `shapes/` and `woods/` parts) |

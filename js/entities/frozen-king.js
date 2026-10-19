@@ -459,13 +459,14 @@ const _BOSS_FXMAT = {
   beam: new THREE.MeshBasicMaterial({ color: 0x9ff2ff, transparent: true, opacity: 0.9 }),
 };
 // hurt a player: the shove (resisted as any hit is) and a hop; `blockFrom` lets a raised shield stop it
-function _bossHurt(p, dmg, cause, kx = 0, kz = 0, hop = 0, blockFrom = null) {
+// `proj`: a projectile (a fireball, a beam), which the bronze set softens (playerProjectileMul, player/equipment.js)
+function _bossHurt(p, dmg, cause, kx = 0, kz = 0, hop = 0, blockFrom = null, proj = false) {
   if (!p || p.dead || p.canFly || !p.spawned) return false;
   if (blockFrom && typeof shieldBlock === 'function' && shieldBlock(p, blockFrom.x, blockFrom.z, dmg)) {
     playSound('hit', { gain: 0.7, rate: 0.8, pos: { x: p.pos.x, y: p.pos.y + 1, z: p.pos.z } });
     return false;
   }
-  p.hp -= dmg;
+  p.hp -= proj ? dmg * playerProjectileMul(p) : dmg;
   p._dmgCause = cause;
   const kb = 1 - (typeof playerKnockbackResist === 'function' ? withPlayer(p, playerKnockbackResist) : 0);
   if (kx || kz) { const kick = playerKick(p); kick.x = kx * kb; kick.z = kz * kb; }
@@ -518,7 +519,7 @@ function _ballTick(f, dt) {
     const nx = pos.x + f.vx * sdt, ny = pos.y + f.vy * sdt, nz = pos.z + f.vz * sdt;
     const p = _bossPlayerAt(nx, ny, nz, FK.BALL_R);
     if (p) {
-      if (_bossHurt(p, FK.BALL_HIT, 'was burned by the Frozen King', f.vx * 0.25, f.vz * 0.25, 0, { x: pos.x - f.vx, z: pos.z - f.vz })) _bossSetFire(p, FK.BALL_FIRE_S);
+      if (_bossHurt(p, FK.BALL_HIT, 'was burned by the Frozen King', f.vx * 0.25, f.vz * 0.25, 0, { x: pos.x - f.vx, z: pos.z - f.vz }, true)) _bossSetFire(p, FK.BALL_FIRE_S);
       _bossBurst(nx, ny, nz);
       return false;
     }
@@ -689,7 +690,7 @@ function _beamTick(f, dt) {
     const p = _bossPlayerAt(nx, ny, nz, 0.3);
     if (p) {
       _bossHurt(p, FK.BEAM_HIT, 'was pierced by the Frozen King\'s beam', f.vx / sp * PLY_KNOCK * 0.6, f.vz / sp * PLY_KNOCK * 0.6, 0,
-                { x: pos.x - f.vx, z: pos.z - f.vz });
+                { x: pos.x - f.vx, z: pos.z - f.vz }, true);
       _bossBurst(nx, ny, nz);
       return false;
     }

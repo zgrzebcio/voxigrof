@@ -250,7 +250,7 @@ function tickPlayer(dt, now, slot) {
         player._restacked = false;                            // stacks fitted once the inventory is back
         player._feats = restoreFeats(pr.feats);               // 0.8283
         player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
-        if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_SLOTS) {
+        if (typeof pr.hotSel === 'number' && pr.hotSel >= 0 && pr.hotSel < HOTBAR_MAX) {
           hotbarSel = pr.hotSel; buildHotbar();
         }
         player.spawned = true;
@@ -320,8 +320,12 @@ function tickPlayer(dt, now, slot) {
   const _entAim = (playing && !invOpen) ? pickEntityHit() : null;
   const _entPriority = entityBeatsBlock(_entAim, hit);
   if (wantBreak && _entPriority) tryAttackEntity(_entAim.ent);
-  const wantMine = wantBreak && !_entPriority;
-  selBox.visible = !!hit;
+  /* a sword is for creatures: it takes no block but a cobweb (it neither mines nor outlines one); swung at a block it
+     is a swing at the air */
+  const _heldP = ITEM_PROPS[heldUseId()];
+  const _swordOff = !!(hit && _heldP && _heldP.tool === 'sword' && hit.id !== B.COBWEB);
+  const wantMine = wantBreak && !_entPriority && !_swordOff;
+  selBox.visible = !!hit && !_swordOff;
   if (hit) {
     const boxes = rayBoxesAt(hit.x, hit.y, hit.z);
     if (boxes && boxes.length) {
@@ -349,6 +353,8 @@ function tickPlayer(dt, now, slot) {
   updateBenchWork(dt, _eHeld, _rmbRaw);
   // milking: the right button held on a cow for MILK_TIME; read raw, since the hold locks the controls
   if (typeof updateMilking === 'function') updateMilking(dt, _rmbRaw);
+  // a sealed chest's key being turned (blocks/chest.js)
+  player._unsealProg = typeof updateChestUnseal === 'function' ? updateChestUnseal(dt, _rmbRaw) : 0;
   // a glass bottle held on water fills (player/stats.js)
   player._fillProg = typeof updateBottleFill === 'function' ? updateBottleFill(dt, wantPlace) : 0;
   // drinking: crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs

@@ -136,6 +136,8 @@ corePart('gen.chunk', function () {
           // the Dryland: half the green grass and no flowers or berries; its dry plants come in the pass below
           // ...a quarter since 0.8442 (half before): half the grass of every kind in the Dryland and the desert
           if (DRYF[gi] > 0.5) { grassCh *= 0.25; tallCh *= 0.25; flowerCh = 0; berryCh = 0; }
+          // the Savanna: grass everywhere, much of it tall; no flowers or berries
+          if (SAV[gi]) { grassCh = 0.3 * (1 - alt * 0.75); tallCh = 0.16 * (1 - alt * 0.75); flowerCh = 0; berryCh = 0; }
           if (r < flowerCh) {
             data[idx(lx, h + 1, lz)] = hash3(cx * 31 + lx + 12, 19, cz * 29 + lz + 7) < 0.5 ? B.POPPY : B.ORCHID;
           } else if (r < flowerCh + berryCh) {
@@ -160,7 +162,8 @@ corePart('gen.chunk', function () {
             data[idx(lx, h + 1, lz)] = B.TALL_LOWER;
             data[idx(lx, h + 2, lz)] = B.TALL_UPPER;
           } else if (r < flowerCh + berryCh + tallCh + grassCh) {
-            data[idx(lx, h + 1, lz)] = B.TALLGRASS;
+            // rev 29: half of it the short grass, by its own roll
+            data[idx(lx, h + 1, lz)] = SHORTGRASS && hash3(cx * 61 + lx + 7700, 83, cz * 67 + lz + 7700) < 0.5 ? B.SHORT_GRASS : B.TALLGRASS;
           }
         }
 
@@ -185,6 +188,8 @@ corePart('gen.chunk', function () {
             } else if ((top === B.GRASS || top === B.DIRT) && DRYF[gi] > 0.5) {
               // the Dryland: a lot of them, about twice the green grass left beside them; half of it since 0.8442 (0.26, 0.06)
               gCh = 0.13; tCh = 0.03; bCh = 0.014;
+            } else if ((top === B.GRASS || top === B.DIRT) && SAV[gi]) {
+              gCh = 0.02; tCh = 0.008; bCh = 0.004;               // the Savanna: a few, among its green grass
             } else if (top === B.GRASS && !DES[gi] && !SNO[gi] && !OAS[gi] && TREE[gi] < 0.5 && Math.round(LVL[gi]) === 1) {
               gCh = 0.006; tCh = 0.0015; bCh = 0.0008;
             } else continue;

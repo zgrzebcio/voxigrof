@@ -3,7 +3,8 @@
    climateAt and what makeGen returns. Its body is the parts named gen.chunk, in this order:
      worldgen/terrain-columns.js          every column's ground, water and top block
      worldgen/underground.js              caves, ores, rooms, lava
-     woods/gen-trees.js, gen-rime-trees.js, gen-palms.js, gen-dry-bush.js, gen-tree-loop.js    trees
+     woods/gen-trees.js, gen-rime-trees.js, gen-palms.js, gen-acacia.js, biomes/gen-savanna.js (termite hills),
+       woods/gen-dry-bush.js, gen-tree-loop.js    trees
      worldgen/cave-floors.js              cave dirt and mushrooms
      woods/gen-fallen-logs.js
      worldgen/ground-plants.js            gourds, wheat, flint, pebbles, grass, dry plants

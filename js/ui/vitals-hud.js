@@ -44,7 +44,7 @@ const VIT_LAYOUT = [
 ];
 const VIT_TEMP = { x: -15, top: 46, size: 30 };        // the temperature dial
 // the armor bar's pictures per armorMat (an armor item's material, items/equipment.js): Armor/armor_<this>.png
-const ARMOR_HUD_ART = { leather: 'leather', iron: 'iron', golden: 'gold', steel: 'steel', cloth: 'fibre_cloth' };
+const ARMOR_HUD_ART = { leather: 'leather', iron: 'iron', golden: 'gold', steel: 'steel', cloth: 'fibre_cloth', bronze: 'bronze' };
 // a quarter of an armor icon at a time: the bottom-left block, the whole left half, the bottom-right, the right half
 const ARMOR_PART_ART = ['left_25', 'left_50', 'right_25', 'right_50'];
 

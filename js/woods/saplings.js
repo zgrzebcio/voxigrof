@@ -50,6 +50,41 @@ function _growPalm(x, y, z) {
     }
   }
 }
+/* An acacia from its sapling: the generator's tree (acaciaTree, woods/gen-acacia.js), a short trunk forking into one or
+   two slanted limbs, each under a flat crown */
+function _growAcacia(x, y, z) {
+  const LOG = (w) => B.ACACIA_LOG | ((w << 2) << 8), TRUNK_W = 22, LIMB_W = 17;
+  const th = 3 + Math.floor(Math.random() * 3);
+  setBlock(x, y, z, LOG(TRUNK_W));                         // the trunk starts at the sapling's cell
+  for (let k = 1; k < th; k++) _putSoft(x, y + k, z, LOG(TRUNK_W));
+  const top = y + th - 1, limbs = Math.random() < 0.4 ? 1 : 2, a0 = Math.random() * Math.PI * 2;
+  for (let l = 0; l < limbs; l++) {
+    const a = a0 + l * (Math.PI + (Math.random() - 0.5) * 1.2), ca = Math.cos(a), sa = Math.sin(a);
+    const len = 2 + Math.floor(Math.random() * 3);
+    let px = 0, pz = 0, ly = top;
+    for (let s = 1; s <= len; s++) {
+      const nx = Math.round(ca * s * 1.1), nz = Math.round(sa * s * 1.1);
+      _putSoft(x + nx, ly, z + nz, LOG(LIMB_W));
+      if (nx !== px && nz !== pz) _putSoft(x + nx, ly, z + pz, LOG(LIMB_W));
+      ly++;
+      _putSoft(x + nx, ly, z + nz, LOG(LIMB_W));
+      px = nx; pz = nz;
+    }
+    const ex = x + px, ez = z + pz;
+    for (let oz = -3; oz <= 3; oz++)
+      for (let ox = -3; ox <= 3; ox++) {
+        const d2 = ox * ox + oz * oz;
+        if (d2 > 10 || (d2 >= 8 && Math.random() < 0.45)) continue;
+        _putSoft(ex + ox, ly + 1, ez + oz, B.ACACIA_LEAVES);
+      }
+    for (let oz = -2; oz <= 2; oz++)
+      for (let ox = -2; ox <= 2; ox++) {
+        const d2 = ox * ox + oz * oz;
+        if (d2 > 4 || (d2 >= 4 && Math.random() < 0.5)) continue;
+        _putSoft(ex + ox, ly + 2, ez + oz, B.ACACIA_LEAVES);
+      }
+  }
+}
 /* The tree a sapling grows into is its wood's `grow` in the woods table (woods/woods.js): the round tree below for
    oak and birch, the cone for spruce, the palm above. `species` is the sapling's block id. */
 function _growTree(x, y, z, species) {

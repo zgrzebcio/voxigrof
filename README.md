@@ -11,6 +11,38 @@ square. Every door opens onto a gravel path 2-3 wide that winds round the buildi
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
 ones, grass paths, and no loose sand drifted over the yards.
 
+**The Savanna (0.846, new worlds).** The hot edge of the Dryland, next to the desert: golden grass, much of it tall,
+flat-topped **acacia** trees standing apart (acacia logs, planks and leaves; no sapling yet) and **termite hills**,
+small or big. A hill keeps a few **termites**: workers chew the logs near it into hollow logs (a log house too), and
+soldiers bite whoever comes close to the hill or hits one of its termites. Breaking a hill (a shovel is quickest) lets
+1-3 termites out of a small one, 3-6 out of a big one, and gives clay bricks, dirt and wood bark. A termite drops a
+**chitin plate** a quarter of the time. Horses, and a few cows, graze the Savanna too.
+0.8461: an **acacia sapling** (from its leaves; it grows the flat-topped tree) and an **acacia chest** (variant bar).
+Grass comes in three sizes: **short grass** (new, the smallest; half the grass of new worlds), **grass** (the old
+short grass) and tall grass. Bare grass sprouts short grass, which grows into grass, then tall grass. A fiber off
+short grass 6%, off grass 12% (25% before), off tall grass cut down 25%. Short grass on short grass makes grass.
+0.8462 (new worlds): the Savanna is a big biome now (about four times the land, the desert a fifth smaller), with 60%
+fewer termite hills, at least about 13 blocks apart. A hill stands only on full blocks: take one out from under it and
+the whole hill breaks.
+
+**0.8463.** **Bronze armor** (helmet, chestplate, leggings, boots, gauntlets), between iron and steel, at the bench:
+15-30 bronze ingots, 2-10 leather, 1-4 chitin plates and 3-15 cloth by the piece, and 5 feathers for the helmet; 600 to
+1100 XP. **Beds** only let you sleep in a closed house you (or a village) built: walls and a roof round the bed, no
+cave or open pit. 30% more monsters at night. The mortar breaks 50% faster. The pie quest now wants 3 bread or one
+baked pumpkin pie (an unbaked one no longer counts).
+0.8464: a sealed chest's key is turned with the button held 0.8 s (the ring round the crosshair). A full **bronze set**
+takes 35% off arrows and the Frozen King's fireballs and beams. **Bulls** grow black horns. Skills: Preserver costs 2,
+Treasure Nose costs 2 and finds a key 2.5% of the time, Pack Rat needs nothing and comes before Weathered, which costs
+1; Hazard Hide no longer needs Weathered; Precise Focus starts after 3 s and is full at 12 s.
+0.8465: monsters come up at least 24 blocks from you, in every chunk that loads at night, all round you as night
+falls and now and then through it. **Leather strips** (3 from a leather, at the bench). The **leather belt** is
+crafted now (15 strips, 6 iron nuggets, 4 ashes) and opens 2 hotbar slots (keys 9 and 0). The **backpack** holds
+twice as much (four rows) and takes 9 leather, 4 strips, cloth, fiber and 6 bronze nuggets. Arrows take an ash. The
+quest after the pie asks for the belt; the backpack quest comes after the bronze pickaxe.
+0.8466: a bare hand deals 1 damage. A sword takes no block but a cobweb.
+0.8467: with the inventory open, point at the XP bar (mouse or pad cursor): your level, the XP into it and what the
+next one takes, and your last 3 gains.
+
 **Hellhounds, fire and bottles (0.845).** A **hellhound** lives in the Deep Desert, alone or in a pair: a dog of
 magma, 150 health, a 40 bite that sets you alight. Fire and lava do not hurt it (lava heals it); water and rain do,
 slowly. It drops 1-3 **fire**: an item (stack 30) you place to set a spot alight. Hold a **lava mushroom** and a wild

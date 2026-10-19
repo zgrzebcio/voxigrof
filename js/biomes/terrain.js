@@ -92,7 +92,7 @@ corePart('biomes.make', function () {
         const up = (a) => smooth01(lvl, a - 0.1, a + 0.1), down = (a) => smooth01(-lvl, a - 0.1, a + 0.1);
         warm = up(0.5); cold = down(0.5);
         fPlains = Math.max(fPlains, DIVIDE ? warm * smooth01(fbm(x * 0.0012 * BS + 1907.3, z * 0.0012 * BS - 2711.9, 2), -0.05, 0.05) : warm);
-        fDesert = up(1.5);
+        fDesert = up(DESERT_LVL);                     // 1.75 with the big Savanna (rev 30, biomes/fields.js)
         fRedL = up(2.5);
         fSnow = down(1.5);
         fDeepSnow = down(2.5);
@@ -109,7 +109,10 @@ corePart('biomes.make', function () {
       // ...and which half of it this is (rev 22): 1 the Deep Red Desert, 0 the (yellow) Deep Desert; all red before
       const ddRed = DESERT3 ? smooth01(fbm(x * 0.0017 + 8813.1, z * 0.0017 - 6611.3, 2), -0.06, 0.06) : 1;
       // the Dryland (rev 23): the warm plains' hot side, short of the desert
-      const fDry = DRYLAND && LADDER ? smooth01(lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2), DRY_FROM, DRY_TO) * (1 - fDesert) : 0;
+      // ...and the Savanna (rev 28) its hot edge, on the same wobble: the Dryland keeps what lies before it
+      const dryWob = DRYLAND && LADDER ? lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2) : 0;
+      const fSav = SAVANNA && LADDER ? smooth01(dryWob, SAV_LO, SAV_HI) * (1 - fDesert) : 0;
+      const fDry = DRYLAND && LADDER ? smooth01(dryWob, DRY_FROM, DRY_TO) * (1 - fDesert) * (1 - fSav) : 0;
       /* Deep forests (rev 5): their own patches inside forest country, where trees stand denser and grow bigger. */
       const deepF = REV5 ? smooth01(fbm(x * 0.0022 * BS + 3137.1, z * 0.0022 * BS - 1289.3, 2), 0.18, 0.34) : 0;
 
@@ -377,6 +380,6 @@ corePart('biomes.make', function () {
       h = Math.min(TALL ? TALL_CAP : 196, Math.max(4, Math.floor(h)));
       return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, warm, cold, fTaiga, deepF,
                fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW,
-               fDeepD, ddAir, oas, ddRed, fDry };          // 0.84; ddRed 0.841; fDry 0.8411
+               fDeepD, ddAir, oas, ddRed, fDry, fSav };    // 0.84; ddRed 0.841; fDry 0.8411; fSav the Savanna
     }
 });

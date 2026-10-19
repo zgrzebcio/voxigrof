@@ -18,12 +18,16 @@
    patch you always take the one you are actually touching. */
 /* Fiber is the sole gate on every tool recipe (5 per tool), so this rate sets how long the
    stone age lasts. Lowered again in 0.7575: grass 15%, wheat and ripe bushes 20%, bare bushes 30%. */
-const HARVEST_FIBER_CHANCE = 0.15;
-const WHEAT_FIBER_PER_STAGE = 0.05;               // wheat straw is fibrous: 5% a growth stage, ripe 35% (20% flat since 0.7571)
-const BUSH_REACH = 1.5;                          // multiplier on the player's half-width
+const HARVEST_FIBER_CHANCE = 0.2;
+/* The grass plants by size, as a pick's chance in the end (FIBER_BONUS below is added to every chance): tall grass
+   cut down 25% (HARVEST_FIBER_CHANCE), grass half that, 12%, short grass half again, 6% */
+const GRASS_FIBER_PICK = 0.2, SHORT_GRASS_FIBER_PICK = 0.1;
+const WHEAT_FIBER_PER_STAGE = 0.1;               // wheat straw is fibrous: 5% a growth stage, ripe 35% (20% flat since 0.7571)
+const BUSH_REACH = 1.3;                          // multiplier on the player's half-width
 // what the on-screen prompt calls each pickable — the plant's own name, not the system's
 const BUSH_NAME = [];
 BUSH_NAME[B.TALLGRASS] = 'grass';
+BUSH_NAME[B.SHORT_GRASS] = 'short grass';
 BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
 BUSH_NAME[B.DRY_GRASS] = 'dry grass';                                          // the desert's dry plants
@@ -250,10 +254,10 @@ function harvestAtPlayer(readyOnly = false) {
     _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_PER_STAGE * (ripe ? 7 : Math.min(6, st)));   // 35% ripe since 0.8273 (six stages)
     return BUSH_REPEAT;
   }
-  if (id === B.TALLGRASS) {
+  if (id === B.TALLGRASS || id === B.SHORT_GRASS) {
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
-    _harvestFiber(x, t.y, z, 1);
+    _harvestFiber(x, t.y, z, 1, (id === B.SHORT_GRASS ? SHORT_GRASS_FIBER_PICK : GRASS_FIBER_PICK) - FIBER_BONUS);
     return BUSH_REPEAT;
   }
   /* The desert's dry plants: dry grass gives a fiber 10% of the time; tall dry grass is cut down to dry grass with

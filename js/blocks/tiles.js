@@ -88,6 +88,11 @@ corePart('blocks', function () {
                      PALM_SAPLING:391, DRY_GRASS:392, DRY_TALL_BOT:393, DRY_TALL_TOP:394, DRY_BUSH:395 });
   // the Dryland's pale grass block (top, side) and its dry leaves, all built at atlas build from the usual art (03)
   Object.assign(T, { GRASS_TOP_DRY:396, GRASS_SIDE_DRY:397, DRY_LEAVES:398 });
+  // acacia wood, the Savanna's tree; the Savanna's golden grass block (top, side), built at atlas build (03)
+  Object.assign(T, { ACACIA_LOG:399, ACACIA_LOG_TOP:400, STRIPPED_ACACIA_LOG:401, STRIPPED_ACACIA_LOG_TOP:402, ACACIA_PLANKS:403,
+                     ACACIA_LEAVES:404, GRASS_TOP_SAV:405, GRASS_SIDE_SAV:406 });
+  // the acacia's sapling; the short grass (the smallest grass plant) and its warm and cold look, built at atlas build (03)
+  Object.assign(T, { ACACIA_SAPLING:407, SHORT_GRASS_PLANT:408, SHORT_GRASS_PLANT_WARM:409, SHORT_GRASS_PLANT_COLD:410 });
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -176,6 +181,11 @@ corePart('blocks', function () {
               DRY_GRASS:224, DRY_TALL_LOWER:225, DRY_TALL_UPPER:226, DRY_BUSH:227,
               DRY_LEAVES:228,                                                          // the Dryland's big dry bushes
               METAL_CHEST:229,                                                         // iron / copper / gold chest
+              // acacia wood (the Savanna's tree, no sapling yet), and the Savanna's termite hill
+              ACACIA_LOG:230, STRIPPED_ACACIA_LOG:231, ACACIA_PLANKS:232, ACACIA_LEAVES:233, HOLLOW_ACACIA_LOG:234,
+              TERMITE_HILL:235,
+              ACACIA_SAPLING:236,
+              SHORT_GRASS:237,                                                         // the smallest grass plant (TALLGRASS is the middle one)
             };
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */

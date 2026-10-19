@@ -354,6 +354,8 @@ function finishChunkGen(c) {
   const seeEmitter = (i) => {
     const v = d[i];
     if (!EMITTER_ID[v & 255]) return;
+    // a termite hill's foot cell: its model and its termites (blocks/termite-hill.js)
+    if (PROPS[v & 255].pageModel) { if (!menuScene && typeof termiteHillSeen === 'function') termiteHillSeen(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v); return; }
     if (blockLightOf(v) > 0) {
       glowAdd(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15));
       // a torch or glow block seen for the first time starts burning (blocks/torches.js)

@@ -221,7 +221,7 @@ function rollLootExtra(slots, table) {
   slots[free[Math.floor(Math.random() * free.length)]] = mkSlot(id, Math.max(1, Math.min(stackSize(id), _lootRange(e.min ?? 1, e.max ?? 1))));
   return true;
 }
-const TREASURE_KEY_CHANCE = 0.01, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose
+const TREASURE_KEY_CHANCE = 0.025, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose
 function fillPendingLoot(x, y, z, slots) {
   const k = lootKey(x, y, z);
   const rec = PENDING_LOOT.get(k);

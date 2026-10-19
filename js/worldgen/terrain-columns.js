@@ -23,6 +23,7 @@ corePart('gen.chunk', function () {
       const OAS = new Uint8Array(400);                         // an oasis's land and water (0.84, oas in 55): not desert
       const DDK = new Uint8Array(400);                         // the Deep Desert's half, ddStrata's kind
       const DRYF = new Float32Array(400);                      // how far into the Dryland, 0..1 (fDry in 55)
+      const SAV = new Uint8Array(400);                         // the Savanna (rev 28, fSav in biomes/terrain.js)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
       // ocean 4..8 blocks, river/lake 2..4. WW cells: 0 dry, 1 ocean, 2 river/lake.
       // (WG x WG with a WM margin since 0.83547: 32 and 8 before rev 14)
@@ -68,6 +69,7 @@ corePart('gen.chunk', function () {
             DES[i] = ti.fDesert > 0.5 && !OAS[i] ? 1 : 0;        // an oasis is green, not sand
             DDK[i] = DDS[i] && DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0;
             DRYF[i] = DRYLAND ? ti.fDry : 0;
+            SAV[i] = SAVANNA && ti.fSav > 0.5 ? 1 : 0;
             RED[i] = ti.fRed > 0.5 && DDK[i] !== 1 ? 1 : 0;      // the (yellow) Deep Desert's half is not red
             ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5 && !OAS[i]) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
             SNO[i] = ti.fSnow > 0.5 ? 1 : 0;
@@ -289,6 +291,8 @@ corePart('gen.chunk', function () {
             if (DRYF[gi] > 0.3 && DRYF[gi] > 0.5 + (hash2(wx * 3 + 811, wz * 7 - 233) - 0.5) * 0.4) {
               topB = fbm(wx * 0.05 + 6121.3, wz * 0.05 - 2333.1, 2) > 0.38 ? B.DIRT : B.GRASS | (V.GRASS_DRY << 8);
             }
+            // the Savanna: its golden grass is the colour field's (dryAt); small patches of bare earth
+            else if (SAV[gi] && fbm(wx * 0.06 - 3413.7, wz * 0.06 + 2207.9, 2) > 0.46) topB = B.DIRT;
           }
           /* The Deep Desert: a column standing 3+ over a side is a bare crag of its banded rock, top to foot, and a
              little of that rock shows through the sand of the flats too */

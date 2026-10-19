@@ -40,7 +40,7 @@ const HORSE_RIDE_JUMP = 9.6;             // driven jump impulse, at jump stat 1.
 const HORSE_FLEE_TIME = 7;
 const HORSE_SEAT_Y = 1.61;               // where the rider sits above the feet (bigger horse)
 // open country: this world has no savanna, and horses have no business in snow or desert
-const HORSE_BIOMES = { 'Plains': 1, 'Forest': 0.5, 'Birch Forest': 0.5 };   // mild
+const HORSE_BIOMES = { 'Plains': 1, 'Forest': 0.5, 'Birch Forest': 0.5, 'Savanna': 1 };   // mild; and the Savanna's open grass
 /* 0.01% per chunk: a herd in about 1 chunk roll in 10,000, before the biome weight (0.08% in 0.8234,
    0.0001% — one in a MILLION — from 0.7441). */
 const HORSE_CHUNK_CHANCE = 0.0001;

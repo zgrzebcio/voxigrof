@@ -29,20 +29,18 @@ const _armUpperGeo = new THREE.BoxGeometry(0.27, 0.27, 0.72);
 /* Pose is re-applied per item in _rebuildHeld: blocks/generic items keep the old loose grip,
    while tools and weapons get a dedicated "held by the handle" pose (see HELD_POSE). */
 
-/* Tool/weapon grip.
+/* Tool/weapon grip: held like a stick in the fist.
    Item sprites are built as an upright quad in the XY plane with the icon's handle in the
    LOWER-LEFT corner and the head in the upper-right, so the shaft runs along the (1,1,0)
-   diagonal. Euler order is XYZ, i.e. Z is applied first:
-     Rz(+45°)  swings that diagonal onto +Y, so the tool now stands straight up
-     Ry(-0.80) yaws it to the right (negative Y swings the tip toward +X)
-     Rx(-70°)  tips the top away from the camera, pointing it forward into the scene
-   The inner group then slides the sprite so its lower-left (the handle) sits on the pivot,
-   which is what makes the fist grab the handle instead of the middle of the blade.
-   pulled back into the fist (z -0.30 -> -0.12) and yawed a little more to the right
-   (-0.55 -> -0.80), so the tool reads as held rather than thrust out ahead of the hand. A step
-   of only 0.10 back was barely visible side by side; this one is clear and still clean. */
+   diagonal. The inner group slides the sprite so a point a little up its handle sits on the held
+   group's origin, and that origin is IN the fist: at the end of the forearm (the arm box runs along
+   the pivot's -Z and ends at z -0.42), in its middle, so the handle comes out of the hand as a stick
+   does. The rotation (Euler XYZ, Z applied first) stands the shaft up out of the fist, leaning a
+   little in toward the middle of the screen and back toward the eye, with the sprite's face turned to
+   the camera so the flat icon is seen whole, not edge-on. It was worked out in the camera's space
+   (shaft (-0.3, 1, 0.1), face +Z) and taken back through the arm pivot's own turn (H_RX, H_RY). */
 const HELD_POSE = {
-  tool:  { pos: [0.10, -0.01, -0.12], scale: 0.95, rot: [-70 * Math.PI / 180, -0.80, Math.PI / 4], grip: 0.42 },
+  tool:  { pos: [0, 0.35, -0.5], scale: 0.9, rot: [-1, -2, -1], grip: 0.0 },
   block: { pos: [0.02, 0.12, -0.44],  scale: 0.60, rot: [-0.15, -0.52, 0.30],        grip: 0 },
   /* A bow is NOT gripped like a tool. A tool's handle is the sprite's lower-left corner,
      so the fist takes that corner — do the same to a bow and the hand ends up clamped around the

@@ -422,12 +422,52 @@ function bedRestPose(foot) {
            yaw: Math.atan2(d[0], d[1]) };          // head end is the direction they face
 }
 
+/* A bed sleeps only in a closed house. The air over the bed is flooded through every cell a body could pass (anything
+   not solid; a door, solid, counts as wall): an open room, a pit or anything open to the outside runs past
+   BED_ROOM_MAX cells and is no house. And a house is BUILT: of the solid blocks round that air, at least
+   BED_BUILT_SHARE must be ones put there (a player's, or a village's: any cell the world's edits hold, chunks/block-access.js),
+   so a cave sealed with a door is not one. The bed itself does not count. */
+const BED_ROOM_MAX = 600, BED_BUILT_SHARE = 0.6;
+function bedRoomCheck(foot) {
+  const d = BED_DIR[foot.facing & 3], cells = [[foot.x, foot.y + 1, foot.z], [foot.x + d[0], foot.y + 1, foot.z + d[1]]];
+  const seen = new Set(), wall = new Set(), q = [];
+  const k3 = (x, y, z) => x + ',' + y + ',' + z;
+  for (const c of cells) { const k = k3(...c); if (!seen.has(k)) { seen.add(k); q.push(c); } }
+  const edited = (x, y, z) => {
+    const m = editStore.get(key(Math.floor(x / 16), Math.floor(z / 16)));
+    return !!m && m.has((x & 15) + ((z & 15) << 4) + (y << 8));
+  };
+  let built = 0;
+  while (q.length) {
+    const [x, y, z] = q.pop();
+    if (y < 1 || y > WORLD_TOP - 1) return 'open';
+    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+      const nx = x + dx, ny = y + dy, nz = z + dz, k = k3(nx, ny, nz);
+      if (seen.has(k) || wall.has(k)) continue;
+      const v = getBlock(nx, ny, nz), id = v & 255;
+      if (CORE.solidVal(v)) {
+        if (id === B.BED) continue;                               // the bed itself
+        wall.add(k);
+        if (edited(nx, ny, nz)) built++;
+        continue;
+      }
+      seen.add(k);
+      if (seen.size > BED_ROOM_MAX) return 'open';
+      q.push([nx, ny, nz]);
+    }
+  }
+  return wall.size && built / wall.size >= BED_BUILT_SHARE ? null : 'cave';
+}
+
 // right-click a bed: lie down on it and make it your respawn point
 function trySleep(x, y, z) {
   const foot = bedFootOf(x, y, z);
   if (!foot) return false;
   if (isSleeping(player)) return true;
   if (!isNightForSleep()) { toast('you can only sleep at night'); return true; }
+  const room = bedRoomCheck(foot);
+  if (room === 'open') { toast('you can only sleep in a closed house: walls, a roof and a door'); return true; }
+  if (room === 'cave') { toast('you can only sleep in a house you built, not a cave'); return true; }
   const dx = player.pos.x - (x + 0.5), dz = player.pos.z - (z + 0.5);
   if (dx * dx + dz * dz > 25) { toast('bed is too far away'); return true; }
   const rec = BEDS.get(bedKey(foot.x, foot.y, foot.z));

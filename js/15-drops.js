@@ -317,10 +317,10 @@ function _pickupBulk(id, n, meta) {
     return hit;
   };
   let hot = false, inv = false;
-  if (top(HOTBAR, HOTBAR.length)) hot = true;
+  if (top(HOTBAR, hotbarLen())) hot = true;
   if (top(invSlots, invSlots.length)) inv = true;
   if (top(invSlots2, packN)) inv = true;
-  if (fill(HOTBAR, HOTBAR.length)) hot = true;
+  if (fill(HOTBAR, hotbarLen())) hot = true;
   if (fill(invSlots, invSlots.length)) inv = true;
   if (fill(invSlots2, packN)) inv = true;
   if (hot) { saveHotbar(); buildHotbar(); }
@@ -335,7 +335,7 @@ function restackInventory() {
   if (player.canFly) return 0;
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
   const over = [];
-  for (const [arr, len] of [[HOTBAR, HOTBAR.length], [invSlots, invSlots.length], [invSlots2, packN]])
+  for (const [arr, len] of [[HOTBAR, hotbarLen()], [invSlots, invSlots.length], [invSlots2, packN]])
     for (let i = 0; i < len; i++) {
       const s = arr[i];
       if (!s || s.dur != null) continue;                 // a tool is one to a slot whatever it says
@@ -362,7 +362,7 @@ function _tryPickupInto(id, dur, meta = null) {
   // worn tool: lands in an empty slot with its wear and extras intact (stack top-up can't apply at cap 1)
   const landSlot = () => { const t = mkSlot(id); if (dur != null) t.dur = dur; return applyMeta(t, meta); };
   // 1) top up an existing partial stack (hotbar first so the player sees it)
-  for (let i = 0; i < HOTBAR.length; i++) {
+  for (let i = 0; i < hotbarLen(); i++) {
     const s = HOTBAR[i]; if (s && s.id === id && s.count < cap) {
       stackInto(s, 1, fresh); saveHotbar(); buildHotbar(); return true;
     }
@@ -381,7 +381,7 @@ function _tryPickupInto(id, dur, meta = null) {
     }
   }
   // 2) otherwise take an empty slot
-  for (let i = 0; i < HOTBAR.length; i++) if (HOTBAR[i] == null) {
+  for (let i = 0; i < hotbarLen(); i++) if (HOTBAR[i] == null) {
     HOTBAR[i] = landSlot(); saveHotbar(); buildHotbar(); return true;
   }
   for (let i = 0; i < invSlots.length; i++) if (invSlots[i] == null) {

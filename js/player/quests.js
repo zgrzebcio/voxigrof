@@ -58,12 +58,16 @@ const QUESTS = [
     reqs: [_req(ITEM.LEATHER, 10), _req(ITEM.CLOTH, 10)], xp: 1200 },
   { name: 'Build a mortar',         hint: '20 granite, a bone, 2 flint and a fiber block', reqs: [_req(B.MORTAR)], xp: 1500 },
   { name: 'Wheat and flour',        hint: 'Grind 3 wheat into each flour in the mortar', reqs: [_req(ITEM.WHEAT, 5), _req(ITEM.FLOUR, 3)], xp: 1350 },
-  { name: 'Bake a pumpkin pie',     hint: 'Craft the pie, then bake it in the furnace',
-    reqs: [_req([ITEM.PUMPKIN_PIE, ITEM.COOKED_PUMPKIN_PIE])], xp: 2500 },
-  { name: 'Get a backpack',         hint: 'Leather and cloth, at the bench. Worn on the back', reqs: [_req(ITEM.BACKPACK)], xp: 2000 },
+  // 3 bread, or one baked pie that counts as 3 (an unbaked one does not count)
+  { name: 'Bake bread or a pie',    hint: '3 bread, or a pumpkin pie baked in the furnace',
+    reqs: [{ ..._reqAny((id) => id === ITEM.BREAD || id === ITEM.COOKED_PUMPKIN_PIE, 3, 'bread, or a baked pie (counts 3)'),
+             weight: (id) => id === ITEM.COOKED_PUMPKIN_PIE ? 3 : 1 }], xp: 2500 },
+  // the belt in the backpack's old place (round 3); the backpack, needing bronze now, comes after the bronze pickaxe
+  { name: 'Make a leather belt',    hint: '15 leather strips (3 from each leather), 6 iron nuggets and 4 ashes, at the bench. 2 more hotbar slots', reqs: [_req(ITEM.BELT)], xp: 2000 },
   { name: 'Golden apple and saddle', hint: 'Gold for the apple, leather for the saddle',
     reqs: [_req(ITEM.GOLDEN_APPLE), _req(ITEM.SADDLE)], xp: 3750 },
   { name: 'Craft a bronze pickaxe', hint: 'Copper and tin powder smelt into bronze', reqs: [_req(ITEM.BRONZE_PICKAXE)], xp: 3900 },
+  { name: 'Get a backpack',         hint: 'Leather, leather strips, cloth and bronze nuggets, at the bench. Worn on the back', reqs: [_req(ITEM.BACKPACK)], xp: 4200, added: 3 },
   { name: 'Every gem',              hint: 'Gem clusters grow in caves. You need a bronze pickaxe',
     reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 5500 },
   /* The last: the first boss. Done once its kind is in your feats (entities/frozen-king.js), so beating it before you got
@@ -85,7 +89,7 @@ function _questCount(req) {
   const want = req.items ? new Set(req.items) : null;
   const hit = want ? (id) => want.has(id) : req.test;
   let n = 0;
-  const add = (s) => { if (s && hit(s.id)) n += s.count || 1; };
+  const add = (s) => { if (s && hit(s.id)) n += (s.count || 1) * (req.weight ? req.weight(s.id) : 1); };   // `weight`: one item may count as more
   for (const s of HOTBAR) add(s);
   for (const s of invSlots) add(s);
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
@@ -154,7 +158,7 @@ function _questReqName(r) {
 /* a second round (the bottle of water, `added: 2`). The save's mark now counts the rounds: a place saved in
    round 1 (`added: true`) is counted along the quests of round 1 and before, so the round-2 quests ahead of
    it are skipped the same way. A later round: its quests get `added: 3` and QUEST_SAVE_GEN goes to 3. */
-const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 2;
+const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 3;   // round 3: the backpack after the bronze pickaxe
 const serializeQuests = (p) => ((p && p.questIdx) | 0) + QUEST_SAVE_MARK * QUEST_SAVE_GEN;
 const _questGen = (q) => q.added === true ? 1 : (q.added | 0);
 function restoreQuests(v) {

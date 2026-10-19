@@ -83,7 +83,7 @@ function _renderIconScene(scene, cam) {
    ready yet is neither drawn nor cached: the next call renders it properly. */
 const ICON_MESH_ART = {
   [B.CHEST]: ['chest_wood', 'chest_metal',                                   // one sheet each since 0.843
-              'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks'],   // metal and the wood colours (CHEST_WOODS in blocks/chest.js; rime 0.8392)
+              'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks', 'acacia_planks'],   // metal and the wood colours (CHEST_WOODS in blocks/chest.js; rime 0.8392)
   // the metal chest: its body is the iron, copper or gold block's art
   [B.METAL_CHEST]: ['chest_wood', 'chest_metal', ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])],
   [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342

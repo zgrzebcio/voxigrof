@@ -52,7 +52,7 @@ function tryCarvePumpkin(hit) {
 
 /* Blocks a placement simply overwrites, the way air does. Only the grass billboards qualify —
    flowers, saplings and torches are deliberate placements and must not be silently destroyed. */
-const PLANT_REPLACE = [B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER];   // dry 0.84
+const PLANT_REPLACE = [B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER];   // dry 0.84
 const isPlantReplaceable = (id) => PLANT_REPLACE.includes(id & 255);
 // the two-cell plants (0.84: the dry one too): lower half -> upper half, and back
 const TALL_UPPER_OF = { [B.TALL_LOWER]: B.TALL_UPPER, [B.DRY_TALL_LOWER]: B.DRY_TALL_UPPER };

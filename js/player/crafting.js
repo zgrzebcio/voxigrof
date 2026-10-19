@@ -77,7 +77,7 @@ const craftMoveMul = () => (typeof hasSkill === 'function' && hasSkill('nimble')
    FOCUS_FROM seconds, then the crafting speed rises evenly to FOCUS_MAX more at FOCUS_FULL.
    the pocket queue too, on a clock of its own (`_queueFocusT`, updateCraftQueue): it counts while the queue
    runs and starts over when the queue is empty or cannot run. */
-const FOCUS_FROM = 4, FOCUS_FULL = 14, FOCUS_MAX = 0.5;
+const FOCUS_FROM = 3, FOCUS_FULL = 12, FOCUS_MAX = 0.5;
 const focusMul = (t) => (typeof hasSkill === 'function' && hasSkill('walkWork'))
   ? 1 + FOCUS_MAX * Math.max(0, Math.min(1, ((t || 0) - FOCUS_FROM) / (FOCUS_FULL - FOCUS_FROM))) : 1;
 const benchFocusMul = () => focusMul(player._benchHoldT);
@@ -111,7 +111,7 @@ function _takeIngredients(r) {
   if (!canCraft(r)) return null;
   const packN = typeof backpackCapacity === 'function' ? backpackCapacity() : 0;
   const taken = new Map(), fromChest = new Map();
-  const grids = [[invSlots, invSlots.length], [HOTBAR, HOTBAR.length], [invSlots2, packN]];
+  const grids = [[invSlots, invSlots.length], [HOTBAR, hotbarLen()], [invSlots2, packN]];
   const chests = _openChestGrids();                     // after every bag, so the inventory has priority
   for (const g of chests) grids.push([g, g.length]);
   for (const [id, need] of recipeIn(r)) {

@@ -1,6 +1,7 @@
 'use strict';
 /* entities/update.js: updateEntities, the loop over every creature: waking and parking by distance, hunger and
-   healing, then the step of a villager or a monster (animals go to grazers.js, bosses to frozen-king.js). */
+   healing, then the step of a villager or a monster (animals go to grazers.js, bosses to frozen-king.js, termites to
+   termite.js). */
 
 /* `pick`: only the creatures it says yes to; `frameJobs`: the player's knockback and the villagers' torch lights,
    which follow the frame. With the fixed tick (SIM_FIXED) updateEntitiesTick steps every creature but a ridden horse and
@@ -97,6 +98,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
     if (e.jumpCd > 0) e.jumpCd -= dt;
     if (isGrazer(e)) { _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp); continue; }   // tp: whom a bear hunts
     if (isFish(e)) { _updateFish(e, dt, tp, i); continue; }   // 0.805
+    if (mobOf(e).body === 'insect') { updateTermite(e, dt, tp, i); continue; }   // termites (entities/termite.js)
     /* ---- night mobs: claw out of the ground, hunt on sight, burn at dawn ---- */
     if (isNightMob(e)) {
       if (e.riseT > 0) {

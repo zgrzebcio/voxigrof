@@ -31,24 +31,18 @@ function _mobDropKey(pop, byPlayer) {
 // player from inside terrain the player cannot see.
 const ZOMBIE_CHASE_RANGE = 64;
 const ZOMBIE_RISE_TIME = 1.2;            // seconds spent climbing out of the ground
-/* Spawn rate (retuned 0.7295 — the old numbers built 10-strong hordes). Three separate limits,
-   because one alone was not enough: walking into fresh terrain streams in dozens of chunks in a
-   couple of seconds, and every one of them used to roll independently.
-     CHANCE  how often a chunk load even considers a zombie
-     PACK    how many come up at that one spot (a pack of 1 now — no clusters)
-     GAP     seconds between any two spawns WORLD-WIDE, which is what actually stops a wave:
-             a burst of chunk loads can now only produce one zombie
-     CAP     the ceiling on how many can be alive at once */
-const ZOMBIE_CHUNK_CHANCE = 0.05;        // per chunk load, at night
+/* Spawn rate. Every chunk that comes in at night rolls, and the loaded land rolls as night falls and now and then
+   after (entities/spawning.js, updateNightMobs); only in the simulated range and never near a player.
+     CHANCE    how often a chunk's roll brings one up (x MONSTER_SPAWN_MUL and the moon)
+     PACK      how many come up at that one spot (a pack of 1 — no clusters)
+     CAP       the ceiling on how many can be alive at once: what keeps a burst of new land from making a horde
+     MIN_DIST  how far from every player one may come up */
+const ZOMBIE_CHUNK_CHANCE = 0.05;        // per chunk roll, at night
 const ZOMBIE_PACK_MIN = 1, ZOMBIE_PACK_MAX = 1;
-const ZOMBIE_SPAWN_GAP = 6;              // seconds between spawns, across the whole world
 const ZOMBIE_CAP = 10;                   // hard ceiling — chunk reloads must not stack up forever
-// World-global, NOT per player: this throttles the world's spawner, which runs once per chunk
-// load rather than once per player per frame, so it must not live in a per-seat slot.
-var _zombieSpawnT = -1e9;
 const ZOMBIE_BURN_GRACE = 0.7;           // seconds in the open before it catches
 const ZOMBIE_BURN_DPS = 9;
-const ZOMBIE_SPAWN_MIN_DIST = 14;        // never sprouts in the player's face
+const ZOMBIE_SPAWN_MIN_DIST = 24;        // never comes up in a player's sight close by
 /* Night mobs come out this long before sunset (in days of worldTime), and daylight burns them from sunrise until
    this long before it. By the day's own sunrise and sunset since 0.818 (sunTimes, 07-sky.js): late in summer,
    early in winter. They were 0.47 and 0.45 of a fixed 06:00-18:00 day. */

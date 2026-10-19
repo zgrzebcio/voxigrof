@@ -419,6 +419,7 @@ async function loadWorld(w) {
   restoreDoorLocks(data && data.doorLocks);  // and their locks
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
+  clearTermiteHills();                       // the hills are found again as their chunks come in (blocks/termite-hill.js)
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
   restoreSeasons(data && data.seasons);                                // what autumn took, for spring
   restoreBurns(data && data.burns);                                    // lights burning out
@@ -682,6 +683,7 @@ function startMenuBackdrop() {
   clearDoors();
   clearBeds();
   clearChests();
+  clearTermiteHills();
   resetWorld(MENU_SEED);
   viewDist = 5; applyViewDist(false);       // backdrop only — never persist this short distance
   worldTime = 0.15;                         // late morning: bright, long shadows

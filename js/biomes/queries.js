@@ -68,6 +68,7 @@ corePart('biomes.make', function () {
         return snowForestAt(x, z) ? 'Snow Forest' : 'Snow';
       }
       if (mountain) return 'Mountains';
+      if ((ti.fSav || 0) > 0.5) return 'Savanna';                       // the Dryland's hot edge (rev 28)
       if ((ti.fDry || 0) > 0.5) return 'Dryland';                       // 0.8411
       if (fPlains > 0.5) return hilly ? 'Plains Hills' : _clim(ti) + 'Plains';   // warm and cold plains
       const deepW = deepF > 0.5 && !hilly ? 'Deep ' : '';               // deep forests
@@ -91,15 +92,19 @@ corePart('biomes.make', function () {
       if (smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow <= 0.5) return false;
       return smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) <= 0.5;
     }
-    /* How dry the grass is here, 0 the usual .. 1 the Dryland's pale grass: terrainInfo's own `fDry` from its
-       two fields alone, for the mesher to ask at every column corner like climAt. The grass fades from green to pale
-       over the Dryland's whole edge, tens of blocks, instead of block by block (the dry and green blocks dithered
-       there since 0.8411 read as a checkerboard, the two colours being so far apart). */
+    /* The grass's colour by dryness here, for the mesher to ask at every column corner like climAt: 0 the usual green,
+       DRY_PALE (biomes/biomes.js) the Dryland's pale grass, 1 the Savanna's golden grass beyond it. From terrainInfo's
+       own fields alone (`fDry`, `fSav`). The grass fades from green to pale over the Dryland's whole edge, tens of
+       blocks, and from pale to gold over the Savanna's, instead of block by block (the dry and green blocks dithered
+       there since 0.8411 read as a checkerboard, the two colours being so far apart). The shader (04-materials.js)
+       reads the same scale. */
     function dryAt(x, z) {
       if (!DRYLAND || !LADDER) return 0;
-      const lvl = climateLevel(_temp(x, z));
-      const d = smooth01(lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2), DRY_FROM, DRY_TO);
-      return d <= 0 ? 0 : d * (1 - smooth01(lvl, 1.4, 1.6));           // not where the desert has begun (fDesert)
+      const lvl = climateLevel(_temp(x, z)), wob = lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2);
+      const d = smooth01(wob, DRY_FROM, DRY_TO);
+      if (d <= 0) return 0;
+      const s = SAVANNA ? smooth01(wob, SAV_LO, SAV_HI) : 0;
+      return (d * DRY_PALE + s * (1 - DRY_PALE)) * (1 - smooth01(lvl, DESERT_LVL - 0.1, DESERT_LVL + 0.1));   // not where the desert has begun (fDesert)
     }
     function climAt(x, z) {
       const temp = _temp(x, z);
@@ -109,5 +114,5 @@ corePart('biomes.make', function () {
       return c < -1 ? -1 : c > 1 ? 1 : c;
     }
 
-    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND };
+    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2 };
 });

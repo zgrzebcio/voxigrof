@@ -42,6 +42,8 @@ defineItems('materials', {
   [ITEM.LEATHER]:       { name: 'Leather',       stack: 79, icon: 'leather', desc: 'Used as crafting ingredient' },
   [ITEM.BONE]:          { name: 'Bone',          stack: 79, icon: 'bone', desc: 'Used as crafting ingredient' },
   [ITEM.BONE_ASH]:      { name: 'Bone ash',      stack: 79, icon: 'bone_ash', desc: 'A bone ground at the mortar makes two. Used as crafting ingredient' },   // 0.84
+  [ITEM.LEATHER_STRIP]: { name: 'Leather strip', stack: 79, icon: 'leather_strip', desc: 'Three are cut from a leather at the bench. Used for belts and backpacks' },
+  [ITEM.CHITIN_PLATE]:  { name: 'Chitin plate',  stack: 79, icon: 'chitin_plate', desc: 'A hard plate of a termite\'s shell, from the Savanna' },
 // ores
   [ITEM.COAL]:          { name: 'Coal',          stack: 79, icon: 'coal', desc: 'Used as fuel for 5 smelts' },
   [ITEM.COAL_CHUNK]:    { name: 'Coal chunk',    stack: 79, icon: 'coal_chunk', desc: 'Used as fuel for 1 smelt' },

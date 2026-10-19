@@ -44,6 +44,9 @@ const FURNACE_GLOW = 5;
 const EMITTER_ID = new Uint8Array(256);
 for (let id = 0; id < 256; id++) if (PROPS[id] && (PROPS[id].light > 0 || PROPS[id].lightByVar)) EMITTER_ID[id] = 1;
 EMITTER_ID[B.FURNACE] = 1;
+/* ...and the blocks the page draws itself (`pageModel`: the termite hill), which give no light: the worker lists them
+   with the emitters, and finishChunkGen (chunks/stream.js) hands them to their own file from the same pass */
+for (let id = 0; id < 256; id++) if (PROPS[id] && PROPS[id].pageModel) EMITTER_ID[id] = 1;
 
 function blockLightOf(val) {
   const id = val & 255;

@@ -81,6 +81,17 @@ corePart('biomes.make', function () {
        a wobble of its own so it is not a ring), `fDry`. Pale dry grass, many dry plants and half the green ones, big dry
        bushes, no trees, and now and then bones (genChunk, worldgen/gen-chunk.js). */
     const DRYLAND = biomeRev >= 23, DRY_FROM = 1.08, DRY_TO = 1.22;
+    /* The Savanna (biomeRev 28): the Dryland's hot edge, next to the desert (from SAV_FROM of a level, on the Dryland's
+       own wobble, so it always lies on the desert's side of it), `fSav`. Golden grass (dryAt), tall grass, a few dry
+       plants, flat-topped acacias standing apart, and termite hills (genChunk: woods/gen-acacia.js,
+       biomes/gen-savanna.js). The Dryland keeps only what lies before it. */
+    const SAVANNA = biomeRev >= 28, SAV_FROM = 1.28, SAV_TO = 1.36;
+    /* A big Savanna (biomeRev 30): from SAV2_FROM, and the desert pushed out to start from DESERT_LVL (a level of 1.75
+       instead of 1.5), so the Savanna is a broad biome of its own, about as wide as the desert left beside it. Its
+       termite hills fewer and spaced out (biomes/gen-savanna.js). */
+    const SAV2 = biomeRev >= 30, SAV2_FROM = 1.2, SAV2_TO = 1.28;
+    const DESERT_LVL = SAV2 ? 1.75 : 1.5;
+    const SAV_LO = SAV2 ? SAV2_FROM : SAV_FROM, SAV_HI = SAV2 ? SAV2_TO : SAV_TO;
     /* Level shores (biomeRev 27): about half of a river's or a lake's shore lies level with its water, its first FLUSH_W
        columns' ground at the water's top, so a swimmer walks out instead of jumping a block; genChunk lays each such
        stretch as a little beach of sand (gravel on a gravel shore: worldgen/terrain-columns.js). A slow noise along the

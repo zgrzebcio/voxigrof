@@ -1,15 +1,16 @@
 'use strict';
 /* woods/woods.js: THE WOODS TABLE. One entry per wood, and the lists the rest of the game makes from it.
 
-   Each wood's own file adds its entry with defineWood: oak.js, birch.js, spruce.js, rime.js, palm.js, dry-bush.js.
+   Each wood's own file adds its entry with defineWood: oak.js, birch.js, spruce.js, rime.js, palm.js, dry-bush.js,
+   acacia.js.
    THEIR ORDER IN index.html IS THE ORDER OF EVERY LIST made here (the creative palette, the recipe groups, the
    smelting book), so a new wood goes after the others.
 
    WHAT AN ENTRY HOLDS (a wood leaves out what it does not have)
 
      its blocks, by id
-       log, stripped, hollow, planks, leaves, sapling     (rime has no sapling, palm no hollow log, the dry bush
-                                                           only leaves)
+       log, stripped, hollow, planks, leaves, sapling     (rime and acacia have no sapling, palm no hollow log, the
+                                                           dry bush only leaves)
      what it is like
        name       what it is called
        tree       false: not a tree (the dry bush). Its leaves stand on the ground: they never decay, never

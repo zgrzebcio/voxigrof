@@ -10,7 +10,8 @@ function WORKER_MAIN() {
      or the furnace. Found here as a chunk is made, so the main thread's finish pass (finishChunkGen, chunks/stream.js) checks only
      these instead of walking all of the chunk's cells. Same test as EMITTER_ID (08). */
   const EMIT = new Uint8Array(256);
-  for (let id = 0; id < 256; id++) { const p = CORE.PROPS[id]; if (p && (p.light > 0 || p.lightByVar)) EMIT[id] = 1; }
+  // ...and a block the page draws itself (`pageModel`: the termite hill), listed with them so the page finds it the same way
+  for (let id = 0; id < 256; id++) { const p = CORE.PROPS[id]; if (p && (p.light > 0 || p.lightByVar || p.pageModel)) EMIT[id] = 1; }
   EMIT[CORE.B.FURNACE] = 1;
   const emittersOf = (d) => {
     let n = 0;

@@ -35,7 +35,7 @@ corePart('blocks', function () {
              ..._ROCKS, ..._ROCK_LOOKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,    // 0.8261; sulfur 0.8264
              ..._METALS],                                                                      // 0.8265
     fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK],                                       // 0.784; iron off 0.8261
-    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822; rime 0.836; palm 0.84
+    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,   // pink 0.822; rime 0.836; palm 0.84
              B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,   // 0.785; salt 0.8097; ash 0.8191
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.MOSSY_COBBLE,                        // iron and gold off 0.8261, glass 0.8263
              B.HAY, B.ICE],                                                                    // 0.8265; ice 0.833
@@ -48,7 +48,7 @@ corePart('blocks', function () {
              B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,                                             // 0.8261; sulfur 0.8264
              B.OBSIDIAN, B.SNOW, B.ICE],                                                       // 0.8265; ice 0.833
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
+  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   /* EVERY LOOK OF A BLOCK TAKES THE SAME SHAPES: its default's. One list per block, its default first,

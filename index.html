@@ -18,7 +18,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.84591</div>
+<div id="version">alpha 0.8468</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="progRing"></div>
@@ -406,6 +406,8 @@ window.THREE = THREE;
 <script defer src="js/woods/gen-trees.js"></script>
 <script defer src="js/woods/gen-rime-trees.js"></script>
 <script defer src="js/woods/gen-palms.js"></script>
+<script defer src="js/woods/gen-acacia.js"></script>
+<script defer src="js/biomes/gen-savanna.js"></script>
 <script defer src="js/woods/gen-dry-bush.js"></script>
 <script defer src="js/woods/gen-tree-loop.js"></script>
 <script defer src="js/worldgen/cave-floors.js"></script>
@@ -441,6 +443,7 @@ window.THREE = THREE;
 <script defer src="js/woods/rime.js"></script>
 <script defer src="js/woods/palm.js"></script>
 <script defer src="js/woods/dry-bush.js"></script>
+<script defer src="js/woods/acacia.js"></script>
 <script defer src="js/blocks/mining-rules.js"></script>
 <!-- the item table: items.js (the ids) first, then one file per group of items, finish.js last -->
 <script defer src="js/items/items.js"></script>
@@ -496,6 +499,8 @@ window.THREE = THREE;
 <script defer src="js/blocks/chest.js"></script>
 <script defer src="js/ui/chest-panel.js"></script>
 <script defer src="js/blocks/supply-chests.js"></script>
+<script defer src="js/entities/box-models.js"></script>
+<script defer src="js/blocks/termite-hill.js"></script>
 <script defer src="js/player/equipment.js"></script>
 <script defer src="js/player/armor-model.js"></script>
 <script defer src="js/ui/equip-panel.js"></script>
@@ -583,6 +588,7 @@ window.THREE = THREE;
 <script defer src="js/ui/boss-hud.js"></script>
 <script defer src="js/fluids/fluids.js"></script>
 <script defer src="js/entities/hellhound.js"></script>
+<script defer src="js/entities/termite.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

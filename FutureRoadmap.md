@@ -4,7 +4,7 @@ legends: B = big update, M= medium update, S = small update
 2. M: ~~different mined drops~~. v0.052
 3. M: ~~first item as stick drop from leaves 2% 1-3, make leaves breaks if is not close connect between other leaves any log then drop is increase to 7%~~ v0.06
 4. B: ~~Hands to player with function holding block item and light source make light but 50% weaker than placed~~. v0.07
-5. M: ~~new item as first consumable apple drop 1 from leaves 0.2% when break by player but 1% on break disappear~~. v0.732
+5. M: ~~new item as first consumable apple drop 1 from leaves 0.2% when break by player but 1% on break disappear~~. v0.0732
 6. M: ~~caves ore with own chance and amount~~. v0.054
 7. S: ~~mined ore own drops~~ v0.055
 8. B: ~~saving system with load system on world and inventory~~. v0.04
@@ -14,17 +14,17 @@ legends: B = big update, M= medium update, S = small update
 12. S: ~~brown mushroom.~~ v0.083
 13. S: ~~saturation stats~~. v0.084
 14. M: ~~update water texture and water filling~~. v0.09
-15. M: ~~oxygen stats, with better swim, 0.093~~. v0.092
+15. M: ~~oxygen stats, with better swim.~~ v0.09(2-3)
 16. S: ~~update vital icons heart oxygen hunger~~. v0.095
 17. M: ~~water deep biome and dark water lightning~~. v0.096
 18. B: ~~crafting system, with vertical crafting list be basic list and advanced with new and first interactable block as crafting bench~~. v0.1
 19. B: ~~furnace block and smelting system with first block animation~~. v0.2
-20. M: ~~torch block with own model light source~~ 10. v0.13
+20. M: ~~torch block with own model light source 10~~. v0.13
 21. M: ~~cactus block with new red sand desert biome~~.  v0.22
 22. S: ~~better respawn and dying mechanic~~. v0.23
 23. B: ~~block rotation~~. v0.3
 24. M: ~~first interaction and changing rotating block different by as oak doors~~. v0.31
-25. S: ~~planks and cobblestone stairs~~, ~~and cobblestone slab.~~ v0.032
+25. S: ~~planks and cobblestone stairs~~, ~~and cobblestone slab.~~ v0.32
 26. S: ~~Sneak mechanic~~. v0.33
 27. M: ~~connecting slab, and stone brick block with slabs~~. v0.36
 28. S: ~~connecting stair to rotate,~~ ~~more stairs like stone brick~~. v0.37
@@ -103,7 +103,7 @@ legends: B = big update, M= medium update, S = small update
 101. M: ~~update terrain with new hills, cliffs, lakes, rivers, tunnels, holes, shores, mountains, waterfalls, and high to 250~~, v0.835(1-9)
 102. S: ~~rim wood and trees with coldest deep snow~~ v0.836
 103. S: ~~a lot bug fixed with new biome and make forest version, balance with mushroom and animal~~ v0.837
-104. S: ~~winter boss, xx1.15 xp boss boost and quest line news~~. v0.838
+104. S: ~~winter boss, xx1.2 xp boss boost and quest line news~~. v0.839
 105. M: ~~desert biome update with palm tree with new plants~~. v0.84
 106. S: ~~deep Red desert update~~ v0.841
 107. S: ~~door shape with keys~~ v0.842
@@ -111,77 +111,65 @@ legends: B = big update, M= medium update, S = small update
 109. S: ~~fluid flow fix~~ v0.844
 110. M: ~~QoL and balance updates~~ v0.844(2-7) PART 1-6
 111. S: ~~hellhound spawning in desert, bottle and water~~, 0.845
-112. S: more block variant, savanna with acacia trees. 0.846
-113. S: shape and seashells with block (as human build pyramid for summer boss) v0.847
-114. S: added pyramid same and big version v0.848
-115. S: summer boss desert curse v0.849
-116. M: jungle biome with jungle tree and cocoa beans v0.85
-117. S: all mossy decorative block to add v0.851
-118. S: pressure plate and ladder shape (as human build jungle dungeon) v0.853
-119. S: parrot, crows, raven birds, cookies v0.855
-120. S: , make spring boss v0.857
-121. M: bamboo biome  with bamboo trees, . v0.86
-122. S: connecting block system 0.863
-123. S: panda bear version but neutral, give bamboo panda give panda love effect.  v0.865
-124. S: ebony trees with biome 0.867
-125. M: swamp biome with mangrove trees, mud, autumn biome with maple trees  v0.87
-126. S: bear territorial, quality fat, trapdoor and bars shapes (as human build autumn mansion)v0.873
-127. S: add kelp underwater picking bush, chicken, 0.875
-128. S: autumn boss, campfire and cauldron with make simple food 0.877
-129. M: cherry update with cherry tree, flower carpet, rabbits animals. v0.88
-130. S: lever shape, other block variants v0.883
-131. S: belt system chisel and hammer, lantern slots.  0.885
-132. S: second part belt system with compass, map, spyglass with them functions  v0.887
-133. M: volcano biome with a lot new block like Blackstone, quartz ore with black quartz item 0.89
-134. S: ember wood tree (as human i must dark castle) v0.893
-135. S: loom, banners,  world lord boss v0.895
-136. S: boat and fishing rod system 0.897
-137. B: electric update add new ore and generator with full electric system v0.9
-138. S: steel with infuser machine v0.903
-139. S: fabricator with electric crafting system v0.905
-140. M: farming system with seed and more plants. v0.91
-141. S: scarecrow and sprinkler v0.913
-142. S: growing visual system v0.915
-143. S: update greenhouse glass be separate block and increase grow speed and allow grow in 3 season v0.917
-144. M: resin, rubber, extractor tool and extractor machine v0.92
-145. S: electric cables and batteries v0.923
-146. S: electric furnace, polymer and carbon fiber items v0.925
-147. M: bio fuel with bio generator and solar generator and wind generator v0.93
-148. S: compresser and press shapes item 0.933
-149. S: big block as pressure chamber to press shapes 0.935
-150. M: crusher, skill part 2 v0.94
-151. S: electric mortal and pestle v0.945
-152. M: Pipe for fluid and item transfer v0.95
-153. S: fluid tank and item barrel v0.955
-154. M: oil fluid and fluid pump v0.96
-155. S: machine upgrades v0.965
-156. M: potion system update v0.97
-157. S: tool upgrades station v0.975
-158. M: adding more flower and dyes and paint system v0.98
-159. S: adding missing items and blocks v0.985
-160. M: multiplayer 0.99
-
-*Replication is done HERE, in this one update — not drip-fed into earlier systems.*
-
-*Split screen already built half of it: per-player context slots, per-player HUD and*
-
-*inventory, a profile-keyed roster that persists per world, N players ticking in sequence.*
-
-*That layer is reusable. What this update adds is a transport plus making world mutation*
-
-*replicable — `setBlock` is already the single choke point for blocks, so entity and*
-
-*machine state are the parts to keep tidy as they are built between now and here.*
-
-125. S: visual update like grass, water blending between biome v0.995
-126. B: sound effect with polishing fully performance and textures 1.0 FULL GAME! as beta version
-127. B: Achievements/quest update 1.1
-128. B: farming update better farm system with bee animal 1.2
-129. B: sky and moon update: add moon as own shape no flat plain, meteors shower and structure v1.3
-130. B: traveling update: like parachute, multiple people boat support v1.4
-131. B: animal update — breeding, gender, growing sizes, per-animal stats. v1.5
-132. 
-133. 
+112. S: ~~fix chunk and sort files with optimized performance~~ 0.845(1-91)
+113. S: ~~savanna with acacia trees and termite and hills~~. 0.846
+114. S: more block variant 0.8465
+115. S: shape and seashells with block (as human build pyramid for summer boss) v0.847
+116. S: added pyramid same and big version v0.848
+117. S: summer boss desert curse v0.849
+118. M: jungle biome with jungle tree and cocoa beans v0.85
+119. S: all mossy decorative block to add v0.851
+120. S: pressure plate and ladder shape (as human build jungle dungeon) v0.853
+121. S: parrot, crows, raven birds, cookies v0.855
+122. S: milk fluid, and more fluid things. spring boss v0.857
+123. M: bamboo biome  with bamboo trees, . v0.86
+124. S: connecting block system 0.863
+125. S: panda bear version but neutral, give bamboo panda give panda love effect.  v0.865
+126. S: ebony trees with biome 0.867
+127. M: swamp biome with mangrove trees, mud, autumn biome with maple trees  v0.87
+128. S: bear territorial, quality fat, trapdoor and bars shapes (as human build autumn mansion)v0.873
+129. S: add kelp underwater picking bush, chicken, 0.875
+130. S: autumn boss, campfire and cauldron with make simple food 0.877
+131. M: cherry update with cherry tree, flower carpet, rabbits animals. v0.88
+132. S: lever shape, other block variants v0.883
+133. S: belt system chisel and hammer, lantern slots.  0.885
+134. S: second part belt system with compass, map, spyglass with them functions  v0.887
+135. M: volcano biome with a lot new block like Blackstone, quartz ore with black quartz item 0.89
+136. S: ember wood tree (as human i must dark castle) v0.893
+137. S: loom, banners,  world lord boss v0.895
+138. S: boat and fishing rod system 0.897
+139. B: electric update add new ore and generator with full electric system v0.9
+140. S: steel with alloy smelter machine v0.903
+141. S: fabricator with electric crafting system v0.905
+142. M: farming system with seed and more plants. v0.91
+143. S: scarecrow and sprinkler v0.913
+144. S: growing visual system v0.915
+145. S: update greenhouse glass be separate block and increase grow speed and allow grow in 3 season v0.917
+146. M: resin, rubber, extractor tool and extractor machine v0.92
+147. S: electric cables and batteries v0.923
+148. S: electric furnace, polymer and carbon fiber items v0.925
+149. M: bio fuel with bio generator and solar generator and wind generator v0.93
+150. S: compresser and press shapes item 0.933
+151. S: big block as pressure chamber to press shapes 0.935
+152. M: crusher, skill part 2 v0.94
+153. S: electric mortal and pestle v0.945
+154. M: Pipe for fluid and item transfer v0.95
+155. S: fluid tank and item barrel v0.955
+156. M: oil fluid and fluid pump v0.96
+157. S: machine upgrades v0.965
+158. M: potion system update v0.97
+159. S: tool upgrades station v0.975
+160. M: adding more flower and dyes and paint system v0.98
+161. S: adding missing items and blocks v0.985
+162. M: multiplayer 0.99
+163. S: more visual update like grass, water blending between biome etc. v0.995
+164. B: sound effect with polishing fully performance and textures 1.0 FULL GAME! as beta version
+165. B: Achievements/quest update 1.1
+166. B: farming update better farm system with bee animal 1.2
+167. B: sky and moon update: add moon as own shape no flat plain, meteors shower and structure v1.3
+168. B: traveling update: like parachute, multiple people boat support v1.4
+169. B: animal update — breeding, growing sizes, per-animal stats. v1.5
+170. 
 
 *more textures per animal, male/female, babies that grow, and stats that differ per*
 
@@ -209,20 +197,33 @@ legends: B = big update, M= medium update, S = small update
 
 
 
+*multiplayer(Replication is done HERE, in this one update — not drip-fed into earlier systems.*
 
+*Split screen already built half of it: per-player context slots, per-player HUD and*
+
+*inventory, a profile-keyed roster that persists per world, N players ticking in sequence.*
+
+*That layer is reusable. What this update adds is a transport plus making world mutation*
+
+*replicable — `setBlock` is already the single choke point for blocks, so entity and*
+
+*machine state are the parts to keep tidy as they are built between now and here.)*
+
+
+ideas:(
 
 block: drain grate, termite hill, rust iron , oxidated copper, charred wood planks, machines,
 shape: slopes, doors, ladders, buttons, pressure plate, levers, trapdoors
 item:::
 food: candy apple, fruit stew, bacon, fries, all meat as jerky, compress rotten flesh, grilled mushroom cactus juice
 materials: -
-tools: spear,
+tools/weapon: spear,
 useable: canteen, paint brush
 equipment: rain gauge, scuba set
 model: feeding trough, metal bowl, iron wire, stone path, banners, wind info, juicer, machines, barrel, wooden drain bowl for collecting water , carrot cake, chocolate cake, cream cake
 grass carpet: flowers, gloves, leaves, mushroom
 plants:  lily pad with flower
-billboard: reed, sugar cane with stages and seeds,
+billboard: reed, sugar cane with stages and seeds,)
 
 
 
@@ -230,29 +231,29 @@ Final to beta version:
 
 * 100 different item:
 
-  1. 30\~ resources: stick ✔, coal✔, diamond✔, emerald✔,¶ feather✔, flint✔, clay✔, energetic, fiber✔, cloth✔, leather✔, quartz≠✔, black quartz≠✔, gunpowder✔, glow dust✔, bone✔, string✔, polymer≠✔, fat✔, bio fuel≠✔, quality oil **X**, iron✔, copper✔, tin✔, bronze✔, gold✔, steel≠✔, sugar✔, paper✔, wood bark✔, sulfur✔, carbon fiber≠✔.
-* 6 ingot: iron, copper, tin, bronze, gold, steel.✔
-* 6 chunks/raw: coal, iron, copper, tin, gold, quartz.✔
-* 6 nugget: iron, copper, tin, bronze, gold, steel.✔
-* 6 powder: iron, copper, tin, bronze, gold, steel.✔
+  1. 30\~ resources: stick ✔, coal✔, diamond✔, emerald✔, feather✔, flint✔, clay✔, energetic, fiber✔, cloth✔, leather✔, quartz◙, black quart◙, gunpowder✔, glow dust✔, bone✔, string✔, polymer◙, fat✔, bio fuel◙, iron✔, copper✔, tin✔, bronze✔, gold✔, steel◙, sugar✔, paper✔, wood bark✔, sulfur✔, carbon fiber◙.
+* 6 ingot: iron, copper, tin, bronze, gold✔, steel.
+* 6 chunks/raw: coal, iron, copper, tin, gold✔, quartz.
+* 6 nugget: iron, copper, tin, bronze, gold✔, steel.
+* 6 powder: iron, copper, tin, bronze, gold✔, steel.
 
-  2. 10 usable: bucket✔, battery, saddle✔, glass bottle✔, egg✔, snowball✔, bowl✔, exp bottle, fire charge✔.
-  3. 9 utilities: compass, clock, spyglass, note map, shears, fishing rod, belt, backpack, boat.
-  4. 11 dyes: red, blue, yellow, green, black, white, orange, pink, gray, purple, brown.
+  2. 10 usable: bucket✔, battery◙, saddle✔, glass bottle✔, egg◙, snowball✔, bowl✔, fire✔.
+  3. 9 utilities: compass, clock, spyglass◙ , note map, shears✔, fishing rod◙ , belt, backpack, boat.
+  4. 13 dyes: (red, blue, yellow, green, black, white, orange, pink, gray, purple, brown, cyan, light gray),◙
 
 
 
 * 100 different block:
 * 20 different plants: grass, mushroom, poppy, wheat, carrot, potato, sugar cane, bamboo, kelp, cocoa beans, vines, fern, bush, dry bush, saplings, daisy, sunflower, orchid, black rose,
-* 30 different consumable: apple, golden apple, mushroom soup, pork, steak, mutton, chicken, bread, cookie, pumpkin pie, apple pie, carrot, bake potato, vegetables cake, berry,
+* 30 different consumable: apple, golden apple, mushroom soup, pork, steak, mutton, chicken, bread, cookie◙ , pumpkin pie◙ , apple pie◙ , carrot, bake potato◙ , vegetables cake, berry,
 
 &#x20;sweet cake, tomato, burger, melon, salmon, cod, pike, rotten flesh, dried kelp,
 
 
 
-* 10 different mobs: cow, pig, chicken, skeleton, zombie, horse, bear with panda version, hellhound, sheep, spider
-* 6 types of weapon and tool variants(sword, pickaxe, hatchet, shovel, hoe ,bow)-(flint ,stone ,iron ,bronze/steel ,diamond, advanced/electric)
-* armor: leather(cold protection), cloth(hot protection), iron, bronze, diamond, advanced/electric
+* 10 different mobs: cow✔, pig✔, chicken, skeleton✔, zombie✔, horse◆✔, bear◙ , panda◙ , polar bear✔, hellhound◆✔, sheep✔, otter◆◙, goat, dolphin◆◙, beaver◆◙, crocodile◙, frog◙, ember salamander◆◙, eagle◙, bat◙, griffin◆◙, goblin◙, golem◙, jellyfish◙, koi◙, tiger◆◙, kraken◙, mimic chest◙, ore bettle◙, owl◙, penguin◆◙, phoenix◙, red panda◆◙, fox◙, scorpion◙, termite◙, sea turlte◙, wraith◙, wisp◙, crow◆◙, deer◙, elk◙
+* 6 types of weapon and tool variants(sword, pickaxe, hatchet, shovel, hoe ,bow)-(flint ,stone ,iron ,bronze, steel, advanced/electric)
+* armor: leather(cold protection), cloth(hot protection), iron, bronze, steel, advanced/electric
 
 
 
@@ -260,22 +261,19 @@ skill: (v0.765, more in future)
 
 Survival:
 
-* health boost
-* hunger depletion speed
-* water depletion speed
+* health boost +10
+* stats depletion speed -5%
 
 Crafting:
 
 * chance to not loose durability on newest tools
 * chance to craft more ammo
-* faster crafting
-* less slow penalty (while crafting player be move slower)
+* faster crafting \& less slow penalty (while crafting player be move slower)
 
 Husbandry:
 
 * chance to horse or other future tamable animal are faster tame
 * killing animal drop more loot
-* spider don't see you in night
 * food and potion effect work longer
 * your plot grow faster
 
@@ -286,113 +284,9 @@ Exploring:
 * get less damage from hazard source (fall, cactus, fire, lava, explosion, temperature)
 * temperature resist
 
-*---- notes on the list above ----*
-
-*POINT BUDGET is the thing to settle first. xpToNext is 40 x 3^lvl, so levels cost*
-
-*40 / 120 / 360 / 1080 / 3240 — reaching level 5 is 4840 XP when an ore is 14-70 and a mob is 25.*
-
-*At one point per level a player realistically ends a long playthrough with 4-6 points, against*
-
-*16 nodes here. Two ways to read that, both fine, but pick one before building the UI:*
-
-*(a) keep the x3 curve — the tree is a CHOICE, not a checklist. Then every node has to be*
-
-*worth a whole level, and single-rank. That fits the harsh design and needs no change.*
-
-*(b) flatten to x2, or give 2-3 points per level, if the tree should fill up over time.*
-
-*Under (a) the nodes must be roughly EQUAL in value, and right now they are not:*
-
-*"health boost" against "chance to craft more ammo" is not a fair trade for the same point.*
+combat: part 2
 
 
 
-*RULE: a node ships WITH the update that adds its function. The tree starts small at 0.765 with*
-
-*only the live nodes and grows every time a system lands — no greyed-out rows waiting for 0.82.*
-
-*Nodes waiting on their system: water depletion (thirst, 0.82) . temperature resist (0.82)*
-
-*plot growth (farming, 0.89) . potion duration (0.97) . spider stealth (0.79)*
-
-*craft more ammo (arrows, 0.74, so live by 0.765)*
-
-
-
-*DECIDED:*
-
-*- COMBAT category -> part 2 (0.915), not the base tree.*
-
-*- Mining stays split as it is: Crafting = what you MAKE, Exploring = what you FIND. So the*
-
-*durability node is Crafting and the ore node is Exploring. Coherent, no change.*
-
-*- "durability on NEW crafted tools, not old ones" -> the bonus is baked into the item when it*
-
-*is crafted, not read live from the tree. That needs a flag on the slot next to `dur`*
-
-*(mkSlot in 13-actions.js), and it must survive a save like `dur` does. Nice side effect:*
-
-*the tool you made before the skill stays honest, and a lucky tool is a real object.*
-
-*- "spider don't see you in night" ships in 0.79 with the spider, as its own node.*
-
-*- temperature resist from the tree adds into the SAME player stat armour feeds, through the*
-
-*\_equipSum pipeline in 31-armor.js (coldResist / heatResist). Two sources, one number.*
-
-
-
-*TWO MORE PER CATEGORY — one live at 0.765, one for later.*
-
-*Survival*
-
-*now:    hold breath longer (the 15s air drain + MAX\_AIR in updateVitals). A third HP node*
-
-*would overlap health boost; oxygen is a separate axis and already fully built.*
-
-*later:  dark adaptation — see further underground. Fits the darker-caves pillar (item 1).*
-
-*Crafting*
-
-*now:    furnace efficiency — fuel lasts longer or smelts finish faster (SMELT\_TIME /*
-
-*FUEL\_SMELTS in 26-furnace.js). Live today, and clearly "things you make".*
-
-*later:  tool upgrade station costs less material / better upgrade odds (0.975).*
-
-*Husbandry*
-
-*now:    tended animals and plants recover faster — sheep fleece regrow (SHEEP\_REGROW) and*
-
-*berry bush stages (BERRY\_STAGE\_LIFE). Two existing timers, one node.*
-
-*later:  faster breeding / better odds — ships with the animal update at 1.5 (item 128),*
-
-*which is where breeding, gender, growth and per-animal stats all land together.*
-
-*Exploring*
-
-*now:    move faster. playerMoveSpeedMul (31-armor.js) already sums additive contributions,*
-
-*so this is one more source in a pipeline that exists — same shape as temperature.*
-
-*later:  the compass points to the nearest structure (0.885). Structures already exist, so*
-
-*this is only the pointing.*
-
-
-
-*HOOKS that already exist, so these nodes are cheap:*
-
-*hazard damage    -> armorDamageMultiplier (31-armor.js)*
-
-*loot chest bonus -> rollLootInto (34-structures.js)*
-
-*animal loot      -> \_entDropLoot (28-entities.js)*
-
-*durability save  -> the single tool-wear site in the mining path (22-main-loop.js)*
-
-*hunger rate      -> updateVitals (19-vitals.js)*
+futuristic: part 2
 

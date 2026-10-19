@@ -180,7 +180,7 @@ function updateInvCursorVisual(dt) {
 }
 
 function drawRadial() {
-  const c = radialCtx, S = 360, cx = S / 2, cy = S / 2, n = HOTBAR.length;
+  const c = radialCtx, S = 360, cx = S / 2, cy = S / 2, n = hotbarLen();
   const step = (Math.PI * 2) / n;
   c.clearRect(0, 0, S, S);
   c.imageSmoothingEnabled = true;   // 3D icons are supersampled — smooth downscale

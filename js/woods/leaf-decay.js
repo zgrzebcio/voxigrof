@@ -44,6 +44,12 @@ function isLeavesConnected(lx, ly, lz) {
   return false;
 }
 
+// "x,y,z" key -> is that cell inside the simulation radius? (only the two horizontal parts count)
+function _keyInSimRange(k) {
+  const i = k.indexOf(','), j = k.lastIndexOf(',');
+  return inSimRange(+k.slice(0, i), +k.slice(j + 1));
+}
+
 let leavesDecayTimer = 0;
 const DECAY_INTERVAL = 0.2;      // was 0.5 — an orphaned canopy should clear while you watch
 const DECAY_BATCH = 24;          // was 8

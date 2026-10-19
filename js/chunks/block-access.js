@@ -135,6 +135,10 @@ function setBlock(x, y, z, val) {
   else if (BLOCKS.isDoorVal(val) && !((val >> 8) & 8)) registerDoor(x, y, z, val);
   // bed half removed: take the other half + the mesh with it
   if (oldId === B.BED && newId !== B.BED) bedBroken(x, y, z, oldVal);
+  // a termite hill's cell broken (the whole hill goes, its termites come out) or one put down (blocks/termite-hill.js)
+  if ((oldId === B.TERMITE_HILL || newId === B.TERMITE_HILL) && typeof termiteHillChanged === 'function') termiteHillChanged(x, y, z, oldVal, val);
+  // ...and one standing on this cell needs a full block under it, or it breaks
+  if (y < WORLD_TOP && typeof termiteHillFloor === 'function' && !termiteHillFloor(val) && (getBlock(x, y + 1, z) & 255) === B.TERMITE_HILL) termiteHillUnder(x, y, z, val);
   // chest removed/replaced: spill its contents and drop the mesh
   if (isChestId(oldId) && newId !== oldId) chestBroken(x, y, z, oldVal);   // wooden or metal
   // crafting bench removed: its order (finished and unfinished) spills on the floor

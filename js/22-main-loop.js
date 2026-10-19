@@ -400,6 +400,8 @@ function runWorldTick(dt, now) {
     updateDoors(dt);
     updateBed(dt);
     updateChests(dt);
+    updateTermiteHills(dt);                 // the Savanna's hills: their models and their termites (blocks/termite-hill.js)
+    updateNightMobs(dt);                    // the loaded land's monsters as night falls, and a few later (entities/spawning.js)
     updateBenchDisplays();                  // the order floating over each busy crafting bench
     tp = perfLap('doors+chests', tp);
     if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)

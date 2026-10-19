@@ -32,7 +32,7 @@ corePart('voxel', function () {
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
   const TINTED = new Uint8Array(1024);
-  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL]) TINTED[t] = 1;
+  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.SHORT_GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL]) TINTED[t] = 1;
   // the climate sampler (climAt, biomes/biomes.js): the worker sets it from its world's generator; icons have none
   let _climAt = null, _dryAt = null;
   /* The Dryland's dry grass: the grass block's top and sides fade to their pale dry look (T.GRASS_TOP_DRY,
@@ -43,7 +43,7 @@ corePart('voxel', function () {
   const DRY_TILE = new Uint8Array(1024);
   DRY_TILE[T.GRASS_TOP] = 1; DRY_TILE[T.GRASS_SIDE] = 1;
   // ...and the grass PLANTS since 0.8444: short and tall grass pale by the same dryness at their foot (the shader, 04)
-  DRY_TILE[T.GRASS_PLANT] = 1; DRY_TILE[T.TALL_BOT] = 1; DRY_TILE[T.TALL_TOP] = 1;
+  DRY_TILE[T.GRASS_PLANT] = 1; DRY_TILE[T.TALL_BOT] = 1; DRY_TILE[T.TALL_TOP] = 1; DRY_TILE[T.SHORT_GRASS_PLANT] = 1;
   const setTintSampler = (fn, dry) => { _climAt = fn || null; _dryAt = dry || null; };                                                     // 0.804                                                  // 0.801                                                 // 0.7947
   const CX = 16, CY = 250, CZ = 16;
   /* Flat ("superflat") worlds: a 25-block slab — 1 bedrock, 19 stone, 4 dirt, 1 grass — with a
