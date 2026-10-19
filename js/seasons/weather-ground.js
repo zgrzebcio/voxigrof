@@ -46,7 +46,7 @@ function updateWeatherGround(dt) {
     const y = _openTop(x, z, py);
     if (y == null) continue;
     const v = getBlock(x, y, z), ids = layerIdsAt(x, y, z, v);
-    if (pr.rain > 0.05 && ids && _WXG_WASHED.has(ids[ids.length - 1])) {
+    if (pr.rain > 0.05 && ids && _WXG_WASHED.has(ids[ids.length - 1] & 255)) {
       if (Math.random() < WXG_RAIN_MELT * pr.rain * step) removeLayerAt(x, y, z, ids.length - 1);
       continue;
     }

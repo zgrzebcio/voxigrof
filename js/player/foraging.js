@@ -329,4 +329,5 @@ var handPickSwing  = false;   // same, for a successful bush pickup
 const isSlabHalfVal = (v) => { const va = (v >> 8) & 255; return !!PROPS[v & 255]?.shapes?.slab && (va & SHAPE_MASK) === SHAPE_SLAB; };
 /* ...and two halves of DIFFERENT blocks that both take a slab make a mixed slab (setSlabMix in chunks/chunks.js):
    the cell keeps both, each in its own art. */
-const slabHalfTakes = (hv, id) => isSlabHalfVal(hv) && ((hv & 255) === id || CORE.slabsMix(hv & 255, id));
+// `mat`: the held block as a value, id | look << 16 (blocks/looks.js): polished stone fills a polished stone half, and mixes with stone
+const slabHalfTakes = (hv, mat) => isSlabHalfVal(hv) && (matKey(hv) === mat || CORE.slabsMix(stackEntry(hv), stackEntry(mat)));

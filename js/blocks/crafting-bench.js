@@ -107,7 +107,7 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
   player._benchAim = !!hit;
   // a mortar saved mid-grind comes back without its pestle drawn: put it back the moment it is looked at
   if (hit && PROPS[hit.id & 255]?.mortar && !(b && b.pestle) && ((getBlock(hit.x, hit.y, hit.z) >> 8) & 255))
-    setBlock(hit.x, hit.y, hit.z, hit.id & 255);
+    setBlock(hit.x, hit.y, hit.z, matKey(getBlock(hit.x, hit.y, hit.z)));   // its look (a granite bowl) kept
   const eDown = eHeld && !player._benchE;
   player._benchE = eHeld;
   if (!eHeld) player._benchNeedRelease = false;
@@ -304,14 +304,14 @@ function _startPestle(key, b) {
   g.position.set(x + 0.5, y + 0.5, z + 0.5);           // drop geometry is centred on its cell
   scene.add(g);
   b.pestle = g;
-  setBlock(x, y, z, (getBlock(x, y, z) & 255) | (1 << 8));   // keeps its own id: a granite mortar stays granite
+  setBlock(x, y, z, (matKey(getBlock(x, y, z)) | (1 << 8)) >>> 0);   // keeps its look: a granite mortar stays granite
 }
 function _stopPestle(key, b) {
   scene.remove(b.pestle);
   b.pestle = null;
   const [x, y, z] = key.split(',').map(Number);
-  const id = getBlock(x, y, z) & 255;
-  if (PROPS[id]?.mortar) setBlock(x, y, z, id);
+  const v = getBlock(x, y, z);
+  if (PROPS[v & 255]?.mortar) setBlock(x, y, z, matKey(v));
 }
 function _animatePestle(key, b) {
   const working = PLAYERS.some(p => p._benchWork === key);

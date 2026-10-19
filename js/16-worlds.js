@@ -272,10 +272,11 @@ function saveWorld(syncToLS = false) {
      +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP
   const data = {
     savedAt: Date.now(),
+    cells: 2,                             // looks live in a cell's bits 16-23 (blocks/looks.js): nothing here to convert on load
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     burns: serializeBurns(),              // when each torch and glow block goes out (blocks/torches.js)
     doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (blocks/doors.js)
-    // mixed layer stacks: [chunk key, [[cell index, [block ids bottom to top]], ...]]
+    // mixed layer stacks and mixed slabs: [chunk key, [[cell index, [entries bottom to top: id | look << 8]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
     entChunks: serializeEntChunks(),      // chunks that already rolled their mob population
     // structures: which chunks were already rolled, unopened loot markers, structure-block setups
@@ -369,11 +370,15 @@ async function loadWorld(w) {
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
+  /* a save from before 0.84691 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
+     and only here, since those ids are free for new blocks */
+  const oldCells = !(data && data.cells >= 2);
   if (data && Array.isArray(data.layers))
     for (const rec of data.layers) {
       if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[1])) continue;
       const m = new Map();
-      for (const e of rec[1]) if (Array.isArray(e) && Array.isArray(e[1]) && e[1].length) m.set(+e[0], Uint8Array.from(e[1]));
+      for (const e of rec[1]) if (Array.isArray(e) && Array.isArray(e[1]) && e[1].length)
+        m.set(+e[0], Uint16Array.from(oldCells ? e[1].map(migrateLookEntry) : e[1]));
       if (m.size) LAYER_STACKS.set(rec[0], m);
     }
   if (data && data.edits)
@@ -387,12 +392,14 @@ async function loadWorld(w) {
           if (lm[1]) {
             let s = LAYER_STACKS.get(k);
             if (!s) LAYER_STACKS.set(k, s = new Map());
-            s.set(i, Uint8Array.from(lm[1]));
+            s.set(i, Uint16Array.from(lm[1]));
           }
           continue;
         }
         // slabs and stairs placed before 0.783 had ids of their own: now they are shapes of the full block
-        const nv = migrateLegacyVal(v); if (nv !== v) m.set(i, nv);
+        let nv = migrateLegacyVal(v);
+        if (oldCells) nv = migrateLookVal(nv);           // looks that were ids (blocks/legacy.js)
+        if (nv !== v) m.set(i, nv);
       }
       if (m.size) editStore.set(k, m);
     }

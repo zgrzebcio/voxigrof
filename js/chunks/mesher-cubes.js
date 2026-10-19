@@ -233,7 +233,8 @@ corePart('mesh.chunk', function () {
         // MODEL dispatch — only 'cube' exists today; non-cube models (slabs, stairs,
         // torches, doors + rotation variants) would branch here with their own emitters.
         if (prop.model !== 'cube') return;
-        let tile = prop.faces[faceIdx];
+        const F = facesOfVal(val);           // its look's art, or its own (blocks/looks.js)
+        let tile = F[faceIdx];
         const varb = (val >> 8) & 255;
         // grass "snowy" variant: snow-covered sides (top stays grass, bottom stays dirt).
         // driven by the variant byte, set wherever a snow block sits on grass.
@@ -253,9 +254,9 @@ corePart('mesh.chunk', function () {
         /* A lying pillar: its top on the two faces along its axis (1 = X, 2 = Z), and its side art
            turned a quarter on the rest, so the fluting runs along it rather than across. */
         let sw = false;
-        if (prop.pillar && (varb & 3)) {
+        if (pillarOfVal(val) && (varb & 3)) {
           const ax = varb & 3, end = ax === 1 ? (faceIdx === 0 || faceIdx === 1) : (faceIdx === 4 || faceIdx === 5);
-          tile = end ? prop.faces[2] : prop.faces[0];
+          tile = end ? F[2] : F[0];
           sw = !end && (ax === 1 || dir === 2 || dir === 3);
         }
         const R = sw ? (a) => [a[1], a[0]] : (a) => a;

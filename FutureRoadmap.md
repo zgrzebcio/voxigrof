@@ -113,11 +113,11 @@ legends: B = big update, M= medium update, S = small update
 111. S: ~~hellhound spawning in desert, bottle and water~~, 0.845
 112. S: ~~fix chunk and sort files with optimized performance~~ 0.845(1-91)
 113. S: ~~savanna with acacia trees and termite and hills~~. 0.846
-114. S: more block variant 0.8465
-115. S: shape and seashells with block (as human build pyramid for summer boss) v0.847
+114. S: ~~more block variant and fix variant~~ id 0.84691
+115. S: deep beach and waves shores with wet blocks and seashells new flint pebble texture (as human build pyramid for summer boss) v0.847
 116. S: added pyramid same and big version v0.848
 117. S: summer boss desert curse v0.849
-118. M: jungle biome with jungle tree and cocoa beans v0.85
+118. M: jungle biome with jungle tree and cocoa beans/pod v0.85
 119. S: all mossy decorative block to add v0.851
 120. S: pressure plate and ladder shape (as human build jungle dungeon) v0.853
 121. S: parrot, crows, raven birds, cookies v0.855
@@ -208,6 +208,7 @@ legends: B = big update, M= medium update, S = small update
 *replicable — `setBlock` is already the single choke point for blocks, so entity and*
 
 *machine state are the parts to keep tidy as they are built between now and here.)*
+
 
 
 ideas:(

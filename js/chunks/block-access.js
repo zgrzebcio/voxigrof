@@ -240,16 +240,15 @@ function setBlock(x, y, z, val) {
       const nv = getBlock(x + dx, y + dy, z + dz);
       if (PROPS[nv & 255]?.model !== 'cluster' || ((nv >> 8) & 7) !== o) continue;
       setBlock(x + dx, y + dy, z + dz, B.AIR);
-      // a plain-stone variant comes off as its gem's own cluster item: variant blocks are never items
-      const item = (typeof variantBaseOf === 'function' ? variantBaseOf(nv & 255) : null) ?? (nv & 255);
-      if (!player.canFly) spawnDrop(item, x + dx, y + dy, z + dz);
+      if (!player.canFly) spawnDrop(nv & 255, x + dx, y + dy, z + dz);   // whatever its bed, the gem's own cluster item
     }
   // gravity: clear below a gravity block → it falls; gravity block placed above air → also falls
   if (newId === B.AIR && y + 1 <= WORLD_TOP) scheduleFall(x, y + 1, z);
   // a stack of snow, leaves, sand, gravel or fiber falls too
   // ...and a stack that comes to rest on a stack with room for it pours down into it (ash from a burnt tree,
   // or any stack stepping down, stopped a cell short and stood on top as a stack of its own)
-  if ((LOOSE_LAYER_BLOCKS.has(newId) || (PROPS[newId]?.layerStack && CORE.layerCount(val)))       // fiber falls since 0.786
+  if ((LOOSE_LAYER_BLOCKS.has(newId) || FALL_WHOLE_BLOCKS.has(val)                                 // + a hay bale, whole
+       || (PROPS[newId]?.layerStack && CORE.layerCount(val)))                                     // fiber falls since 0.786
       && y > 0) {
     const below = getBlock(x, y - 1, z);
     if ((below & 255) === B.AIR || (CORE.layerCount(val) && canStackLayer(below, newId))) scheduleFall(x, y, z);

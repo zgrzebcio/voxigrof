@@ -123,7 +123,6 @@ corePart('blocks', function () {
      stages 0-6 (seasons/seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
   PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:79, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
                         tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S5], desc: '' };   // six growing stages since 0.8273 (seven before); 7 only in old saves
-  PROPS[B.STONE_BRICK]    = { name:'Stone (brick)', noInv:true, solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50,  hardness:8.5, type:'stone', faces:[T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK,T.STONE_BRICK], desc: '' };
   PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
   PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
 });

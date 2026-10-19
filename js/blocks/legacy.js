@@ -1,15 +1,17 @@
 'use strict';
-/* blocks/legacy.js: old saves. Ids that were slabs, stairs and layers of their own before shapes became variants are
-   turned into today's values (migrateLegacyVal, migrateLegacyLayers, legacyItemId). */
+/* blocks/legacy.js: old saves. Ids that were slabs, stairs and layers of their own before shapes became variants, and ids that
+   were looks before looks moved into the cell's bits, are turned into today's values (migrateLegacyVal, migrateLegacyLayers,
+   migrateLookVal, migrateLookEntry, legacyItemId). */
 
 /* Slabs and stairs had ids of their own until 0.783 ([base, stairs?] per old id, 37 was the retired cactus
    slab). Saved edits, inventories and prefabs holding one are converted here into the shape variant of
    the full block. A double slab becomes the full block; a mixed double keeps its own half. */
+const _STONE_BRICK = (B.STONE | (1 << CORE.LOOK_SHIFT)) >>> 0;   // stone, look 1 (the stone brick block was id 34)
 const LEGACY_SHAPE = {
   12: [B.PLANKS, 0], 28: [B.PLANKS, 1], 29: [B.COBBLE, 0], 31: [B.BRICKS, 0], 32: [B.BRICKS, 1],
-  35: [B.STONE_BRICK, 0], 36: [B.STONE, 0], 37: [0, 0], 38: [B.GLASS, 0],
+  35: [_STONE_BRICK, 0], 36: [B.STONE, 0], 37: [0, 0], 38: [B.GLASS, 0],
   113: [B.STONE, 1], 114: [B.COBBLE, 1], 115: [B.BIRCH_PLANKS, 0], 116: [B.BIRCH_PLANKS, 1],
-  117: [B.SPRUCE_PLANKS, 0], 118: [B.SPRUCE_PLANKS, 1], 119: [B.STONE_BRICK, 1], 120: [B.GLASS, 1],
+  117: [B.SPRUCE_PLANKS, 0], 118: [B.SPRUCE_PLANKS, 1], 119: [_STONE_BRICK, 1], 120: [B.GLASS, 1],
   121: [B.SANDSTONE, 0], 122: [B.SANDSTONE, 1], 123: [B.RED_SANDSTONE, 0], 124: [B.RED_SANDSTONE, 1],
 };
 function migrateLegacyVal(v) {
@@ -23,10 +25,10 @@ function migrateLegacyVal(v) {
   if (!m) return v;
   if (!m[0]) return 0;
   const va = (v >> 8) & 255;
-  if (m[1]) return m[0] | ((SHAPE_STAIRS + (va & 7)) << 8);
-  if (va < 6) return m[0] | ((SHAPE_SLAB + va) << 8);
+  if (m[1]) return (m[0] | ((SHAPE_STAIRS + (va & 7)) << 8)) >>> 0;
+  if (va < 6) return (m[0] | ((SHAPE_SLAB + va) << 8)) >>> 0;
   if (va < 16) return m[0];
-  return m[0] | ((SHAPE_SLAB + ((va - 16) & 7)) << 8);
+  return (m[0] | ((SHAPE_SLAB + ((va - 16) & 7)) << 8)) >>> 0;
 }
 /* Carpets were blocks of their own until 0.785: 81 the mixed stack (3 bits a layer: 1 snow, 2 oak, 3 birch,
    4 spruce litter), 58/71/72/77 the older single ones (variant = layers - 1). Now they are layer stacks of
@@ -44,9 +46,19 @@ function migrateLegacyLayers(v) {
   const mixed = ids.some(b => b !== ids[0]);
   return [CORE.layerVal(ids[ids.length - 1], ids.length, mixed), mixed ? ids : null];
 }
+/* Looks were block ids of their own until 0.84691: a cell or a prefab cell holding one becomes its base block with the look in
+   bits 16-23 (LOOK_OF_OLD_ID, blocks/looks.js), its variant byte kept (a pillar's axis, a cluster's direction). Run ONLY on
+   data without the `cells: 2` stamp: those ids are free and may be given to new blocks one day. */
+function migrateLookVal(v) {
+  if (typeof v !== 'number') return v;
+  const nv = CORE.LOOK_OF_OLD_ID[v & 255];
+  return nv == null ? v : ((nv | (v & 0xFF00)) >>> 0);
+}
+// ...and an entry of a side list (a mixed slab's half, a mixed stack's layer): id | look << 8
+const migrateLookEntry = (e) => { const nv = CORE.LOOK_OF_OLD_ID[e & 255]; return nv == null ? e : stackEntry(nv); };
 // an old slab or stairs item in a slot: the full block it was made from (null for the cactus slab)
-// ...and since 0.794 a stone brick item is plain stone: brick is a variant you pick (blocks/variants.js), not an item
+// ...and since 0.794 a stone brick item (id 34) is plain stone: brick is a look you pick (blocks/variants.js), not an item
 const legacyItemId = (id) => {
-  if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = LEGACY_SHAPE[id][0] || null;
-  return id === B.STONE_BRICK ? B.STONE : id;
+  if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = (LEGACY_SHAPE[id][0] & 255) || null;
+  return id === 34 ? B.STONE : id;
 };

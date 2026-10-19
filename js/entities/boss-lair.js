@@ -81,7 +81,7 @@ function _castlePrefab() {
     if (id === B.SNOW && CORE.layerCount(id | (v << 8)) > 0) v = 0;             // a snow carpet -> a snow block
     if (id === B.TORCH_UNLIT) id = B.TORCH;                                     // lit (same wall, same variant)
     if (id === B.GLOWCRYSTAL_SPENT) id = B.GLOWCRYSTAL_BLOCK;
-    blocks.push([x, y, z, id, v]);
+    blocks.push(b.length > 5 ? [x, y, z, id, v, b[5]] : [x, y, z, id, v]);   // its look kept (blocks/looks.js)
   }
   _castleCache = { src, prefab: { ...src, blocks }, gate, boss };
   return _castleCache;

@@ -16,7 +16,6 @@ for (const id of [B.POPPY, B.ORCHID, B.PINCUSHION]) PROPS[id].noPlace = true;
 const MINE_REQ = {
   [B.STONE]:       { tool: 'pick', tier: 2 },
   [B.COBBLE]:      { tool: 'pick', tier: 1 },
-  [B.STONE_BRICK]: { tool: 'pick', tier: 2 },
   [B.BRICKS]:      { tool: 'pick', tier: 1 },
   [B.FURNACE]:     { tool: 'pick', tier: 1 },
   [B.COAL_ORE]:    { tool: 'pick', tier: 2 },     // stone pickaxe and up, like stone itself
@@ -66,7 +65,7 @@ function mineDropAllowed(heldId, blockId) {
 const TOOL_BLOCKS = {
   shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,
                    B.TERMITE_HILL]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
-  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.STONE_BRICK, B.ICE, B.BONE_BLOCK, B.PACKED_ICE,   // ice 0.8321; bone 0.833; packed 0.835
+  pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.ICE, B.BONE_BLOCK, B.PACKED_ICE,   // ice 0.8321; bone 0.833; packed 0.835
                    B.FURNACE, B.GRASS,
                    B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.ADOBE, B.GLASS,   // adobe 0.8091
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
@@ -88,14 +87,14 @@ const TOOL_BLOCKS = {
                    B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH,
                    B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
 };
-// variant blocks mine exactly like the block each plays like: same tool, same drop gate
+// a look in the cell's bits IS its block; the looks that are still ids mine exactly like the block each plays like
 for (const [id, like] of CORE.VARIANT_BLOCKS) {
   if (MINE_REQ[like]) MINE_REQ[id] = MINE_REQ[like];
   for (const k in TOOL_BLOCKS) if (TOOL_BLOCKS[k].has(like)) TOOL_BLOCKS[k].add(id);
 }
 /* A flint pickaxe on stone or a rock keeps no block, but knocks out a stone pebble, and a second one 25% of
-   the time. Not cobblestone: flint keeps that whole. A rock's variants (bricks, polished...) count as the rock. */
-const FLINT_PEBBLE_ROCKS = new Set([B.STONE, B.STONE_BRICK, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE]);
+   the time. Not cobblestone: flint keeps that whole. A rock's looks (bricks, polished...) are the rock. */
+const FLINT_PEBBLE_ROCKS = new Set([B.STONE, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE]);
 for (const [id, like] of CORE.VARIANT_BLOCKS) if (FLINT_PEBBLE_ROCKS.has(like)) FLINT_PEBBLE_ROCKS.add(id);
 function flintPebbles(heldId, blockId) {
   const p = heldId != null && heldId >= 256 ? ITEM_PROPS[heldId] : null;
@@ -172,7 +171,7 @@ function handMineFactor(id) {
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
    player/leveling.js), so hand-breaking them is housekeeping and never a grind. */
-const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.FIBER_BLOCK, B.LADDER,   // + fiber block, ladder
+const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.THATCH, B.FIBER_BLOCK, B.LADDER,   // + fiber block, ladder
                                    B.MORTAR]);                                                         // + mortar
 // takes a VALUE since 0.785: a stack of snow, leaves or sand comes away by hand, a stone layer does not
 function handBreakable(id) {

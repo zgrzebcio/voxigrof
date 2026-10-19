@@ -116,7 +116,7 @@ function queueLitterRot(x, y, z) {
 // index of the topmost LEAF layer in this cell's stack, or -1: a pure snow drift is left alone
 function litterLayerTopAt(x, y, z) {
   const ids = layerIdsAt(x, y, z);
-  if (ids) for (let i = ids.length - 1; i >= 0; i--) if (LEAF_BLOCKS.has(ids[i])) return i;
+  if (ids) for (let i = ids.length - 1; i >= 0; i--) if (LEAF_BLOCKS.has(ids[i] & 255)) return i;
   return -1;
 }
 /* Walk cells around the player and give any un-tracked leaf litter its own countdown. Cheap:
@@ -234,7 +234,7 @@ function snowLayerTopAt(x, y, z) {
   const v = getBlock(x, y, z);
   if (v === B.SNOW) return LAYER_MAX - 1;
   const ids = layerIdsAt(x, y, z, v);
-  if (ids) for (let i = ids.length - 1; i >= 0; i--) if (ids[i] === B.SNOW) return i;
+  if (ids) for (let i = ids.length - 1; i >= 0; i--) if ((ids[i] & 255) === B.SNOW) return i;
   return -1;
 }
 function sweepSnowMelt() {

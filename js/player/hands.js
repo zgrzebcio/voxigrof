@@ -214,8 +214,9 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   const curId = slot ? slot.id : null;
   // held as its picked variant, and a block the chisel would shape in that shape
   const curBlk = curId != null && typeof heldBlockOf === 'function' ? heldBlockOf(curId) : curId;
-  const curVar = (curBlk != null && typeof chiselHeldVariant === 'function' ? chiselHeldVariant(curBlk) : 0)
-    || (curId != null && typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(curId) : 0);   // a cluster's bed
+  const curVar = ((curBlk != null && typeof chiselHeldVariant === 'function' ? chiselHeldVariant(curBlk) : 0)
+    || (curId != null && typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(curId) : 0))   // a cluster's bed
+    | ((curId != null && typeof heldLookOf === 'function' ? heldLookOf(curId) : 0) << 8);            // a look (blocks/looks.js)
   if (curBlk !== _heldId || curVar !== _heldVar) _rebuildHeld(curBlk, curVar);
   const hasItem = curId !== null;
   const heldIsFood = !!foodPropsOf(curId);   // a grilled mushroom is a block, and food

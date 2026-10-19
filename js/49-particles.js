@@ -467,13 +467,14 @@ function _fxColorOf(id) {
 }
 
 /* ---------------------------------- block bits ---------------------------------- */
-// one fragment of `id` at (x, y, z), `frac` of a tile across, lit `L`
+// one fragment of `id` (or a cell's value: a look crumbles in its own art) at (x, y, z), `frac` of a tile across, lit `L`
 function _fxBit(id, x, y, z, life, size, L, frac = 0.25) {
-  const p = PROPS[id];
+  const p = id < 256 || id >= 65536 ? PROPS[id & 255] : null;   // an id, or a value with a look; never an item
   if (!p || !p.faces || !p.faces.length) return -1;
   const i = FX.bits.add(x, y, z, life);
   if (i < 0) return -1;
-  const tile = p.faces[(Math.random() * p.faces.length) | 0];
+  const F = lookOf(id) ? facesOfVal(id) : p.faces;
+  const tile = F[(Math.random() * F.length) | 0];
   _fxTileRect(FX.bits, i, tile, p.model === 'cross' ? 0.4 : frac);
   const t = _fxTileTint(tile), k = L * _rnd(0.82, 1);
   FX.bits.color(i, (t ? t.r : 1) * k, (t ? t.g : 1) * k, (t ? t.b : 1) * k);
@@ -491,7 +492,7 @@ function fxBreak(x, y, z, val) {
   const n = _fxN(p.model === 'cross' ? 8 : 18);
   for (let k = 0; k < n; k++) {
     const px = x + _rnd(0.12, 0.88), py = y + _rnd(0.12, 0.88), pz = z + _rnd(0.12, 0.88);
-    const i = _fxBit(id, px, py, pz, _rnd(0.5, 1.1), _rnd(0.08, 0.14), L);
+    const i = _fxBit(lookOf(val) ? val : id, px, py, pz, _rnd(0.5, 1.1), _rnd(0.08, 0.14), L);
     if (i < 0) return;
     FX.bits.vx[i] = (px - x - 0.5) * 3.2 + _rnd(-0.4, 0.4);
     FX.bits.vy[i] = _rnd(1.5, 3.8);
@@ -510,7 +511,7 @@ function fxHit(x, y, z, val, nx = 0, ny = 1, nz = 0) {
     const px = x + (nx ? (nx > 0 ? 1.03 : -0.03) : _rnd(0.15, 0.85));
     const py = y + (ny ? (ny > 0 ? 1.03 : -0.03) : _rnd(0.15, 0.85));
     const pz = z + (nz ? (nz > 0 ? 1.03 : -0.03) : _rnd(0.15, 0.85));
-    const i = _fxBit(id, px, py, pz, _rnd(0.35, 0.6), _rnd(0.06, 0.09), L);
+    const i = _fxBit(lookOf(val) ? val : id, px, py, pz, _rnd(0.35, 0.6), _rnd(0.06, 0.09), L);
     if (i < 0) return;
     FX.bits.vx[i] = nx * 1.3 + _rnd(-0.7, 0.7);
     FX.bits.vy[i] = ny * 1.3 + _rnd(0.4, 1.6);
@@ -777,14 +778,14 @@ function fxEntityWalk(e, dt, spd) {
 
 /* ---------------------------------- 0.801 ---------------------------------- */
 const _fxV = new THREE.Vector3();
-// a gem's glint colour, for the gem itself, its cluster (any bed) and a plain-stone cluster
+// a gem's glint colour, for the gem itself and its cluster (any bed)
 const _FX_GEM = {};
 for (const [col, ...ids] of [
-  [[0.6, 1, 1],      ITEM.DIAMOND,  B.DIAMOND_ORE,  B.DIAMOND_CLUSTER_STONE],
-  [[0.45, 1, 0.55],  ITEM.EMERALD,  B.EMERALD_ORE,  B.EMERALD_CLUSTER_STONE],
-  [[1, 0.4, 0.45],   ITEM.RUBY,     B.RUBY_ORE,     B.RUBY_CLUSTER_STONE],
-  [[0.5, 0.65, 1],   ITEM.SAPPHIRE, B.SAPPHIRE_ORE, B.SAPPHIRE_CLUSTER_STONE],
-  [[1, 0.82, 0.4],   ITEM.TOPAZ,    B.TOPAZ_ORE,    B.TOPAZ_CLUSTER_STONE],
+  [[0.6, 1, 1],      ITEM.DIAMOND,  B.DIAMOND_ORE],
+  [[0.45, 1, 0.55],  ITEM.EMERALD,  B.EMERALD_ORE],
+  [[1, 0.4, 0.45],   ITEM.RUBY,     B.RUBY_ORE],
+  [[0.5, 0.65, 1],   ITEM.SAPPHIRE, B.SAPPHIRE_ORE],
+  [[1, 0.82, 0.4],   ITEM.TOPAZ,    B.TOPAZ_ORE],
 ]) for (const id of ids) if (id != null) _FX_GEM[id] = col;
 const _FX_CRYSTAL = [0.55, 0.85, 1];                 // the crystal torch's glint
 function _fxGlint(pool, x, y, z, col, size, life = 0.55) {

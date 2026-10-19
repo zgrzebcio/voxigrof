@@ -128,12 +128,14 @@ function _doPlace() {
      vertical slab or stairs — same block id, the shape in its variant byte */
   const shaped = typeof chiselShapedPlace === 'function' ? chiselShapedPlace(heldId) : null;
   const halfFill = !!shaped && (shaped.key === 'slab' || shaped.key === 'vslab');
+  // the held block as a value with its look (blocks/looks.js), for filling a half
+  const heldMat = ((heldId | ((typeof heldLookOf === 'function' ? heldLookOf(slotId(HOTBAR[hotbarSel])) : 0) << 16)) >>> 0);
   // filling a half, case 1: clicked the inner flat face of a half of this very block → complete THAT cell
   if (halfFill) {
     const hv = getBlock(hit.x, hit.y, hit.z);
-    if (slabHalfTakes(hv, heldId)) {                 // ...or of another that mixes with it
+    if (slabHalfTakes(hv, heldMat)) {                // ...or of another that mixes with it
       const h = ((hv >> 8) & 255) & ROT_MASK, o = h >> 1, axisN = o === 0 ? hit.ny : o === 1 ? hit.nx : hit.nz;
-      if (axisN === ((h & 1) ? -1 : 1) && _fillHalf(hit.x, hit.y, hit.z, heldId)) return;
+      if (axisN === ((h & 1) ? -1 : 1) && _fillHalf(hit.x, hit.y, hit.z, heldMat)) return;
     }
   }
   /* Creative can aim at a plant now, and "place on grass" has to mean where the grass STANDS,
@@ -154,7 +156,7 @@ function _doPlace() {
     // ...case 2: unless the target cell holds a half of the held block, which this completes
     if (halfFill) {
       const tv = getBlock(px, py, pz);
-      if (slabHalfTakes(tv, heldId) && _fillHalf(px, py, pz, heldId)) return;
+      if (slabHalfTakes(tv, heldMat) && _fillHalf(px, py, pz, heldMat)) return;
     }
     // ...or a layer stack the held block piles onto (a layer clicked from the side or below)
     if (shaped && shaped.key === 'carpet' && canStackLayer(getBlock(px, py, pz), heldId) && addLayer(px, py, pz, heldId)) {
@@ -172,6 +174,8 @@ function _doPlace() {
   // items that place a block when used (sugar cane item -> sugar cane block)
   if (id === ITEM.SUGAR_CANE) id = B.SUGAR_CANE;
   if (id >= 256) return;                                   // items (sticks, etc.) are not placeable
+  // the look picked on the variant bar (blocks/looks.js): kept in the cell's bits 16-23; a pillar look turns like a log
+  const look = typeof heldLookOf === 'function' ? heldLookOf(slotId(slot)) : 0, lookE = look ? CORE.LOOKS[id]?.[look] : null;
   // food you carry rather than build with (the pumpkin). Creative still plants them.
   // ...and mushrooms: they come up by themselves; a food among them (grilled) just gets eaten, no warning
   if ((PROPS[id].noPlace || PROPS[id].shroom != null) && !player.canFly) {
@@ -265,12 +269,12 @@ function _doPlace() {
      as an oak planks door. */
   const doorShape = shaped && shaped.key === 'door';
   if (id === B.DOOR || doorShape) {
-    const mat = id === B.DOOR ? B.PLANKS : id;
+    const mat = id === B.DOOR ? B.PLANKS : (id | (look << 16)) >>> 0;   // a door of a look: dark glass, adobe brick
     const above = getBlock(px, py + 1, pz) & 255;
     if (!isPlaceableInto(above)) return;
     if (!isSolid(px, py - 1, pz)) return;
     if (doorShape && !player.canFly) {
-      if ((slot?.count || 0) < DOOR_COST) { feedWarn(`A door takes ${DOOR_COST} ${PROPS[mat].name.toLowerCase()}`); return; }
+      if ((slot?.count || 0) < DOOR_COST) { feedWarn(`A door takes ${DOOR_COST} ${PROPS[id].name.toLowerCase()}`); return; }
       if (!hammerCanDoor()) { feedWarn(`Your hammer needs repairing: a door takes ${DOOR_WEAR} of its durability`); return; }
     }
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
@@ -294,7 +298,7 @@ function _doPlace() {
     clearPlantAt(px, py + 1, pz);
     setBlock(px, py + 1, pz, doorValOf(mat, dv | 8));
     setBlock(px, py, pz, doorValOf(mat, dv));               // the bottom half last: its hook makes the mesh (chunks/chunks.js)
-    playBlockSound(mat, 'place', px, py, pz);
+    playBlockSound(mat & 255, 'place', px, py, pz);
     handPlaceSwing = true;
     if (doorShape) { for (let n = 0; n < DOOR_COST; n++) spendHeld("placed"); chiselWear(DOOR_WEAR); }
     else spendHeld("placed");
@@ -315,7 +319,7 @@ function _doPlace() {
   if (torchWall) varb = hit.nx === 1 ? 1 : hit.nx === -1 ? 2 : hit.nz === 1 ? 3 : 4;
   // glow vine: its variant is the wall BEHIND it, the opposite of the clicked face's normal
   if (vineWall) varb = hit.nz === 1 ? 0 : hit.nz === -1 ? 1 : hit.nx === 1 ? 2 : 3;
-  const rot = PROPS[id].rot;
+  const rot = (lookE && lookE.rot) || PROPS[id].rot;
   const type = PROPS[id].model;
   // a placed berry bush arrives RIPE, matching the icon that was in the slot — a bare sprout
   // would give no sign which of the two bushes had just been put down
@@ -328,7 +332,7 @@ function _doPlace() {
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
     varb = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
   } else if (rot === 'all') {
-    if (id === B.LOG || isHollowLog(id) || PROPS[id].pillar) varb = hit.nx ? 1 : hit.nz ? 2 : 0;   // axis = clicked face normal (hollow logs 0.7842, pillars 0.8093)
+    if (id === B.LOG || isHollowLog(id) || (lookE ? lookE.pillar : PROPS[id].pillar)) varb = hit.nx ? 1 : hit.nz ? 2 : 0;   // axis = clicked face normal (hollow logs 0.7842, pillars 0.8093)
   }
   if (shaped) varb = _shapeVariantFor(shaped.key, hit, px, py, pz);   // the chisel's shape
   // a furnace's rock, a bench's or a chest's wood, picked on the variant bar
@@ -337,7 +341,7 @@ function _doPlace() {
   const caneSprout = id === B.SUGAR_CANE && !player.canFly;
   if (caneSprout) varb = (getBlock(px, py - 1, pz) & 255) === B.SUGAR_CANE ? CANE_STEPS - 1 : CANE_STEPS;
   clearPlantAt(px, py, pz);                 // grass in the way is destroyed, not a blocker
-  setBlock(px, py, pz, id | (varb << 8));
+  setBlock(px, py, pz, (id | (varb << 8) | (look << 16)) >>> 0);
   if (caneSprout && typeof queueCaneGrow === 'function') queueCaneGrow(px, py, pz);
   playBlockSound(id, 'place', px, py, pz);
   if (isChestId(id)) {                        // a metal chest too

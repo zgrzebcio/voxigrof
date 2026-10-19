@@ -166,7 +166,7 @@ window.__vg = {
   skyAt: (x, y, z) => getSkyWorld(x, y, z),
   time: (t) => { if (t !== undefined) worldTime = ((t % 1) + 1) % 1; return worldTime; },
   uniforms: sharedUniforms,
-  blockName: (x, y, z) => PROPS[getBlock(x, y, z) & 255].name,
+  blockName: (x, y, z) => nameOfVal(getBlock(x, y, z)),   // a look's own name (blocks/looks.js)
   inv: () => ({ mode: currentInvMode,
                 HOTBAR: HOTBAR.map(s => s ? {id: s.id, count: s.count} : null),
                 invSlots: invSlots.map(s => s ? {id: s.id, count: s.count} : null),

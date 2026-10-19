@@ -2,17 +2,19 @@
 /* player/placing.js: the right button, before the block goes down. Filling half slabs, which variant a chiselled
    block takes from where you click, buckets, the offhand, and doPlace. */
 
-function _fillHalf(x, y, z, id) {
+// `mat`: the held block as a value, id | look << 16; the halves of a mixed slab are side-list entries (stackEntry)
+function _fillHalf(x, y, z, mat) {
   const p = player.pos, R = player.R;              // cell becomes full — don't squash the player
   if (x + 1 > p.x - R && x < p.x + R && y + 1 > p.y && y < p.y + player.H &&
       z + 1 > p.z - R && z < p.z + R) return false;
-  const hv = getBlock(x, y, z), have = hv & 255;
-  if (have === id) setBlock(x, y, z, id);
+  const hv = getBlock(x, y, z);
+  if (matKey(hv) === mat) setBlock(x, y, z, mat);
   else {
     const r = ((hv >> 8) & 255) & ROT_MASK;         // the half already there; the new one goes in the other
-    if (r & 1) setSlabMix(x, y, z, id, have, r & 6); else setSlabMix(x, y, z, have, id, r);
+    const e = stackEntry(mat), have = stackEntry(hv);
+    if (r & 1) setSlabMix(x, y, z, e, have, r & 6); else setSlabMix(x, y, z, have, e, r);
   }
-  playBlockSound(id, 'place', x, y, z);
+  playBlockSound(mat & 255, 'place', x, y, z);
   handPlaceSwing = true;
   spendHeld("placed");
   chiselWear();

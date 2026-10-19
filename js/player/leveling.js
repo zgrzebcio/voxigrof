@@ -103,12 +103,11 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
   set(B.DRY_GRASS, 0); set(B.DRY_TALL_LOWER, 0); set(B.DRY_TALL_UPPER, 0); set(B.DRY_BUSH, 0);
   // a log that pays its own XP: a wood's `xp.log` in the woods table (rime 3, palm 2; the rest pay what any block pays)
   for (const w of woodList()) if (w.log != null && w.xp && w.xp.log != null) set(w.log, w.xp.log);
-  set(B.STONE_BRICK, 0);
   /* Built things never grow in the wild, only in villages and by your hand (COBBLESTONE was misspelt and
      paid 1): cobblestone, planks, sandstone, adobe, terracotta and hay, every look of each. Breaking a village teaches
      nothing. */
-  for (const fam of CORE.VARIANT_FAMILIES) if ([B.COBBLE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.ADOBE, B.BRICKS].includes(fam[0]))
-    for (const id of fam) set(id, 0);
+  // (a look is its block, so the bricks and carved looks pay what their block pays; thatch is hay's look of its own)
+  for (const id of [B.COBBLE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE, B.ADOBE, B.BRICKS, B.HAY, B.THATCH]) set(id, 0);
   for (const id of woodBlocks('planks')) set(id, 0);                   // every wood's planks
   // a little more for what is rare or hard to come by
   set(B.SULFUR_UP_TIP, 40); set(B.SULFUR_DOWN_TIP, 40); set(B.GLOW_VINE, 50); set(B.COBWEB, 30);

@@ -25,7 +25,9 @@ corePart('voxel', function () {
            SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, solidVal,
            SHAPE_SLAB_MIX, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, VARIANT_FAMILIES,   // 0.8263
            BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
-           BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER };                             // cane 0.829; ice 0.833
+           BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER,                               // cane 0.829; ice 0.833
+           LOOK_SHIFT, LOOKS, LOOK_OF_OLD_ID, lookOf, withLook, lookEntryOf, facesOfVal, pillarOfVal, nameOfVal,   // looks (blocks/looks.js)
+           matKey, stackEntry, stackVal };
 });
 
 const VOXEL_CORE = buildCore('voxel');
@@ -35,3 +37,5 @@ const { B, V, PROPS, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_CO
         SHAPE_MASK, ROT_MASK, HOLLOW_FILLS, logWidthOf, LOG_W_MIN, LOG_W_NORMAL } = CORE;
 
 const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS, ICE_FROM_WATER } = CORE;
+// a cell's look (blocks/looks.js): its number, the value with another, its entry, its art and name, its material
+const { lookOf, withLook, lookEntryOf, facesOfVal, nameOfVal, matKey, stackEntry, stackVal } = CORE;

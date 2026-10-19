@@ -9,10 +9,13 @@ const _fallOpen = (id) => id === B.AIR || PROPS[id]?.model === 'cross';
 // Carpets fall too — snow and leaf litter both need ground under them, and digging out that
 // ground used to leave a sheet of snow hanging in the air. Since 0.785 that is any stack of layers you
 // wade through (snow, leaves, sand, gravel, fiber); solid layers (stone, planks, ...) stay put. By VALUE.
+/* Whole blocks that fall like sand but land as themselves, not as a pile of layers: the hay bale. By VALUE, so a
+   shaped one (a hay slab or stairs) and its thatch look stay where they are put. */
+const FALL_WHOLE_BLOCKS = new Set([B.HAY]);
 const _fallsUnderGravity = (v) => {
   const id = v & 255;
   if (CORE.layerCount(v)) return !!PROPS[id]?.layerStack;
-  return LOOSE_LAYER_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';        // a whole sand, gravel or fiber block
+  return LOOSE_LAYER_BLOCKS.has(v) || FALL_WHOLE_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';   // a whole sand, gravel or fiber block
 };
 function scheduleFall(x, y, z) {
   if (y < 1 || y > WORLD_TOP) return;
@@ -90,7 +93,7 @@ function _landingY(x, y, z) {
 /* A whole sand, gravel or fiber block lands as a loose pile of 8 walk-through layers, pouring into a stack below
    that takes it; a falling stack pours the same way. */
 function _settlePile(x, y, z, val) {
-  const top = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : new Array(LAYER_MAX).fill(val & 255);
+  const top = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : new Array(LAYER_MAX).fill(stackEntry(val));
   if (!top) return;
   const below = getBlock(x, y - 1, z);
   if (canStackLayer(below, top[0])) {
@@ -105,7 +108,7 @@ function _landBlocks(list) {
       let y = y0;
       for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
       if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
-        if (!player.canFly) for (const d of blockDrop(val & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
+        if (!player.canFly) for (const d of blockDrop(val)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
         continue;
       }
       crushBillboard(x, y, z);
@@ -115,7 +118,7 @@ function _landBlocks(list) {
   });
 }
 function _spawnFallBlock(x, y, z, val) {
-  const passes = buildDropGeom(val & 255, (val >> 8) & 255);
+  const passes = buildDropGeom(val & 255, val >>> 8);   // the variant byte and the look
   if (!passes.length) return false;
   const group = new THREE.Group();
   for (const { p, geo, mat, node } of passes) group.add(node || new THREE.Mesh(geo, mat || MATERIALS[p]));

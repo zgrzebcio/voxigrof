@@ -367,11 +367,20 @@ function migrateStructure(raw, src) {
     p.size = want;
   }
 
-  // slabs and stairs lost their own ids in 0.783: an older prefab's become shape variants of the full block
+  /* slabs and stairs lost their own ids in 0.783: an older prefab's become shape variants of the full block. A cell is
+     [x, y, z, id, variant, look]: the look (blocks/looks.js) is optional. Looks were ids of their own until 0.84691: a
+     prefab without the `cells: 2` stamp has them converted here (blocks/legacy.js migrateLookVal). */
+  const oldCells = !(p.cells >= 2);
   for (const b of p.blocks) {
-    const v = b[3] | ((b[4] | 0) << 8), nv = migrateLegacyVal(v);
-    if (nv !== v) { b[3] = nv & 255; b[4] = (nv >> 8) & 255; }
+    const v = (b[3] | ((b[4] | 0) << 8) | ((b[5] | 0) << 16)) >>> 0;
+    let nv = migrateLegacyVal(v);
+    if (oldCells) nv = migrateLookVal(nv);
+    if (nv !== v) {
+      b[3] = nv & 255; b[4] = (nv >> 8) & 255;
+      if (nv >>> 16) b[5] = (nv >>> 16) & 255; else if (b.length > 5) b.length = 5;
+    }
   }
+  p.cells = 2;
   // unknown block ids: a prefab built on a newer build, or an id that has since moved
   const unknown = new Set();
   for (const b of p.blocks) if (!PROPS[b[3]]) unknown.add(b[3]);
@@ -534,12 +543,14 @@ function captureStructure(bx, by, bz, size, name) {
         const val = getBlock(v.x0 + dx, v.y0 + dy, v.z0 + dz);
         const id = val & 255;
         if (id === B.AIR || id === B.STRUCTURE_BLOCK) continue;
-        blocks.push([dx, dy, dz, id, (val >> 8) & 255]);
+        const look = lookOf(val);                           // a look rides as a sixth number (blocks/looks.js)
+        blocks.push(look ? [dx, dy, dz, id, (val >> 8) & 255, look] : [dx, dy, dz, id, (val >> 8) & 255]);
         // every captured container is wired to the default table; edit the JSON to retarget it
         if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too
       }
   return {
     id: name,
+    cells: 2,                     // looks are a cell's sixth number, not ids of their own (blocks/looks.js)
     size: [v.w, v.h, v.l],
     blocks,
     loot,
@@ -578,12 +589,12 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
   for (let i = from; i < end; i++) {
     const b = blocks[i];
     if (!Array.isArray(b) || b.length < 4) continue;
-    const [dx, dy, dz, id0, variant = 0] = b;
+    const [dx, dy, dz, id0, variant = 0, look = 0] = b;
     const id = swap && swap[id0] != null ? swap[id0] : id0;
     if (!PROPS[id]) continue;                       // prefab references a block this build lacks
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;
-    setBlock(x, y, z, id | ((variant & 255) << 8));
+    setBlock(x, y, z, (id | ((variant & 255) << 8) | ((look & 255) << 16)) >>> 0);
     if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind
     // a door's mesh comes up with its bottom half in setBlock (doors are shapes of their material)
     if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342

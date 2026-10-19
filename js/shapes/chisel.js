@@ -97,7 +97,8 @@ const chiselHeldVariant = (id) => { const s = chiselShapedPlace(id); return s ? 
 function chiselSlotIcon(id) {
   const bits = typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(id) : 0;   // a cluster's bed
   if (typeof heldBlockOf === 'function') id = heldBlockOf(id);
-  const v = chiselHeldVariant(id) || bits;
+  const look = typeof heldLookOf === 'function' ? heldLookOf(id) : 0;               // a look (blocks/looks.js)
+  const v = ((chiselHeldVariant(id) || bits) | (look << 8)) >>> 0;
   // a growth stage picked on the variant bar shows as that stage, the sprout (0) too
   if (typeof VARIANT_DEFAULT_BITS !== 'undefined' && id in VARIANT_DEFAULT_BITS && typeof variantOptions === 'function' && variantOptions(id))
     return renderBlockIcon(id, bits);

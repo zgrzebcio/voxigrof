@@ -31,7 +31,7 @@ const TEXTURES = {
   bone_block_top:   'textures/Blocks/Natures/bone_block_top.png',
   bone_bricks:      'textures/Blocks/Decorations/bone_bricks.png',
   grass_block_snow: 'textures/Blocks/Natures/grass_block_snow.png',
-  cobblestone:      'textures/Blocks/Decorations/cobblestone.png',
+  cobblestone:      'textures/Blocks/Decorations/Cobblestone/cobblestone.png',
   coal_ore:         'textures/Blocks/Ores/coal_ore.png',
   iron_ore:         'textures/Blocks/Ores/iron_ore.png',
   diamond_ore:      'textures/Blocks/Ores/diamond_ore.png',
@@ -123,7 +123,7 @@ const TEXTURES = {
   // variant looks; the granite, marble and limestone bricks were made from stone_bricks' layout
   mossy_stone_brick:    'textures/Blocks/Decorations/Stone/mossy_stone_bricks.png',
   cracked_stone_brick:  'textures/Blocks/Decorations/Stone/stone_bricks.png',
-  mossy_cobblestone:    'textures/Blocks/Decorations/mossy_cobblestone.png',
+  mossy_cobblestone:    'textures/Blocks/Decorations/Cobblestone/mossy_cobblestone.png',
   sulfur_bricks:        'textures/Blocks/Decorations/sulfur_bricks.png',
   granite_bricks:       'textures/Blocks/Decorations/Granite/granite_bricks.png',
   marble_bricks:        'textures/Blocks/Decorations/Marble/marble_bricks.png',
@@ -293,6 +293,26 @@ Object.assign(TEXTURES, {
   lava_flow:  'textures/Blocks/Natures/fluids/lava_flow.png',
   // terracotta's brick look (the old clay bricks block is terracotta now)
   terracotta_bricks: 'textures/Blocks/Decorations/Clay/terracotta_bricks.png',
+});
+/* more variant looks (blocks/looks.js): carved for every rock and sandstone, adobe, terracotta, snow, ice and
+   obsidian; terracotta's roof, hay's thatch, obsidian's brick */
+Object.assign(TEXTURES, {
+  carved_stone:          'textures/Blocks/Decorations/Stone/carved_stone.png',
+  carved_granite:        'textures/Blocks/Decorations/Granite/carved_granite.png',
+  carved_marble:         'textures/Blocks/Decorations/Marble/carved_marble.png',
+  carved_limestone:      'textures/Blocks/Decorations/Limestone/carved_limestone.png',
+  carved_dolomite:       'textures/Blocks/Decorations/Dolomite/carved_dolomite.png',
+  carved_sandstone:      'textures/Blocks/Decorations/Sandstone/carved_sandstone.png',
+  carved_red_sandstone:  'textures/Blocks/Decorations/Sandstone/carved_red_sandstone.png',
+  carved_pink_sandstone: 'textures/Blocks/Decorations/Sandstone/carved_pink_sandstone.png',
+  carved_adobe:          'textures/Blocks/Decorations/Clay/carved_adobe.png',
+  carved_terracotta:     'textures/Blocks/Decorations/Clay/carved_terracotta.png',
+  terracotta_roof:       'textures/Blocks/Decorations/Clay/terracotta_roof.png',
+  thatch:                'textures/Blocks/Decorations/thatch.png',
+  carved_snow:           'textures/Blocks/Decorations/Winter/carved_snow.png',
+  carved_ice:            'textures/Blocks/Decorations/Winter/carved_ice.png',
+  carved_obsidian:       'textures/Blocks/Decorations/Obsidian/carved_obsidian.png',
+  obsidian_bricks:       'textures/Blocks/Decorations/Obsidian/obsidian_bricks.png',
 });
 // ms per frame: water a quarter of its old speed, lava a tenth (150 and 220 before)
 const ANIMATED_TILES = {

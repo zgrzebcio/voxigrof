@@ -63,6 +63,16 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   fluids do where they touch). The page reads it as `CORE.FLUID`. A new fluid is NOT only an entry: the header
   of kinds.js lists the four things (its block, its entry, how it is drawn, what the page does with it; the page
   still asks for `B.WATER` / `B.LAVA` by name in many places).
+- **Looks in a cell's bits** (0.84691, `blocks/looks.js`, BLOCK_CORE). A look (granite brick, polished stone, carved...)
+  is its BASE block's id with the look's number in bits 16-23 (`defineLook(base, n, key, name, tile, { was, pillar,
+  rot, matFaces })`; numbers are in the saves, never change one). Ask a value with `lookOf`, `withLook`,
+  `lookEntryOf`, `facesOfVal`, `nameOfVal`, `matKey` (id + look: "the same block"). A look changes only art, name,
+  pillar and a model's materials: never opacity, light or behaviour. The side lists (`LAYER_STACKS`: mixed stacks,
+  mixed slabs) hold Uint16 ENTRIES `id | look << 8` (`stackEntry` / `stackVal`): read an entry's block with `& 255`.
+  A broken look gives its block (`blockDrop` takes a value). The bar's options are `{ id, look }` (`heldLookOf`).
+  Looks that behave unlike their base stay ids (`VARIANT_BLOCKS`: ice brick, snow brick, snow-ice brick, carved snow
+  and ice, thatch). The ids the looks had (`LOOK_OF_OLD_ID`) are converted on load only in worlds and prefabs without
+  the `cells: 2` stamp (`migrateLookVal`, blocks/legacy.js); a value rebuilt from `& 255` loses its look (use `matKey`).
 - **Land first** (0.8455, the list is in chunks/stream.js above `streamLandWaiting`). `streamBehind` = land is
   missing near a player (a chunk within 6 not made yet, or made and never drawn; finished chunks piling up).
   The chunk stream runs FIRST in the frame (`runChunkStream`, 22, before simTick) and takes a bigger slice

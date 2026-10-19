@@ -47,13 +47,14 @@ const DOOR_ORI_R = [
 const DOOR_HINGE_R = 16;                       // `dv` bit 4 (the old door's variant bit)
 const doorOri = (dv) => (dv & DOOR_HINGE_R) ? DOOR_ORI_R[dv & 3] : DOOR_ORI[dv & 3];
 
-// a cell value as a door: is it one, its state in the old layout, and a door value from a material and a state
+/* a cell value as a door: is it one, its state in the old layout, and a door value from a material and a state. A door's
+   MATERIAL is a value without the variant byte, id | look << 16 (matKey, blocks/looks.js): a dark glass door is glass, look 1. */
 const isDoorAt = (v) => BLOCKS.isDoorVal(v);
 const doorDv = (v) => { const va = (v >> 8) & 255; return (va & 15) | ((va & 0xF0) === BLOCKS.SHAPE_DOOR_R ? DOOR_HINGE_R : 0); };
 const doorValOf = (mat, dv) => (mat | ((((dv & DOOR_HINGE_R) ? BLOCKS.SHAPE_DOOR_R : BLOCKS.SHAPE_DOOR) | (dv & 15)) << 8)) >>> 0;
 const DOOR_WEAR = 6, DOOR_COST = 3;            // hammer wear and blocks a door takes in survival; breaking gives the blocks back
 // what a broken door gives: its blocks, as the block it is a look of (a dark glass door: glass)
-const doorDropOf = (v) => [{ id: (typeof variantBaseOf === 'function' ? variantBaseOf(v & 255) : null) ?? (v & 255), count: DOOR_COST }];
+const doorDropOf = (v) => [{ id: v & 255, count: DOOR_COST }];
 
 /* ---- looks ----
    The oak planks door keeps its own art (Oak_door.png). Every other material's door is drawn once from its block's
@@ -61,9 +62,9 @@ const doorDropOf = (v) => [{ id: (typeof variantBaseOf === 'function' ? variantB
    handle; a glass door's frame is solid and its panes stay see-through. Looks of a block (dark glass, adobe brick)
    use their base block's door for now: DOOR_VARIANT_LOOKS true gives each its own, from its own art. */
 const DOOR_VARIANT_LOOKS = false;
-const doorLookOf = (mat) => DOOR_VARIANT_LOOKS ? mat : ((typeof variantBaseOf === 'function' ? variantBaseOf(mat) : null) ?? mat);
+const doorLookOf = (mat) => DOOR_VARIANT_LOOKS ? matKey(mat) : (mat & 255);
 // the art name of a material's side face (MESH_TEXTURES in 03 loads these with the game art)
-const doorArtName = (mat) => ATLAS_TILES[PROPS[mat]?.faces?.[4] ?? PROPS[mat]?.faces?.[0]];
+const doorArtName = (mat) => { const F = PROPS[mat & 255] ? facesOfVal(mat) : null; return ATLAS_TILES[F?.[4] ?? F?.[0]]; };
 // never cached blank — see the note on chestTexture in blocks/chest.js
 const _doorTex = new Map();                    // look id -> { tex, edge }
 function _newDoorTex(img) {
@@ -83,7 +84,7 @@ function _doorArt(mat) {
   const g = c.getContext('2d', { willReadFrequently: true });
   g.imageSmoothingEnabled = false;
   g.drawImage(src, 0, 0, S, S); g.drawImage(src, 0, S, S, S);
-  const glass = PROPS[mat].pass === 4, px = S / 16;           // one model pixel
+  const glass = PROPS[mat & 255].pass === 4, px = S / 16;           // one model pixel
   const im = g.getImageData(0, 0, S, S * 2), d = im.data;
   let r = 0, gg = 0, b = 0, n = 0;
   for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
@@ -144,7 +145,7 @@ function doorMaterials(mat) {                          // fresh per door — tin
 function registerDoor(x, y, z, val) {
   const k = x + ',' + y + ',' + z;
   if (DOORS.has(k) || !isDoorAt(val)) return;
-  const dv = doorDv(val), mat = val & 255, open = !!(dv & 4), hingeRight = !!(dv & DOOR_HINGE_R);
+  const dv = doorDv(val), mat = matKey(val), open = !!(dv & 4), hingeRight = !!(dv & DOOR_HINGE_R);
   const m = doorMaterials(mat);
   const group = new THREE.Group();
   group.add(new THREE.Mesh(doorPanelGeom(true, hingeRight), m.mats));
@@ -186,7 +187,7 @@ function doorPartnerCell(x, by, z, facing, hinge) {
     const ndv = doorDv(nv);
     if ((ndv & 3) !== facing || (ndv & 8)) continue;              // same facing, bottom half only
     if ((ndv & DOOR_HINGE_R) === hinge) continue;                 // same hinge: not a pair
-    return { x: x + dx, z: z + dz, hinge: ndv & DOOR_HINGE_R, mat: nv & 255 };
+    return { x: x + dx, z: z + dz, hinge: ndv & DOOR_HINGE_R, mat: matKey(nv) };
   }
   return null;
 }
@@ -211,7 +212,7 @@ function toggleDoor(x, y, z) {
   const by = ((val >> 8) & 8) ? y - 1 : y;
   const bval = getBlock(x, by, z);
   if (!isDoorAt(bval)) return;
-  const bdv = doorDv(bval), mat = bval & 255;
+  const bdv = doorDv(bval), mat = matKey(bval);
   const facing = bdv & 3;
   const hinge = bdv & DOOR_HINGE_R;
   const opening = !(bdv & 4);
@@ -219,14 +220,14 @@ function toggleDoor(x, y, z) {
   const nv = facing | hinge | openBit;
   setBlock(x, by, z, doorValOf(mat, nv));
   const tv = getBlock(x, by + 1, z);
-  setBlock(x, by + 1, z, doorValOf(isDoorAt(tv) ? tv & 255 : mat, nv | 8));
+  setBlock(x, by + 1, z, doorValOf(isDoorAt(tv) ? matKey(tv) : mat, nv | 8));
   const p = doorPartnerCell(x, by, z, facing, hinge);
   const myLock = DOOR_LOCKS.get(x + ',' + by + ',' + z), pLock = p ? DOOR_LOCKS.get(p.x + ',' + by + ',' + p.z) : undefined;
   if (p && (pLock == null || pLock === myLock)) {
     const pv = facing | p.hinge | openBit;      // partner keeps its own (opposite) hinge
     setBlock(p.x, by, p.z, doorValOf(p.mat, pv));
     const ptv = getBlock(p.x, by + 1, p.z);
-    setBlock(p.x, by + 1, p.z, doorValOf(isDoorAt(ptv) ? ptv & 255 : p.mat, pv | 8));
+    setBlock(p.x, by + 1, p.z, doorValOf(isDoorAt(ptv) ? matKey(ptv) : p.mat, pv | 8));
   }
   playSound(opening ? 'doorOpen' : 'doorClose',
             { gain: 0.8, pos: { x: x + 0.5, y: by + 1, z: z + 0.5 } });

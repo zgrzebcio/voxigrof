@@ -126,29 +126,30 @@ corePart('mesh.chunk', function () {
             /* One box per RUN of the same block rather than one per layer: a 6-deep snow drift is one box,
                and only a real change of block costs another. A mixed stack reads its list; if that is
                missing it draws as its top block all the way down rather than not at all. */
+            // the list holds ENTRIES, id | look << 8 (stackEntry, blocks/looks.js)
             const ids = layerMixed(val) && layers ? layers.get(x + (z << 4) + (y << 8)) : null;
-            const at = (i) => (ids && i < ids.length ? ids[i] : vid);
+            const top = stackEntry(val), at = (i) => (ids && i < ids.length ? ids[i] : top);
             for (let i = 0; i < lc;) {
               const b = at(i);
               let j = i + 1;
               while (j < lc && at(j) === b) j++;
-              if (PROPS[b]) { const bx = [0, i / LAYER_MAX, 0, 1, j / LAYER_MAX, 1]; emitBoxFaces(x, y, z, bx, PROPS[b].faces, false, 0, 0, bx, _shapePass(b)); }
+              if (PROPS[b & 255]) { const bx = [0, i / LAYER_MAX, 0, 1, j / LAYER_MAX, 1]; emitBoxFaces(x, y, z, bx, facesOfVal(stackVal(b)), false, 0, 0, bx, _shapePass(b & 255)); }
               i = j;
             }
           }
           else if (shapeBoxes)
-            for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, PROPS[vid].faces, false, 0, 0, bx, _shapePass(vid));
+            for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, facesOfVal(val), false, 0, 0, bx, _shapePass(vid));
           else if (slabMixed(val)) {                     // two slabs of different blocks: each half in its own art
             const ids = layers ? layers.get(x + (z << 4) + (y << 8)) : null;
             const hb = slabMixBoxes(val), ax = (((val >> 8) & ROT_MASK) & 6) >> 1;   // 0 y, 1 x, 2 z
-            const two = [0, 1].map(h => ids && ids.length === 2 && PROPS[ids[h]] ? ids[h] : vid);
+            const two = [0, 1].map(h => ids && ids.length === 2 && PROPS[ids[h] & 255] ? ids[h] : vid);   // entries: id | look << 8
             /* The face where the halves meet is drawn only when the half across it can be seen through: a
                glass half shows the stone under it, but never draws its own face flat against that stone. Each half
                in its own pass, so a glass half is see-through like a glass slab. */
             const INNER = [[1, 2], [4, 8], [16, 32]][ax];          // the low half's inner face, the high half's
             for (let h = 0; h < 2; h++)
-              emitBoxFaces(x, y, z, hb[h], PROPS[two[h]].faces, false, 0, 0, hb[h], _shapePass(two[h]),
-                           PROPS[two[1 - h]].opaque ? INNER[h] : 0);
+              emitBoxFaces(x, y, z, hb[h], facesOfVal(stackVal(two[h])), false, 0, 0, hb[h], _shapePass(two[h] & 255),
+                           PROPS[two[1 - h] & 255].opaque ? INNER[h] : 0);
           }
           else if (PROPS[vid].model === 'hollow')      // a hollow log: bark shell and its filling, lit from inside
             for (const [bx, f, sw] of hollowParts(val)) emitBoxFaces(x, y, z, bx, f, true, sw);
@@ -164,10 +165,10 @@ corePart('mesh.chunk', function () {
           else if (PROPS[vid].model === 'voxel') {
             // a voxel model: every box in its own material, lit from its own cell like a wall plate
             // variant 1 leaves out the animated part, variant 2 is that part alone (the grinding pestle)
-            const vp = PROPS[vid], va = (val >> 8) & 255;
+            const vp = PROPS[vid], va = (val >> 8) & 255, mf = (lookEntryOf(val) || vp).matFaces;   // a look's materials (the mortar's bowl)
             for (const bx of vp.voxBoxes) {
               if ((va === 1 && bx[6] === vp.animMat) || (va === 2 && bx[6] !== vp.animMat)) continue;
-              emitBoxFaces(x, y, z, bx, vp.matFaces[bx[6]] || vp.faces, true);
+              emitBoxFaces(x, y, z, bx, mf[bx[6]] || vp.faces, true);
             }
           }
           else if (PROPS[vid].model === 'cluster')      // a gem cluster: crystals out of the face behind it

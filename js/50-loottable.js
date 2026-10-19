@@ -97,8 +97,11 @@ const ORE_LOOT = {
 };
 const _drop = (id, n) => (n > 0 ? [{ id, count: n }] : []);
 
-// Returns [{id, count}, ...] (empty array = no drops). isNatural = the leaf decayed on its own.
-function blockDrop(blockId, isNatural = false) {
+/* Returns [{id, count}, ...] (empty array = no drops). isNatural = the leaf decayed on its own. Takes an id or a cell's VALUE:
+   a value with a look (polished stone, blocks/looks.js) gives its block back whole, whatever the block itself drops. */
+function blockDrop(blockVal, isNatural = false) {
+  const blockId = blockVal & 255;
+  if (lookOf(blockVal)) return [{ id: blockId, count: 1 }];
   // a flint stone is never mined by hand (noTarget), but an explosion can still take one out —
   // and when it does it should hand over the same flint a pickup would
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
@@ -125,10 +128,9 @@ function blockDrop(blockId, isNatural = false) {
      variant rule below, which would hand a red one back as plain glassy sand */
   if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
     return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
-  // a block placed as a variant comes back as the block it is a variant of: stone brick gives stone
+  // a look that is a block of its own comes back as the block it is a look of: snow brick gives snow
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;
-  // ...unless it drops what its base DROPS: a gem cluster on plain stone gives gems, not a cluster
-  if (vBase != null) return PROPS[blockId]?.dropsAsBase ? blockDrop(vBase, isNatural) : [{ id: vBase, count: 1 }];
+  if (vBase != null) return [{ id: vBase, count: 1 }];
   if (LEAF_BLOCKS.has(blockId)) {
     /* Leaves: the full chances when a leaf decays or is cut with a tool, half of them when it is
        torn off by hand. Canopy Forager (player/skills.js) scales all three. */

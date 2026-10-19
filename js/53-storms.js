@@ -359,7 +359,7 @@ for (const w of woodList()) {
   if (w.planks != null) _BURN.set(w.planks, woodBurn(w, 'planks'));
 }
 const _BURN_INTO = new Set([..._WOOD, ...woodBlocks('leaves'), ...woodBlocks('planks')]);
-for (const id of [B.HAY, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
+for (const id of [B.HAY, B.THATCH, B.WOOL, B.FIBER_BLOCK]) _BURN.set(id, [4, 0.3]);
 _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blades go, the block turns to dirt
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }
 const _FIRE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];

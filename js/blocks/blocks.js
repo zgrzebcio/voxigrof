@@ -14,7 +14,7 @@
      shapes/stairs.js            stairs
      plants.js                   cactus, berries, gourds, pebbles, wheat...
      shapes/shapes.js            the shape ids and the variant byte
-     looks.js                    the looks of a block (VARIANT_BLOCKS)
+     looks.js                    the looks of a block (LOOKS, in the cell's bits 16-23; VARIANT_BLOCKS)
      shapes/shape-blocks.js, shapes/chimney-mixed.js, shapes/boxes.js
      woods/hollow-logs.js
      this file                   the return: every name the rest of the game may use
@@ -34,7 +34,9 @@ corePart('blocks', function () {
            stairVarOf, stairBoxesAt, BERRY_STAGE, berryStage, BERRY_BUSHES, isBerryBush, _berryBush, FR,
            FLINT_ROCK_BOX, GOURD_BOX, FULL_UV_BOX, _gourd, _carvedFaces, _carved, SHAPE_SLAB, SHAPE_STAIRS,
            SHAPE_PANE, SHAPE_FENCE, SHAPE_MASK, ROT_MASK, SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, SHAPE_COVER,
-           SHAPE_WALL, VARIANT_BLOCKS, _BRICK_VARIANTS, _GLASS_VARIANTS, _ALL_PLANKS, _ROCKS, _ROCK_LOOKS,
+           SHAPE_WALL, VARIANT_BLOCKS, _ALL_PLANKS, _ROCKS,
+           LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal,   // 0.84691
+           pillarOfVal, nameOfVal, matKey, stackEntry, stackVal, _ROCK_LOOK_IDS,
            _SANDSTONES, _GLOWS, _NO_COVER, _METALS, _GEM_COAL, SHAPE_BLOCKS, LAYER_STACKING, VARIANT_FAMILIES,
            CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal,
            SHAPE_SLAB_MIX, SLAB_MIX_SEE, SLAB_MIX_HIGH, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed,

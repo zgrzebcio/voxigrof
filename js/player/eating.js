@@ -3,9 +3,9 @@
 
 /* ---- throwing ---- */
 // blocks whose right-click opens a GUI or actuates something; throwing must yield to them
+// (a mortar of another rock is the mortar with a look: blocks/looks.js)
 const THROW_BLOCKED_BY = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.METAL_CHEST, B.DOOR, B.BED,   // metal chest 0.843
-                                  B.STRUCTURE_BLOCK, B.GRANITE_MORTAR, B.MARBLE_MORTAR, B.LIMESTONE_MORTAR,   // mortar variants 0.7945
-                                  B.DOLOMITE_MORTAR]);   // 0.822
+                                  B.STRUCTURE_BLOCK]);
 function tryThrow() {
   if (!playing || player.canFly || invOpen || menuScene) return false;
   const slot = HOTBAR[hotbarSel];

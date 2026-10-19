@@ -113,7 +113,7 @@ function _cellDrag(val, feetOff, x, y, z) {
   // a solid layer is a floor, not a drift; and above a thin stack's top the feet are clear of it
   if (!PROPS[id].layerStack || feetOff >= n / LAYER_MAX) return 1;
   let drag = 0;
-  for (const b of layerIdsAt(x, y, z, val)) drag += DRAG_PER_LAYER[b] || 0;
+  for (const b of layerIdsAt(x, y, z, val)) drag += DRAG_PER_LAYER[b & 255] || 0;
   return Math.max(DRAG_FLOOR, 1 - drag);
 }
 // worst drag over an axis-aligned body box (feet at cy, half-width R, height H). Mobs use it too.
@@ -152,7 +152,7 @@ function snowJumpMul() {
     for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++) {
       const val = getBlock(x, y, z);
       let n = 0;
-      if (CORE.layerCount(val)) for (const b of layerIdsAt(x, y, z, val)) if (b === B.SNOW) n++;
+      if (CORE.layerCount(val)) for (const b of layerIdsAt(x, y, z, val)) if ((b & 255) === B.SNOW) n++;
       if (n > most) most = n;
     }
   return Math.max(0, 1 - JUMP_PER_SNOW * most);
@@ -331,7 +331,7 @@ function raycastVoxel(origin, dir, maxDist) {
       }
       // a mixed slab is the block of the half aimed at: its hardness, its sound, its name
       const mix = typeof slabMixIdsAt === 'function' ? slabMixIdsAt(x, y, z, b) : null;
-      if (best) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] : id, bi: bestI, t: best.t };
+      if (best) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] & 255 : id, bi: bestI, t: best.t };
       // no box hit in this cell -> keep traversing
     }
     if (tX < tY && tX < tZ) { if (tX > maxDist) return null; tEnter = tX; x += stepX; tX += dtX; nx = -stepX; ny = 0; nz = 0; }

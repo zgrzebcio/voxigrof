@@ -8,7 +8,7 @@ corePart('blocks', function () {
      dolomite, in any of their looks) standing on a furnace is its chimney, up to CHIMNEY_MAX high. The furnace's own
      chimney cap sits on top of it, and the smoke leaves from there (fxFurnace, 49-particles.js). */
   const CHIMNEY_MAX = 6;
-  const CHIMNEY_ROCKS = new Set(VARIANT_FAMILIES.filter(f => [B.STONE, B.COBBLE, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE].includes(f[0])).flat());
+  const CHIMNEY_ROCKS = new Set([B.STONE, B.COBBLE, B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE]);   // any look of them too: a look is its rock
   const chimneyWall = (v) => CHIMNEY_ROCKS.has(v & 255) && shapeOfVal(v) === 'wall';
   // how many chimney walls stand on the furnace at (x, y, z), read through `g` (getBlock, or the mesher's own)
   const chimneyHeight = (g, x, y, z) => { let k = 0; while (k < CHIMNEY_MAX && chimneyWall(g(x, y + 1 + k, z))) k++; return k; };
@@ -33,14 +33,15 @@ corePart('blocks', function () {
                           brighter, if both do), since a cell's light comes from its id */
   const SHAPE_SLAB_MIX = 0x90, SLAB_MIX_SEE = 8, SLAB_MIX_HIGH = 1;
   const slabMixed = (v) => ((((v >> 8) & 255) & SHAPE_MASK) === SHAPE_SLAB_MIX) && !!PROPS[v & 255]?.shapes?.slab;
-  // the value of a mixed slab of `low` and `high`, the low half at even rotation `rot`
+  /* the value of a mixed slab of `low` and `high`, the low half at even rotation `rot`. The halves are side-list ENTRIES,
+     id | look << 8 (stackEntry, blocks/looks.js): a plain id is one. The cell holds the id alone; the list holds the looks. */
   const slabMixVal = (low, rot, high = low) => {
-    const pl = PROPS[low], ph = PROPS[high];
+    const pl = PROPS[low & 255], ph = PROPS[high & 255];
     const hi = (ph.light || 0) > (pl.light || 0);
     const bits = (rot & 6) | (!pl.opaque || !ph.opaque ? SLAB_MIX_SEE : 0) | (hi ? SLAB_MIX_HIGH : 0);
-    return ((hi ? high : low) | ((SHAPE_SLAB_MIX + bits) << 8)) >>> 0;
+    return (((hi ? high : low) & 255) | ((SHAPE_SLAB_MIX + bits) << 8)) >>> 0;
   };
-  const slabsMix = (a, b) => a !== b && [a, b].every(id => { const p = PROPS[id];
+  const slabsMix = (a, b) => a !== b && [a, b].every(e => { const p = PROPS[e & 255];   // two entries: stone and polished stone mix
     return !!p && !!p.shapes && !!p.shapes.slab && p.solid && p.model === 'cube'; });
   // the two halves' boxes, low then high
   const slabMixBoxes = (v) => { const r = ((v >> 8) & ROT_MASK) & 6; return [SLAB_HALF[r], SLAB_HALF[r + 1]]; };

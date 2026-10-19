@@ -93,6 +93,11 @@ corePart('blocks', function () {
                      ACACIA_LEAVES:404, GRASS_TOP_SAV:405, GRASS_SIDE_SAV:406 });
   // the acacia's sapling; the short grass (the smallest grass plant) and its warm and cold look, built at atlas build (03)
   Object.assign(T, { ACACIA_SAPLING:407, SHORT_GRASS_PLANT:408, SHORT_GRASS_PLANT_WARM:409, SHORT_GRASS_PLANT_COLD:410 });
+  // more variant looks: carved rocks and sandstones, adobe, terracotta and its roof, thatch, snow, ice, obsidian
+  Object.assign(T, { CARVED_STONE:411, CARVED_GRANITE:412, CARVED_MARBLE:413, CARVED_LIMESTONE:414, CARVED_DOLOMITE:415,
+                     CARVED_SANDSTONE:416, CARVED_RED_SANDSTONE:417, CARVED_PINK_SANDSTONE:418,
+                     CARVED_ADOBE:419, CARVED_TERRACOTTA:420, TERRACOTTA_ROOF:421, THATCH:422,
+                     CARVED_SNOW:423, CARVED_ICE:424, CARVED_OBSIDIAN:425, OBSIDIAN_BRICKS:426 });
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -103,7 +108,7 @@ corePart('blocks', function () {
               GLASS:8, BEDROCK:9, WATER:10, GLOWSTONE:11, CLAY:13, SNOW:14, COBBLE:15,
               COAL_ORE:16, IRON_ORE:17, DIAMOND_ORE:18, GRAVEL:19, RED_MUSHROOM:20, BROWN_MUSHROOM:21,
               CRAFTING_BENCH:22, TORCH:23, FURNACE:24, RED_SAND:25, CACTUS:26, DOOR:27,
-              BRICKS:30, MELON:33, STONE_BRICK:34,
+              BRICKS:30, MELON:33,
               WOOL:39, PUMPKIN:40, WHEAT:41,
               BIRCH_LOG:42, BIRCH_PLANKS:43, BIRCH_LEAVES:44, HAY:45, MARBLE:46, GRANITE:47, LIMESTONE:48,
               TALLGRASS:49, POPPY:50, ORCHID:51, TALL_LOWER:52, TALL_UPPER:53, TIN_ORE:54, GOLD_ORE:55, COPPER_ORE:56, LAVA:57,
@@ -136,41 +141,24 @@ corePart('blocks', function () {
               MORTAR:112,                                             // 0.77
               // hollow logs: bark shells that hold soil or sand. 113-124 stay unused, see below
               HOLLOW_LOG:125, HOLLOW_BIRCH_LOG:126, HOLLOW_SPRUCE_LOG:127,
-              // variant blocks: other looks of a block, picked on the variant bar and never an item
-              MOSSY_STONE_BRICK:128, CRACKED_STONE_BRICK:129, MOSSY_COBBLE:130, SULFUR_BRICKS:131,
-              GRANITE_BRICKS:132, MARBLE_BRICKS:133, LIMESTONE_BRICKS:134,
-              GRANITE_MORTAR:135, MARBLE_MORTAR:136, LIMESTONE_MORTAR:137,           // 0.7945
               BLACKBERRY_BUSH:138,                                                   // 0.7947 (YELLOWBERRY_BUSH until 0.827)
-              // gem clusters on a plain stone bed, a variant
-              DIAMOND_CLUSTER_STONE:139, EMERALD_CLUSTER_STONE:140, RUBY_CLUSTER_STONE:141,
-              SAPPHIRE_CLUSTER_STONE:142, TOPAZ_CLUSTER_STONE:143,
-              // dolomite, a rock like marble and limestone, and the looks of every rock
-              DOLOMITE:144, DOLOMITE_BRICKS:145, MOSSY_DOLOMITE_BRICKS:146, POLISHED_DOLOMITE:147,
-              MOSSY_GRANITE_BRICKS:148, MOSSY_MARBLE_BRICKS:149, MOSSY_LIMESTONE_BRICKS:150,
-              POLISHED_GRANITE:151, POLISHED_MARBLE:152, POLISHED_LIMESTONE:153,
-              // polished stone, adobe, the glass looks, salt crust, cantaloupe, three more mushrooms
-              POLISHED_STONE:154, ADOBE:155, ADOBE_BRICK:156,
-              DARK_GLASS:157, GREENHOUSE_GLASS:158, GLASS_BRICKS:159, DARK_GLASS_BRICKS:160,
+              DOLOMITE:144,                                                          // a rock like marble and limestone
+              // adobe, salt crust, cantaloupe, three more mushrooms
+              ADOBE:155,
               SALT_CRUST:161, CANTALOUPE:162, BLACK_MUSHROOM:163, LAVA_MUSHROOM:164, WHITE_TALL_MUSHROOM:165,
-              // terracotta's brick look; band and pillar looks of every rock
-              TERRACOTTA_BRICKS:166,
-              STONE_BAND:167, STONE_PILLAR:168, GRANITE_BAND:169, GRANITE_PILLAR:170, MARBLE_BAND:171,
-              MARBLE_PILLAR:172, LIMESTONE_BAND:173, LIMESTONE_PILLAR:174, DOLOMITE_BAND:175, DOLOMITE_PILLAR:176,
               STONE_PEBBLE:177,                                                       // 0.8095
               ASH:178, FIRE:179,                                                      // 0.8191
               // the yellow mushroom, and the grilled mushrooms (food from a furnace, never placed)
               YELLOW_MUSHROOM:180, GRILLED_RED_MUSHROOM:181, GRILLED_BROWN_MUSHROOM:182, GRILLED_BLUE_MUSHROOM:183,
               GRILLED_BLACK_MUSHROOM:184, GRILLED_WHITE_MUSHROOM:185, GRILLED_YELLOW_MUSHROOM:186,
-              // pink sand and its sandstone; brick and polished sandstone looks (variants); the dolomite mortar
-              PINK_SAND:187, PINK_SANDSTONE:188, SANDSTONE_BRICKS:189, POLISHED_SANDSTONE:190, RED_SANDSTONE_BRICKS:191,
-              POLISHED_RED_SANDSTONE:192, PINK_SANDSTONE_BRICKS:193, POLISHED_PINK_SANDSTONE:194, DOLOMITE_MORTAR:195,
+              PINK_SAND:187, PINK_SANDSTONE:188,                                       // pink sand and its sandstone
               // sand fused by lightning; the carved pumpkin and the jack o'lantern
               GLASSY_SAND:196, CARVED_PUMPKIN:197, JACK_O_LANTERN:198,
               GLASSY_RED_SAND:199, GLASSY_PINK_SAND:200,                               // 0.8241
               YELLOWBERRY_BUSH:201, WHITEBERRY_BUSH:202,                               // the real yellow, and white
               ICE:203,                                                                 // 0.8321
-              // ice and snow bricks, the snow-ice brick both share; the bone block and its brick
-              ICE_BRICKS:204, SNOW_BRICKS:205, SNOW_ICE_BRICKS:206, BONE_BLOCK:207, BONE_BRICKS:208,
+              // ice and snow bricks, the snow-ice brick both share (looks that are ids: blocks/looks.js); the bone block
+              ICE_BRICKS:204, SNOW_BRICKS:205, SNOW_ICE_BRICKS:206, BONE_BLOCK:207,
               // the burnt-out torch, the cold crystal torch, and the two glow blocks gone dark
               TORCH_UNLIT:209, CRYSTAL_TORCH:210, GLOWSTONE_SPENT:211, GLOWCRYSTAL_SPENT:212,
               PACKED_ICE:213,                                                          // the ice spikes' ice
@@ -186,7 +174,13 @@ corePart('blocks', function () {
               TERMITE_HILL:235,
               ACACIA_SAPLING:236,
               SHORT_GRASS:237,                                                         // the smallest grass plant (TALLGRASS is the middle one)
+              // looks that stay ids because they behave unlike their base (blocks/looks.js): thatch, carved snow and ice
+              THATCH:249, CARVED_SNOW:250, CARVED_ICE:251,
             };
+  /* RETIRED IDS. Every other look lives in the cell's bits 16-23 since 0.84691 (blocks/looks.js); the ids those looks
+     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 208, 238-248, 252, 253) are converted on load
+     (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 2` stamp. Free again, but reuse one only when that
+     conversion is gated by the stamp everywhere (it is: worlds in 16-worlds.js, prefabs in 34-structures.js). */
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
   /* variant byte layout:

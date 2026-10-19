@@ -33,7 +33,7 @@ function _dropLayer(L, x, y, z) {
    ones as a chance), snow a snowball for every 2; the rest as one layer each. */
 function _dropStackLayers(ids, x, y, z) {
   const count = new Map();
-  for (const L of ids) count.set(L, (count.get(L) || 0) + 1);
+  for (const L of ids) count.set(L & 255, (count.get(L & 255) || 0) + 1);   // entries: a look of a layer gives its block
   for (const [L, k] of count) {
     if (L === B.SNOW) { for (let i = Math.ceil(k / 2); i > 0; i--) spawnDrop(ITEM.SNOWBALL, x, y, z); continue; }
     if (LOOSE_LAYER_BLOCKS.has(L) && L !== B.FIBER_BLOCK) {

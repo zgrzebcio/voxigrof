@@ -451,7 +451,7 @@ function tickPlayer(dt, now, slot) {
         const mval = getBlock(mining.x, mining.y, mining.z);
         const mx = mining.x, my = mining.y, mz = mining.z, mbi = mining.bi || 0;
         // a mixed slab: it is the half you were aiming at that breaks, and that block that counts
-        const mix = slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] : mval & 255;
+        const mix = slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] & 255 : mval & 255;
         resetMining();
         // axe on a log: strip it, or fell the tree if it is already stripped. It performs its own
         // block edit and drops, so the ordinary break path is skipped when it claims the hit.
@@ -479,7 +479,7 @@ function tickPlayer(dt, now, slot) {
           /* felling already did everything */
         } else if (mix) {
           breakSlabMixHalf(mx, my, mz, mbi ? 1 : 0, mval);   // the other half stays as a slab of its own
-          if (dropsOk) for (const drop of blockDrop(minedId, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
+          if (dropsOk) for (const drop of blockDrop(stackVal(mix[mbi ? 1 : 0]), false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
         } else if (stack) {
           setBlock(mx, my, mz, B.AIR);
           if (dropsOk) _dropStackLayers(stack, mx, my, mz);
@@ -496,8 +496,8 @@ function tickPlayer(dt, now, slot) {
           // a locked or sealed chest broken gives nothing back, itself included (asked before setBlock let go of its lock)
           if (dropsOk && !lockedChest) {
             // a door gives back the blocks it was made of (three, as the block a look belongs to)
-            const drops = BLOCKS.isDoorVal(mval) ? doorDropOf(mval) : blockDrop(minedId, false);
-            if (drops.length && !BLOCKS.isDoorVal(mval)) drops[0].count += skillOreBonus(minedId);   // Prospector
+            const drops = BLOCKS.isDoorVal(mval) ? doorDropOf(mval) : blockDrop(mval, false);   // a look: its block
+            if (drops.length && !BLOCKS.isDoorVal(mval) && !lookOf(mval)) drops[0].count += skillOreBonus(minedId);   // Prospector
             // ...and a roll of its own for one more of the ore's stone pebbles (LOOT.orePebble)
             if (drops.length && typeof ORE_BLOCKS !== 'undefined' && ORE_BLOCKS.has(minedId)) {
               const more = skillOreBonus(minedId), peb = more ? drops.find(d => d.id === ITEM.STONE_PEBBLE) : null;

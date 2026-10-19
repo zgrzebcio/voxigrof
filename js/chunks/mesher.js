@@ -32,7 +32,7 @@ corePart('voxel', function () {
     if (fastLeaf(b)) return false;            // fast leaves hide what is behind them
     if (A.opaque) return true;                // opaque against transparent -> visible
     if (Bp.shapes && ((b >> 8) & 255) && (shapeOfVal(b) || slabMixed(b))) return true;   // glass beside a glass slab (or a mixed one) still needs its face
-    if ((a & 255) === (b & 255)) return false; // same type (incl. leaf|leaf): cull inner faces —
+    if (matKey(a) === matKey(b)) return false; // same block and look (incl. leaf|leaf): cull inner faces —
                                                // inside a bush only the outer shell renders, and
                                                // the cutout pass is double-sided so that shell
                                                // is visible from within (big-bush feeling)
@@ -78,8 +78,8 @@ corePart('voxel', function () {
     const id = v & 255, p = PROPS[id], va = (v >> 8) & 255;
     if (p.model === 'log') return (id | (((va & 3) | (LOG_W_BLOCK << 2)) << 8)) >>> 0;
     if (id === B.WATER || id === B.LAVA) return id;
-    if (!p.opaque) return id;                                      // leaves and glass: no variant, so they merge
-    return p.shapes && (shapeOfVal(v) || slabMixed(v)) ? id : v;    // a mixed slab far off: its low block
+    if (!p.opaque) return matKey(v);                               // leaves and glass: no variant (a look kept), so they merge
+    return p.shapes && (shapeOfVal(v) || slabMixed(v)) ? matKey(v) : v;   // a mixed slab far off: its low block
   }
   function lodDownsample(data, light) {
     const out = new Uint32Array(data.length), lout = new Uint16Array(light.length);

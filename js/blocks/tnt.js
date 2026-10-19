@@ -34,7 +34,7 @@ function explodeAt(cx, cy, cz, R) {
         if (id === B.TNT && !(x === cx && y === cy && z === cz)) chained.push([x, y, z]);
         // a locked or sealed chest blown up gives nothing back, itself included
         if (survival && id !== B.TNT && !(isChestId(id) && chestLocked(x, y, z, val)) && Math.random() < 0.5) {
-          for (const drop of blockDrop(id, false))
+          for (const drop of blockDrop(val, false))   // a look gives its block
             for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
         }
         TNTS.delete(_tntKey(x, y, z));

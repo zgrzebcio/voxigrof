@@ -18,43 +18,44 @@
    meant to switch ammo types later too: that will be one more entry in VARIANT_SOURCES, without a tool. */
 
 const VARIANT_SLOTS = 7;                           // 5 until 0.809
-// block -> its variants after the default: `id` is the block it places as, `name` goes in brackets
-// (the variant blocks themselves are VARIANT_BLOCKS in blocks/blocks.js; mossy, cracked and the three bricks 0.7941)
+/* block -> its variants after the default. An option is either a LOOK of the block, `{ id, look }`, kept in the cell's
+   bits 16-23 (the table is LOOKS in blocks/looks.js, which gives each look its name and art), or a block of its own,
+   `{ id }` (the few looks that are still ids: VARIANT_BLOCKS there), or variant bits, `{ id, bits }` (a cluster's bed, a
+   furnace's rock, a bench's wood...). `name` goes in brackets. The order here is the order on the bar. */
+const _looks = (base, ...nums) => nums.map(n => ({ id: base, look: n, name: CORE.LOOKS[base][n].key }));
 const BLOCK_VARIANTS = {
-  // cracked brick left the bar in 0.8091 (placed ones stay) and polished came in
-  [B.STONE]:        [{ id: B.STONE_BRICK, name: 'brick' }, { id: B.MOSSY_STONE_BRICK, name: 'mossy brick' },
-                     { id: B.POLISHED_STONE, name: 'polished' }],
-  // the looks of glass, and adobe's brick
-  [B.GLASS]:        [{ id: B.DARK_GLASS, name: 'dark' }, { id: B.GREENHOUSE_GLASS, name: 'greenhouse' },
-                     { id: B.GLASS_BRICKS, name: 'brick' }, { id: B.DARK_GLASS_BRICKS, name: 'dark brick' }],
-  [B.ADOBE]:        [{ id: B.ADOBE_BRICK, name: 'brick' }],  [B.BRICKS]:       [{ id: B.TERRACOTTA_BRICKS, name: 'brick' }],   // terracotta since 0.8093
-  [B.COBBLE]:       [{ id: B.MOSSY_COBBLE, name: 'mossy' }],
-  [B.SULFUR_BLOCK]: [{ id: B.SULFUR_BRICKS, name: 'brick' }],
-  // every rock: brick, mossy brick, polished (mossy and polished 0.809; dolomite 0.809)
-  [B.GRANITE]:      [{ id: B.GRANITE_BRICKS, name: 'brick' }, { id: B.MOSSY_GRANITE_BRICKS, name: 'mossy brick' },
-                     { id: B.POLISHED_GRANITE, name: 'polished' }],
-  [B.MARBLE]:       [{ id: B.MARBLE_BRICKS, name: 'brick' }, { id: B.MOSSY_MARBLE_BRICKS, name: 'mossy brick' },
-                     { id: B.POLISHED_MARBLE, name: 'polished' }],
-  [B.LIMESTONE]:    [{ id: B.LIMESTONE_BRICKS, name: 'brick' }, { id: B.MOSSY_LIMESTONE_BRICKS, name: 'mossy brick' },
-                     { id: B.POLISHED_LIMESTONE, name: 'polished' }],
-  [B.DOLOMITE]:     [{ id: B.DOLOMITE_BRICKS, name: 'brick' }, { id: B.MOSSY_DOLOMITE_BRICKS, name: 'mossy brick' },
-                     { id: B.POLISHED_DOLOMITE, name: 'polished' }],
+  // stone: brick, mossy brick, polished, band, pillar, carved (cracked brick, look 3, left the bar: placed ones stay)
+  [B.STONE]:        _looks(B.STONE, 1, 2, 4, 5, 6, 7),
+  // every rock: brick, mossy brick, polished, band, pillar, carved (seven with the default: the bar is full)
+  [B.GRANITE]:      _looks(B.GRANITE, 1, 2, 3, 4, 5, 6),
+  [B.MARBLE]:       _looks(B.MARBLE, 1, 2, 3, 4, 5, 6),
+  [B.LIMESTONE]:    _looks(B.LIMESTONE, 1, 2, 3, 4, 5, 6),
+  [B.DOLOMITE]:     _looks(B.DOLOMITE, 1, 2, 3, 4, 5, 6),
+  // the looks of glass; adobe; terracotta; obsidian; cobblestone; the sulfur block; the bone block
+  [B.GLASS]:        _looks(B.GLASS, 1, 2, 3, 4),
+  [B.ADOBE]:        _looks(B.ADOBE, 1, 2),
+  [B.BRICKS]:       _looks(B.BRICKS, 1, 2, 3),
+  [B.OBSIDIAN]:     _looks(B.OBSIDIAN, 1, 2),
+  [B.COBBLE]:       _looks(B.COBBLE, 1),
+  [B.SULFUR_BLOCK]: _looks(B.SULFUR_BLOCK, 1),
+  [B.BONE_BLOCK]:   _looks(B.BONE_BLOCK, 1),
   // the mortar's bowl in another rock
-  [B.MORTAR]:       [{ id: B.GRANITE_MORTAR, name: 'granite' }, { id: B.MARBLE_MORTAR, name: 'marble' },
-                     { id: B.LIMESTONE_MORTAR, name: 'limestone' }, { id: B.DOLOMITE_MORTAR, name: 'dolomite' }],   // dolomite 0.822
-  // the sandstones' brick and polished looks
-  [B.SANDSTONE]:      [{ id: B.SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_SANDSTONE, name: 'polished' }],
-  [B.RED_SANDSTONE]:  [{ id: B.RED_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_RED_SANDSTONE, name: 'polished' }],
-  [B.PINK_SANDSTONE]: [{ id: B.PINK_SANDSTONE_BRICKS, name: 'brick' }, { id: B.POLISHED_PINK_SANDSTONE, name: 'polished' }],
+  [B.MORTAR]:       _looks(B.MORTAR, 1, 2, 3, 4),
+  // the sandstones: brick, polished, carved
+  [B.SANDSTONE]:      _looks(B.SANDSTONE, 1, 2, 3),
+  [B.RED_SANDSTONE]:  _looks(B.RED_SANDSTONE, 1, 2, 3),
+  [B.PINK_SANDSTONE]: _looks(B.PINK_SANDSTONE, 1, 2, 3),
+  // hay's thatch, a block of its own: it stays where it is put, unlike the bale (FALL_WHOLE_BLOCKS, blocks/falling.js)
+  [B.HAY]:          [{ id: B.THATCH, name: 'thatch' }],
   // glassy sand is a block of its own, red and pink its looks (each sand's look in 0.8261). Every one breaks into
   // glass shards (blockDrop, 50)
   [B.GLASSY_SAND]:    [{ id: B.GLASSY_RED_SAND, name: 'red' }, { id: B.GLASSY_PINK_SAND, name: 'pink' }],
-  // ice and snow bricks; the snow-ice brick is on both bars (and breaks back into snow, below); the bone brick
-  [B.ICE]:            [{ id: B.ICE_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' }],
-  [B.SNOW]:           [{ id: B.SNOW_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' }],
-  [B.BONE_BLOCK]:     [{ id: B.BONE_BRICKS, name: 'brick' }],
-};
-// the default's own name in the tooltip's list of variants (ui/inventory.js); 'default' for the rest
+  // ice and snow bricks and carved, blocks of their own; the snow-ice brick is on both bars (and breaks back into snow)
+  [B.ICE]:            [{ id: B.ICE_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' },
+                       { id: B.CARVED_ICE, name: 'carved' }],
+  [B.SNOW]:           [{ id: B.SNOW_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' },
+                       { id: B.CARVED_SNOW, name: 'carved' }],
+};// the default's own name in the tooltip's list of variants (ui/inventory.js); 'default' for the rest
 const VARIANT_DEFAULT_NAME = {};
 /* A gem cluster's bed: the same block with the rock in its variant bits rather than a block of
    its own, so an option can also carry `bits`, OR'd into the variant byte when it is placed. */
@@ -90,23 +91,16 @@ for (const bush of BERRY_BUSHES) {
 // wheat: variant 0 is ripe, 1..6 its stages (updateWheatGrow, seasons/growth.js; 1..7 until 0.8273)
 BLOCK_VARIANTS[B.WHEAT] = [1, 2, 3, 4, 5, 6].map(b => ({ id: B.WHEAT, name: 'stage ' + b, bits: b }));
 VARIANT_DEFAULT_BITS[B.WHEAT] = 0; VARIANT_DEFAULT_NAME[B.WHEAT] = 'ripe'; VARIANT_LINEAR.add(B.WHEAT);
-// the reverse, for drops: a placed variant breaks back into the block it is a variant of (a bits-only option is that block already)
-// band and pillar join every rock's list
-for (const [rock, K] of [[B.STONE, 'STONE'], [B.GRANITE, 'GRANITE'], [B.MARBLE, 'MARBLE'], [B.LIMESTONE, 'LIMESTONE'], [B.DOLOMITE, 'DOLOMITE']])
-  BLOCK_VARIANTS[rock].push({ id: B[K + '_BAND'], name: 'band' }, { id: B[K + '_PILLAR'], name: 'pillar' });
+// the reverse, for drops: a look that is a block of its own breaks back into the block it is a look of (a look in the
+// cell's bits, or a bits-only option, is that block already)
 const _VARIANT_BASE = {};
 for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k) _VARIANT_BASE[v.id] = +k;
-// the 0.7947 stone-bed clusters, retired from the bar, still break into their gem's cluster
-for (const [id, base] of [[B.DIAMOND_CLUSTER_STONE, B.DIAMOND_ORE], [B.EMERALD_CLUSTER_STONE, B.EMERALD_ORE], [B.RUBY_CLUSTER_STONE, B.RUBY_ORE],
-                          [B.SAPPHIRE_CLUSTER_STONE, B.SAPPHIRE_ORE], [B.TOPAZ_CLUSTER_STONE, B.TOPAZ_ORE]]) _VARIANT_BASE[id] = base;
-_VARIANT_BASE[B.CRACKED_STONE_BRICK] = B.STONE;   // off the bar since 0.8091; a placed one still breaks into stone
 _VARIANT_BASE[B.SNOW_ICE_BRICKS] = B.SNOW;        // on both the ice and the snow bar: broken, it is snow
 const variantBaseOf = (blockId) => _VARIANT_BASE[blockId] ?? null;
-// every look takes its default's shapes (VARIANT_FAMILIES in 02): say so at boot if a look is missing there
+// a look that is a block of its own takes its default's shapes (VARIANT_FAMILIES, shapes/shape-blocks.js): say so at boot if not
 for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k
     && JSON.stringify(PROPS[+k].shapes || {}) !== JSON.stringify(PROPS[v.id].shapes || {}))
-  console.error(`[variants] ${PROPS[v.id].name} takes other shapes than ${PROPS[+k].name}: add it to VARIANT_FAMILIES (02)`);
-
+  console.error(`[variants] ${PROPS[v.id].name} takes other shapes than ${PROPS[+k].name}: add it to VARIANT_FAMILIES (shapes/shape-blocks.js)`);
 const variantToolWorn = () => typeof player !== 'undefined' && !!player && !player.dead &&
   (player.canFly || (equipSlots[EQUIP_INDEX.necklace]?.id === ITEM.CHISEL                // variants are the chisel's alone
                      && !slotBroken(equipSlots[EQUIP_INDEX.necklace])));
@@ -137,6 +131,13 @@ function heldBlockOf(id) {
   const o = variantOptions(id);
   return o ? o[variantIndex(id)].id : id;
 }
+// the look the pick places with (stone's brick: 1, in the cell's bits 16-23); 0 for the block's own look
+function heldLookOf(id) {
+  const o = variantOptions(id);
+  return o ? (o[variantIndex(id)].look || 0) : 0;
+}
+// what an option is drawn as: the variant passed to renderBlockIcon / buildDropGeom (variant byte | look << 8)
+const variantOptVariant = (v, varb = v.bits || 0) => (varb | ((v.look || 0) << 8)) >>> 0;
 // the extra variant bits the pick places with (a cluster's bed); 0 for everything else
 function heldVariantBitsOf(id) {
   const o = variantOptions(id);
@@ -212,7 +213,7 @@ function syncVariantHud() {
   if (!o || invOpen) { if (el) el.remove(); return; }
   const cur = variantIndex(id);
   // each variant drawn in the chisel's picked shape when it can take it, like the hotbar slots
-  const shp = o.map(v => (typeof chiselHeldVariant === 'function' ? chiselHeldVariant(v.id) : 0) || v.bits || 0);   // + a bed
+  const shp = o.map(v => variantOptVariant(v, (typeof chiselHeldVariant === 'function' ? chiselHeldVariant(v.id) : 0) || v.bits || 0));   // + a bed, a look
   // a growth stage always by its own stage, the sprout's 0 too
   const srcs = o.map((v, i) => (shp[i] || VARIANT_LINEAR.has(id) ? renderBlockIcon(v.id, shp[i]) : renderBlockIcon(v.id)));
   // the bind on its left follows the device you last touched: hold R + scroll, or hold D-pad Right + bumpers

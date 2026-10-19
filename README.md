@@ -685,9 +685,11 @@ looks of the block in your hand, drawn in the picked shape, the plain block in t
 and scroll, or hold D-pad Right and press LB / RB, to step through them. Tap `R` or D-pad Right twice to
 go back to the plain block. The
 pick changes every one of that block you carry (no separate stacks), is not saved, and a variant
-breaks back into the plain block. Stone: brick, mossy brick, polished, band, pillar. Cobblestone: mossy.
-Sulfur block: brick. Granite, marble, limestone, dolomite: brick, mossy brick, polished, band, pillar (a pillar lies along the face you place it on, like a log). Terracotta (the old bricks block): brick. Variants take the
-same shapes as stone brick. Glass: dark, greenhouse, brick, dark brick. Adobe: brick.
+breaks back into the plain block. Stone: brick, mossy brick, polished, band, pillar, carved. Cobblestone: mossy.
+Sulfur block: brick. Granite, marble, limestone, dolomite: brick, mossy brick, polished, band, pillar, carved (a pillar lies along the face you place it on, like a log). Terracotta (the old bricks block): brick, carved, roof. Variants take the
+same shapes as their plain block. Glass: dark, greenhouse, brick, dark brick. Adobe: brick, carved. Each sandstone: brick,
+polished, carved. Snow and ice: brick, snow-ice brick, carved. Obsidian: carved, brick. Hay bale: thatch (0.8469).
+A hay bale falls like sand since 0.8469 and lands whole; thatch, and hay slabs and stairs, stay where they are put.
 Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble, limestone or dolomite bed.
 Furnace: granite, marble, limestone or dolomite. Crafting bench: birch, acacia, cherry or dark wood.
 Chest: birch or spruce (only two chests of the same wood join into a double chest).

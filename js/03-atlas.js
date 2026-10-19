@@ -198,7 +198,13 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'acacia_log', 'acacia_log_top', 'stripped_acacia_log', 'stripped_acacia_log_top', 'acacia_planks', 'acacia_leaves'
                      ,'grass_block_top_sav', 'grass_block_side_sav'
                      // the acacia sapling (T 407); the short grass and its warm and cold look (T 408-410), the last two built below
-                     ,'acacia_sapling', 'short_grass', 'short_grass_warm', 'short_grass_cold'];
+                     ,'acacia_sapling', 'short_grass', 'short_grass_warm', 'short_grass_cold'
+                     // more variant looks (T 411-426): carved rocks and sandstones, adobe, terracotta and its roof,
+                     // thatch, carved snow and ice, carved and brick obsidian
+                     ,'carved_stone', 'carved_granite', 'carved_marble', 'carved_limestone', 'carved_dolomite'
+                     ,'carved_sandstone', 'carved_red_sandstone', 'carved_pink_sandstone'
+                     ,'carved_adobe', 'carved_terracotta', 'terracotta_roof', 'thatch'
+                     ,'carved_snow', 'carved_ice', 'carved_obsidian', 'obsidian_bricks'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
