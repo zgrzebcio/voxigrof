@@ -201,6 +201,7 @@ const TEXTURES = {
   acacia_planks:            'textures/Blocks/Woods/acacia/acacia_planks.png',
   acacia_leaves:            'textures/Blocks/Woods/acacia/acacia_leaves.png',
   acacia_sapling:           'textures/Billboards/Plants/Saplings/acacia_sapling.png',
+  cherry_sapling:           'textures/Billboards/Plants/Saplings/cherry_sapling.png',   // no tile: tinted blue into the rime sapling (03-atlas.js)
   // the desert's dry plants; the tall one is one 2-tall sprite, split in 03-atlas.js like the tall grass
   dry_grass:                'textures/Billboards/Plants/Warm/short_dry_grass.png',
   dry_tall_grass:           'textures/Billboards/Plants/Warm/dry_tall_grass.png',
@@ -362,9 +363,9 @@ for (const r of DECOR_ROCKS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
 // wheat's growth stages: stage 0 sprout .. 5, and 6 is the ripe wheat (0..6 then wheat_full before)
 for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
-// every berry bush's six growth stages, in BERRY_KINDS order (blocks/blocks.js); stage 5 is ripe
+// every berry bush's seven growth stages, in BERRY_KINDS order (blocks/tiles.js); stage 6 is ripe
 const BERRY_COLORS = ['red', 'blue', 'black', 'yellow', 'white'];
-for (const c of BERRY_COLORS) for (let s = 0; s < 6; s++)
+for (const c of BERRY_COLORS) for (let s = 0; s < 7; s++)
   TEXTURES[`berry_${c}_stage${s}`] = `textures/Billboards/Plants/Berry_bush/${c[0].toUpperCase() + c.slice(1)}/${c}_berry_stage${s}.png`;
 /* sugar cane: stages 0 sprout .. 4 growing ('sugar_cane' above is stage 5, grown and alone), and the
    three pieces of a grown column: bottom, middle, top */

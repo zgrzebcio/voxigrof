@@ -47,7 +47,8 @@ corePart('blocks', function () {
                                             [B.HOLLOW_BIRCH_LOG, 'Hollow birch log', B.BIRCH_LOG, B.STRIPPED_BIRCH_LOG],
                                             [B.HOLLOW_SPRUCE_LOG, 'Hollow spruce log', B.SPRUCE_LOG, B.STRIPPED_SPRUCE_LOG],
                                             [B.HOLLOW_RIME_LOG, 'Hollow rime log', B.RIME_LOG, B.STRIPPED_RIME_LOG],      // 0.836
-                                            [B.HOLLOW_ACACIA_LOG, 'Hollow acacia log', B.ACACIA_LOG, B.STRIPPED_ACACIA_LOG]]) {
+                                            [B.HOLLOW_ACACIA_LOG, 'Hollow acacia log', B.ACACIA_LOG, B.STRIPPED_ACACIA_LOG],
+                                            [B.HOLLOW_PALM_LOG, 'Hollow palm log', B.PALM_LOG, B.STRIPPED_PALM_LOG]]) {
     PROPS[bid] = { name, solid:true, opaque:false, raycast:true, pass:0, model:'hollow', rot:'all', stack:50, hardness:3.0,
                    type:'wood', faces:PROPS[log].faces.slice(), innerTile:PROPS[stripped].faces[0],   // inside: stripped wood
                    boxesOf:hollowBoxes, desc:'Fill it with dirt, grass or sand to plant in it' };

@@ -88,7 +88,7 @@ for (const gem of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.T
 const VARIANT_DEFAULT_BITS = {};
 const VARIANT_LINEAR = new Set();
 for (const bush of BERRY_BUSHES) {
-  BLOCK_VARIANTS[bush] = ['sprout', 'small', 'bush', 'bare', 'green fruit'].map((name, s) => ({ id: bush, name, bits: s }));
+  BLOCK_VARIANTS[bush] = ['sprout', 'small', 'young', 'bush', 'bare', 'green fruit'].map((name, s) => ({ id: bush, name, bits: s }));
   VARIANT_DEFAULT_BITS[bush] = BERRY_STAGE.GROWN; VARIANT_DEFAULT_NAME[bush] = 'ripe'; VARIANT_LINEAR.add(bush);
 }
 // wheat: variant 0 is ripe, 1..6 its stages (updateWheatGrow, seasons/growth.js; 1..7 until 0.8273)

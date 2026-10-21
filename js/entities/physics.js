@@ -59,7 +59,7 @@ function _entHazard(x, y, z) {
   }
   const fx = Math.floor(x), fz = Math.floor(z), fy = Math.floor(y);
   // a step that would drop the feet into water counts as a hazard too
-  if ((getBlock(fx, fy, fz) & 255) === B.WATER) return true;
+  if (isWaterVal(getBlock(fx, fy, fz))) return true;            // a block standing in water too
   /* ...and so does a ledge: probe downward for a floor and refuse the step if the drop would
      hurt. WATER FOUND ON THE WAY DOWN IS ALSO A HAZARD — it used to count as a floor,
      on the reasoning that falling into a pond is survivable. That is exactly how mobs kept
@@ -69,7 +69,7 @@ function _entHazard(x, y, z) {
   let d = 0;
   while (d <= ENT_LEDGE_MAX && fy - 1 - d >= 0) {
     const bv = getBlock(fx, fy - 1 - d, fz), bid = bv & 255;
-    if (bid === B.WATER) return true;
+    if (isWaterVal(bv)) return true;
     if (CORE.solidVal(bv)) break;                // a drift of snow or leaves is not a floor
     d++;
   }

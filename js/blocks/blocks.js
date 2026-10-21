@@ -36,6 +36,7 @@ corePart('blocks', function () {
            SHAPE_PANE, SHAPE_FENCE, SHAPE_MASK, ROT_MASK, SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, SHAPE_COVER,
            SHAPE_WALL, VARIANT_BLOCKS, _ALL_PLANKS, _ROCKS,
            LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal, WEB_EDGES, webCornerEdge,   // 0.84691
+           WATERLOGGED, isWaterlogged, isWaterVal, canWaterlog,                         // blocks standing in water (blocks/waterlog.js)
            pillarOfVal, nameOfVal, matKey, stackEntry, stackVal, _ROCK_LOOK_IDS,
            _SANDSTONES, _GLOWS, _NO_COVER, _METALS, _GEM_COAL, SHAPE_BLOCKS, LAYER_STACKING, VARIANT_FAMILIES,
            CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal,

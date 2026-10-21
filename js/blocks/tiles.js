@@ -66,12 +66,13 @@ corePart('blocks', function () {
   // lightning-struck sand; the carved pumpkin's face and top, and the lit one's face
   Object.assign(T, { GLASSY_SAND:320, CARVED_PUMPKIN_FRONT:321, CARVED_PUMPKIN_TOP:322, JACK_O_LANTERN_FRONT:323,
                      GLASSY_RED_SAND:324, GLASSY_PINK_SAND:325 });   // 0.8241
-  /* every berry bush's own six growth stages, from 326: per kind (BERRY_KINDS) stage 0 sprout .. 5 ripe,
-     textures/Billboards/Plants/Berry_bush/<Kind>/<kind>_berry_stage<n>.png (BERRY_COLORS, 01-textures-data.js) */
-  const BERRY_KINDS = ['RED', 'BLUE', 'BLACK', 'YELLOW', 'WHITE'], BERRY_STAGES = 6;
+  /* every berry bush's own seven growth stages: per kind (BERRY_KINDS) stage 0 sprout .. 6 ripe,
+     textures/Billboards/Plants/Berry_bush/<Kind>/<kind>_berry_stage<n>.png (BERRY_COLORS, 01-textures-data.js). Stages 0-5 from
+     326, six a kind; each kind's stage 6 from 440 (the tiles between were taken when it came) */
+  const BERRY_KINDS = ['RED', 'BLUE', 'BLACK', 'YELLOW', 'WHITE'], BERRY_STAGES = 7;
   // dirt patches in caves, and how often a yellow berry bush stands on their floor (genChunk)
   const CAVE_DIRT_AT = 0.3, CAVE_YELLOW_BUSH = 0.0072;   // 20% more since 0.8272 (0.006);   // ~14% of cave floor is dirt; a bush every couple of chunks
-  BERRY_KINDS.forEach((k, i) => { for (let s = 0; s < BERRY_STAGES; s++) T['BERRY_' + k + '_S' + s] = 326 + i * BERRY_STAGES + s; });
+  BERRY_KINDS.forEach((k, i) => { for (let s = 0; s < 6; s++) T['BERRY_' + k + '_S' + s] = 326 + i * 6 + s; T['BERRY_' + k + '_S6'] = 440 + i; });
   // sugar cane's growing stages 0-4 (stage 5 is T.SUGAR_CANE) and a grown column's bottom, middle and top
   Object.assign(T, { SUGAR_CANE_S0:356, SUGAR_CANE_S1:357, SUGAR_CANE_S2:358, SUGAR_CANE_S3:359, SUGAR_CANE_S4:360,
                      SUGAR_CANE_BOTTOM:361, SUGAR_CANE_MIDDLE:362, SUGAR_CANE_TOP:363 });
@@ -105,6 +106,8 @@ corePart('blocks', function () {
   Object.assign(T, { SEASHELL_BLOCK_SIDE:434, SEASHELL_BLOCK_TOP:435 });   // the seashell block
   Object.assign(T, { COBWEB_TANGLED:436, COBWEB_CORNER:437 });            // the cobweb's two looks (blocks/looks.js)
   Object.assign(T, { BONE_ASH_BLOCK:438 });                                // the ash block's art in white (built in 03-atlas.js)
+  Object.assign(T, { RIME_SAPLING:439 });                                  // the cherry sapling's art in a frosty blue (built in 03-atlas.js)
+  // T 440-444 are taken: every berry bush's ripe stage (the berry loop above)
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -182,13 +185,15 @@ corePart('blocks', function () {
               SHORT_GRASS:237,                                                         // the smallest grass plant (TALLGRASS is the middle one)
               COCONUT:238,                                                             // hangs under a palm's crown (woods/coconuts.js); a retired look's id, see below
               SEASHELL_BLOCK:239,                                                      // ten seashells pressed into a block; a retired look's id too
-              BONE_ASH_BLOCK:240,                                                      // five bone ash pressed into a block that falls like sand; a retired look's id
+              BONE_ASH_BLOCK:240,
+              RIME_SAPLING:241,                                                        // the rime tree's sapling; a retired look's id
+              HOLLOW_PALM_LOG:242,                                                     // the palm's hollow log; a retired look's id                                                      // five bone ash pressed into a block that falls like sand; a retired look's id
               THATCH:249,                                                              // hay's look of its own: it does not fall
               SANDY_DIRT:254,                                                          // where sand meets turf on a deep beach, and under every palm
               SEASHELL:255,                                                            // lies on the sea's beaches, picked up by hand
             };
   /* RETIRED IDS. Every other look lives in the cell's bits 16-23 since 0.84691 (blocks/looks.js); the ids those looks
-     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block) are converted on load
+     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block, 241 the rime sapling, 242 the hollow palm log) are converted on load
      (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 3` stamp. Free again, but reuse one only when that
      conversion is gated by the stamp everywhere (it is: worlds in 16-worlds.js, prefabs in 34-structures.js). */
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants

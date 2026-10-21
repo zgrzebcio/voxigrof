@@ -146,7 +146,7 @@ function _rebuildHeld(id, variant = 0) {
   _heldVar = variant;
   while (heldGroup.children.length) heldGroup.remove(heldGroup.children[0]);
   if (id === null) return;
-  const passes = buildDropGeom(id, variant);
+  const passes = buildDropGeom(id, variant || undefined);   // no variant picked: the block as an item (a coconut full-grown, resting)
   const isCross = id < 256 && PROPS[id]?.model === 'cross';
   // anything with a tool type (pick/shovel/hatchet/hoe/sword) is gripped by its handle
   const isTool = id >= 256 && !!ITEM_PROPS[id]?.tool;

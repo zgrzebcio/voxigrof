@@ -392,11 +392,11 @@ function houndStruckByPlayer(e, p) {
 function houndHazard(x, y, z) {
   const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
   for (let dy = 0; dy <= 1; dy++) if ((getBlock(fx, Math.floor(y + dy), fz) & 255) === B.CACTUS) return true;
-  if ((getBlock(fx, fy, fz) & 255) === B.WATER) return true;
+  if (isWaterVal(getBlock(fx, fy, fz))) return true;
   let d = 0;
   while (d <= ENT_LEDGE_MAX && fy - 1 - d >= 0) {
     const bv = getBlock(fx, fy - 1 - d, fz), bid = bv & 255;
-    if (bid === B.WATER) return true;
+    if (isWaterVal(bv)) return true;
     if (bid === B.LAVA || CORE.solidVal(bv)) break;
     d++;
   }

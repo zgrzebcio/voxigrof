@@ -10,6 +10,7 @@ corePart('mesh.chunk', function () {
           const val = data[x + (z << 4) + (y << 8)];
           if ((val & 255) === B.WATER) emitWater(x, y, z, val);
           else if ((val & 255) === B.LAVA) emitLava(x, y, z, val);
+          else if (val & WATERLOGGED) emitWater(x, y, z, B.WATER);   // a block standing in still water: its water round it
         }
 
     // pack into typed arrays (transferable)

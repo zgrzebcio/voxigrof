@@ -150,7 +150,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
     const tgEye = foe ? 1.62 : (tp.EYE || 1.62);
 
     /* ---- water state: drives escape steering, swimming and current drift ---- */
-    const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
+    const inWater = isWaterVal(getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)));
 
     /* ---- decide a heading ---- */
     let moveSpeed = 0;

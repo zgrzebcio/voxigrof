@@ -25,6 +25,7 @@ const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the 
 const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green
 const ACACIA_LEAF_TINT = 'rgb(126,156,58)';        // the acacia's crown, grey art: an olive, sun-dried green
 const COCONUT_YOUNG_TINT = 'rgb(104,168,52)';      // a coconut still growing: its art in this green
+const RIME_SAPLING_TINT = 'rgb(122,172,232)';      // the rime sapling: the cherry sapling's art in this frosty blue
 const SAVANNA_GRASS_RGB = [196, 168, 74];          // the Savanna's golden grass, what GRASS_RGB is mixed toward there
 /* ================================================================================================ */
 
@@ -179,7 +180,7 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      // lightning-struck sand, the carved pumpkin's face and top, the jack o'lantern's face
                      ,'glassy_sand', 'carved_pumpkin_front', 'carved_pumpkin_top', 'jack_o_lantern_front'
                      ,'glassy_red_sand', 'glassy_pink_sand'   // 0.8241
-                     // every berry bush's six stages (T 326-355)
+                     // every berry bush's stages 0-5 (T 326-355; the seventh, ripe, is at the end)
                      ,...BERRY_COLORS.flatMap(c => [0, 1, 2, 3, 4, 5].map(s => `berry_${c}_stage${s}`))
                      // sugar cane's stages 0-4 and its column pieces (T 356-363)
                      ,...CANE_PIECES.map(p => 'sugar_cane_' + p)
@@ -211,7 +212,9 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'coconut_side', 'coconut_top', 'coconut_young_side', 'coconut_young_top'   // T 430-433
                      ,'seashell_block_side', 'seashell_block_top'                               // T 434-435
                      ,'cobweb_tangled', 'cobweb_corner'                                         // T 436-437
-                     ,'bone_ash_block'];                                                        // T 438, built below
+                     ,'bone_ash_block'                                                          // T 438, built below
+                     ,'rime_sapling'                                                            // T 439, built below from the cherry sapling
+                     ,...BERRY_COLORS.map(c => `berry_${c}_stage6`)];                         // T 440-444, every berry bush's ripe stage
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -635,8 +638,8 @@ async function buildAtlas() {
     return c;
   };
   IMAGES.glowstone_spent = greyed(IMAGES.glowstone);
-  // a growing coconut: the ripe art in a young green, keeping its shading (the canvas 'color' blend)
-  const greened = (src) => {
+  // art in another colour, keeping its shading (the canvas 'color' blend): a growing coconut's young green, below
+  const recolored = (src, tint) => {
     if (!src) return src;
     const c = document.createElement('canvas');
     c.width = src.width; c.height = src.height;
@@ -644,14 +647,16 @@ async function buildAtlas() {
     g2.imageSmoothingEnabled = false;
     g2.drawImage(src, 0, 0);
     g2.globalCompositeOperation = 'color';
-    g2.fillStyle = COCONUT_YOUNG_TINT;
+    g2.fillStyle = tint;
     g2.fillRect(0, 0, c.width, c.height);
     g2.globalCompositeOperation = 'destination-in';     // the fill also painted the gaps
     g2.drawImage(src, 0, 0);
     return c;
   };
-  IMAGES.coconut_young_side = greened(IMAGES.coconut_side);
-  IMAGES.coconut_young_top = greened(IMAGES.coconut_top);
+  IMAGES.coconut_young_side = recolored(IMAGES.coconut_side, COCONUT_YOUNG_TINT);
+  IMAGES.coconut_young_top = recolored(IMAGES.coconut_top, COCONUT_YOUNG_TINT);
+  // the rime sapling: no art of its own, the cherry sapling's in a frosty blue
+  IMAGES.rime_sapling = recolored(IMAGES.cherry_sapling, RIME_SAPLING_TINT);
   IMAGES.glowcrystal_spent = greyed(IMAGES.glowcrystal);
   // the bone ash block: the ash block's art lifted to a bone white, keeping its grain
   const whitened = (src) => {

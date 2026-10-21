@@ -142,7 +142,7 @@ function findBushPickup(readyOnly = false) {
         if (isBerryBush(id)) {
           const st = berryStage(v);
           // an unripe bush is not yet telling you which one it is, so neither does the prompt
-          if (st <= BERRY_STAGE.BUSH) name = 'berry bush (young)';            // six stages since 0.827
+          if (st <= BERRY_STAGE.BUSH) name = 'berry bush (young)';            // seven stages (blocks/plants.js)
           else if (st === BERRY_STAGE.EMPTY) name = 'berry bush (bare)';
           else if (st !== BERRY_STAGE.GROWN) name = 'berry bush (unripe)';
         }

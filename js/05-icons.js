@@ -99,6 +99,7 @@ function renderBlockIcon(id, variant) {
   // identical until they fruit, so the sprout icon could not tell red from blue
   // ...unless a stage is asked for: the variant bar's sprout IS stage 0
   if (variant == null && isBerryBush(id)) variant = BERRY_STAGE.GROWN;
+  if (variant == null && id === B.COCONUT) variant = PROPS[id].ripeStage | PROPS[id].resting;   // ...and a coconut ripe, sitting on its floor
   variant = variant || 0;
   // inventory logs read as a full block, matching the item they place
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;

@@ -106,8 +106,8 @@ function updateCameraFilter(dt) {
 }
 function _cfStep(f, p, pane, dt) {
   const g = f.g;
-  if (dt < 0 || !p.spawned || p.dead || (typeof _fxScale === 'number' && _fxScale <= 0)) {
-    // the title, a dead seat or the particles off: nothing on the lens
+  if (dt < 0 || !p.spawned || p.dead || p.canFly || (typeof _fxScale === 'number' && _fxScale <= 0)) {
+    // the title, a dead seat, creative or the particles off: nothing on the lens
     if (f.shown) { f.c.style.display = 'none'; f.shown = false; }
     f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = f.under = f.web = 0;
     return;

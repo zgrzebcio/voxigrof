@@ -3,7 +3,8 @@
    the trunk beside it, so the cells right under the crown), how one sprouts there (COCO_SPROUT a second), how it grows (its
    stage in variant bits 0-2, one every COCO_STAGE_DAYS: ripe after about three in-game days; small and green until then, the
    block in blocks/plants.js), and how it comes down: a ripe one lets go by itself (COCO_FALL a sim tick), and any one whose
-   log is taken (coconutLostHold, from setBlock in chunks/block-access.js). It falls as a block (dropBlockFrom,
+   hold is taken, the log over it or whatever it hung under (coconutLostHold, from setBlock in chunks/block-access.js; and one put
+   down in creative with nothing over it, coconutPlaced). It falls as a block (dropBlockFrom,
    blocks/falling.js), hurting who it lands on, and on the ground a ripe one cracks into COCO_HALVES half coconuts and a green
    one goes to pieces (coconutLanded). A palm cut down drops each of its coconuts now and then (coconutsOffFelled, from
    woods/felling.js); a hatchet takes a ripe one whole (50-loottable.js). The prompt over one says how far it has grown
@@ -25,6 +26,12 @@ const _isPalmLog = (v) => (v & 255) === B.PALM_LOG;
 const _cocoStage = (v) => (v >> 8) & 7;
 const _cocoRipe = (v) => _cocoStage(v) >= PROPS[B.COCONUT].ripeStage;
 const _cocoLife = () => COCO_STAGE_DAYS * (0.8 + Math.random() * 0.4) * _dayLen();
+/* is the coconut at (x, y, z) held: hanging, something solid over it (its palm log, in creative anything it was hung under);
+   resting (PROPS resting bit, put on top of a block in creative), something solid under it */
+const _cocoHeld = (x, y, z) => {
+  const resting = (getBlock(x, y, z) >> 8) & PROPS[B.COCONUT].resting;
+  return CORE.solidVal(getBlock(x, resting ? y - 1 : y + 1, z));
+};
 // can a coconut hang at (x, y, z): a palm log over it, the trunk beside it
 function _cocoSpotOK(x, y, z) {
   if (!_isPalmLog(getBlock(x, y + 1, z))) return false;
@@ -68,7 +75,7 @@ function updateCoconuts(dt) {
     }
     const v = getBlock(x, y, z), id = v & 255;
     if (id === B.COCONUT) {
-      if (!_isPalmLog(getBlock(x, y + 1, z))) { COCO_GROW.delete(k); dropBlockFrom(x, y, z, v); continue; }   // nothing holds it
+      if (!_cocoHeld(x, y, z)) { COCO_GROW.delete(k); dropBlockFrom(x, y, z, v); continue; }   // nothing holds it
       if (_cocoRipe(v)) {
         COCO_GROW.delete(k);
         if (Math.random() < fallP) dropBlockFrom(x, y, z, v);
@@ -86,14 +93,17 @@ function updateCoconuts(dt) {
   }
 }
 
-// the palm log at (x, y + 1, z) is gone: a coconut under it falls (from setBlock, chunks/block-access.js)
+// what held the coconut at (x, y, z) may be gone (nothing solid over or under it now): it falls (from setBlock, chunks/block-access.js)
 function coconutLostHold(x, y, z) {
   const v = getBlock(x, y, z);
-  if ((v & 255) !== B.COCONUT) return;
+  if ((v & 255) !== B.COCONUT || _cocoHeld(x, y, z)) return;
   COCO_GROW.delete(_cocoKey(x, y, z));
   dropBlockFrom(x, y, z, v);
 }
-// a falling coconut has come down at (x, y, z) (blocks/falling.js): a ripe one cracks into halves, a green one into nothing
+// one just put down (the creative palette, player/place-block.js) with nothing over it falls at once, as one that lost its hold
+const coconutPlaced = (x, y, z) => coconutLostHold(x, y, z);
+// a falling coconut has come down at (x, y, z) (blocks/falling.js): a ripe one cracks into halves, a green one into nothing;
+// in creative it leaves nothing
 function coconutLanded(x, y, z, val) {
   if (typeof fxBreak === 'function') fxBreak(x, y, z, val);
   if (typeof playBlockSound === 'function') playBlockSound(B.MELON, 'break', x, y, z);
@@ -117,8 +127,9 @@ function coconutsOffFelled(logs) {
       if (!player.canFly && Math.random() < (COCO_FELL_MIN + (COCO_FELL_MAX - COCO_FELL_MIN) * share) * mul) spawnDrop(ITEM.COCONUT, x, y, z);
     }
 }
-// the line under the crosshair over a coconut: how far it has grown, and what takes it (ui/hud.js)
+// the line under the crosshair over a coconut in survival: how far it has grown, and what takes it (ui/hud.js)
 function coconutPrompt() {
+  if (player.canFly) return '';                      // not in creative
   const hit = typeof currentRay === 'function' ? currentRay() : null;
   if (!hit || hit.id !== B.COCONUT) return '';
   const v = getBlock(hit.x, hit.y, hit.z);

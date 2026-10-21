@@ -474,8 +474,8 @@ function _fxSolid(x, y, z) {
   return v !== 0 && (CORE.solidVal(v) || !!PROPS[v & 255]?.opaque);
 }
 function _fxFluidAt(x, y, z) {
-  const id = _fxBlock(x, y, z) & 255;
-  return id === B.WATER || id === B.LAVA;
+  const v = _fxBlock(x, y, z), id = v & 255;
+  return id === B.WATER || id === B.LAVA || (v & WATERLOGGED) !== 0;   // a block standing in water too
 }
 function _fxNear(x, y, z) {
   if (typeof nearestPlayerTo !== 'function') return true;

@@ -27,6 +27,7 @@ corePart('voxel', function () {
            BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
            BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER,                               // cane 0.829; ice 0.833
            LOOK_SHIFT, LOOKS, LOOK_OF_OLD_ID, lookOf, withLook, lookEntryOf, facesOfVal, pillarOfVal, nameOfVal, WEB_EDGES, webCornerEdge,   // looks (blocks/looks.js)
+           WATERLOGGED, isWaterlogged, isWaterVal, canWaterlog,                                            // blocks/waterlog.js
            matKey, stackEntry, stackVal, WET_TILE };                                                       // WET_TILE: what darkens wet (chunks/voxel-shared.js)
 });
 
@@ -39,3 +40,4 @@ const { B, V, PROPS, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_CO
 const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS, ICE_FROM_WATER } = CORE;
 // a cell's look (blocks/looks.js): its number, the value with another, its entry, its art and name, its material
 const { lookOf, withLook, lookEntryOf, facesOfVal, nameOfVal, matKey, stackEntry, stackVal } = CORE;
+const { WATERLOGGED, isWaterlogged, isWaterVal, canWaterlog } = CORE;   // blocks standing in water (blocks/waterlog.js)

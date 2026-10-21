@@ -142,8 +142,8 @@ function blockDrop(blockVal, isNatural = false) {
     const hand = !isNatural && typeof heldUseId === 'function' && !isToolItem(heldUseId());
     const mul = (hand ? 0.5 : 1) * (typeof skillLeafMul === 'function' ? skillLeafMul() : 1);
     /* By its wood (the woods table, woods/woods.js): sticks from every leaf; an apple from the woods that bear
-       them (`apples`: not a palm); its own sapling if the wood has one (rime and the dry bush have none, so they
-       give sticks only). */
+       them (`apples`: not a palm); its own sapling if the wood has one (the dry bush has none, so it
+       gives sticks only). */
     const wood = woodOf(blockId);
     return [..._drop(ITEM.STICK, rollLoot(LOOT.stick, mul)),
             ...(wood.apples ? _drop(ITEM.APPLE, rollLoot(LOOT.apple, mul)) : []),

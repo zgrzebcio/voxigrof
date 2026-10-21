@@ -49,7 +49,7 @@ function tickPlayer(dt, now, slot) {
   if (player.sleepingAt && dnHeld) leaveBed(player);
   const lying = !!player.sleepingAt;
   const grounded = onGround();
-  const inWater = (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)) & 255) === B.WATER;
+  const inWater = isWaterVal(getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)));   // a block standing in water too
   player._inWater = inWater;               // exposed for fall damage + hand animation
   // loose ground with nothing under it gives way as you step on it (_fallUnderFeet)
   if (grounded && !player.flying && player.spawned && !player.dead && !menuScene && !joining) _fallUnderFeet();
@@ -93,7 +93,7 @@ function tickPlayer(dt, now, slot) {
       }
       // near the surface + holding jump: full pop-out ONLY next to a climbable wall —
       // otherwise cap upward speed so you bob at the surface instead of jumping on water
-      if (upHeld && (getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 1.2), Math.floor(player.pos.z)) & 255) !== B.WATER) {
+      if (upHeld && !isWaterVal(getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 1.2), Math.floor(player.pos.z)))) {
         const px = Math.floor(player.pos.x), pyF = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
         let nearWall = false;
         for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]])

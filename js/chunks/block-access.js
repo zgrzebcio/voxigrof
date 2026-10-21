@@ -57,6 +57,8 @@ function setBlock(x, y, z, val) {
   editRushing = !fluidApplying;                        // a fluid's flowing is no player edit
   const lx = x & 15, lz = z & 15;
   const i = lx + (lz << 4) + (y << 8);
+  // a block standing in still water keeps it, and leaves it when it goes (fluids/waterlog.js)
+  val = waterlogValue(c.data[i], val);
   if (c.data[i] === val) return;
   const oldVal = c.data[i], oldId = oldVal & 255, newId = val & 255;
   c.data[i] = val;
@@ -124,7 +126,10 @@ function setBlock(x, y, z, val) {
     setBlock(x, y - 1, z, B.DIRT);
   // water source destroyed (replaced by anything non-water): dry every flowing cell it fed
   // (the level is bits 0-2; 3-6 are a river's way, 0.844 reads & 7, 15 took a river's top for flowing)
-  if (oldId === B.WATER && ((oldVal >> 8) & 7) === 0 && newId !== B.WATER) dryWaterFrom(x, y, z);
+  // ...not when the block put there stands in it: the water is still there (fluids/waterlog.js)
+  if (oldId === B.WATER && ((oldVal >> 8) & 7) === 0 && newId !== B.WATER && !(val & WATERLOGGED)) dryWaterFrom(x, y, z);
+  // a block that stood in water gone: its water is a source again, for the flow to take up
+  if ((oldVal & WATERLOGGED) && newId === B.WATER) queueWaterAt(x, y, z);
   // same rule for lava sources
   if (oldId === B.LAVA && ((oldVal >> 8) & 7) === 0 && newId !== B.LAVA) dryLavaFrom(x, y, z);
   // furnace removed/replaced: spill its contents and drop the state
@@ -196,8 +201,8 @@ function setBlock(x, y, z, val) {
       // a ladder is something you built: it drops back as a ladder. A vine just falls apart.
       if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
     }
-  // a coconut hangs from the palm log over it: that log gone, it falls (woods/coconuts.js)
-  if (oldId === B.PALM_LOG && newId !== B.PALM_LOG && typeof coconutLostHold === 'function') coconutLostHold(x, y - 1, z);
+  // a coconut hangs from what is over it, or rests on what is under it: that gone (nothing solid left), it falls (woods/coconuts.js)
+  if (CORE.solidVal(oldVal) && !CORE.solidVal(val) && typeof coconutLostHold === 'function') { coconutLostHold(x, y - 1, z); coconutLostHold(x, y + 1, z); }
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
   if (newId === B.AIR && y + 1 <= WORLD_TOP) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;

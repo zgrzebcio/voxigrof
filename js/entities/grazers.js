@@ -22,7 +22,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
   if (e._lookT > 0) e._lookT -= dt;             // petted: it looks at whoever did (updatePetting in entities/taming.js)
   if (e._petT > 0) e._petT -= dt;
 
-  const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.WATER;
+  const inWater = isWaterVal(getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)));
   // lava carries a hellhound as water carries the rest: it wades in it and climbs out of it
   const swim = inWater || (e.kind === 'hellhound' && (getBlock(Math.floor(e.x), Math.floor(e.y + 0.4), Math.floor(e.z)) & 255) === B.LAVA);
 

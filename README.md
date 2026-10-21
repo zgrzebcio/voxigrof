@@ -11,6 +11,20 @@ square. Every door opens onto a gravel path 2-3 wide that winds round the buildi
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
 ones, grass paths, and no loose sand drifted over the yards.
 
+**0.84777.** Sugar cane can be placed on sugar cane. A coconut put on top of a block sits on it and stays; hung under one it hangs.
+
+**0.84775.** The palm has a hollow log. Sugar cane stacks on sugar cane by hand as high as you like (it still grows to 5 by itself). A coconut with nothing solid over it falls, in creative too, where it leaves nothing.
+
+**0.84774.** Rime leaves drop a rime sapling: plant it on snow, dirt or grass, it grows in any season into a slender spire of rime. Saplings grow new trees: an oak forking into limbs under clusters of leaves, a tall slender birch with a narrow airy crown, and a spruce that comes up as one of five (the usual cone, very tall, a narrow pole, a twin top, or wide and old). The world's own trees are unchanged.
+
+**0.84773.** Creative: a bone ash block used on a sapling gives it 4 days of growing (2-4 uses grow the tree).
+
+**0.84772.** A chest opens under water. Creative shows nothing on the lens. The coconut is in the creative palette beside the gourds.
+
+**0.84771.** A block standing in water lets its water run out into an open space beside or under it, and stays wet. Water that runs out beside the world's own still water, with still water on two sides and a floor under it, settles into still water: a block dug out under a lake's surface fills back with still water. A bucket's water and lava stay finite.
+
+**0.8477.** Blocks that are not whole keep still water round them: a slab, stairs, wall, fence, pane, cover, door or carpet (one that does not fall), a chest, a ladder, a crystal or unlit torch, a gem cluster or a hollow log put into still water stands in it, you swim there, and breaking it leaves the water. A chest opened under water lets out bubbles. Flowing water is pushed out as before.
+
 **0.84766.** Eating a mushroom stew or a half coconut gives the bowl back half the time, a bottle of water the bottle 95% of the time, milk always its bucket; the tooltip says what is left and how often.
 
 **0.84765.** Thin logs that step sideways (an acacia's limbs) are joined by an elbow instead of standing apart. Hiding the HUD hides the block outline too.
@@ -617,8 +631,9 @@ much of it is left; the tooltip gives the time in minutes and seconds. At zero, 
 is lost — the feed says "spoiled" — and the clock starts again on the next one, so a stack rots one
 at a time.
 
-**Berry bushes (0.827)** come in five kinds, each growing through six stages in its own look (sprout, small, bush,
-bare, green fruit, ripe); a picked one drops back to bare and fruits again. Every berry fills you the same, plus:
+**Berry bushes (0.827)** come in five kinds, each growing through seven stages in its own look (sprout, small, young,
+bush, bare, green fruit, ripe; the young stage and new art for the last three since 0.84778); a picked one drops back to bare and
+fruits again. Every berry fills you the same, plus:
 - **Red:** heals 2. Grows in forests, most of all high on the mountains.
 - **Blue:** 1.5x the thirst. Grows rarely, by forest lakes and shores.
 - **Black (blackberries):** poisonous. Grows in dark, cold forests like the spruce.

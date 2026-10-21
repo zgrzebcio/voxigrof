@@ -171,6 +171,8 @@ const _TORCH_TIP_DIR = [null, [1, 0], [-1, 0], [0, 1], [0, -1]];
 function tryLightTorch(hit) {
   if (!hit || !lightTorchTargets(hit.id)) return false;
   const { x, y, z } = hit, v = getBlock(x, y, z), keep = v & 0xFF00, held = heldUseId();
+  // an unlit torch standing in water (fluids/waterlog.js) takes no flame; a glow crystal still makes it a crystal torch
+  if (held === ITEM.FLINT && isWaterlogged(v)) { feedWarn('It will not catch under water'); return true; }
   if (held === ITEM.FLINT) {
     if (Math.random() >= TORCH_STRIKE_FAIL) {
       setBlock(x, y, z, B.TORCH | keep);

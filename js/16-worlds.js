@@ -273,7 +273,7 @@ function saveWorld(syncToLS = false) {
      f.spoilT ?? null]);                                               // the world clock its food last spoiled to
   const data = {
     savedAt: Date.now(),
-    cells: 3,                             // looks live in a cell's bits 16-23 (blocks/looks.js): nothing here to convert on load
+    cells: 4,                             // looks in a cell's bits 16-23 (blocks/looks.js), berry bushes in seven stages: nothing to convert on load
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     burns: serializeBurns(),              // when each torch and glow block goes out (blocks/torches.js)
     placedWater: serializePlacedWater(),  // water a bucket put down: not to drink or bottle (player/drinking.js)
@@ -374,8 +374,8 @@ async function loadWorld(w) {
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
   /* a save without the stamp 3 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
      and only here, since those ids are free for new blocks (stamp 2 still held snow-ice brick, carved snow and ice, and the
-     red and pink glassy sand as ids) */
-  const oldCells = !(data && data.cells >= 3);
+     red and pink glassy sand as ids); a save without the stamp 4 holds berry bushes in six stages (migrateBerryVal) */
+  const oldCells = !(data && data.cells >= 3), oldBerries = !(data && data.cells >= 4);
   if (data && Array.isArray(data.layers))
     for (const rec of data.layers) {
       if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[1])) continue;
@@ -402,6 +402,7 @@ async function loadWorld(w) {
         // slabs and stairs placed before 0.783 had ids of their own: now they are shapes of the full block
         let nv = migrateLegacyVal(v);
         if (oldCells) nv = migrateLookVal(nv);           // looks that were ids (blocks/legacy.js)
+        if (oldBerries) nv = migrateBerryVal(nv);        // six berry stages
         if (nv !== v) m.set(i, nv);
       }
       if (m.size) editStore.set(k, m);

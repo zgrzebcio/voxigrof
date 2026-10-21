@@ -126,7 +126,7 @@ function _fishWet(e, x, y, z) {
 function _updateFish(e, dt, tp, i) {
   const sp = FISH[e.species] || FISH.cod;
   const H = entH(e);
-  const inWater = (getBlock(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z)) & 255) === B.WATER;
+  const inWater = isWaterVal(getBlock(Math.floor(e.x), Math.floor(e.y + H * 0.5), Math.floor(e.z)));
   if (e.fleeT > 0) e.fleeT -= dt;
   if (e.flailT > 0) e.flailT -= dt;
   if (e.turnCd > 0) e.turnCd -= dt;

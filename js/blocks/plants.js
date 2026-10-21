@@ -26,10 +26,10 @@ corePart('blocks', function () {
 
      Red keeps block id 82, so an existing world's bushes stay bushes. They do each shift down one
      stage once (0.7331 renumbering), which the regrow timer undoes on its own. */
-  /* SIX STAGES since 0.827, each kind in its own art at every one: a sprout, a small bush, a bush, the bare bush a
-     picked one drops back to, green fruit, ripe. The variant byte's low three bits; a bush saved before 0.827 (four
-     stages) reads one of the first four and grows on from there. */
-  const BERRY_STAGE = { SPROUT: 0, SMALL: 1, BUSH: 2, EMPTY: 3, FRUITLING: 4, GROWN: 5 };
+  /* SEVEN STAGES, each kind in its own art at every one: a sprout, a small bush, a young one, a bush, the full bare bush a
+     picked one drops back to, green fruit, ripe. The variant byte's low three bits. A world or prefab saved with six stages
+     (without the `cells: 4` stamp) is moved up to these on load (migrateBerryVal, blocks/legacy.js). */
+  const BERRY_STAGE = { SPROUT: 0, SMALL: 1, YOUNG: 2, BUSH: 3, EMPTY: 4, FRUITLING: 5, GROWN: 6 };
   const berryStage = (v) => Math.min(BERRY_STAGE.GROWN, v & 7);
   const BERRY_BUSHES = [B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH];
   const isBerryBush = (id) => BERRY_BUSHES.includes(id);
@@ -38,7 +38,7 @@ corePart('blocks', function () {
     return { name, solid:false, opaque:false, raycast:true, noTarget:true,
       pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass',
       boxes:[[0.1,0,0.1,0.9,0.9,0.9]], faces:[tiles[BERRY_STAGE.GROWN]],
-      tilesByVar:[...tiles, tiles[5], tiles[5]],         // indexed by stage (6 and 7 never happen: ripe)
+      tilesByVar:[...tiles, tiles[BERRY_STAGE.GROWN]],   // indexed by stage (7 never happens: ripe)
       desc: '', ...extra };
   };
   // what each likes and gives: the berries' own effects are on the items below
@@ -46,7 +46,7 @@ corePart('blocks', function () {
   PROPS[B.BLUEBERRY_BUSH]   = _berryBush('Blue berry bush',   'BLUE',  { desc: 'Grows by water: forest lakes and shores, rarely.' });
   PROPS[B.BLACKBERRY_BUSH]  = _berryBush('Blackberry bush',   'BLACK', { desc: 'Grows in dark, cold forests like the spruce. Its berries are poisonous.' });   // 0.7947 (yellow until 0.8099)
   // the yellow one glows: a little with green fruit, more when ripe (light by stage, 08-light-glow.js)
-  PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Yellow berry bush', 'YELLOW', { lightByVar: [0, 0, 0, 0, 3, 7, 7, 7],
+  PROPS[B.YELLOWBERRY_BUSH] = _berryBush('Yellow berry bush', 'YELLOW', { lightByVar: [0, 0, 0, 0, 0, 3, 7, 7],
                                           desc: 'Grows rarely in the darkest forests and on the dirt of caves, and glows as it ripens.' });
   PROPS[B.WHITEBERRY_BUSH]  = _berryBush('White berry bush',  'WHITE', { desc: 'Grows in light, sunny forests like the birch.' });
   PROPS[B.PINCUSHION] = { name:'Pincushion', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.7,0.75]], faces:[T.PINCUSHION], desc: '' };
@@ -91,18 +91,24 @@ corePart('blocks', function () {
                         faces:SEASHELL_FACES, partFaces:[SEASHELL_FACES, SEASHELL_FACES, Array(6).fill(T.SEASHELL_SIDE)],
                         desc: 'Found on sea beaches. Pick it up by hand' };
   /* Coconut: hangs under a palm's crown, the top of its box against the frond's rib above it (woods/coconuts.js sprouts and
-     grows it). Variant bits 0-2 its stage, 0 a sprout .. COCO_RIPE ripe: the box grows from 3/16 to 8/16 across, green
+     grows it); with variant bit 3 (COCO_RESTING) it sits on the block under it instead, the same box from its floor up (put on top
+     of a block in creative: player/place-block.js). Variant bits 0-2 its stage, 0 a sprout .. COCO_RIPE ripe: the box grows from 3/16 to 8/16 across, green
      until ripe (its art and the green look built from it, 03-atlas.js). A hatchet takes a ripe one as a coconut, a green one
      gives nothing (50-loottable.js); a ripe one may fall by itself and crack open on the ground (blocks/falling.js). */
-  const COCO_RIPE = 5;
-  const _cocoBox = (st) => { const s = 3 + Math.min(st, COCO_RIPE), o = (16 - s) / 2; return [_m16(o, 16 - s, o, 16 - o, 16, 16 - o)]; };
+  const COCO_RIPE = 5, COCO_RESTING = 8;
+  // stage st's box, hanging from the top of the cell or (resting) sitting on its floor
+  const _cocoBox = (st, resting) => {
+    const s = 3 + Math.min(st, COCO_RIPE), o = (16 - s) / 2;
+    return [resting ? _m16(o, 0, o, 16 - o, s, 16 - o) : _m16(o, 16 - s, o, 16 - o, 16, 16 - o)];
+  };
   const COCO_FACES = [T.COCONUT_SIDE, T.COCONUT_SIDE, T.COCONUT_TOP, T.COCONUT_TOP, T.COCONUT_SIDE, T.COCONUT_SIDE];
   const COCO_YOUNG = [T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_TOP, T.COCONUT_YOUNG_TOP, T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_SIDE];
-  const COCO_BOXES = Array.from({ length: 8 }, (_, va) => _cocoBox(va));
-  PROPS[B.COCONUT] = { name:'Coconut', solid:false, opaque:false, raycast:true, noInv:true, pass:0, model:'carpet',
+  const COCO_BOXES = Array.from({ length: 16 }, (_, va) => _cocoBox(va & 7, !!(va & COCO_RESTING)));
+  /* in the creative palette (placed ripe: player/place-block.js); in survival it only ever comes as the coconut item (blockDrop) */
+  PROPS[B.COCONUT] = { name:'Coconut', solid:false, opaque:false, raycast:true, pass:0, model:'carpet',
                        stack:1, hardness:1.2, type:'wood', boxes:COCO_BOXES[COCO_RIPE], boxesByVar:COCO_BOXES, fullUV:true,
                        faces:COCO_FACES, facesByVar:Array.from({ length: 8 }, (_, va) => (va >= COCO_RIPE ? COCO_FACES : COCO_YOUNG)),
-                       ripeStage:COCO_RIPE, hangs:true,   // held by the rib above it, never by gravity (woods/coconuts.js drops it)
+                       ripeStage:COCO_RIPE, resting:COCO_RESTING, hangs:true,   // held from above (or resting, from below), never by gravity: woods/coconuts.js drops it
                        fallHurt:0.5,          // what a falling one does to who it hits, of a sand block's (blocks/falling.js)
                        desc: '' };
   // the clay bricks block is TERRACOTTA since 0.8093 (same id, same recipe); its brick look is a variant

@@ -202,7 +202,7 @@ function _tickPosesDraw(list, t) {
 /* A held torch goes out with your head under water: no light, no warmth, and the hand that holds it
    (player/hands.js, 40-shield.js) is put away until you surface. */
 function torchDoused(p = player) {
-  return !!p && !!p.pos && (getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)) & 255) === B.WATER;
+  return !!p && !!p.pos && isWaterVal(getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)));
 }
 
 /* THE CHUNK STREAM'S TURN, first in every frame (frame() calls it before the simulation): which chunks are wanted,
@@ -442,7 +442,8 @@ function runWorldTick(dt, now) {
    range. Called once per viewport so each player's eye gets its own tint — one player underwater
    must not turn everyone else's view blue. */
 function applyEyeVolumeFog() {
-  const eyeId = getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) & 255;
+  const eyeVal = getBlock(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z));
+  const eyeId = isWaterVal(eyeVal) ? B.WATER : eyeVal & 255;   // an eye in a block standing in water is under water
   const far = drawDist() * 16;              // over the far ring
   if (eyeId === B.LAVA) {
     sharedUniforms.fogColor.value.set(0.72, 0.22, 0.0);

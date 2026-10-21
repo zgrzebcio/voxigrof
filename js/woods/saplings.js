@@ -1,8 +1,9 @@
 'use strict';
-/* woods/saplings.js: saplings growing into trees. The clock, and the trees built by the page: _growRound (oak,
-   birch), _growCone (spruce), _growPalm. They are the page's own copies of the generator's shapes
-   (woods/gen-tree-loop.js and woods/gen-palms.js; change both). Which wood grows which is its `grow` in the woods
-   table (woods/woods.js). */
+/* woods/saplings.js: saplings growing into trees. The clock, and the trees built by the page. The palm (_growPalm), the
+   acacia (_growAcacia), the spruce's usual cone (_growCone) and the rime spire (_growRimeSpire) are the page's own copies of
+   the generator's shapes (woods/gen-*.js; change both). The oak (_growOak), the birch (_growBirch) and the spruce's four
+   other kinds (_growSpruce) grow from saplings only: the world's own trees stay as the generator makes them. Which wood
+   grows which is its `grow` in the woods table (woods/woods.js). */
 
 /* ---- saplings: grow into full trees after 7-14 in-game days ----
    Placed saplings register in SAPLINGS with a target worldDay. Each frame we compare current
@@ -117,24 +118,221 @@ function _growCone(x, y, z, wood) {
   }
   for (let t = 1; t <= 2; t++) _putSoft(x, topY + t, z, LEAF);
 }
-// the small round tree: a short trunk under a blob of leaves. `wood`: whose log and leaves it is built of
-function _growRound(x, y, z, wood) {
-  const LOG = wood.log, LEAF = wood.leaves;
-  const h = 4 + Math.floor(Math.random() * 3);         // 4..6
-  setBlock(x, y, z, LOG);                              // trunk starts at sapling cell (overwrites it)
-  for (let k = 1; k < h; k++) _putSoft(x, y + k, z, LOG);
-  // canopy: 3x3x3 blob centered near top, with rounded corners
-  const top = y + h;
-  for (let dy = -1; dy <= 1; dy++)
-    for (let dz = -2; dz <= 2; dz++)
-      for (let dx = -2; dx <= 2; dx++) {
-        if (dx === 0 && dz === 0 && dy < 1) continue;   // don't overwrite trunk mid-canopy
-        const r = Math.abs(dx) + Math.abs(dz) + Math.abs(dy);
-        if (r > 3) continue;
-        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;   // clip corners
-        _putSoft(x + dx, top + dy, z + dz, LEAF);
+/* ---- the newer trees, grown from saplings only (the world's own trees are woods/gen-*.js and stay as they are) ----
+   Their limbs are walked a cell at a time, a run along X or Z lying that way and a rise standing upright, so every turn is
+   an elbow the log mesher joins (chunks/mesher-logs.js). Every leaf stays within the leaves' reach of wood
+   (isLeavesConnected, woods/leaf-decay.js: five leaves). */
+const _treeRand = (a, b) => a + Math.random() * (b - a);
+const _treeIrand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+// one of a wood's logs, `w` its width index, along `axis` (0 up, 1 X, 2 Z)
+const _treeLog = (wood, w, axis = 0) => wood.log | ((axis | (Math.round(w) << 2)) << 8);
+// a trunk from the sapling's cell up `th` cells, its width w(t) from the foot (t 0) to the top (t 1)
+function _treeTrunk(x, y, z, wood, th, w) {
+  for (let k = 0; k < th; k++) {
+    const v = _treeLog(wood, w(k / Math.max(1, th - 1)));
+    if (k === 0) setBlock(x, y, z, v); else _putSoft(x, y + k, z, v);
+  }
+}
+/* A limb out of (x0, y0, z0) along the heading (dx, dz), climbing `rise` a step, `len` steps, its width w0 to w1. Each step
+   moves a cell at most on each axis, a log for each move. Returns the cell it ends in. */
+function _treeLimb(wood, x0, y0, z0, dx, dz, rise, len, w0, w1) {
+  let fx = 0, fz = 0, fy = 0, px = x0, py = y0, pz = z0;
+  for (let s = 1; s <= len; s++) {
+    fx += dx; fz += dz; fy += rise;
+    const w = w0 + (w1 - w0) * (s / len);
+    const nx = x0 + Math.round(fx), nz = z0 + Math.round(fz), ny = y0 + Math.round(fy);
+    if (nx !== px) { px = nx; _putSoft(px, py, pz, _treeLog(wood, w, 1)); }
+    if (nz !== pz) { pz = nz; _putSoft(px, py, pz, _treeLog(wood, w, 2)); }
+    if (ny !== py) { py = ny; _putSoft(px, py, pz, _treeLog(wood, w, 0)); }
+  }
+  return [px, py, pz];
+}
+// the leaves the tree being grown has put down, for _treePrune
+const _treeLeaves = [];
+function _treeLeaf(x, y, z, leaf) {
+  _putSoft(x, y, z, leaf);
+  if ((getBlock(x, y, z) & 255) === leaf) _treeLeaves.push(x, y, z);
+}
+/* The tree grown: any of its leaves that cannot reach wood (isLeavesConnected, woods/leaf-decay.js) goes at once, rather than
+   rotting away over the next minutes. Every tree below ends with it. */
+function _treePrune() {
+  for (let i = 0; i < _treeLeaves.length; i += 3) {
+    const x = _treeLeaves[i], y = _treeLeaves[i + 1], z = _treeLeaves[i + 2];
+    if (_isLeaf(getBlock(x, y, z) & 255) && !isLeavesConnected(x, y, z)) setBlock(x, y, z, B.AIR);
+  }
+  _treeLeaves.length = 0;
+}
+/* a ragged ellipsoid of leaves round (cx, cy, cz), rx across and ry up and down, its outer shell thinned by `rim`; only cells
+   within five steps of the wood it hangs on (a, a cell [x, y, z]) */
+function _treeLeafBlob(cx, cy, cz, rx, ry, leaf, a, rim = 0.35) {
+  const ix = Math.ceil(rx), iy = Math.ceil(ry);
+  for (let oy = -iy; oy <= iy; oy++)
+    for (let oz = -ix; oz <= ix; oz++)
+      for (let ox = -ix; ox <= ix; ox++) {
+        const d = Math.sqrt((ox * ox + oz * oz) / (rx * rx) + (oy * oy) / (ry * ry));
+        if (d > 1 || (d > 0.72 && Math.random() < rim)) continue;
+        const x = cx + ox, y = cy + oy, z = cz + oz;
+        if (Math.abs(x - a[0]) + Math.abs(y - a[1]) + Math.abs(z - a[2]) > 5) continue;
+        _treeLeaf(x, y, z, leaf);
       }
-  _putSoft(x, top + 2, z, LEAF);
+}
+// a skirt of needles on one layer round the trunk: a diamond of radius `rad` (5 at most), its rim kept at `keep` (and hung one lower at `droop`)
+function _treeSkirt(cx, ly, cz, rad, keep, leaf, droop = 0) {
+  rad = Math.min(5, rad);
+  for (let oz = -rad; oz <= rad; oz++)
+    for (let ox = -rad; ox <= rad; ox++) {
+      const d = Math.abs(ox) + Math.abs(oz);
+      if (d > rad || (d === rad && Math.random() > keep)) continue;
+      _treeLeaf(cx + ox, ly, cz + oz, leaf);
+      if (d === rad && d <= 4 && droop && Math.random() < droop) _treeLeaf(cx + ox, ly - 1, cz + oz, leaf);
+    }
+}
+/* The OAK: a stout trunk that forks near its top into two to four limbs reaching up and out, each under its own ragged cluster
+   of leaves, one more cluster over the fork between them, and a low bough or two with a tuft: a wide, uneven crown with light
+   between its clusters. */
+function _growOak(x, y, z, wood = WOODS.oak) {
+  const th = _treeIrand(4, 6), LEAF = wood.leaves;
+  _treeTrunk(x, y, z, wood, th, (t) => 28 - 4 * t);
+  const top = y + th - 1, limbs = _treeIrand(2, 4), a0 = Math.random() * Math.PI * 2;
+  for (let l = 0; l < limbs; l++) {
+    const a = a0 + l * (Math.PI * 2 / limbs) + _treeRand(-0.5, 0.5);
+    const end = _treeLimb(wood, x, top - (l % 2), z, Math.cos(a), Math.sin(a), _treeRand(0.5, 0.9), _treeIrand(2, 4), 19, 14);
+    _treeLeafBlob(end[0], end[1] + 1, end[2], _treeRand(2.2, 3), _treeRand(1.6, 2.1), LEAF, end);
+  }
+  _treeLeafBlob(x, top + 2, z, _treeRand(2.2, 2.8), 1.8, LEAF, [x, top, z]);
+  for (let b = _treeIrand(0, 2); b > 0; b--) {
+    const a = Math.random() * Math.PI * 2;
+    const end = _treeLimb(wood, x, y + _treeIrand(2, Math.max(2, th - 2)), z, Math.cos(a), Math.sin(a), 0.3, _treeIrand(1, 2), 15, 12);
+    _treeLeafBlob(end[0], end[1] + 1, end[2], 1.4, 1, LEAF, end, 0.25);
+  }
+  _treePrune();
+}
+/* The BIRCH: a tall slender trunk, bare for about its lower half, two to four short twigs up it each with a tuft, and a narrow
+   upright oval crown high up, loose and gappy so light comes through, standing a little over the trunk's top. */
+function _growBirch(x, y, z, wood = WOODS.birch) {
+  const th = _treeIrand(8, 12), LEAF = wood.leaves;
+  _treeTrunk(x, y, z, wood, th, (t) => 20 - 6 * t);
+  const top = y + th - 1, c0 = top - _treeIrand(4, 5);
+  for (let n = _treeIrand(2, 4); n > 0; n--) {
+    const a = Math.random() * Math.PI * 2;
+    const end = _treeLimb(wood, x, _treeIrand(Math.max(y + 3, c0 - 2), top - 1), z, Math.cos(a), Math.sin(a), 0.8, _treeIrand(1, 2), 12, 10);
+    _treeLeafBlob(end[0], end[1], end[2], 1.3, 1.2, LEAF, end, 0.3);
+  }
+  for (let ly = c0; ly <= top + 2; ly++) {
+    const t = (ly - c0) / Math.max(1, top + 2 - c0);
+    const r = 1.2 + 1.3 * Math.sin(Math.PI * Math.min(1, t * 1.15)), ri = Math.ceil(r);   // widest a third of the way up
+    for (let oz = -ri; oz <= ri; oz++)
+      for (let ox = -ri; ox <= ri; ox++) {
+        const d = Math.hypot(ox, oz);
+        if (d > r || (d > r - 0.8 && Math.random() < 0.4) || Math.random() < 0.08) continue;   // a ragged rim, and gaps
+        _treeLeaf(x + ox, ly, z + oz, LEAF);
+      }
+  }
+  _treePrune();
+}
+/* The SPRUCE, one of five at random: the usual cone (_growCone above), a very tall old one, a narrow pole, a twin top and a
+   wide old one with its skirts sweeping to the ground. */
+function _growSpruce(x, y, z, wood = WOODS.spruce) {
+  const r = Math.random();
+  if (r < 0.3) return _growCone(x, y, z, wood);
+  if (r < 0.48) return _spruceTall(x, y, z, wood);
+  if (r < 0.66) return _sprucePole(x, y, z, wood);
+  if (r < 0.83) return _spruceTwin(x, y, z, wood);
+  return _spruceWide(x, y, z, wood);
+}
+// very tall (26-34): a long bare stem, a narrow cone high up
+function _spruceTall(x, y, z, wood) {
+  const sh = _treeIrand(26, 34), LEAF = wood.leaves;
+  _treeTrunk(x, y, z, wood, sh, (t) => 32 - 18 * t);
+  const base = y + Math.round(sh * 0.4), top = y + sh - 1, span = Math.max(1, top - base);
+  for (let ly = base; ly <= top; ly++) {
+    const t = (ly - base) / span;
+    let rad = Math.max(1, Math.round(3.2 - 2.3 * t));
+    if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
+    _treeSkirt(x, ly, z, rad, 0.85 - 0.5 * t, LEAF);
+  }
+  for (let k = 1; k <= 2; k++) _treeLeaf(x, top + k, z, LEAF);
+  _treePrune();
+}
+// a narrow pole (14-20): thin and pointed, tight short skirts all the way down
+function _sprucePole(x, y, z, wood) {
+  const sh = _treeIrand(14, 20), LEAF = wood.leaves;
+  _treeTrunk(x, y, z, wood, sh, (t) => 24 - 12 * t);
+  const base = y + 2, top = y + sh - 1, span = Math.max(1, top - base);
+  for (let ly = base; ly <= top; ly++) {
+    const t = (ly - base) / span;
+    _treeSkirt(x, ly, z, ((ly - base) % 2) === 1 || t > 0.6 ? 1 : 2, 0.9 - 0.3 * t, LEAF);
+  }
+  for (let k = 1; k <= 2; k++) _treeLeaf(x, top + k, z, LEAF);
+  _treePrune();
+}
+// a twin top (16-22): the cone forks two thirds of the way up into two spires, a block either side of the trunk
+function _spruceTwin(x, y, z, wood) {
+  const sh = _treeIrand(16, 22), LEAF = wood.leaves, fork = y + Math.round(sh * 0.65), top = y + sh - 1;
+  _treeTrunk(x, y, z, wood, fork - y + 1, (t) => 30 - 10 * t);
+  const base = y + 2, span = Math.max(1, fork - base);
+  for (let ly = base; ly <= fork; ly++) {
+    const t = (ly - base) / span;
+    let rad = Math.max(2, Math.round(4 - 2 * t));
+    if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
+    _treeSkirt(x, ly, z, rad, 0.85 - 0.3 * t, LEAF);
+  }
+  const alongX = Math.random() < 0.5, axis = alongX ? 1 : 2;
+  for (const s of [1, -1]) {
+    const sx = x + (alongX ? s : 0), sz = z + (alongX ? 0 : s);
+    _putSoft(sx, fork, sz, _treeLog(wood, 18, axis));                // out of the fork...
+    const n = top - fork;
+    for (let k = 1; k <= n; k++) {                                 // ...and up
+      const t = k / Math.max(1, n);
+      _putSoft(sx, fork + k, sz, _treeLog(wood, 18 - 6 * t));
+      _treeSkirt(sx, fork + k, sz, (k % 2) === 1 && t < 0.7 ? 2 : 1, 0.8 - 0.3 * t, LEAF);
+    }
+    for (let k = 1; k <= 2; k++) _treeLeaf(sx, top + k, sz, LEAF);
+  }
+  _treePrune();
+}
+// a wide old one (16-22): a broad stump, heavy skirts from just over the ground, their rims hanging
+function _spruceWide(x, y, z, wood) {
+  const sh = _treeIrand(16, 22), LEAF = wood.leaves;
+  _treeTrunk(x, y, z, wood, sh, (t) => 36 - 20 * t);
+  const base = y + 1, top = y + sh - 1, span = Math.max(1, top - base);
+  for (let ly = base; ly <= top; ly++) {
+    const t = (ly - base) / span;
+    let rad = Math.max(1, Math.round(4.6 - 3.6 * t));               // 5 at its foot: the leaves' reach
+    if (((ly - base) % 2) === 1) rad = Math.max(1, rad - 1);
+    _treeSkirt(x, ly, z, rad, 0.9 - 0.4 * t, LEAF, t < 0.6 ? 0.5 : 0);
+  }
+  for (let k = 1; k <= 2; k++) _treeLeaf(x, top + k, z, LEAF);
+  _treePrune();
+}
+/* The RIME tree from its sapling: the generator's SPIRE (woods/gen-rime-trees.js: change both), tall and slender, tight tiers
+   of rime whose rims droop under the frost */
+function _growRimeSpire(x, y, z) {
+  const sh = _treeIrand(13, 21), base = y + 2, top = y + sh - 1;
+  _treeTrunk(x, y, z, WOODS.rime, sh, (t) => 26 - 12 * t);
+  for (let ly = base; ly <= top; ly++) {
+    const t = (ly - base) / Math.max(1, top - base), tier = (ly - base) % 3;
+    const rad = Math.max(1, Math.round(2.6 - 1.8 * t)) - (tier === 2 ? 1 : 0);
+    if (rad >= 1) _treeSkirt(x, ly, z, rad, 0.8, B.RIME_LEAVES, tier === 0 ? 0.6 : 0);
+  }
+  for (let k = 1; k <= 2; k++) _treeLeaf(x, top + k, z, B.RIME_LEAVES);
+  _treePrune();
+}
+/* Creative: a bone ash block used on a sapling (player/place-block.js) gives it BONE_ASH_DAYS of growing at once, to watch a tree
+   come up without waiting: two to four of them and it grows on the spot. A sapling not on the clock (one the world grew, or one
+   from before a reload) is put on it first. Survival has no fertiliser yet: bone ash is for the farming update. */
+const BONE_ASH_DAYS = 4;
+function feedSapling(x, y, z) {
+  const id = getBlock(x, y, z) & 255;
+  if (!isSapling(id)) return false;
+  const k = x + ',' + y + ',' + z;
+  if (!SAPLINGS.has(k)) armSapling(x, y, z, id);
+  const r = SAPLINGS.get(k);
+  r.grown += BONE_ASH_DAYS;
+  if (typeof fxPuff === 'function') fxPuff(x + 0.5, y + 0.4, z + 0.5, [0.95, 0.93, 0.85], 8, 0.8);
+  if (r.grown >= r.need) { SAPLINGS.delete(k); _growTree(x, y, z, id); toast('The sapling grows into a tree'); }
+  else toast(`Sapling: ${Math.floor(r.grown)} of ${r.need} days grown`);
+  return true;
 }
 function updateSaplings() {
   if (SAPLINGS.size === 0) return;
@@ -144,7 +342,8 @@ function updateSaplings() {
     const cur = getBlock(x, y, z) & 255;
     if (cur !== r.type) { stale.push(k); continue; }               // broken / replaced
     const now = worldClockDays();
-    r.grown += Math.max(0, now - r.last) * seasonGrowth();
+    // a hardy wood (rime) grows in winter too, at its full pace
+    r.grown += Math.max(0, now - r.last) * (woodOf(r.type)?.hardy ? 1 : seasonGrowth());
     r.last = now;
     if (r.grown >= r.need) {
       stale.push(k);

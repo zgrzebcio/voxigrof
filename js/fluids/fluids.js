@@ -155,6 +155,27 @@ function _fluidWashed(x, y, z, wid) {
     for (const d of blockDrop(wid)) spawnDrop(d.id, x, y, z, undefined, undefined, null, null, 0, d.count);
   }
 }
+/* Water that runs out beside the world's own still water SETTLES: a flowing water cell with natural still water (a source, or a
+   block standing in water, blocks/waterlog.js) on SETTLE_SIDES or more of its four sides, and a floor under it (a solid block or
+   such still water), is written as still water itself. So a block dug out of a lake or a river under its surface fills back
+   with still water, as the lake was, and a slab or a door can stand in it again (fluids/waterlog.js takes only still water). A
+   bucket's water (PLACED_WATER, player/drinking.js) does not count: it stays finite, as does lava. */
+const SETTLE_SIDES = 2;
+function _settleWater(x, y, z, now) {
+  if ((now & 255) !== B.WATER || ((now >> 8) & 7) === 0) return now;
+  const natural = (xx, yy, zz) => {
+    const v = getBlock(xx, yy, zz);
+    return (isWaterlogged(v) || ((v & 255) === B.WATER && ((v >> 8) & 7) === 0)) && !PLACED_WATER.has(_pwKey(xx, yy, zz));
+  };
+  let n = 0;
+  if (natural(x + 1, y, z)) n++;
+  if (natural(x - 1, y, z)) n++;
+  if (natural(x, y, z + 1)) n++;
+  if (natural(x, y, z - 1)) n++;
+  if (n < SETTLE_SIDES) return now;
+  if (!CORE.solidVal(getBlock(x, y - 1, z)) && !natural(x, y - 1, z)) return now;   // over air or a fall: it runs on
+  return B.WATER;
+}
 function _fluidWrite() {
   const b = _fluidBatch, t0 = performance.now(), areas = new Map();
   let n = 0;
@@ -165,7 +186,8 @@ function _fluidWrite() {
   structBulkLight = true;                                // light once per area below, not once a cell
   try {
     while (_fluidAt < b.length && n < FLUID_WRITE_MAX * lim) {
-      const x = b[_fluidAt], y = b[_fluidAt + 1], z = b[_fluidAt + 2], was = b[_fluidAt + 3], now = b[_fluidAt + 4];
+      const x = b[_fluidAt], y = b[_fluidAt + 1], z = b[_fluidAt + 2], was = b[_fluidAt + 3];
+      const now = _settleWater(x, y, z, b[_fluidAt + 4]);   // beside the world's own still water it settles (above)
       _fluidAt += 5; n++;
       if (getBlock(x, y, z) !== was) {                   // built over meanwhile: it looks again
         _fluidStat.rejected++;

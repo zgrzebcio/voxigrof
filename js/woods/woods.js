@@ -9,8 +9,7 @@
    WHAT AN ENTRY HOLDS (a wood leaves out what it does not have)
 
      its blocks, by id
-       log, stripped, hollow, planks, leaves, sapling     (rime and acacia have no sapling, palm no hollow log, the
-                                                           dry bush only leaves)
+       log, stripped, hollow, planks, leaves, sapling     (the dry bush has only leaves)
      what it is like
        name       what it is called
        tree       false: not a tree (the dry bush). Its leaves stand on the ground: they never decay, never
@@ -26,8 +25,9 @@
        xp         { log, hollow, sapling }: XP for breaking its log and its hollow log, and for a sapling of it
                   that grew (player/leveling.js). Not given: that block pays what any block pays
      its sapling
-       saplingOn  'sandy_dirt': sandy dirt only (the palm). Not given: grass only
+       saplingOn  'sandy_dirt': sandy dirt only (the palm); 'cold': snow, dirt or grass (rime). Not given: grass only
                   (player/place-block.js)
+       hardy      true: it grows in winter too, at its full pace (rime; woods/saplings.js)
        grow       (x, y, z) => builds its tree where its sapling stood (the shapes: woods/saplings.js)
 
    WHO READS IT: the fire table (53-storms.js), the recipe groups (items/recipes.js), charcoal and sapling fuel

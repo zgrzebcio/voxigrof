@@ -441,9 +441,10 @@ function openChest(x, y, z) {
   if (b) { const rb = CHESTS.get(activeChest2); if (rb) fillPendingLoot(b.x, b.y, b.z, rb.slots); }
   // ONE sound for the whole chest, single or double — it's one lid action either way
   playSound('chestOpen', { gain: 0.8, pos: { x: a.x + 0.5, y: a.y + 0.5, z: a.z + 0.5 } });
-  if (typeof fxPuff === 'function') {                // a dust puff from under the lid
-    fxPuff(a.x + 0.5, a.y + 0.9, a.z + 0.5, [0.8, 0.74, 0.62], 6);
-    if (b) fxPuff(b.x + 0.5, b.y + 0.9, b.z + 0.5, [0.8, 0.74, 0.62], 6);
+  // a dust puff from under the lid; under water, bubbles instead (fluids/waterlog.js)
+  for (const c of b ? [a, b] : [a]) {
+    if (isWaterlogged(getBlock(c.x, c.y, c.z))) { if (typeof waterlogChestOpened === 'function') waterlogChestOpened(c.x, c.y, c.z); }
+    else if (typeof fxPuff === 'function') fxPuff(c.x + 0.5, c.y + 0.9, c.z + 0.5, [0.8, 0.74, 0.62], 6);
   }
   toggleInventory(true);
 }
@@ -524,9 +525,9 @@ function updateChestUnseal(dt, held) {
   openChest(u.x, u.y, u.z);
   return 0;
 }
-// something on top of the chest that is not another chest
+// something on top of the chest that is not another chest, nor water (a chest under water opens: fluids/waterlog.js)
 const CHEST_COVERED_MSG = 'Clear the top of the chest first';
-const chestCovered = (x, y, z) => { const up = getBlock(x, y + 1, z) & 255; return up !== B.AIR && !isChestId(up); };
+const chestCovered = (x, y, z) => { const up = getBlock(x, y + 1, z) & 255; return up !== B.AIR && up !== B.WATER && !isChestId(up); };
 // the chest tab's name: "Chest", "Large Chest", "Iron Chest", "Large Gold Chest"
 function chestTabName() {
   const p = activeChest ? activeChest.split(',').map(Number) : null;

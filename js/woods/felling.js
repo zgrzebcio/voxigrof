@@ -282,8 +282,8 @@ function updateSnowMelt(dt) {
 function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _meltAir.clear(); _meltSnowing.clear(); }
 
 /* ---- berry bush regrowth ----
-   A bush below `grown` climbs one stage at a time, sprout -> small -> bush -> empty -> fruitling -> grown (six
-   since 0.827; a picked one drops back to empty), each stage on its own jittered countdown. Same adoption sweep as litter rot and snow melt: bushes the generator
+   A bush below `grown` climbs one stage at a time, sprout -> small -> young -> bush -> empty -> fruitling -> grown (seven,
+   blocks/plants.js; a picked one drops back to empty), each stage on its own jittered countdown. Same adoption sweep as litter rot and snow melt: bushes the generator
    placed (or a save restored) are picked up the first time the sweep sees them, and a bush you
    just picked is queued immediately so its clock starts on the pick rather than on a later sweep. */
 const berryGrow = new Map();        // "x,y,z" -> seconds until this bush advances one stage

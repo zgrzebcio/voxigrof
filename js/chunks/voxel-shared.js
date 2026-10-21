@@ -20,7 +20,7 @@ corePart('voxel', function () {
           FLINT_ROCK_BOX, GOURD_BOX, FULL_UV_BOX, _gourd, _carvedFaces, _carved, SHAPE_SLAB, SHAPE_STAIRS,
           SHAPE_PANE, SHAPE_FENCE, SHAPE_MASK, ROT_MASK, SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, SHAPE_COVER,
           SHAPE_WALL, VARIANT_BLOCKS, _ALL_PLANKS, _ROCKS,
-          LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal, WEB_EDGES, webCornerEdge,
+          LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal, WEB_EDGES, webCornerEdge, WATERLOGGED, isWaterlogged, isWaterVal, canWaterlog,
           pillarOfVal, nameOfVal, matKey, stackEntry, stackVal, _ROCK_LOOK_IDS,
           _SANDSTONES, _GLOWS, _NO_COVER, _METALS, _GEM_COAL, SHAPE_BLOCKS, LAYER_STACKING, VARIANT_FAMILIES,
           CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal, SHAPE_SLAB_MIX,

@@ -122,7 +122,7 @@ function makeSkeleton() {
 
 function _zombieBurnTick(e, dt) {
   const hx = Math.floor(e.x), hz = Math.floor(e.z);
-  const wet = (getBlock(hx, Math.floor(e.y + 0.4), hz) & 255) === B.WATER;
+  const wet = isWaterVal(getBlock(hx, Math.floor(e.y + 0.4), hz));
   const lit = isBurningDaylight() && !wet && getSkyWorld(hx, Math.floor(e.y + 1.5), hz) >= 15;
   if (!lit) {
     e.sunT = 0;

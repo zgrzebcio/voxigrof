@@ -84,7 +84,10 @@ function buildItemDropGeom(id, iconName, cacheKey) {
   return passes;
 }
 
-function buildDropGeom(id, variant = 0) {
+/* `variant`: the block's variant byte (and look). Left out, it is the block as a thing held or lying about: a coconut then
+   full-grown and resting on its floor, as its icon (a falling one passes its own) */
+function buildDropGeom(id, variant) {
+  if (variant == null) variant = id === B.COCONUT ? PROPS[id].ripeStage | PROPS[id].resting : 0;
   if (id >= 256) return buildItemDropGeom(id);
   if (id === B.DOOR) return buildItemDropGeom(id, 'oak_door');   // no chunk-mesh model — sprite drop
   if (id === B.BED)  return [{ node: bedItemNode(bedWoodOf(variant)) }];   // real mesh, not a flat sprite; in its wood

@@ -20,6 +20,8 @@ corePart('blocks', function () {
   PROPS[B.RIME_LOG]          = { name:'Rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:5.0, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.RIME_LOG,T.RIME_LOG,T.RIME_LOG_TOP,T.RIME_LOG_TOP,T.RIME_LOG,T.RIME_LOG], desc: 'Frozen wood from the Coldest Deep Snow' };
   PROPS[B.STRIPPED_RIME_LOG] = { name:'Stripped rime log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG_TOP,T.STRIPPED_RIME_LOG,T.STRIPPED_RIME_LOG], desc: '' };
   PROPS[B.RIME_PLANKS]       = { name:'Rime planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.5, type:'wood', faces:Array(6).fill(T.RIME_PLANKS), desc: '' };
+  PROPS[B.RIME_SAPLING]      = { name:'Rime sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.RIME_SAPLING],
+                                 desc: 'Plant it on snow, dirt or grass. It grows in any season' };
   PROPS[B.RIME_LEAVES]       = { name:'Rime leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.5, type:'grass', faces:Array(6).fill(T.RIME_LEAVES), desc: 'Needles under a crust of frost' };
   /* Palm: the oases' and warm shores' tree, a slim bending trunk under a crown of drooping fronds. Its sapling
      takes grass, dirt or sand. */

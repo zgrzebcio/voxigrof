@@ -136,6 +136,26 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
 - **0.84762.** `B.BONE_ASH_BLOCK` 240 (a retired look's id; T 438 built in 03-atlas.js from the ash block's art, `whitened`): loose like sand
   (LOOSE_LAYER_BLOCKS, SHAPE_BLOCKS.layer, LAYER_STACKING). New recipes appended (packed ice <-> ice, the metal chest, gravel -> flint and cactus ->
   fiber at the mortar, bone ash block <-> bone ash); iron armor's ingots doubled; half coconut `foodReturn: ITEM.BOWL`.
+- **0.8477, waterlogging.** A cell's bit 24 `WATERLOGGED` = the block also stands in still water (blocks/waterlog.js, BLOCK_CORE: `isWaterlogged`,
+  `isWaterVal` = water or a wet block, `canWaterlog`: not-whole shapes, a carpet that does not fall, clusters, hollow logs, PROPS `waterlog`).
+  ONE rule, in setBlock: `waterlogValue(oldVal, val)` (fluids/waterlog.js): put into still water (source) it keeps it, a wet block turning
+  into another waterloggable value keeps it, taken away it leaves `B.WATER`, the bit is stripped anywhere else (wand copies). The mesher
+  draws a wet cell's water as a still source (`gw` in fluids/mesher-fluids.js, mesher-finish.js); the flow never enters one (`open`,
+  fluids/rules.js). 0.84771: the flow reads a wet cell as a still water source (`asFluid` in `rd`, rules.js) and `wr`
+  refuses to write one, so it spills out and stays; the page settles flowing water with natural still water on 2+ sides and a floor (`_settleWater`,
+  fluids/fluids.js, applied to the sim's writes; PLACED_WATER and lava excluded). Test it all headless: `node toolsrc\test-waterlog.js`
+  (24 checks, exit 1 on a failure; it reads waterlogValue and _settleWater out of their files). Ask `isWaterVal(getBlock(...))`, not `& 255 === B.WATER`, where a body is in water
+  (player tick, eye, torch doused, fog, creatures). Sky light does not dim through a wet cell.
+- **0.84778.** Berry bushes in SEVEN stages (`BERRY_STAGE` in blocks/plants.js: SPROUT 0, SMALL 1, YOUNG 2 new, BUSH 3, EMPTY 4, FRUITLING 5,
+  GROWN 6). Tiles: stages 0-5 keep T 326 + kind x 6 + stage, each kind's stage 6 is T 440-444 (blocks/tiles.js, 03-atlas.js end). Saves:
+  stamp `cells: 4` (16-worlds.js, prefabs in 34-structures.js); without it `migrateBerryVal` (blocks/legacy.js) moves stage 2+ one up.
+  `TERRAIN_KEY` bumped (cached chunks held the old numbers). The variant bar names all six below ripe (blocks/variants.js).
+- **0.84774.** `B.RIME_SAPLING` 241 (a retired look's id; T 439 built in 03-atlas.js from `cherry_sapling`, a TEXTURES source with no tile,
+  `recolored` with `RIME_SAPLING_TINT`). Woods table: `saplingOn: 'cold'` (snow, dirt or grass, player/place-block.js), `hardy` (grows in winter).
+  Sapling trees only (woods/saplings.js; world generation untouched): `_growOak`, `_growBirch`, `_growSpruce` (cone or `_spruceTall` / `_sprucePole` /
+  `_spruceTwin` / `_spruceWide`), `_growRimeSpire` (a copy of gen-rime-trees.js' SPIRE). Built with `_treeTrunk`, `_treeLimb` (a cell per axis move, so
+  every turn is a mesher elbow), `_treeLeafBlob` (within 5 of its wood), `_treeSkirt`; each ends with `_treePrune` (drops leaves
+  isLeavesConnected cannot reach). Page names are one scope: `_limb` was taken (the humanoid rig), hence the `_tree` prefix.
 - **0.84765.** Log corners (chunks/mesher-logs.js, emitLog's 3rd joint rule): two same-axis wood logs side by side, one ending at +axis and the
   other at -axis, each draw an arm to the shared face (`joins`) and cut their open end back to its band (`clipHi`/`clipLo`); mesh only, all worlds.
   `hudHidden` hides `selBox` and the wand lines (36-splitscreen.js).

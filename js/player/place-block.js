@@ -40,6 +40,8 @@ function _doPlace() {
   if (!player.canFly && isChestId(hit.id)) { useChest(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // a block with a variant picked places as that variant: stone as stone brick (blocks/variants.js)
   const heldId = heldBlockOf(slotId(HOTBAR[hotbarSel]));
+  // creative: a bone ash block on a sapling hastens it instead of being placed (feedSapling, woods/saplings.js)
+  if (player.canFly && heldId === B.BONE_ASH_BLOCK && isSapling(hit.id & 255) && feedSapling(hit.x, hit.y, hit.z)) { handPlaceSwing = true; return; }
   // buckets: fill empty bucket from a water source, or pour a water source from a full one
   if (heldId === ITEM.BUCKET || heldId === ITEM.WATER_BUCKET || heldId === ITEM.LAVA_BUCKET) { useBucket(heldId, hit); return; }
   /* Fire in the hand: the open cell on the face you click is set alight, or the plant you click itself. It is
@@ -190,7 +192,9 @@ function _doPlace() {
   const torchWall = !!PROPS[id].torch && hit.ny === 0 && !!(hit.nx || hit.nz) && !ontoPlant
                  && isSolid(hit.x, hit.y, hit.z);
   // ...and a cobweb, which can be strung anywhere: floor, wall or ceiling
-  if (!torchWall && id !== B.COBWEB && (PROPS[id].topOnly || PROPS[id].model === 'cross') && !isSolid(px, py - 1, pz)) return;
+  // ...and sugar cane on sugar cane, the cane under it its ground (its own checks are below)
+  const caneOnCane = id === B.SUGAR_CANE && (getBlock(px, py - 1, pz) & 255) === B.SUGAR_CANE;
+  if (!torchWall && id !== B.COBWEB && !caneOnCane && (PROPS[id].topOnly || PROPS[id].model === 'cross') && !isSolid(px, py - 1, pz)) return;
   // a glow vine only hangs on the SIDE of a solid block
   const vineWall = PROPS[id].model === 'wall';
   if (vineWall && (hit.ny !== 0 || !(hit.nx || hit.nz) || ontoPlant || !isSolid(hit.x, hit.y, hit.z))) return;
@@ -204,7 +208,13 @@ function _doPlace() {
   // palm: the woods table, woods/woods.js)
   const sandSapling = isSapling(id) && woodOf(id).saplingOn === 'sandy_dirt';
   if (sandSapling && (getBlock(px, py - 1, pz) & 255) !== B.SANDY_DIRT) return;   // the palm: sandy dirt only
-  if (isSapling(id) && !sandSapling) {
+  // ...and 'cold' (rime) snow, dirt or grass
+  const coldSapling = isSapling(id) && woodOf(id).saplingOn === 'cold';
+  if (coldSapling) {
+    const b = getBlock(px, py - 1, pz) & 255;
+    if (b !== B.SNOW && b !== B.DIRT && b !== B.GRASS && !potSoil(getBlock(px, py - 1, pz))) return;
+  }
+  if (isSapling(id) && !sandSapling && !coldSapling) {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;                  // a planter works too
   }
@@ -214,17 +224,12 @@ function _doPlace() {
     const bv = getBlock(px, py - 1, pz), b = bv & 255;
     if (CORE.layerCount(bv) || (b !== B.GRASS && b !== B.DIRT && b !== B.SAND && b !== B.RED_SAND && !potSoil(bv) && !potSand(bv))) return;
   }
-  // sugar cane: on top of an existing cane (stack up to 5), OR on sand (any)/grass/dirt/gravel with an
-  // adjacent water block at the same y as the ground. Reject otherwise.
+  // sugar cane: on top of an existing cane (by hand as high as you like; it grows to CANE_MAX_H by itself, seasons/growth.js),
+  // OR on sand (any)/grass/dirt/gravel with an adjacent water block at the same y as the ground. Reject otherwise.
   if (id === B.SUGAR_CANE) {
     const below = getBlock(px, py - 1, pz) & 255;
     const isCaneBelow = below === B.SUGAR_CANE;
-    if (isCaneBelow) {
-      // count column height so far (below the target cell)
-      let baseY = py - 1;
-      while (baseY > 0 && (getBlock(px, baseY - 1, pz) & 255) === B.SUGAR_CANE) baseY--;
-      if (py - baseY >= 5) return;                                       // already 5 tall
-    } else {
+    if (!isCaneBelow) {
       if (below !== B.SAND && below !== B.RED_SAND && below !== B.PINK_SAND && below !== B.GRASS && below !== B.DIRT
           && below !== B.GRAVEL) return;
       // must have water at ground level in any of 4 side neighbors of the block BELOW
@@ -330,6 +335,8 @@ function _doPlace() {
   const growth = isBerryBush(id) || id === B.WHEAT;
   if (growth) varb = typeof variantOptions === 'function' && variantOptions(slotId(slot)) ? heldVariantBitsOf(slotId(slot))
                    : isBerryBush(id) ? BERRY_STAGE.GROWN : 0;
+  // a coconut from the creative palette goes down ripe: hung under what you click, or resting on a block's top face
+  if (id === B.COCONUT) varb = PROPS[id].ripeStage | (hit.ny === 1 && isSolid(px, py - 1, pz) ? PROPS[id].resting : 0);
   if (rot === 'side') {
     // front faces the player: facing = horizontal direction from block toward player
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
@@ -346,6 +353,7 @@ function _doPlace() {
   clearPlantAt(px, py, pz);                 // grass in the way is destroyed, not a blocker
   setBlock(px, py, pz, (id | (varb << 8) | (look << 16)) >>> 0);
   if (caneSprout && typeof queueCaneGrow === 'function') queueCaneGrow(px, py, pz);
+  if (id === B.COCONUT && typeof coconutPlaced === 'function') coconutPlaced(px, py, pz);   // nothing over it: it falls (woods/coconuts.js)
   playBlockSound(id, 'place', px, py, pz);
   if (isChestId(id)) {                        // a metal chest too
     tryPairChest(px, py, pz, varb & 3);       // link to a lone same-facing neighbour, if any

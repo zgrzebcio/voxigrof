@@ -509,7 +509,7 @@ const playerSightMul = () => (typeof skillSightMul === 'function' ? skillSightMu
    as it fills. The clocks are ON THE PLAYER: this runs once per seat. */
 function _tickOxygen(dt) {
   const p = player;
-  const eyeUnder = (getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)) & 255) === B.WATER;
+  const eyeUnder = isWaterVal(getBlock(Math.floor(p.pos.x), Math.floor(p.pos.y + p.EYE), Math.floor(p.pos.z)));
   p._eyeUnder = eyeUnder;
   if (eyeUnder && !p.flying) {
     p._airRegenT = 0;                               // 0.829

@@ -12,6 +12,8 @@ function updateVitals(dt) {
   if (survival !== vitalsShown) {
     vitalsShown = survival;
     vitalsEl.style.display = survival ? 'block' : 'none';
+    // ...and the stamina and oxygen under the crosshair at once: the repaint that hides them comes after the creative return below
+    if (!survival && typeof vitalsNearEl !== 'undefined' && vitalsNearEl) vitalsNearEl.style.display = 'none';
     vitalsDirty = true;
   }
   // hurt vignette fade-out (runs in any mode so it never sticks)
@@ -112,7 +114,7 @@ function updateVitals(dt) {
      The clock is on the player, since this runs once per seat. */
   if (player.fireT > 0) {
     const p = player.pos;
-    const wet = (getBlock(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)) & 255) === B.WATER;
+    const wet = isWaterVal(getBlock(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)));
     if (wet || player.canFly || player.dead) {
       if (wet && typeof playSound === 'function') playSound('fireOff', { gain: 0.8, pos: { x: p.x, y: p.y, z: p.z } });   // 0.8191
       player.fireT = 0;

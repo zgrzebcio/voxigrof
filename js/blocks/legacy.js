@@ -1,7 +1,7 @@
 'use strict';
 /* blocks/legacy.js: old saves. Ids that were slabs, stairs and layers of their own before shapes became variants, and ids that
    were looks before looks moved into the cell's bits, are turned into today's values (migrateLegacyVal, migrateLegacyLayers,
-   migrateLookVal, migrateLookEntry, legacyItemId). */
+   migrateLookVal, migrateLookEntry, legacyItemId), and berry bushes saved with six stages get the seventh's place (migrateBerryVal). */
 
 /* Slabs and stairs had ids of their own until 0.783 ([base, stairs?] per old id, 37 was the retired cactus
    slab). Saved edits, inventories and prefabs holding one are converted here into the shape variant of
@@ -53,6 +53,13 @@ function migrateLookVal(v) {
   if (typeof v !== 'number') return v;
   const nv = CORE.LOOK_OF_OLD_ID[v & 255];
   return nv == null ? v : ((nv | (v & 0xFF00)) >>> 0);
+}
+/* Berry bushes had six stages (sprout, small, bush, bare, green fruit, ripe) until the young one came in as stage 2: an old
+   bush from stage 2 on moves one up (blocks/plants.js BERRY_STAGE). Run ONLY on data without the `cells: 4` stamp. */
+function migrateBerryVal(v) {
+  if (typeof v !== 'number' || !isBerryBush(v & 255)) return v;
+  const st = (v >> 8) & 7;
+  return st < 2 ? v : (((v & ~0x700) | ((st + 1) << 8)) >>> 0);
 }
 // ...and an entry of a side list (a mixed slab's half, a mixed stack's layer): id | look << 8
 const migrateLookEntry = (e) => { const nv = CORE.LOOK_OF_OLD_ID[e & 255]; return nv == null ? e : stackEntry(nv); };

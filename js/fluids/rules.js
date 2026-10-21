@@ -22,7 +22,8 @@ corePart('voxel', function () {
          those cells have a drop under them, only into those.
        - Two fluids meet as their entries' `meets` say (water and lava: flowing water turns to stone; a lava source to
          obsidian; flowing lava turns water to cobble).
-     Finite: nothing ever makes a new source. */
+     Finite: nothing here makes a new source. (The page settles water that runs out beside the world's own still water:
+     _settleWater, fluids/fluids.js. A block standing in water is a source to these rules: asFluid below.) */
   const FL_SLOT = 0.05;                                       // the schedule's grain: one sim tick (s)
   const FL_OFF = 2097152, FL_SPAN = 4194304;                  // a cell's key: x and z in -2^21 .. 2^21, y 0..255
   const flKey = (x, y, z) => ((x + FL_OFF) * FL_SPAN + (z + FL_OFF)) * 256 + y;
@@ -35,20 +36,31 @@ corePart('voxel', function () {
     const parked = new Map();               // chunk key -> cell keys waiting outside the sim range
     let parkedN = 0, nowSlot = 0, factor = 1, steps = 0;
     const ov = new Map(), was = new Map();  // this step's writes, and what those cells held before it
+    /* A block standing in water (WATERLOGGED, blocks/waterlog.js) is a still water source to the flow: it spreads, falls and
+       feeds like one. It is never written (wr refuses it), so the block in it stays and its water never runs dry or turns
+       to stone. Water is the only fluid a block can stand in, so this one line names it. */
+    const asFluid = (v) => (v >= 0 && (v & WATERLOGGED)) ? B.WATER : v;
     const rd = (x, y, z) => {
       if (y < 0) return -1;                 // under the world: rock
       if (y > CY - 1) return 0;
       if (ov.size) { const v = ov.get(flKey(x, y, z)); if (v !== undefined) return v; }
-      return get(x, y, z);
+      return asFluid(get(x, y, z));
     };
-    const wr = (x, y, z, v) => { const k = flKey(x, y, z); if (!was.has(k)) was.set(k, get(x, y, z)); ov.set(k, v); };
+    const wr = (x, y, z, v) => {
+      const g = get(x, y, z);
+      if (g >= 0 && (g & WATERLOGGED)) return;
+      const k = flKey(x, y, z);
+      if (!was.has(k)) was.set(k, g);
+      ov.set(k, v);
+    };
     const lvl = (v) => (v >> 8) & 7;
     const isF = (v, f) => v >= 0 && (v & 255) === f;
     const isFluid = (v) => v >= 0 && FLUID_IS[v & 255] === 1;       // any fluid in the table
     // does fluid f do something where it touches what is in cell value v (its entry's `meets` names that fluid)
     const meetsV = (f, v) => v >= 0 && FLUID[f].meets !== undefined && FLUID[f].meets[v & 255] !== undefined;
-    // room for a fluid: air, or a plant it washes away, or a loose pebble it rolls off (PROPS `washes`: flint, stone)
-    const open = (v) => v >= 0 && ((v & 255) === B.AIR || (!!PROPS[v & 255] && (PROPS[v & 255].model === 'cross' || !!PROPS[v & 255].washes)));
+    // room for a fluid: air, or a plant it washes away, or a loose pebble it rolls off (PROPS `washes`: flint, stone).
+    // Never a block standing in water (blocks/waterlog.js): a torch or a ladder in it is not washed out
+    const open = (v) => v >= 0 && !(v & WATERLOGGED) && ((v & 255) === B.AIR || (!!PROPS[v & 255] && (PROPS[v & 255].model === 'cross' || !!PROPS[v & 255].washes)));
     // can fluid f at (x, y, z) go down: air or a plant under it, or its own kind flowing
     const canDrop = (x, y, z, f) => { if (y <= 0) return false; const b = rd(x, y - 1, z); return open(b) || (isF(b, f) && lvl(b) > 0); };
     /* ...and with only its own kind under it (no air): fluid over fluid. It still runs down into that, but it also spreads
@@ -138,7 +150,7 @@ corePart('voxel', function () {
       const look = (x, y, z) => { const v = rd(x, y, z); if (isFluid(v) && loose(x, y, z, v)) { queue(x, y, z); n++; } };
       for (let y = y0; y <= y1; y++)
         for (let z = 0; z < 16; z++)
-          for (let x = 0; x < 16; x++) { const v = get(x0 + x, y, z0 + z); if (isFluid(v) && loose(x0 + x, y, z0 + z, v)) { queue(x0 + x, y, z0 + z); n++; } }
+          for (let x = 0; x < 16; x++) { const v = asFluid(get(x0 + x, y, z0 + z)); if (isFluid(v) && loose(x0 + x, y, z0 + z, v)) { queue(x0 + x, y, z0 + z); n++; } }
       if (edges)
         for (let y = 0; y < CY; y++)
           for (let k = 0; k < 16; k++) { look(x0 - 1, y, z0 + k); look(x0 + 16, y, z0 + k); look(x0 + k, y, z0 - 1); look(x0 + k, y, z0 + 16); }

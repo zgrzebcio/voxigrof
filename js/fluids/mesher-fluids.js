@@ -10,6 +10,9 @@ corePart('mesh.chunk', function () {
        sky light (about a third at 3 deep, three fifths at 7, four fifths by 20), worked out at each CORNER from the cells round it
        so the colour fades across the surface instead of in squares. A falling sheet (water with air beside it) is no
        depth: a waterfall and its lip stay light. Depths are kept per column for this mesh. */
+    /* every read of a cell by the water below goes through gw: a block standing in water (WATERLOGGED, blocks/waterlog.js) is
+       still water to it, so the water round it joins up with no faces between, and its own water is drawn as a still source */
+    const gw = (x, y, z) => { const v = gb(x, y, z); return (v & WATERLOGGED) ? B.WATER : v; };
     const WATER_DEPTH_MAX = 20, _wDepth = new Map();
     const _wDark = (d) => 0.86 * (1 - Math.exp(-d / 6));   // the shader also turns it opaque, deep (04-materials.js)
     const _airLike = (v) => { const id = v & 255; return id !== B.WATER && !(P[id] && P[id].opaque); };
@@ -19,16 +22,16 @@ corePart('mesh.chunk', function () {
       if (d !== undefined) return d;
       // a column the mesher cannot see (diagonal to a chunk corner) has no surface to count
       if ((cx2 < 0 || cx2 > 15) && (cz2 < 0 || cz2 > 15)) d = -1;
-      else if ((gb(cx2, y, cz2) & 255) !== B.WATER || (gb(cx2, y + 1, cz2) & 255) === B.WATER) d = -1;
+      else if ((gw(cx2, y, cz2) & 255) !== B.WATER || (gw(cx2, y + 1, cz2) & 255) === B.WATER) d = -1;
       else {
         d = 0;
-        while (d < WATER_DEPTH_MAX && (gb(cx2, y - 1 - d, cz2) & 255) === B.WATER) {
+        while (d < WATER_DEPTH_MAX && (gw(cx2, y - 1 - d, cz2) & 255) === B.WATER) {
           const yy = y - 1 - d;
-          if (_airLike(gb(cx2 + 1, yy, cz2)) || _airLike(gb(cx2 - 1, yy, cz2)) || _airLike(gb(cx2, yy, cz2 + 1)) || _airLike(gb(cx2, yy, cz2 - 1))) { d = Math.min(d, 1); break; }
+          if (_airLike(gw(cx2 + 1, yy, cz2)) || _airLike(gw(cx2 - 1, yy, cz2)) || _airLike(gw(cx2, yy, cz2 + 1)) || _airLike(gw(cx2, yy, cz2 - 1))) { d = Math.min(d, 1); break; }
           d++;
         }
         // the surface cell itself beside air: a fall's lip, as light as the sheet under it
-        if (_airLike(gb(cx2 + 1, y, cz2)) || _airLike(gb(cx2 - 1, y, cz2)) || _airLike(gb(cx2, y, cz2 + 1)) || _airLike(gb(cx2, y, cz2 - 1))) d = Math.min(d, 1);
+        if (_airLike(gw(cx2 + 1, y, cz2)) || _airLike(gw(cx2 - 1, y, cz2)) || _airLike(gw(cx2, y, cz2 + 1)) || _airLike(gw(cx2, y, cz2 - 1))) d = Math.min(d, 1);
       }
       _wDepth.set(k, d);
       return d;
@@ -42,7 +45,7 @@ corePart('mesh.chunk', function () {
        on a chunk's corner never sinks at all - the four chunks sharing it each see a different three of its cells, and
        one sinking it while another did not opened a slit in the water at every chunk corner. */
     const _seen = (cx2, cz2) => !((cx2 < 0 || cx2 > 15) && (cz2 < 0 || cz2 > 15));
-    const _spillCell = (cx2, y, cz2) => _seen(cx2, cz2) && _airLike(gb(cx2, y, cz2)) && !(P[gb(cx2, y - 1, cz2) & 255] && P[gb(cx2, y - 1, cz2) & 255].opaque);
+    const _spillCell = (cx2, y, cz2) => _seen(cx2, cz2) && _airLike(gw(cx2, y, cz2)) && !(P[gw(cx2, y - 1, cz2) & 255] && P[gw(cx2, y - 1, cz2) & 255].opaque);
     const _lipCorner = (vx, y, vz) => !((vx === 0 || vx === 16) && (vz === 0 || vz === 16)) &&
       (_spillCell(vx - 1, y, vz - 1) || _spillCell(vx, y, vz - 1) || _spillCell(vx - 1, y, vz) || _spillCell(vx, y, vz));
     function quadW(pass, c0, c1, c2, c3, u0, u1, u2, u3, tile, s0, s1, s2, s3, l0, l1, l2, l3, d0 = 0, d1 = 0, d2 = 0, d3 = 0) {
@@ -98,7 +101,7 @@ corePart('mesh.chunk', function () {
          reading dark over deep water while the side faces beside it read bright. Submerged and
          flowing cells keep the neighbour-max value, which is what rescues shore water from the
          opaque sand's zero light. */
-      const openTop = (gb(x, y + 1, z) & 255) !== B.WATER;
+      const openTop = (gw(x, y + 1, z) & 255) !== B.WATER;
       const surfLite = (level === 0 && openTop) ? topLite() : null;
       const sideLite = (nx, ny, nz) =>
         surfLite !== null ? surfLite : maxLite(gl(nx, ny, nz), gl(x, y, z));
@@ -122,7 +125,7 @@ corePart('mesh.chunk', function () {
         quadW(2, [x0,y+hc[0],z0],[x0,y+hc[1],z1],[x1,y+hc[2],z1],[x1,y+hc[3],z0], uv[0], uv[1], uv[2], uv[3], tt, sv[0], sv[1], sv[2], sv[3], lt, lt, lt, lt, dv[0], dv[1], dv[2], dv[3]);
       }
       // bottom: only if below is not water/opaque
-      const belowRaw = gb(x, y - 1, z), belowId = belowRaw & 255;
+      const belowRaw = gw(x, y - 1, z), belowId = belowRaw & 255;
       if (belowId !== B.WATER && !opaqueVal(belowRaw))                      // a slab or a carpet under it shows it
         quad(2, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,0],[1,0],[1,1],[0,1], tile, 140, sideLite(x, y - 1, z));
       /* shade 253 marks "waving surface vertex" → only an open source surface waves; flowing stays static.
@@ -132,8 +135,8 @@ corePart('mesh.chunk', function () {
          joined to the water it runs into. A side's top follows the corners (a lip's sunk ones). */
       const topS = (i) => level === 0 && openTop && !lip[i] ? 253 : 0;    // 0 = fall through to base shade below
       // how high the water stands in a neighbour cell (1 under more water), and whether its top waves
-      const nH = (raw, nx, nz) => (gb(nx, y + 1, nz) & 255) === B.WATER ? 1 : (8 - ((raw >> 8) & 7)) / 9;
-      const nWave = (raw, nx, nz) => ((raw >> 8) & 7) === 0 && (gb(nx, y + 1, nz) & 255) !== B.WATER ? 253 : 0;
+      const nH = (raw, nx, nz) => (gw(nx, y + 1, nz) & 255) === B.WATER ? 1 : (8 - ((raw >> 8) & 7)) / 9;
+      const nWave = (raw, nx, nz) => ((raw >> 8) & 7) === 0 && (gw(nx, y + 1, nz) & 255) !== B.WATER ? 253 : 0;
       /* one side: corners a (bottom-left to top-left) and b in the vertex order the old faces used; ca/cb index hc */
       const side = (nRaw, nx, nz, ca, cb, P0, P1, ua, ub, base) => {
         const nId = nRaw & 255;
@@ -150,10 +153,10 @@ corePart('mesh.chunk', function () {
         quadV(2, [P0[0], y + fa, P0[1]], [P0[0], y + ha, P0[1]], [P1[0], y + hb, P1[1]], [P1[0], y + fb, P1[1]],
               [ua, fa], [ua, ha], [ub, hb], [ub, fb], fall, footS || base, topS(ca) || base, topS(cb) || base, footS || base, lt);
       };
-      side(gb(x + 1, y, z), x + 1, z, 3, 2, [x1, z0], [x1, z1], 1, 0, 178);   // +X
-      side(gb(x - 1, y, z), x - 1, z, 1, 0, [x0, z1], [x0, z0], 1, 0, 178);   // -X
-      side(gb(x, y, z + 1), x, z + 1, 2, 1, [x1, z1], [x0, z1], 1, 0, 216);   // +Z
-      side(gb(x, y, z - 1), x, z - 1, 0, 3, [x0, z0], [x1, z0], 1, 0, 216);   // -Z
+      side(gw(x + 1, y, z), x + 1, z, 3, 2, [x1, z0], [x1, z1], 1, 0, 178);   // +X
+      side(gw(x - 1, y, z), x - 1, z, 1, 0, [x0, z1], [x0, z0], 1, 0, 178);   // -X
+      side(gw(x, y, z + 1), x, z + 1, 2, 1, [x1, z1], [x0, z1], 1, 0, 216);   // +Z
+      side(gw(x, y, z - 1), x, z - 1, 0, 3, [x0, z0], [x1, z0], 1, 0, 216);   // -Z
     }
     // ---- per-block lava: same as water (pass 3, opaque, slower waves) ----
     function emitLava(x, y, z, val) {
