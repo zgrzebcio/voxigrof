@@ -32,7 +32,7 @@ function clampi(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 /* Stamped onto worlds at create + each load, and it also KEYS THE ASSET CACHES (see 03-atlas.js),
    so bumping it discards a stale stitched atlas — which is how 0.7291's darkened-blocks fix
    reaches anyone who already has one cached. */
-const GAME_VERSION = '0.84691';    // looks in a cell's bits: every look's icon is drawn anew   // 0.8469: carved looks, terracotta roof, thatch, obsidian brick; cobblestone art moved   // 0.8465: the leather strip   // 0.8463: the bronze armor's pictures   // 0.8461: the acacia sapling, the short grass, the acacia chest's colour   // 0.846: acacia wood, the Savanna's golden grass, the chitin plate   // 0.8455: the chest art in four sheets, the metal chest   // 0.8411: the Dryland's pale grass and dry leaves   // 0.84: palm wood, palm sapling, dry grass, tall dry grass, dry bush   // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
+const GAME_VERSION = '0.84762';   // the bone ash block (the ash block's art in white)   // 0.8476: the seashell block, the cobweb's three looks (moved to Billboards/cobweb)   // 0.8475: the coconut: its block art (and its green look), the coconut and half coconut   // 0.8472: the flint pebble's model art, the seashell   // 0.84701: a one-block sandy band   // 0.847: sandy dirt   // 0.84692: snow, ice and glassy sand looks in a cell's bits   // 0.84691: looks in a cell's bits: every look's icon is drawn anew   // 0.8469: carved looks, terracotta roof, thatch, obsidian brick; cobblestone art moved   // 0.8465: the leather strip   // 0.8463: the bronze armor's pictures   // 0.8461: the acacia sapling, the short grass, the acacia chest's colour   // 0.846: acacia wood, the Savanna's golden grass, the chitin plate   // 0.8455: the chest art in four sheets, the metal chest   // 0.8411: the Dryland's pale grass and dry leaves   // 0.84: palm wood, palm sapling, dry grass, tall dry grass, dry bush   // 0.836: rime wood tiles   // 0.835492: water art's lines softened   // 0.835491: fast flow and fall water tiles   // 0.835: packed ice   // 0.8342: bed in four tinted part sheets   // 0.8341: torch glow overlays, torches in their own folder   // 0.834: fire, unlit and crystal torches, spent glow blocks   // 0.833: ice, snow and bone bricks, bone block   // 0.8321: ice, snow moved to Winter   // 0.829: sugar cane stages and column pieces   // 0.8273: ripe wheat from wheat_stage6   // 0.827: every berry bush's own six stages   // 0.8241: glassy sands   // 0.823: warm and cold grass   // 0.822: pink sand, sandstone looks   // 0.821: one sheet per mushroom, yellow and grilled mushrooms   // 0.8191: ash block   // 0.81: wheat growth stages
 // blackberry bush art
 // blackberries icon, pumpkin pie art
 // item textures moved (containers, powders, raw ores)
@@ -82,15 +82,20 @@ const SIM_FIXED = true, SIM_HZ = 20, SIM_DT = 1 / SIM_HZ, SIM_MAX_FRAME = 0.5, S
    half as light again as 0.8441 had it (0.414 and 1.5; 0.8442's 0.331 and 1.2 were real but too small a step to
    see: the cave floor went from 10% of daylight to 12%, and is 15% now). The two multiply in a cave at night. */
 const SKY_FLOOR_0843 = 0.414, NIGHT_LIGHTEN_0843 = 1.5;
-/* a quarter of the darkness that was left taken off again. A cave's floor goes a quarter of the way from 0.414
-   to full daylight (0.56), and the night's light a quarter more (1.875: its ambient 0.32, the day's is 0.368). Cloud
-   shadows are half as dark too (CLOUD_SHADOW_MUL, 04-materials.js). */
-const SKY_FLOOR = SKY_FLOOR_0843 + (1 - SKY_FLOOR_0843) * 0.25, NIGHT_LIGHTEN = NIGHT_LIGHTEN_0843 * 1.25;
+/* A cave's floor: a quarter of the way from 0.414 to full daylight (0.56), then 30% darker (CAVE_DARKEN: 0.39), so a cave
+   wants a torch again. The night's light a quarter more than 0843's (1.875: its ambient 0.32, the day's is 0.368). Cloud
+   shadows are half as dark (CLOUD_SHADOW_MUL, 04-materials.js). */
+const CAVE_DARKEN = 0.7;
+const SKY_FLOOR = (SKY_FLOOR_0843 + (1 - SKY_FLOOR_0843) * 0.25) * CAVE_DARKEN, NIGHT_LIGHTEN = NIGHT_LIGHTEN_0843 * 1.25;
 /* Raw mouse for looking around (17-input.js): the pointer lock asks for the mouse's own movement, without the
    system's pointer acceleration, which made fast strokes (the ones a low frame rate draws out of you) turn further than
    slow ones. Falls back to the ordinary lock where the browser has none. false = the ordinary lock, as before.
    A setting since 0.8443: Options > Gameplay "Raw mouse input" (on unless switched off; applySettings, 17-input.js). */
 let rawMouse = (() => { try { return localStorage.getItem('vg_rawmouse') !== 'off'; } catch { return true; } })();
+// the wrong-tool hint beside the crosshair (ui/hud.js updateWrongToolHint; Options > Gameplay, vg_wrongtool)
+let wrongToolHint = (() => { try { return localStorage.getItem('vg_wrongtool') !== 'off'; } catch { return true; } })();
+// Arachnophobia: no spiders on cobwebs or from under pebbles (49-particles.js; Options > Gameplay, vg_arachno)
+let arachnophobia = (() => { try { return localStorage.getItem('vg_arachno') === 'on'; } catch { return false; } })();
 /* Work handed to the worker threads. SEASON_WORKER_SCAN: a chunk's hourly season
    pass gets its list of cells worth a look from a worker instead of walking all of the chunk (seasons/seasons.js).
    LIGHT_WORKER: a new chunk's own sky light is worked out in the worker as it is made (09-light-sky.js). */

@@ -12,13 +12,14 @@
      houndPose    its gait, the bite, sitting, lying, the glow that never goes dark
 
    TAMING. While a player holds a lava mushroom a wild one leaves them alone; given the mushroom (use), the taming
-   starts and the hound is that player's for one game day (HOUND.tameS). In that day it wants kills: 5 animals, or 3
-   monsters, or 2 villagers (shares of each add up: 2 animals and 2 monsters is 107%). Two kinds of kill count:
+   starts and the hound is that player's for one game day awake (HOUND.tameS; the clock stops while it sleeps). In that
+   day it wants kills: 7 animals, or 4 monsters, or 3 villagers (shares of each add up: 4 animals and 2 monsters is 107%;
+   with the tamer's Gentle Hand a kill counts HOUND.gentle). Two kinds of kill count:
      the hound's own (its bite, or the fire its bite left)                   a poor one: it costs effectiveness
      the player's, made WITH FIRE (a torch's blow, or fire that player set)  a good one: it costs nothing
    It goes for whatever its player strikes, as in the 'attack' behaviour. Effectiveness starts at 100% and
-   only goes down: each kill the hound makes itself takes its share of HOUND.ownKillCost (an animal 10%, a monster
-   17%, a villager 25%), and what the hound is hurt meanwhile takes HOUND.hurtCost for a whole bar. It scales the
+   only goes down: each kill the hound makes itself takes its share of HOUND.ownKillCost (an animal 7%, a monster
+   13%, a villager 17%), and what the hound is hurt meanwhile takes HOUND.hurtCost for a whole bar. It scales the
    health and damage a tamed hound gains (HOUND.boostHp / boostDmg). The day run out, it turns on the player and
    never takes a mushroom again.
    A kill by a hound, or by a player with fire, leaves 1 fire (LOOT.fireKill): a hound that is not whole eats one it
@@ -29,7 +30,11 @@
      behaviours  passive (never fights) · defense (what struck you or it) · aggressive (anything within HOUND.aggroR,
                  too) · attack (what you strike, too)
      stances     follow (left HOUND.teleport behind, it comes to you) · sit · lie · wait (stands where it is)
-   Out of 'follow' it never leaves its spot: it only bites what comes within reach. */
+   Out of 'follow' it never leaves its spot: it only bites what comes within reach.
+
+   SLEEP. At night every hound lies down and sleeps (`e._sleep`, the lie pose): a wild one wakes for a player within
+   HOUND.wakeR or a blow, somebody's for a fight or for its owner walking off past HOUND.followFar. Asleep, or told to
+   lie, its fire slowly comes back (HOUND.sleepFire); in the cold it burns faster (HOUND.cold*, houndBody). */
 
 const HOUND = {
   hp: 150, food: 120, fire: 100,          // health, food, and its "water", which is fire
@@ -38,8 +43,9 @@ const HOUND = {
   sees: 16, givesUp: 30, aggroTime: 20,   // a wild one: how near it notices a player, how far it follows, how long a blow keeps it on you
   scale: 1.1,
   // taming
-  tameS: DAY_LEN,                         // one game day (20 minutes)
-  needAnimals: 5, needMonsters: 3, needNpcs: 2,
+  tameS: DAY_LEN,                         // one game day (20 minutes) of it awake: its clock stops while it sleeps
+  needAnimals: 7, needMonsters: 4, needNpcs: 3,
+  gentle: 1.2,                            // what one kill counts for with the tamer's Gentle Hand (player/skills.js)
   ownKillCost: 0.5,                       // effectiveness lost if every kill of the taming is the hound's own (each kill its share of it)
   hurtCost: 0.5,                          // effectiveness lost for a whole health bar taken while being tamed
   boostHp: 50, boostDmg: 10,              // what a perfect taming adds
@@ -53,11 +59,14 @@ const HOUND = {
   lavaHeal: 10,                           // health a second standing in lava
   regenS: 8, regenHps: 6,                 // a fire eaten, once tamed: this long, this much a second
   fireFill: 12,                           // "water" a second in lava, or beside lava or a fire
+  sleepFire: 0.15,                        // ...and a second asleep (at night, or told to lie): slowly
+  coldFrom: 5, coldTo: -25, coldBurn: 2,  // below coldFrom °C its fire burns faster, up to 1 + coldBurn times as fast at coldTo
+  wakeR: 5,                               // a wild one asleep notices a player only this near
   wetGrace: 5, wetEvery: 2, wetDmg: 5,    // seconds in water or rain before it hurts, then this much every so often
   pickR: 1.5, seekR: 10,                  // a dropped fire: eaten within pickR, walked to from seekR
   glow: 0.5,                              // how bright it is in the dark at the least
   // where it lives
-  chunkChance: 0.006, packMin: 1, packMax: 2, packApart: 48,
+  chunkChance: 0.0042, packMin: 1, packMax: 1, packApart: 120,   // alone, far apart (0.006, 1-2, 48 before 0.8471)
 };
 // what it eats from the hand and what each fills (food); fire and the lava mushroom feed its fire too
 const HOUND_FOOD = { [B.LAVA_MUSHROOM]: 50, [ITEM.FIRE]: 80, [ITEM.COAL]: 20, [ITEM.CHARCOAL]: 10 };
@@ -120,7 +129,7 @@ function houndPose(e, m, dt, swing) {
   e.lieK = (e.lieK || 0) + ((e._rest === 'lie' ? 1 : 0) - (e.lieK || 0)) * k;
   const s = e.sitK, l = e.lieK, up = 1 - Math.max(s, l);
   // the head: up on the hunt, down to sniff when idle, a lunge down and forward with each bite
-  const dipTo = e.atkAnimT > 0 ? 0.7 : e._hunt ? -0.12 : e._rest === 'lie' ? 0.3 : e._rest === 'sit' ? -0.3
+  const dipTo = e.atkAnimT > 0 ? 0.7 : e._hunt ? -0.12 : e._sleep ? 0.55 : e._rest === 'lie' ? 0.3 : e._rest === 'sit' ? -0.3
               : e.state === 'idle' ? 0.25 : 0.05;
   e.headDip = (e.headDip || 0) + (dipTo - (e.headDip || 0)) * Math.min(1, dt * (e.atkAnimT > 0 ? 14 : 4));
   animateQuadruped(m, e.walk, swing * up, e.headDip);
@@ -145,7 +154,9 @@ function houndPose(e, m, dt, swing) {
   // the tail: with its stride; a slow wag at rest when it is somebody's; a fast one for a while after a pat
   m.tail.rotation.y = Math.sin(e.walk * 0.7) * 0.2
     + (e._petT > 0 ? Math.sin(performance.now() / 70) * 0.45
-       : up < 0.5 && (e.tame || e.taming) ? Math.sin(performance.now() / 160) * 0.25 : 0);
+       : up < 0.5 && (e.tame || e.taming) && !e._sleep ? Math.sin(performance.now() / 160) * 0.25 : 0);
+  // asleep: a Z now and then over its head
+  if (e._sleep && m.root.visible && typeof _fxZ === 'function' && Math.random() < dt * 0.4) _fxZ(e.x, e.y + 0.9, e.z);
   // it is fire: never darker than its own glow, which sinks as its fire runs low
   const glow = HOUND.glow * (0.6 + 0.4 * ((e.tame || e.taming) ? Math.min(1, entThirst(e) / HOUND.fire) : 1));
   const b = Math.max(glow, _lightAt(e.x, e.y + 0.8, e.z));
@@ -172,7 +183,7 @@ function makeHellhound(opts) {
       thirst: opts.thirst >= 0 ? Math.min(HOUND.fire, +opts.thirst) : HOUND.fire,
       name: opts.name || 'Hellhound',
       tame: !!opts.tame,                        // fully tamed
-      taming: opts.taming || null,              // { left, a, m, n, lost, hurt } while its day of kills runs
+      taming: opts.taming || null,              // { left, a, m, n, lost, hurt, gh } while its day of kills runs
       noTame: !!opts.noTame,                    // a taming ran out: it takes no mushroom again
       eff: opts.eff > 0 ? +opts.eff : null,     // the effectiveness it was tamed at
       owner: null,                              // the player, found from ownerId when wanted (houndOwner)
@@ -184,8 +195,8 @@ function makeHellhound(opts) {
     },
   };
 }
-/* Called once per new chunk (trySpawnEntitiesInChunk): one or two together, in the Deep Desert and its red half,
-   never close to another pack. */
+/* Called once per new chunk (trySpawnEntitiesInChunk): one at a time (packMin..packMax), in the Deep Desert and its red
+   half, never within packApart of another. */
 function rollHellhounds(cx, cz) {
   if (Math.random() >= HOUND.chunkChance) return;
   const s = _findChunkSpot(cx, cz, HOUND_BIOMES);
@@ -220,11 +231,15 @@ const _houndFx = (e, n) => { if (typeof fxTamed === 'function') fxTamed(e.x, e.y
 
 /* ---------------------------------- its mind ----------------------------------
    Returns the speed it wants this step, having turned to face where it is going. `e._bold` = it is after something
-   and goes off a ledge or through water for it; `e._rest` = the rest pose it holds (houndPose). */
+   and goes off a ledge or through water for it; `e._rest` = the rest pose it holds (houndPose); `e._sleep` = it is asleep
+   (the lie pose, its fire coming back, a taming's clock stopped). */
+const _houndNight = () => typeof isDarkTime === 'function' && isDarkTime();
 function houndThink(e, dt, tp, inWater) {
   if (e.aggroT > 0) e.aggroT -= dt;
   if (e.atkAnimT > 0) e.atkAnimT -= dt;
   e._bold = false; e._hunt = false; e._rest = null; e._watch = null;
+  const slept = !!e._sleep;                          // asleep last step: a wild one notices less
+  e._sleep = false;
   const owner = houndOwner(e);
   // while it is being tamed, every point of health it loses is held against the taming
   if (e.taming && e._hpWas != null && e.hp < e._hpWas - 0.01) e.taming.hurt = (e.taming.hurt || 0) + (e._hpWas - e.hp);
@@ -234,9 +249,9 @@ function houndThink(e, dt, tp, inWater) {
     e.modeT -= dt;
     if (e.modeT <= 0) { e.mode = e.modeNext; e.modeNext = null; e._foe = null; _houndTell(owner, `${e.name}: ${e.mode}`); }
   }
-  if (!e.tame && !e.taming) return _houndWild(e, dt, tp, inWater);
+  if (!e.tame && !e.taming) return _houndWild(e, dt, tp, inWater, slept);
 
-  const staying = e.tame && e.stance !== 'follow';
+  const staying = e.tame && e.stance !== 'follow', night = _houndNight();
   const foe = _houndFoe(e, owner, dt);
   if (foe) {
     const dx = foe.x - e.x, dz = foe.z - e.z, d = Math.hypot(dx, dz), reach = entAttackRange(e, { R: entR(foe) });
@@ -246,7 +261,9 @@ function houndThink(e, dt, tp, inWater) {
   e.state = 'idle';
   if (staying) {
     if (inWater) return _houndSwimOut(e, dt);
-    e._rest = e.stance === 'wait' ? null : e.stance;
+    // asleep at night in any stance; told to lie, it lies as it sleeps (its fire comes back the same)
+    e._sleep = night || e.stance === 'lie';
+    e._rest = e._sleep ? 'lie' : e.stance === 'wait' ? null : e.stance;
     return 0;
   }
   // a fire lying near, when it is not whole: it goes for it (houndBody finds it and eats it)
@@ -254,7 +271,7 @@ function houndThink(e, dt, tp, inWater) {
     e.yaw = Math.atan2(e._fireAt.x - e.x, e._fireAt.z - e.z);
     return HOUND.trot;
   }
-  if (!owner || owner.dead || !owner.spawned) return inWater ? _houndSwimOut(e, dt) : 0;   // nobody to follow: it waits
+  if (!owner || owner.dead || !owner.spawned) return _houndStill(e, dt, inWater, night);   // nobody to follow: it waits
   const odx = owner.pos.x - e.x, odz = owner.pos.z - e.z, od = Math.hypot(odx, odz);
   if (od > HOUND.followFar || (e._following && od > HOUND.followNear)) {
     e._following = true;
@@ -262,7 +279,13 @@ function houndThink(e, dt, tp, inWater) {
     return (od > HOUND.followFar ? HOUND.run : HOUND.trot) * (inWater ? 0.5 : 1);
   }
   e._following = false;
-  return inWater ? _houndSwimOut(e, dt) : 0;
+  return _houndStill(e, dt, inWater, night);         // by its owner: at night it sleeps there
+}
+// standing where it is: out of water first, and asleep at night
+function _houndStill(e, dt, inWater, night) {
+  if (inWater) return _houndSwimOut(e, dt);
+  if (night) { e._sleep = true; e._rest = 'lie'; }
+  return 0;
 }
 // out of water the grazer's way: a new heading every moment until it finds the bank
 function _houndSwimOut(e, dt) {
@@ -271,11 +294,12 @@ function _houndSwimOut(e, dt) {
   return HOUND.walk * 1.5;
 }
 /* A wild one: a player in survival within HOUND.sees is hunted (one who struck it, from up to HOUND.givesUp), unless
-   they hold a lava mushroom, which it stands and watches. Otherwise it wanders its patch like any animal. */
-function _houndWild(e, dt, tp, inWater) {
+   they hold a lava mushroom, which it stands and watches. Otherwise it wanders its patch like any animal, and at night
+   sleeps: then (`slept`) it notices a player only within HOUND.wakeR, or one who struck it. */
+function _houndWild(e, dt, tp, inWater, slept) {
   const prey = !!tp && !tp.canFly && !tp.dead;
   const dx = tp.pos.x - e.x, dz = tp.pos.z - e.z, d = Math.hypot(dx, dz);
-  const near = prey && Math.abs(tp.pos.y - e.y) < 10 && (d <= HOUND.sees || (e.aggroT > 0 && d <= HOUND.givesUp));
+  const near = prey && Math.abs(tp.pos.y - e.y) < 10 && (d <= (slept ? HOUND.wakeR : HOUND.sees) || (e.aggroT > 0 && d <= HOUND.givesUp));
   const soothed = near && !e.noTame && !(e.aggroT > 0) && _houndHeldBy(tp) === B.LAVA_MUSHROOM;
   // what bit it (somebody's hound, a monster it was set on) is fought back, unless a player to hunt is the nearer
   const hb = e._hurtBy;
@@ -290,6 +314,7 @@ function _houndWild(e, dt, tp, inWater) {
   if (inWater) return _houndSwimOut(e, dt);
   // it stands where it is and follows the mushroom with its head (it turned its whole body before)
   if (soothed) { e._watch = tp; e.state = 'stay'; return 0; }
+  if (_houndNight()) { e._sleep = true; e._rest = 'lie'; e.state = 'idle'; return 0; }
   e.wanderT -= dt;
   if (e.wanderT <= 0) {
     e.wanderT = 2 + Math.random() * 5;
@@ -391,6 +416,16 @@ function houndBody(e, dt, inWater, inLava) {
     if (id === B.LAVA || id === B.FIRE) { hot = true; break; }
   }
   if (hot) e.thirst = Math.min(HOUND.fire, entThirst(e) + HOUND.fireFill * dt);
+  /* the cold burns its fire faster (on top of the slow burn every creature's thirst has, entities/update.js), by the air
+     there, looked at every 2 s; asleep it comes back slowly */
+  e._coldT = (e._coldT || 0) - dt;
+  if (e._coldT <= 0) {
+    e._coldT = 2;
+    const t = typeof airTempAt === 'function' ? airTempAt(bx, by, bz).t : 20;
+    e._coldK = Math.max(0, Math.min(1, (HOUND.coldFrom - t) / (HOUND.coldFrom - HOUND.coldTo)));
+  }
+  const fire = (e._sleep ? HOUND.sleepFire : 0) - (e._coldK || 0) * HOUND.coldBurn * ENT_THIRST_DECAY;
+  if (fire) e.thirst = Math.max(0, Math.min(HOUND.fire, entThirst(e) + fire * dt));
   // healing: lava it stands in, and the spell a fire eaten leaves
   let heal = inLava ? HOUND.lavaHeal : 0;
   if (e.regenBoost > 0) { e.regenBoost -= dt; heal += HOUND.regenHps; }
@@ -473,11 +508,14 @@ function fireKillBy(victim, by) {
       _houndCount(h, kind, false);
 }
 const _houndNeed = (kind) => kind === 'a' ? HOUND.needAnimals : kind === 'm' ? HOUND.needMonsters : HOUND.needNpcs;
+// how many of a kind alone would do, for this taming (`gh`: what a kill counts, HOUND.gentle with Gentle Hand)
+const _houndNeedOf = (t, kind) => Math.ceil(_houndNeed(kind) / ((t && t.gh) || 1) - 1e-6);
 // how far its day of kills has come, 0..1
 function houndTameProg(h) {
   const t = h.taming;
   if (!t) return h.tame ? 1 : 0;
-  return Math.min(1, (t.a | 0) / HOUND.needAnimals + (t.m | 0) / HOUND.needMonsters + (t.n | 0) / HOUND.needNpcs);
+  const k = t.gh || 1;
+  return Math.min(1, ((t.a | 0) / HOUND.needAnimals + (t.m | 0) / HOUND.needMonsters + (t.n | 0) / HOUND.needNpcs) * k);
 }
 /* What its taming is worth, 0.1..1: 100% to begin with, less what its own kills took (`lost`) and what it
    was hurt. Until 0.8451 it was the kills' average worth, so the first kill the hound made dropped it to 50% at once. */
@@ -488,7 +526,7 @@ function houndTameEff(h) {
 }
 // a kill counted for its taming; `own`: the hound made it itself, which costs its share of HOUND.ownKillCost
 function _houndCount(h, kind, own) {
-  const t = h.taming, cost = own ? HOUND.ownKillCost / _houndNeed(kind) : 0;
+  const t = h.taming, cost = own ? HOUND.ownKillCost * (t.gh || 1) / _houndNeed(kind) : 0;
   t[kind] = (t[kind] | 0) + 1;
   t.lost = (t.lost || 0) + cost;
   const owner = houndOwner(h);
@@ -532,7 +570,7 @@ function houndWorldTick(dt) {
     if (e.kind !== 'hellhound' || !(e.tame || e.taming)) continue;
     const owner = houndOwner(e);
     if (e.taming) {
-      e.taming.left -= dt;
+      if (!e._sleep) e.taming.left -= dt;            // its day counts only while it is awake
       if (e.taming.left <= 0) { _houndTameFailed(e, owner); continue; }
     }
     if (!owner || !owner.spawned || owner.dead) continue;
@@ -587,12 +625,14 @@ function tryHoundInteract() {
   if (!e.tame && !e.taming) {
     if (e.noTame) { toast('This hellhound takes no more mushrooms'); return true; }
     spend();
-    e.taming = { left: HOUND.tameS, a: 0, m: 0, n: 0, lost: 0, hurt: 0 };
+    const gh = typeof hasSkill === 'function' && hasSkill('gentleHand') ? HOUND.gentle : 1;   // Gentle Hand
+    e.taming = { left: HOUND.tameS, a: 0, m: 0, n: 0, lost: 0, hurt: 0, gh };
     e.owner = player; e.ownerId = player.profileId || null;
     e.aggroT = 0; e.state = 'idle'; e._foe = null; e._hpWas = e.hp;
     houndEat(e, held);
     _houndFx(e, 3);
-    toast(`The hellhound takes the mushroom. It wants kills within a day: ${HOUND.needAnimals} animals, ${HOUND.needMonsters} monsters or ${HOUND.needNpcs} villagers. Strike what it should hunt. Each kill it makes itself costs effectiveness; a kill you make with fire costs none`);
+    const t = e.taming;
+    toast(`The hellhound takes the mushroom. It wants kills within a day awake: ${_houndNeedOf(t, 'a')} animals, ${_houndNeedOf(t, 'm')} monsters or ${_houndNeedOf(t, 'n')} villagers. Strike what it should hunt. Each kill it makes itself costs effectiveness; a kill you make with fire costs none`);
     return true;
   }
   if (houndOwner(e) !== player) { toast(`${e.name} answers to someone else`); return true; }
@@ -621,11 +661,12 @@ function tryHoundInteract() {
 /* ---------------------------------- what the crosshair says ---------------------------------- */
 const houndStatLine = (e) =>
   `health ${Math.ceil(e.hp)}/${entMaxHp(e)} · damage ${houndDmg(e)} · food ${Math.round(entHunger(e))}/${HOUND.food}` +
-  ` · fire ${Math.round(entThirst(e))}/${HOUND.fire}`;
+  ` · fire ${Math.round(entThirst(e))}/${HOUND.fire}` + (e._sleep ? ' · asleep' : '');
 function houndTamingLine(e) {
   const t = e.taming;
   return `${Math.round(houndTameProg(e) * 100)}% · effectiveness ${Math.round(houndTameEff(e) * 100)}% · ${_mmss(t.left)} left` +
-         ` · animals ${t.a | 0}/${HOUND.needAnimals}, monsters ${t.m | 0}/${HOUND.needMonsters}, villagers ${t.n | 0}/${HOUND.needNpcs}`;
+         (e._sleep ? ' (asleep: stopped)' : '') +
+         ` · animals ${t.a | 0}/${_houndNeedOf(t, 'a')}, monsters ${t.m | 0}/${_houndNeedOf(t, 'm')}, villagers ${t.n | 0}/${_houndNeedOf(t, 'n')}`;
 }
 // the second line of the name over it, read from further away (entitySubText, ui/animals.js)
 function houndSubText(e) {
@@ -650,9 +691,9 @@ function houndSave(e) {
     sz: e.size, g: e.gender, lv: e.level, h: +entHunger(e).toFixed(1), th: +entThirst(e).toFixed(1),
     t: e.tame ? 1 : 0, nt: e.noTame ? 1 : 0, o: e.ownerId || null, md: e.mode, sc: e.stance, ef: e.eff || 0,
     st: e.tame && e.stats ? e.stats : null,
-    // [seconds left, animals, monsters, villagers, effectiveness lost to its own kills, 0, health lost]. The 0: a
-    // 0.845 save kept the kills' worth and weight in places 4 and 5 (houndRestore turns those into what was lost)
-    tm: t ? [Math.round(t.left), t.a | 0, t.m | 0, t.n | 0, +(t.lost || 0).toFixed(3), 0, Math.round(t.hurt || 0)] : null,
+    // [seconds left, animals, monsters, villagers, effectiveness lost to its own kills, 0, health lost, what a kill counts].
+    // The 0: a 0.845 save kept the kills' worth and weight in places 4 and 5 (houndRestore turns those into what was lost)
+    tm: t ? [Math.round(t.left), t.a | 0, t.m | 0, t.n | 0, +(t.lost || 0).toFixed(3), 0, Math.round(t.hurt || 0), t.gh || 1] : null,
   };
 }
 // `s`: what its save row held (the creature table's `load`, entities/mobs.js); `s.d` is what houndSave wrote
@@ -662,7 +703,7 @@ function houndRestore(s) {
   const tm = !d.t && Array.isArray(d.tm) && d.tm[0] > 0
     ? { left: +d.tm[0], a: d.tm[1] | 0, m: d.tm[2] | 0, n: d.tm[3] | 0,
         lost: d.tm[5] > 0 ? Math.max(0, (+d.tm[5] || 0) - (+d.tm[4] || 0)) : (+d.tm[4] || 0),   // weight less worth
-        hurt: +d.tm[6] || 0 } : null;
+        hurt: +d.tm[6] || 0, gh: +d.tm[7] > 1 ? +d.tm[7] : 1 } : null;
   return summon('hellhound', s.x, s.y, s.z, {
     hp: s.hp,
     size: d.sz, gender: d.g, level: d.lv, hunger: d.h, thirst: d.th,
@@ -682,5 +723,6 @@ defineMob('hellhound', {
   make: makeHellhound, gendered: true, build: () => buildHellhound(),
   roll: rollHellhounds,                                // its own rule: packs in the Deep Desert, far apart
   save: houndSave, load: houndRestore,
-  loot: (e, pop) => pop(ITEM.FIRE, rollLoot(LOOT.houndFire)),   // the fire it was made of
+  butcher: true,                                       // the Butcher skill adds to its drop, though it is no animal
+  loot: (e, pop, first) => first(ITEM.FIRE, LOOT.houndFire),   // the fire it was made of
 });

@@ -43,7 +43,7 @@ corePart('gen.chunk', function () {
                 ? B.RED_MUSHROOM : hash3(cx * 1171 + x, y + 4000, cz * 937 + z) < 2 / 3
                 ? brownish(hash3(cx * 1181 + x, y + 4100, cz * 941 + z)) : B.BLUE_MUSHROOM;   // thirds since 0.7691
             // a lava mushroom on cave floor near lava
-            else if (cave && hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < 0.015 && lavaNear(x, y, z))   // halved 0.819
+            else if (cave && hash3(cx * 1187 + x, y + 3100, cz * 947 + z) < LAVA_SHROOM_CH && lavaNear(x, y, z))   // worldgen/gen-setup.js
               data[idx(x, y + 1, z)] = B.LAVA_MUSHROOM;
             // a yellow berry bush, in any stage, on the cave's dirt (rarely on any floor in 0.827): it glows as it ripens
             else if (cave && floor === B.DIRT && hash3(cx * 1193 + x, y + 3200, cz * 953 + z) < CAVE_YELLOW_BUSH)

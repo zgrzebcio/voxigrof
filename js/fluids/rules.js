@@ -16,7 +16,8 @@ corePart('voxel', function () {
        - A source never moves and never dries. Flowing fluid is FED: by its own kind above it (it is falling), or by a
          neighbour beside it that stands on a floor and spreads no thinner than it; unfed it dries, and that runs on.
        - It falls first: into air or a plant (washed away), or onto flowing fluid of its kind, which falls too. Falling
-         fluid is never a source; it spreads again from where it lands, at its fluid's `step` (water 1, lava 2).
+         fluid is never a source; it spreads again from where it lands, at its fluid's `step` (water 1, lava 2). A pebble on
+         the ground (`washes`) goes the way of a plant: the page drops what it was (fluids/fluids.js).
        - With a floor under it, it spreads beside it a `step` thinner, as far as its `max`; where some of
          those cells have a drop under them, only into those.
        - Two fluids meet as their entries' `meets` say (water and lava: flowing water turns to stone; a lava source to
@@ -46,13 +47,44 @@ corePart('voxel', function () {
     const isFluid = (v) => v >= 0 && FLUID_IS[v & 255] === 1;       // any fluid in the table
     // does fluid f do something where it touches what is in cell value v (its entry's `meets` names that fluid)
     const meetsV = (f, v) => v >= 0 && FLUID[f].meets !== undefined && FLUID[f].meets[v & 255] !== undefined;
-    // room for a fluid: air, or a plant it washes away
-    const open = (v) => v >= 0 && ((v & 255) === B.AIR || (!!PROPS[v & 255] && PROPS[v & 255].model === 'cross'));
+    // room for a fluid: air, or a plant it washes away, or a loose pebble it rolls off (PROPS `washes`: flint, stone)
+    const open = (v) => v >= 0 && ((v & 255) === B.AIR || (!!PROPS[v & 255] && (PROPS[v & 255].model === 'cross' || !!PROPS[v & 255].washes)));
     // can fluid f at (x, y, z) go down: air or a plant under it, or its own kind flowing
     const canDrop = (x, y, z, f) => { if (y <= 0) return false; const b = rd(x, y - 1, z); return open(b) || (isF(b, f) && lvl(b) > 0); };
+    /* ...and with only its own kind under it (no air): fluid over fluid. It still runs down into that, but it also spreads
+       beside it into a gap in the sheet it lies in (gap) and feeds what lies there. So water that filled a hollow by falling levels
+       off on top, instead of keeping dry holes there: each a cell over fallen water that only ever "fell" onto it, never spread,
+       and was fed by nothing. Never into the open air (a fall's curtain stays a curtain), never out over dry ground. */
+    const overOwn = (x, y, z, f) => y > 0 && isF(rd(x, y - 1, z), f);
+    /* A GAP in a sheet of it: an open cell with its own kind on `need` of its four sides at its height (2 over fallen water, 3 on a
+       floor). Only gaps are filled from over a fall: spreading over the whole top of a stream that fell would lay a second layer
+       on it, and on a lake's still top over all of the lake. */
+    const gap = (x, y, z, f) => {
+      if (y <= 0) return false;
+      const b = rd(x, y - 1, z);
+      let need;
+      if (isF(b, f)) { if (lvl(b) === 0 || lvl(b) > FLUID[f].step) return false; need = 2; }   // fallen water, not a still source
+      else if (b === -1 || open(b)) return false;
+      else need = 3;
+      let n = 0;
+      for (let d = 0; d < 4; d++) if (isF(rd(x + FL_DX[d], y, z + FL_DZ[d]), f)) n++;
+      return n >= need;
+    };
+    /* A hole in a still pool's top: an open cell over a source of its own kind with its kind on three of its sides or all four
+       at its height. Filled from beside it (a dry notch the land left in a river's or a lake's surface); never with only two,
+       or a step's upper water would creep over the whole stretch below it, cell by cell. */
+    const poolHole = (x, y, z, f) => {
+      if (y <= 0) return false;
+      const b = rd(x, y - 1, z);
+      if (!isF(b, f) || lvl(b) !== 0) return false;
+      let n = 0;
+      for (let d = 0; d < 4; d++) if (isF(rd(x + FL_DX[d], y, z + FL_DZ[d]), f)) n++;
+      return n >= 3;
+    };
+    const poolTop = (x, y, z, f) => { if (y <= 0) return false; const b = rd(x, y - 1, z); return isF(b, f) && lvl(b) > 0 && lvl(b) <= FLUID[f].step; };
     // the level f at (x, y, z) spreads beside it at, or 99 where it does not (no floor, or as thin as it goes)
     const outLevel = (x, y, z, v, f) => {
-      if (canDrop(x, y, z, f)) return 99;
+      if (canDrop(x, y, z, f) && !overOwn(x, y, z, f)) return 99;           // over the air: it feeds nothing beside it
       const n = (isF(rd(x, y + 1, z), f) ? 0 : lvl(v)) + FLUID[f].step;
       return n <= FLUID[f].max ? n : 99;
     };
@@ -77,6 +109,11 @@ corePart('voxel', function () {
         const ax = x + FL_NX[d], ay = y + FL_NY[d], az = z + FL_NZ[d], v = rd(ax, ay, az);
         if (isFluid(v)) queueKey(flKey(ax, ay, az), slotIn(dry ? FLUID[v & 255].dry : FLUID[v & 255].delay));
       }
+    }
+    /* fluid has just come into (x, y, z): the fluid beside the cell over it takes a turn, since it may now spread onto it (a pool's
+       top, poolTop below); those cells are diagonal to this one, so nothing else would ask them */
+    function queueOver(x, y, z) {
+      for (let d = 0; d < 4; d++) queue(x + FL_DX[d], y + 1, z + FL_DZ[d]);
     }
     // from the game: 0 the cell itself, 1 the cells round it, 2 the cells round it drying (a source taken away)
     function touch(x, y, z, mode) {
@@ -153,17 +190,41 @@ corePart('voxel', function () {
       // down first
       if (canDrop(x, y, z, f)) {
         const fall = f | (c.step << 8);
-        if (rd(x, y - 1, z) !== fall) { wr(x, y - 1, z, fall); queue(x, y - 1, z); }
-        // what it spread beside it may have lost its feed now: they look again
+        if (rd(x, y - 1, z) !== fall) {
+          wr(x, y - 1, z, fall); queue(x, y - 1, z); queueOver(x, y - 1, z);
+          /* it has just begun to fall: what it spread beside it may have lost its feed now, so they look again (only then: a
+             cell over a fall already there asked this every turn, and two such beside each other asked it of each other for good) */
+          for (let d = 0; d < 4; d++) {
+            const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
+            if (isF(nv, f) && lvl(nv) > 0) queue(nx, y, nz, c.dry);
+          }
+        }
+        if (!overOwn(x, y, z, f)) return;
+        // over its own kind: beside it too, onto the top of the water it lies in (overOwn above)
+        const o = (isF(rd(x, y + 1, z), f) ? 0 : L) + c.step;
+        if (o > c.max) return;
         for (let d = 0; d < 4; d++) {
           const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
-          if (isF(nv, f) && lvl(nv) > 0) queue(nx, y, nz, c.dry);
+          if (open(nv) && gap(nx, y, nz, f)) { wr(nx, y, nz, f | (o << 8) | (FL_FD[d] << 11)); queue(nx, y, nz); queueOver(nx, y, nz); }
+          else if (isF(nv, f) && lvl(nv) > o) queue(nx, y, nz);
         }
         return;
       }
       // then beside it
       const out = (isF(rd(x, y + 1, z), f) ? 0 : L) + c.step;
       if (out > c.max) return;
+      /* Lying on its own kind (a still pool's top, a fall's foot, a curtain's cell): only into a gap beside it, never out
+         over the pool or off its edge. A river's step, where its water meets a lower stretch, and a generated fall's
+         curtain stay as the world made them, instead of laying a thin sheet seven blocks out over the water below and the bank. */
+      if (overOwn(x, y, z, f)) {
+        for (let d = 0; d < 4; d++) {
+          const nx = x + FL_DX[d], nz = z + FL_DZ[d], nv = rd(nx, y, nz);
+          if (open(nv) && (gap(nx, y, nz, f) || poolHole(nx, y, nz, f))) { wr(nx, y, nz, f | (out << 8) | (FL_FD[d] << 11)); queue(nx, y, nz); queueOver(nx, y, nz); }
+          else if (isF(nv, f) && lvl(nv) > out) queue(nx, y, nz);
+        }
+        return;
+      }
+      // where some open cells beside it have a drop under them, only into those (it runs down the slope rather than over it), and gaps
       let holed = false;
       const cand = [];
       for (let d = 0; d < 4; d++) {
@@ -171,13 +232,13 @@ corePart('voxel', function () {
         if (open(nv)) {
           const h = canDrop(nx, y, nz, f);
           if (h && !holed) { holed = true; cand.length = 0; }
-          if (h || !holed) cand.push(d);
+          if (h || !holed || gap(nx, y, nz, f)) cand.push(d);
         } else if (isF(nv, f) && lvl(nv) > out) queue(nx, y, nz);   // a thinner one beside it fills up on its turn
       }
       for (const d of cand) {
         const nx = x + FL_DX[d], nz = z + FL_DZ[d];
         wr(nx, y, nz, f | (out << 8) | (FL_FD[d] << 11));
-        queue(nx, y, nz);
+        queue(nx, y, nz); queueOver(nx, y, nz);
       }
     }
     /* One step at sim time `now` (s): first the game's touches since the last ([x, y, z, mode] x n, see touch), then every

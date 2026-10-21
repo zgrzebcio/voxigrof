@@ -12,6 +12,7 @@ corePart('mesh.chunk', function () {
     let lzn = new Uint16Array(lznB), lzp = new Uint16Array(lzpB);
     // the real light, kept for the dark-cave test below: the evened light of level 2 is only for shading
     const L0 = { light, lxn, lxp, lzn, lzp };
+    const data0 = data;                       // ...and the real cells (seeEdge below)
     if (lod >= 2) {
       [data, light] = lodDownsample(data, light);
       lxn = lodEdgeLight(lxn); lxp = lodEdgeLight(lxp); lzn = lodEdgeLight(lzn); lzp = lodEdgeLight(lzp);
@@ -89,6 +90,29 @@ corePart('mesh.chunk', function () {
               : z > 15 ? L0.lzp[x + y * 16] : L0.light[x + (z << 4) + (y << 8)];
       return (v >> 4) & 15;
     }
+
+    /* A block beside water is wet: its faces darker (WET_TILE tiles only, SHORE_WET_SHADE in chunks/mesher.js). Beside it:
+       water over it, in one of the four cells round it, or under one of those (a beach's sand a block above the sea).
+       World chunks only; looked at once a cell. */
+    const wetField = ox != null;
+    if (wetField) WETC.fill(-1);
+    const _isW = (v) => (v & 255) === B.WATER;
+    function wetBeside(x, y, z) {
+      const i = x + (z << 4) + (y << 8);
+      let c = WETC[i];
+      if (c < 0) {
+        c = _isW(gb(x, y + 1, z)) || _isW(gb(x + 1, y, z)) || _isW(gb(x - 1, y, z)) || _isW(gb(x, y, z + 1)) || _isW(gb(x, y, z - 1))
+         || _isW(gb(x + 1, y - 1, z)) || _isW(gb(x - 1, y - 1, z)) || _isW(gb(x, y - 1, z + 1)) || _isW(gb(x, y - 1, z - 1)) ? 1 : 0;
+        WETC[i] = c;
+      }
+      return c;
+    }
+
+    /* A half-resolution chunk's see-through face ACROSS its edge (leaves, glass, ice, water): drawn only where the real cell on
+       this side holds that block. Its 2x2x2 groups grow a block past the real ones (leaves into the air beside them, water a
+       block over its surface), while the chunk beside it is read in its real cells, so those grown blocks drew faces standing
+       in the open along every far chunk's edge. (x, y, z) the cell, v what is drawn there. Always true below level 2. */
+    const seeEdge = (x, y, z, v) => lod < 2 || matKey(data0[x + (z << 4) + (y << 8)]) === matKey(v);
 
     // one growable buffer set per render pass
     // 0 opaque, 1 cutout (leaves, plants), 2 water, 3 lava, 4 see-through (glass)
@@ -180,12 +204,12 @@ corePart('mesh.chunk', function () {
                  no sky light reaches, which cannot be seen from half the render distance away. That is most
                  of a chunk's faces (measured ~60%). Dark water is kept, so a deep sea floor never opens. */
               if (lod && (nv & 255) === B.AIR && skyReal(npos[0], npos[1], npos[2]) === 0) { /* skipped */ }
-              /* a half-resolution chunk's see-through block (ice, glass) shows no face across the chunk's edge
-                 unless an opaque block stands there. Its 2x2x2 groups grow ice a block past the real ice (into the
-                 water under a frozen lake, the air over it), and the edge is read from the neighbour's REAL cells, so
-                 every far chunk's edge drew a wall of ice faces: the grid of lines seen through frozen lakes. */
-              else if (lod >= 2 && P[a & 255].pass === 4 && (npos[0] < 0 || npos[0] > 15 || npos[2] < 0 || npos[2] > 15)
-                       && !opaqueVal(nv)) { /* skipped */ }
+              /* a half-resolution chunk's see-through block (leaves, ice, glass) shows a face across the chunk's edge
+                 only off a real one (seeEdge above). Its 2x2x2 groups grow it a block past the real ones (ice into the
+                 water under a frozen lake, leaves into the air), and the edge is read from the neighbour's REAL cells, so
+                 every far chunk's edge drew walls of faces: the grid of lines seen through frozen lakes, leaves in the air. */
+              else if (lod >= 2 && !P[a & 255].opaque && (npos[0] < 0 || npos[0] > 15 || npos[2] < 0 || npos[2] > 15)
+                       && !seeEdge(pos[0], pos[1], pos[2], a)) { /* skipped */ }
               else if (faceVisible(a, nv, P)) {
                 m = a; any = true;
                 ml = nl;                              // face lit by the transparent cell it faces
@@ -198,6 +222,7 @@ corePart('mesh.chunk', function () {
                   if (((a >> 8) & 255) === V.GRASS_DRY) m = B.GRASS;
                   if (dry && dir !== 1) md = dryKey(d, pos[0], pos[2], n + (s > 0 ? 1 : 0));
                 }
+                if (wetField && wetBeside(pos[0], pos[1], pos[2])) md |= MD_WET;   // a wet face merges only with wet ones
               }
             }
             mask[u + v * us] = m;
@@ -220,7 +245,7 @@ corePart('mesh.chunk', function () {
                 if (mask[u + k + (v + h) * us] !== val || maskL[u + k + (v + h) * us] !== lv || maskD[u + k + (v + h) * us] !== dv2) break outer;
               h++;
             }
-            emit(dir, n, u, v, w, h, val, lv);
+            emit(dir, n, u, v, w, h, val, lv, dv2);
             for (let dv = 0; dv < h; dv++)
               for (let k = 0; k < w; k++) mask[u + k + (v + dv) * us] = 0;
             u += w;
@@ -228,7 +253,7 @@ corePart('mesh.chunk', function () {
         }
       }
 
-      function emit(dir, n, u0, v0, w, h, val, lv) {
+      function emit(dir, n, u0, v0, w, h, val, lv, md) {
         const id = val & 255, prop = PROPS[id];
         // MODEL dispatch — only 'cube' exists today; non-cube models (slabs, stairs,
         // torches, doors + rotation variants) would branch here with their own emitters.
@@ -259,7 +284,11 @@ corePart('mesh.chunk', function () {
           tile = end ? F[2] : F[0];
           sw = !end && (ax === 1 || dir === 2 || dir === 3);
         }
-        const R = sw ? (a) => [a[1], a[0]] : (a) => a;
+        // a block turned to face you (rot:'side') with `rotTop` turns its top and bottom art with it (the seashell block)
+        const q = prop.rotTop && dir <= 1 ? [0, 2, 1, 3][varb & 3] : 0;
+        const R = sw ? (a) => [a[1], a[0]] : q === 1 ? (a) => [a[1], -a[0]] : q === 2 ? (a) => [-a[0], -a[1]]
+                : q === 3 ? (a) => [-a[1], a[0]] : (a) => a;
+        const sh = (md & MD_WET) && WET_TILE[tile] ? Math.round(shade * SHORE_WET_SHADE) : shade;   // beside water: wet
         // fast leaves: solid, in the opaque pass, the tile marked for the shader to fill
         const fastL = fastLeaf(val);
         const pass = fastL ? 0 : prop.pass;
@@ -269,12 +298,12 @@ corePart('mesh.chunk', function () {
         if (dir === 0 && id === B.WATER) wc -= 0.12;
         const u1 = u0 + w, v1 = v0 + h;
         switch (dir) {
-          case 0: quad(pass, [u0,wc,v0],[u0,wc,v1],[u1,wc,v1],[u1,wc,v0], R([0,0]),R([0,h]),R([w,h]),R([w,0]), tile, shade, lv); break;
-          case 1: quad(pass, [u0,wc,v0],[u1,wc,v0],[u1,wc,v1],[u0,wc,v1], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, shade, lv); break;
-          case 2: quad(pass, [wc,v0,u0],[wc,v1,u0],[wc,v1,u1],[wc,v0,u1], R([w,0]),R([w,h]),R([0,h]),R([0,0]), tile, shade, lv); break;
-          case 3: quad(pass, [wc,v0,u0],[wc,v0,u1],[wc,v1,u1],[wc,v1,u0], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, shade, lv); break;
-          case 4: quad(pass, [u0,v0,wc],[u1,v0,wc],[u1,v1,wc],[u0,v1,wc], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, shade, lv); break;
-          case 5: quad(pass, [u0,v0,wc],[u0,v1,wc],[u1,v1,wc],[u1,v0,wc], R([w,0]),R([w,h]),R([0,h]),R([0,0]), tile, shade, lv); break;
+          case 0: quad(pass, [u0,wc,v0],[u0,wc,v1],[u1,wc,v1],[u1,wc,v0], R([0,0]),R([0,h]),R([w,h]),R([w,0]), tile, sh, lv); break;
+          case 1: quad(pass, [u0,wc,v0],[u1,wc,v0],[u1,wc,v1],[u0,wc,v1], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, sh, lv); break;
+          case 2: quad(pass, [wc,v0,u0],[wc,v1,u0],[wc,v1,u1],[wc,v0,u1], R([w,0]),R([w,h]),R([0,h]),R([0,0]), tile, sh, lv); break;
+          case 3: quad(pass, [wc,v0,u0],[wc,v0,u1],[wc,v1,u1],[wc,v1,u0], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, sh, lv); break;
+          case 4: quad(pass, [u0,v0,wc],[u1,v0,wc],[u1,v1,wc],[u0,v1,wc], R([0,0]),R([w,0]),R([w,h]),R([0,h]), tile, sh, lv); break;
+          case 5: quad(pass, [u0,v0,wc],[u0,v1,wc],[u1,v1,wc],[u1,v0,wc], R([w,0]),R([w,h]),R([0,h]),R([0,0]), tile, sh, lv); break;
         }
       }
     }

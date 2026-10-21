@@ -57,6 +57,11 @@ corePart('blocks', function () {
   PROPS[B.PACKED_ICE] = { name:'Packed ice', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.5, type:'glass',
                           faces:Array(6).fill(T.PACKED_ICE), desc: 'Ice pressed hard over the years: it never melts' };
   // the bone block: pressed from ten bones; a pillar that turns to the face it is put on, its brick a look of it
+  /* the seashell block: ten seashells pressed into a block (a bench recipe), turned to face you when placed like a chest,
+     its top and bottom art turning with it (rotTop, chunks/mesher-cubes.js) */
+  PROPS[B.SEASHELL_BLOCK] = { name:'Seashell block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', rotTop:true,
+                              stack:50, hardness:2, type:'stone', desc: '',
+                              faces:[T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_TOP, T.SEASHELL_BLOCK_TOP, T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_SIDE] };
   PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2, type:'stone',
                           pillar: true, rot: 'all',
                           faces:[T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_TOP, T.BONE_BLOCK_TOP, T.BONE_BLOCK_SIDE, T.BONE_BLOCK_SIDE], desc: '' };

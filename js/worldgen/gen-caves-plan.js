@@ -13,7 +13,7 @@ corePart('gen.make', function () {
       const k = gx + ',' + gz;
       if (_rooms.has(k)) return _rooms.get(k);
       let rm = null;
-      if (hash2(gx * 7151 + 13, gz * 6007 - 29) < 0.8) {
+      if (hash2(gx * 7151 + 13, gz * 6007 - 29) < ROOM_SHARE) {   // worldgen/gen-setup.js
         const x = (gx + 0.15 + 0.7 * hash2(gx * 31 + 7, gz * 17 + 3)) * ROOM_CELL, z = (gz + 0.15 + 0.7 * hash2(gx * 13 - 5, gz * 37 + 11)) * ROOM_CELL;
         const hall = hash2(gx * 97 + 1, gz * 89 - 1) < 0.07;
         const r = hall ? 9 + 4 * hash2(gx * 3 + 41, gz * 5 - 43) : 2 + 5 * hash2(gx * 11 + 61, gz * 7 - 59);

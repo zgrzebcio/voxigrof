@@ -145,6 +145,7 @@ function _poseOffhandArm(dt) {
   const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead
     && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water
   off.root.visible = show;
+  off.held.visible = !offHandBusy(player);                  // climbing, drinking, drawing a bow: put away (player/hands.js)
   if (!show) { off.root.position.y = OFF_REST.pos[1] - 1.4; return; }       // come back up from below
   const shield = id != null && isShieldId(id);
   if (off.heldId !== id) {

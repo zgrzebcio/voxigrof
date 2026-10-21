@@ -10,6 +10,8 @@ distInput.value = viewDist;
 simInput.value = simRadius;
 sensInput.value = Math.round(sens * 100);
 rawMouseSel.value = rawMouse ? 'on' : 'off';   // 0.8443
+if (wrongToolSel) wrongToolSel.value = wrongToolHint ? 'on' : 'off';
+if (arachnoSel) arachnoSel.value = arachnophobia ? 'on' : 'off';
 shadowSel.value = String(shadowR);
 // render scale (06-renderer): applied the moment it is picked
 const scaleSel = document.getElementById('scaleSel');

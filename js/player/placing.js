@@ -112,6 +112,7 @@ function useBucket(heldId, hit) {
     const cur = getBlock(px, py, pz) & 255;
     if (cur !== B.AIR && cur !== B.WATER) return;
     setBlock(px, py, pz, B.WATER);
+    if (typeof notePlacedWater === 'function') notePlacedWater(px, py, pz);   // not to drink or bottle (player/drinking.js)
     queueWaterAt(px, py, pz);
     _swapHeld(ITEM.BUCKET);
   } else if (heldId === ITEM.LAVA_BUCKET) {  // pour lava
@@ -136,6 +137,13 @@ function _offhandPlaceable() {
   if (typeof mainHandUsesRightClick === 'function' && mainHandUsesRightClick(slotId(HOTBAR[hotbarSel]))) return null;
   return s;
 }
+// the crosshair is on a door or a chest (what a key locks)
+function _aimsAtLockable() {
+  const hit = currentRay();
+  if (!hit) return false;
+  const v = getBlock(hit.x, hit.y, hit.z);
+  return BLOCKS.isDoorVal(v) || isChestId(v & 255);
+}
 function doPlace() {
   // a wand in hand builds or breaks a layer, whatever the off hand holds (breaking 0.8374)
   const wand = slotId(HOTBAR[hotbarSel]);
@@ -143,7 +151,8 @@ function doPlace() {
     return withPlayerPlacement(() => { const hit = currentRay(); if (hit) (wand === ITEM.BUILD_WAND ? wandBuild : wandBreak)(hit); });
   return withPlayerPlacement(() => {
     const off = _offhandPlaceable();
-    if (!off) return _doPlace();
+    // a door or a chest answers to the main hand: its key is looked for there (useDoor, useChest), never the off hand's torch
+    if (!off || _aimsAtLockable()) return _doPlace();
     const main = HOTBAR[hotbarSel], before = off.count;
     HOTBAR[hotbarSel] = off;
     try { return _doPlace(); }

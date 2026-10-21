@@ -397,7 +397,8 @@ function finishChunkGen(c) {
   const R2 = drawDist() * drawDist();       // the far ring too
   for (const [dx, dz] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
     const n = getChunk(c.cx + dx, c.cz + dz);
-    if (!n || !n.data || n.meshes[0] || n.meshes[1] || n.meshes[2] || n.meshes[3] || n.meshing || n.queuedMesh) continue;
+    if (!n || !n.data || n.meshing || n.queuedMesh) continue;
+    if (!n.dirty && (n.meshes[0] || n.meshes[1] || n.meshes[2] || n.meshes[3])) continue;   // meshed, and nothing changed since (markDirty)
     const ddx = n.cx - playerCX, ddz = n.cz - playerCZ, d2 = ddx * ddx + ddz * ddz;
     if (d2 <= R2) tryQueueMesh(n, d2);
   }

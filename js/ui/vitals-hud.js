@@ -23,13 +23,17 @@
    The canvas is drawn at VIT_RES bitmap pixels per CSS pixel and shown at its CSS size (style.css). */
 var vitalsEl = document.getElementById('vitals');
 var vctx = vitalsEl.getContext('2d');
+// stamina and oxygen while the inventory is shut: their own canvas under the interact prompt (#vitalsNear, style.css)
+var vitalsNearEl = document.getElementById('vitalsNear');
+var vnctx = vitalsNearEl.getContext('2d');
 
 const LAVA_FIRE_S = 10;                      // seconds you stay alight after touching lava
 const VIT_W = 780, VIT_H = 76, VIT_RES = 2;  // the strip's CSS size (matches #vitals), and its supersampling
 const VIT_ICONS = 5;
+const VIT_NEAR_W = 110, VIT_NEAR_H = 44;     // #vitalsNear's CSS size: two rows of 20 px icons
 /* One row a bar: its left edge from the strip's centre and its top from the strip's top (CSS px), the icon
    size, the end it fills from (the outer one, so both sides drain toward the middle), and `inv` for the
-   bars only an open inventory shows. */
+   bars only an open inventory shows, `near` for the ones drawn under the crosshair while it is shut. */
 const VIT_LAYOUT = [
   { key: 'hp',      x: -235, top: 52, size: 24, from: 'left' },
   { key: 'armor',   x: -235, top: 24, size: 24, from: 'left' },
@@ -39,8 +43,8 @@ const VIT_LAYOUT = [
   { key: 'energy',  x: -385, top: 24, size: 24, from: 'left',  inv: true },
   { key: 'protein', x:  261, top: 52, size: 24, from: 'right', inv: true },
   { key: 'fruit',   x:  261, top: 24, size: 24, from: 'right', inv: true },
-  { key: 'stamina', x:  -52, top: 25, size: 20, from: 'left' },
-  { key: 'air',     x:  -52, top: 3,  size: 20, from: 'left' },
+  { key: 'stamina', x:  -52, top: 25, size: 20, from: 'left', near: true },
+  { key: 'air',     x:  -52, top: 3,  size: 20, from: 'left', near: true },
 ];
 const VIT_TEMP = { x: -15, top: 46, size: 30 };        // the temperature dial
 // the armor bar's pictures per armorMat (an armor item's material, items/equipment.js): Armor/armor_<this>.png
@@ -136,9 +140,10 @@ function paintVitals() {
   g.imageSmoothingEnabled = true;                    // 128px art drawn at 24: smooth, not nearest
   g.imageSmoothingQuality = 'high';
   g.setTransform(VIT_RES, 0, 0, VIT_RES, VIT_W / 2 * VIT_RES, 0);   // CSS px from here on, x from the centre
-  const inv = !!invOpen, hits = [];
+  const inv = !!invOpen, hits = [], near = [];
   for (const r of VIT_LAYOUT) {
     if (!_vitRowShown(r, inv)) continue;
+    if (r.near && !inv) { near.push(r); continue; }
     if (r.key === 'armor') _paintArmorRow(g, r); else _paintBarRow(g, r);
     hits.push({ key: r.key, x: r.x, y: r.top, w: VIT_ICONS * (r.size + 1) - 1, h: r.size });
   }
@@ -146,6 +151,26 @@ function paintVitals() {
   hits.push({ key: 'temp', x: VIT_TEMP.x, y: VIT_TEMP.top, w: VIT_TEMP.size, h: VIT_TEMP.size });
   g.setTransform(1, 0, 0, 1, 0, 0);
   vitalsEl._hits = hits;                             // per pane: each seat hovers its own strip
+  _paintNearVitals(vitalsShown ? near : []);
+}
+/* The rows that sit under the crosshair while the inventory is shut, stacked from the top in the strip's order
+   (oxygen over stamina), each centred; the canvas is hidden when none is shown. */
+function _paintNearVitals(rows) {
+  const el = vitalsNearEl, g = vnctx, W = VIT_NEAR_W * VIT_RES, H = VIT_NEAR_H * VIT_RES;
+  if (el.width !== W || el.height !== H) { el.width = W; el.height = H; }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, W, H);
+  el.style.display = rows.length ? 'block' : 'none';
+  if (!rows.length) return;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.setTransform(VIT_RES, 0, 0, VIT_RES, 0, 0);
+  let top = 1;
+  for (const r of rows.slice().sort((a, b) => a.top - b.top)) {
+    _paintBarRow(g, { ...r, x: (VIT_NEAR_W - (VIT_ICONS * (r.size + 1) - 1)) / 2, top });
+    top += r.size + 2;
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
 }
 // the tooltip for whichever bar is under the inventory cursor, or '' (ui/inventory.js, 0.82)
 function vitalsTipAt(cx, cy) {

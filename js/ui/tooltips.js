@@ -138,6 +138,11 @@ function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's
       if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst
     if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
+    // what is handed back once it is eaten or drunk, and how often (foodReturnChance)
+    if (p.foodReturn != null) {
+      const rp = p.foodReturn >= 256 ? ITEM_PROPS[p.foodReturn] : PROPS[p.foodReturn], ch = p.foodReturnChance ?? 1;
+      if (rp && rp.name) rows.push(['leaves', _tipEsc(rp.name) + (ch < 1 ? ' (' + Math.round(ch * 100) + '%)' : '')]);
+    }
   }
   {
     /* How long this has left before one of it spoils, against how long it keeps from fresh. A recipe

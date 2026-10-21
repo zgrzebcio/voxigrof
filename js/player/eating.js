@@ -35,6 +35,21 @@ function updateEating(dt, wantPlace) {
   if (!playing || player.canFly || invOpen || menuScene) { _eatTimer = 0; return 0; }
   const slot = HOTBAR[hotbarSel];
   const id = slot ? slot.id : null;
+  /* Opened, not eaten (an item's `open`: the coconut, items/food.js): the right button held `open.time`, and one of the
+     stack becomes `open.count` of `open.into`. Rides on the eating timer: the arm lifts and the ring fills the same way. */
+  const op = id != null && id >= 256 ? ITEM_PROPS[id]?.open : null;
+  if (op) {
+    if (!wantPlace) { _eatTimer = 0; return 0; }
+    _eatTimer = Math.min(op.time, _eatTimer + dt);
+    if (_eatTimer < op.time) return _eatTimer / op.time;
+    _eatTimer = 0;
+    slot.count--;
+    if (slot.count <= 0) HOTBAR[hotbarSel] = null;
+    for (let n = 0; n < op.count; n++) if (!tryPickup(op.into, null, 'opened')) throwFromPlayer(op.into, 1);
+    if (typeof playBlockSound === 'function') playBlockSound(B.MELON, 'break', player.pos.x, player.pos.y + 1, player.pos.z);
+    saveHotbar(); buildHotbar();
+    return 1;
+  }
   // an item or a block (the grilled mushrooms): foodPropsOf in player/stats.js
   const fp = foodPropsOf(id), isFood = !!fp;
   const eatDur = (fp && fp.eatTime) || EAT_TIME;
@@ -78,8 +93,8 @@ function updateEating(dt, wantPlace) {
       slot.count--;
       if (slot.count <= 0) HOTBAR[hotbarSel] = null;
       if (typeof feedItem === 'function') feedItem(id, -1, 'eaten');
-      // give back container item (e.g. bowl from mushroom stew)
-      const returnId = fp.foodReturn;
+      // give back container item (e.g. bowl from mushroom stew), as often as its foodReturnChance: a bowl half the time
+      const returnId = Math.random() < (fp.foodReturnChance ?? 1) ? fp.foodReturn : null;
       if (returnId != null) {
         const cap = stackSize(returnId);
         let placed = false;

@@ -138,6 +138,23 @@ function _fluidTook(m) {
   st.queued = m.queued; st.parked = m.parked;
   if (m.changes && m.changes.length) { _fluidBatch = m.changes; _fluidAt = 0; }
 }
+/* What a fluid takes when it runs into a cell (open() in fluids/rules.js): a plant goes with its drops (_breakBillboard), and
+   a tall plant's other half with it; a pebble (PROPS `washes`) leaves its one flint or stone pebble, which the current then
+   carries (15-drops.js). The cell itself is written by the caller. */
+function _fluidWashed(x, y, z, wid) {
+  const p = PROPS[wid];
+  if (!p) return;
+  if (p.model === 'cross') {
+    _breakBillboard(x, y, z, wid);                       // washed off, drops and all
+    const oy = TALL_UPPER_OF[wid] ? y + 1 : TALL_LOWER_OF[wid] ? y - 1 : null;
+    if (oy != null && (getBlock(x, oy, z) & 255) === (TALL_UPPER_OF[wid] || TALL_LOWER_OF[wid])) {
+      setBlock(x, oy, z, B.AIR);
+      _fluidTouch.push(x, oy, z, 1);                     // the water round it looks at the cell it left (direct: _fluidTouchAt is quiet while writing)
+    }
+  } else if (p.washes && !player.canFly) {
+    for (const d of blockDrop(wid)) spawnDrop(d.id, x, y, z, undefined, undefined, null, null, 0, d.count);
+  }
+}
 function _fluidWrite() {
   const b = _fluidBatch, t0 = performance.now(), areas = new Map();
   let n = 0;
@@ -156,8 +173,10 @@ function _fluidWrite() {
         continue;
       }
       const wid = was & 255, nid = now & 255, fl = nid === B.WATER || nid === B.LAVA;
-      if (fl && wid !== B.AIR && PROPS[wid]?.model === 'cross') _breakBillboard(x, y, z, wid);   // washed off, drops and all
+      if (fl && wid !== B.AIR) _fluidWashed(x, y, z, wid);   // a plant or a pebble the flow took
       setBlock(x, y, z, now);
+      if (nid === B.LAVA && wid !== B.LAVA) tntHeatAround(x, y, z);   // lava come beside TNT lights it
+      if (typeof placedWaterChanged === 'function') placedWaterChanged(x, y, z, was, now);   // a bucket's water running on (player/drinking.js)
       _fluidStat.written++;
       // light to redo: lava's own where it came or went, sky where a cell turned to rock (water and air change none)
       const glow = wid === B.LAVA || nid === B.LAVA, sky = CORE.opaqueVal(was) !== CORE.opaqueVal(now);

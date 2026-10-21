@@ -73,6 +73,74 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   Looks that behave unlike their base stay ids (`VARIANT_BLOCKS`: ice brick, snow brick, snow-ice brick, carved snow
   and ice, thatch). The ids the looks had (`LOOK_OF_OLD_ID`) are converted on load only in worlds and prefabs without
   the `cells: 2` stamp (`migrateLookVal`, blocks/legacy.js); a value rebuilt from `& 255` loses its look (use `matKey`).
+- **Deep beaches, sandy dirt, waves** (0.847, biomeRev 31 `DBEACH`). terrainInfo `db` (warm, a slow pick noise, the
+  abyss noise `deepN` = a big ocean, no cliff) and `dbd` (blocks past the beach's inner edge, from the continent noise and
+  its slope): the beach's shape (DB_* in biomes/fields.js), the label 'Deep Beach', genChunk's sand / sandy dirt band
+  (`DBC`/`DBD`, worldgen/terrain-columns.js) and its palms (`DB_PALMS`/`SHORE_PALMS`, woods/gen-palms.js). `B.SANDY_DIRT`
+  254 (T 427): under every palm (palmTree), the palm sapling's only ground (`saplingOn: 'sandy_dirt'`). Waves:
+  seasons/waves.js (`WAVES`, `updateWaves` from frame(), `wavePush` read by `waterFlowVec`), sea level `mainGen.seaLevel`.
+  Fluids: `open()` takes PROPS `washes` (flint, stone pebble; fluids.js `_fluidWashed` drops it, and a tall plant's
+  other half); over its own fallen water a cell also fills `gap`s beside it and feeds (fluids/rules.js `overOwn`,
+  `queueOver`): no dry holes in a filled hollow. Test the rules headless (build the cores, makeFluidSim over genChunk data).
+- **0.8472.** `B.SEASHELL` 255 (T 428-429, `ITEM.SEASHELL` 425): a carpet-model prop like the flint pebble (blocks/plants.js; boxes from
+  the model JSON in 16ths, `_m16`; `partFaces` = art per box, read by the carpet model in chunks/mesher-models.js), laid on sea beaches
+  near the wet grid's ocean (`WW` 1, worldgen/desert-and-shore-plants.js), foraged like a pebble. Waves (seasons/waves.js): every crest
+  is a swell in ONE mesh (`_waveMesh`, `WAVE_SEG` x `WAVE_ROWS`, filled per frame), breaking ones fall in over `WAVE_BREAK_S`.
+  biomeRev 33 `DRY4` (biomes/fields.js): `_dryBand` (biomes/terrain.js) gives terrainInfo and dryAt the Dryland/Savanna wobble eased by
+  its curvature and the Dryland's start moved by its slope (`DRY_MIN` 16 blocks); biomeAt reads the mean height (`_meanH`) near 150
+  for Mountains and calls a Savanna/Dryland pocket among mountains Mountains (`_mountainPocket`).
+- **Wet ground (0.8473), only to look at.** What darkens: `WET_TILE` (chunks/voxel-shared.js, in VOXEL_CORE's return; row 2 of
+  `TILE_LAYER`, 03-atlas.js): not rock (type 'stone'), not a light, nothing of pass 2+. Rain: `p._wetRain` per player
+  (seasons/wetness.js), set per eye as `uWet` in `applyEyeVolumeFog` (22), darkens faces the sky reaches (FSH, 04). Beside
+  water: baked by the mesher (`wetBeside`, `WETC`, `MD_WET` in maskD so wet faces merge only with wet ones, `SHORE_WET_SHADE`
+  on the face's shade; chunks/mesher-cubes.js, mesher.js). The wet map (`uWetMap`/`uWetBox`, `wetMark(x, z, top, amount)`):
+  WET_N columns round player one, each its wetness and the wet block's top y; the waves' wash (`_waveWash`) and a player's
+  drips (`_wetDrips`, puddles in `FX.puddles`). `uWet` and `uWetBox.w` are 0 for icons (05), the hand pass (22) and the
+  carried-block copies (player/body.js): a new world-space look must be zeroed in those three too. Clouds (52): a ray gathers
+  up to `CLOUD_HITS` cells front to back, a cloud's edge `CLOUD_EDGE_A` as opaque as its heart (`cloudCellCol`).
+- **0.8474.** A re-mesh asked for while a neighbour is not in yet is REMEMBERED (`c.dirty`, markDirty in chunks/dirty.js) and
+  finishChunkGen's loop meshes a dirty neighbour even with a mesh: dropped, the chunk kept its old mesh (ice lines on chunk
+  borders). Fluids: a cell lying on its own kind spreads only into a `gap` or a `poolHole` (fluids/rules.js): generated river
+  steps and curtains stay still. Bucket water: `PLACED_WATER` (player/drinking.js, saved as `placedWater`, grown by
+  `placedWaterChanged` from fluid writes) is not drunk or bottled. `mainHandBusy` / `offHandBusy` (player/hands.js) put held
+  things away while climbing, drinking, drawing. Water's depth shade rides in VSH_WATER's `vDry` NEGATIVE: FSH makes deep water
+  opaque. Snowline 185-212 and lifted in warm land (`_snowWarmLift`, seasons/weather-ground.js). biomeRev 34: `PINK_FROM`
+  (worldgen/gen-setup.js), `DIV_JOIN` (biomes/fields.js: no divide ridge between waters 2 or less apart).
+- **0.84741.** Deep beach palms only to `DB_PALM_TOP` 110 (woods/gen-palms.js; above it the tree loop goes on to the land's own trees).
+  `SKY_FLOOR` x `CAVE_DARKEN` 0.7 (00-config.js). biomeRev 35 `REV35` (worldgen/gen-setup.js): `CAVE_GATE` (a slow field, `caveK` in
+  worldgen/underground.js, takes the noise caves out of a quarter of the land), `ROOM_SHARE` 0.6 (gen-caves-plan.js), deep-beach pink on
+  `DB_PINK_F` / `DB_PINK_UP`. Measured over 60 chunks a seed: cave air 71-77% of rev 34's.
+- **0.8475.** Every skill costs 1. Coconut: `B.COCONUT` 238 (a retired look's id), T 430-433 (the green ones built in 03, `COCONUT_YOUNG_TINT`),
+  a carpet-model block (blocks/plants.js: stage in variant bits 0-2, `ripeStage` 5, `boxesByVar`/`facesByVar` by stage: the carpet model
+  reads `facesByVar` by `va & (length - 1)`, 4 by facing or 8 by stage), `hangs` (never falls by gravity). woods/coconuts.js: spots under a
+  palm log beside the trunk, sprout / grow / ripe-fall from updateSeasonGrowth, `coconutLostHold` (setBlock, a palm log gone),
+  `coconutLanded` (falling.js), `coconutsOffFelled` (fellTreeFrom), `coconutPrompt` (ui/hud.js). Items `ITEM.COCONUT` 426 (`open`: held
+  right button, player/eating.js), `ITEM.HALF_COCONUT` 427 (FOOD_NUTRITION `thirstFull`: thirst when already full). Falling blocks hurt:
+  `_fallBlockHits` / `fallBlockHurt` (blocks/falling.js; PROPS `fallHurt` weight, hay 0), `dropBlockFrom(x, y, z, val)` lets a block go.
+- **0.8476.** `B.SEASHELL_BLOCK` 239 (a retired look's id, T 434-435): PROPS `rotTop` turns its top and bottom art by the facing
+  (`emit`, chunks/mesher-cubes.js). `V_BONE` (items/recipes.js): bone or seashell. Pebble and shell boxes `_m16s` (`PROP_SMALL` 0.7,
+  blocks/plants.js). Cobweb looks 1 tangled, 2 corner (`emitCobweb`, chunks/mesher-plants.js: a sheet across the first edge in `WEB_EDGES`
+  with two opaque blocks, else a plain cross); the lens web `f.web` (57). `#vitalsNear` (ui/vitals-hud.js, rows with `near`: stamina and
+  oxygen under the prompt while the inventory is shut, placed by `updateInteractPrompt`); `#wrongTool` (`updateWrongToolHint`, ui/hud.js;
+  `wrongToolHint`, `vg_wrongtool`): both per pane (HUD_PANE_IDS, SWAP_KEYS). Loot chest XP x (1 + 0.25 x chests opened), `_feats.lootChests`
+  (saved as `loot`). Bench: E or a right tap takes finished work (`takeDone`). biomeRev 36 `REV36` (worldgen/gen-setup.js): `ORE_MORE_K`
+  1.1 for the ores but coal (extra tries after a row's own, so old veins stay), `SAV_TALL` / `SAV_DRY_TALL`, `SAV_FLAT` (biomes/fields.js).
+- **0.84761.** Hellhound sleep: `e._sleep` (set each step by houndThink: night `isDarkTime`, or the lie stance; a wild one
+  asleep sees only `HOUND.wakeR`), stops a taming's `left` (houndWorldTick); fire `HOUND.sleepFire` asleep, cold burn
+  `HOUND.coldFrom/coldTo/coldBurn` from `airTempAt` (houndBody). Taming needs 7/4/3, `taming.gh` = what a kill counts
+  (`HOUND.gentle` with Gentle Hand, saved as `tm[7]`; `_houndNeedOf`). Horse `tameTime` 22.4, Gentle Hand 1.2; a horse's stance
+  waits `HORSE_STANCE_WAIT` (`stanceNext`, `horseStanceTick`, entities/taming.js). Spiders: `FX.spiders` (`FxCrawlers`,
+  49-particles.js; `fxWebSpider` from _fxAmbient, `fxSpiderFlee` from foraging, `PEBBLE_SPIDER_CHANCE`), `arachnophobia`
+  (00-config, `vg_arachno`). `WEB_EDGES` / `webCornerEdge` moved to blocks/looks.js (BLOCK_CORE; mesher and spiders share it).
+  biomeRev 37 `REV37` (worldgen/gen-setup.js): `WEB_CH`, `LAVA_POOL_CH`, `LAVA_SHROOM_CH`.
+- **0.84762.** `B.BONE_ASH_BLOCK` 240 (a retired look's id; T 438 built in 03-atlas.js from the ash block's art, `whitened`): loose like sand
+  (LOOSE_LAYER_BLOCKS, SHAPE_BLOCKS.layer, LAYER_STACKING). New recipes appended (packed ice <-> ice, the metal chest, gravel -> flint and cactus ->
+  fiber at the mortar, bone ash block <-> bone ash); iron armor's ingots doubled; half coconut `foodReturn: ITEM.BOWL`.
+- **0.84765.** Log corners (chunks/mesher-logs.js, emitLog's 3rd joint rule): two same-axis wood logs side by side, one ending at +axis and the
+  other at -axis, each draw an arm to the shared face (`joins`) and cut their open end back to its band (`clipHi`/`clipLo`); mesh only, all worlds.
+  `hudHidden` hides `selBox` and the wand lines (36-splitscreen.js).
+- **0.84763.** Furnace food spoils: `_tickFurnaceSpoil` (44-spoil.js, beside `_tickChestSpoil`; both drain through `_spoilSlots`), the furnace's
+  `spoilT` saved as furnace row field 8. The smelt resets when the input's id changes or it empties (`f.inId`, updateFurnaces).
 - **Land first** (0.8455, the list is in chunks/stream.js above `streamLandWaiting`). `streamBehind` = land is
   missing near a player (a chunk within 6 not made yet, or made and never drawn; finished chunks piling up).
   The chunk stream runs FIRST in the frame (`runChunkStream`, 22, before simTick) and takes a bigger slice
@@ -445,7 +513,9 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   0.8375: the edges are thin boxes (`_wandBarGeo`, `WAND_BAR`; GL lines are 1 px) pulsing (`WAND_PULSE_S`); building
   spreads only through blocks whose front cell is free (`freeFront`), none if the clicked one's is taken; a wand acts once
   per press (`holdingWand`, no hold-repeat in 22).
-- **Far ice seams (0.837):** a LOD 2 chunk draws no see-through (pass 4) face across its edge unless opaque is there.
+- **Far see-through seams (0.837, 0.84731):** a LOD 2 chunk draws a see-through face (leaves, glass, ice; water's sides in
+  emitWater) across its edge only off a REAL cell of that block (`seeEdge`, `data0` = the cells before `lodDownsample`), and no water
+  side against water there: its grown groups drew faces in the open along every far chunk's edge.
 - **River flow texture (0.83549):** terrainInfo `fd` 1-8 (a river's way, rev 15+); genChunk writes it in the top water cell's
   variant bits 3-6 (`FDV`, `B.WATER | fd << 11`; water level stays bits 0-2); emitWater turns `T.WATER_FLOW` on that top so the
   art runs downstream. The flow strips' art runs UP, so `ANIMATED_TILES` water_flow/lava_flow have `reverse: true` (03).

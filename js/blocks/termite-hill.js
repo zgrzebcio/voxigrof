@@ -23,7 +23,7 @@ const HILL_MODELS = {
 const HILL_KEEP = { small: 2, big: 4 };        // termites a hill keeps about it
 const HILL_BURST = { small: [1, 3], big: [3, 6] };   // how many come out when it is broken
 const HILL_SPAWN_S = [25, 45];                 // seconds between new termites while a hill has fewer than it keeps
-const HILL_SOLDIERS = 0.3;                     // the share of soldiers among them
+const HILL_SOLDIERS = 0.2;                     // the share of soldiers among them (workers four to one)
 const HILL_ANGRY_S = 25;                       // how long a hill stays angry after one of its own was hit
 const HILL_PASS_S = 0.5;                       // how often the hills are looked over (chunks gone, termites, which are drawn)
 const HILLS = new Map();                       // "x,y,z" of a hill's foot cell -> { x, y, z, kind, spawnT, angryT }
@@ -124,7 +124,7 @@ function termiteHillChanged(x, y, z, oldVal, val) {
   for (let i = 0; i < n; i++) {
     const p = _hillExit(fx, fy, fz, big);
     if (!p) break;
-    const t = summon(Math.random() < 0.5 ? 'termite_soldier' : 'termite_worker', p[0], p[1], p[2], { hx: p[0], hz: p[2] });
+    const t = summon(Math.random() < 0.4 ? 'termite_soldier' : 'termite_worker', p[0], p[1], p[2], { hx: p[0], hz: p[2] });
     t.angryT = HILL_ANGRY_S;
   }
 }
@@ -155,6 +155,10 @@ function _hillExit(fx, fy, fz, big) {
   }
   return null;
 }
+// a worker that has eaten its fill goes into its hill and stays TERMITE.restS before the hill lets one out in its place
+function termiteHillRest(h) {
+  (h.rest || (h.rest = [])).push(performance.now() / 1000 + TERMITE.restS);
+}
 function clearTermiteHills() {
   HILLS.clear();
   for (const d of Object.values(_hillDraw)) { d.mesh.count = 0; d.list = []; }
@@ -181,7 +185,10 @@ function updateTermiteHills(dt) {
     for (const [k, h] of HILLS) {
       const c = getChunk(Math.floor(h.x / 16), Math.floor(h.z / 16));
       if (!c || !c.data || (getBlock(h.x, h.y, h.z) & 255) !== B.TERMITE_HILL) { HILLS.delete(k); _hillDirty = true; continue; }
-      h._n = count.get(k) || 0;
+      // a worker resting inside (termiteHillRest) counts as one of its own until its rest is over
+      const now = performance.now() / 1000;
+      if (h.rest) h.rest = h.rest.filter(t => t > now);
+      h._n = (count.get(k) || 0) + (h.rest ? h.rest.length : 0);
     }
     _hillDirty = true;                         // and which are drawn, the players having moved
   }

@@ -161,6 +161,8 @@ function _cloudTex(url) {
   return t;
 }
 const CLOUD_ALPHA = 0.92;                   // clouds let 8% of what is behind them through
+const CLOUD_EDGE_A = '0.14';                // a cloud's outermost cells are this share as opaque (a GLSL number)
+const CLOUD_HITS = 6;                       // cloud cells a ray may look through before it stops
 const cloudMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3,
   side: THREE.BackSide,
@@ -192,6 +194,20 @@ const cloudMat = new THREE.ShaderMaterial({
     out vec4 fragColor;
     ${CLOUD_GLSL}
     ${SKY_GLSL}
+    // the colour of the cloud cell a ray comes into at t through face, dark its weather's darkness, fogged by its distance
+    vec3 cloudCellCol(vec3 o, vec3 rd, float t, int face, float dark, float far) {
+      vec3 hp = o + rd * t;
+      vec2 uv; float sh, facing;
+      if (face == 1)      { uv = hp.xz;             sh = rd.y > 0.0 ? 0.72 : 1.0; facing = abs(rd.y); }
+      else if (face == 0) { uv = vec2(hp.z, -hp.y); sh = 0.86;                    facing = abs(rd.x); }
+      else                { uv = vec2(hp.x, -hp.y); sh = 0.8;                     facing = abs(rd.z); }
+      float lod = clamp(log2(max(t * uCloudPx * 128.0 / max(facing, 0.15), 1.0)), 0.0, 7.0);
+      vec3 col = mix(textureLod(uCloudTex, uv, lod).rgb, textureLod(uCloudDark, uv, lod).rgb, dark);
+      col *= mix(vec3(1.0), vec3(0.5, 0.57, 0.74), dark);   // storm and darky clouds: darker, a cold blue-grey
+      col *= sh * uLightColor * uCloudLit;                    // near black at night, as the sky
+      vec4 vp = viewMatrix * vec4(hp + vec3(uCloudOff.x, 0.0, uCloudOff.y), 1.0);
+      return mix(col, fogColor + skyHaze(rd), smoothstep(fogNear * 2.0, far, -vp.z));
+    }
     void main() {
       vec3 ro = cameraPosition, rd = normalize(vWorld - ro);
       // clouds reach twice as far as the land's fog, so they carry on over the horizon
@@ -211,10 +227,17 @@ const cloudMat = new THREE.ShaderMaterial({
       vec3 inv = 1.0 / max(abs(rd), vec3(1e-6));
       vec3 tMax = te + mix(p - cell, cell + 1.0 - p, step(0.0, rd)) * inv;
       float t = t0, cb = 0.0, ct = 0.0;                 // this column's cloud: from cb to ct blocks up the layer
+      float ca = 0.0;                                   // ...and how opaque its cells are
       int face = 1;                                     // entered through the layer's top or bottom
       vec2 lastC = vec2(1e9);
       vec3 wx = vec3(0.0);
-      bool skip = t0 <= 0.0, hit = false;               // an eye inside a cloud looks out of it first
+      bool skip = t0 <= 0.0;                            // an eye inside a cloud looks out of it first
+      /* What the ray gathers, front to back: colour (times its share) and how covered it is. A cloud's edge is thin and
+         see-through (CLOUD_EDGE_A), its heart near solid, so the sky shows through the rim and the ray goes on to the
+         cells behind it; it stops once all but covered or after CLOUD_HITS cells. */
+      vec4 acc = vec4(0.0);
+      float tHit = -1.0;
+      int hits = 0;
       for (int i = 0; i < ${CLOUD_STEPS}; i++) {
         if (cell.xz != lastC) {
           lastC = cell.xz;
@@ -228,32 +251,31 @@ const cloudMat = new THREE.ShaderMaterial({
             float g = textureLod(uCloudNoise, (cell.xz + 0.5) / CLOUD_N, 0.0).g;
             cb = clamp(floor((CLOUD_H - k) * 0.5 + (g - 0.5) * 3.0 + 0.5), 0.0, CLOUD_H - k);
             ct = cb + k;
+            // how far in from the edge, 0 the edge .. 1 a full-height heart: the edge all but clear
+            float e = (n - wx.x) / (${CLOUD_STEP_H} * ${CLOUD_THICK}.0);
+            ca = ${CLOUD_ALPHA} * mix(${CLOUD_EDGE_A}, 1.0, smoothstep(0.0, 0.85, e));
           }
         }
         float ly = cell.y - CLOUD_Y0;
         bool filled = ly >= cb && ly < ct;
-        if (filled && !skip) { hit = true; break; }
+        if (filled && !skip) {
+          if (tHit < 0.0) tHit = t;
+          float a = ca * (1.0 - acc.a);
+          acc += vec4(cloudCellCol(o, rd, t, face, wx.y, far) * a, a);
+          if (acc.a > 0.96 || ++hits >= ${CLOUD_HITS}) break;
+        }
         if (!filled) skip = false;
         if (tMax.x < tMax.y && tMax.x < tMax.z) { t = tMax.x; tMax.x += inv.x; cell.x += st.x; face = 0; }
         else if (tMax.y < tMax.z)               { t = tMax.y; tMax.y += inv.y; cell.y += st.y; face = 1; }
         else                                    { t = tMax.z; tMax.z += inv.z; cell.z += st.z; face = 2; }
         if (t > t1) break;
       }
-      if (!hit) discard;
-      vec3 hp = o + rd * t;                             // where the ray came into the cloud cell
-      vec2 uv; float sh, facing;
-      if (face == 1)      { uv = hp.xz;             sh = rd.y > 0.0 ? 0.72 : 1.0; facing = abs(rd.y); }
-      else if (face == 0) { uv = vec2(hp.z, -hp.y); sh = 0.86;                    facing = abs(rd.x); }
-      else                { uv = vec2(hp.x, -hp.y); sh = 0.8;                     facing = abs(rd.z); }
-      float lod = clamp(log2(max(t * uCloudPx * 128.0 / max(facing, 0.15), 1.0)), 0.0, 7.0);
-      vec3 col = mix(textureLod(uCloudTex, uv, lod).rgb, textureLod(uCloudDark, uv, lod).rgb, wx.y);
-      col *= mix(vec3(1.0), vec3(0.5, 0.57, 0.74), wx.y);   // storm and darky clouds: darker, a cold blue-grey (0.8197)
-      col *= sh * uLightColor * uCloudLit;                 // near black at night, as the sky (0.819)
-      vec4 vp = viewMatrix * vec4(hp + vec3(uCloudOff.x, 0.0, uCloudOff.y), 1.0);
-      fragColor = vec4(mix(col, fogColor + skyHaze(rd), smoothstep(fogNear * 2.0, far, -vp.z)), ${CLOUD_ALPHA});   // haze 0.817; see-through 0.8195
-      /* its real depth, so hills and trees in front hide it; past the far plane it is still behind everything.
-         Taken a few hundredths of a block nearer (0.818): a block face lying exactly on a cloud face — the layer's
-         floors are whole numbers, like block tops — used to fight it and flicker; now the cloud wins. */
+      if (tHit < 0.0 || acc.a < 0.004) discard;
+      fragColor = vec4(acc.rgb / acc.a, min(acc.a, ${CLOUD_ALPHA}));   // see-through 0.8195, the edges more
+      /* its real depth (where the ray first came into a cloud), so hills and trees in front hide it; past the far plane
+         it is still behind everything. Taken a few hundredths of a block nearer (0.818): a block face lying exactly on
+         a cloud face — the layer's floors are whole numbers, like block tops — used to fight it and flicker. */
+      vec3 hp = o + rd * tHit;
       vec4 cp = projectionMatrix * (viewMatrix * vec4(hp - rd * 0.03 + vec3(uCloudOff.x, 0.0, uCloudOff.y), 1.0));
       gl_FragDepth = min(cp.z / cp.w * 0.5 + 0.5, 0.99999);
     }`,

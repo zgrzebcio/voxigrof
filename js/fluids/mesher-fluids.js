@@ -6,12 +6,12 @@
 corePart('mesh.chunk', function () {
     // ---- per-block water: level-based top height, no greedy merge ----
     // variant byte = level: 0 = source (full), 1-7 = flowing ((8-level)/8 height); bits 3-6 a river's way, 7 it runs fast
-    /* Depth shading: a surface darkens smoothly with the still water under it, 0.72 x (1 - e^(-depth/6)) of its
-       sky light (about a quarter at 3 deep, half at 7, two thirds by 20), worked out at each CORNER from the cells round it
+    /* Depth shading: a surface darkens smoothly with the still water under it, 0.86 x (1 - e^(-depth/6)) of its
+       sky light (about a third at 3 deep, three fifths at 7, four fifths by 20), worked out at each CORNER from the cells round it
        so the colour fades across the surface instead of in squares. A falling sheet (water with air beside it) is no
        depth: a waterfall and its lip stay light. Depths are kept per column for this mesh. */
     const WATER_DEPTH_MAX = 20, _wDepth = new Map();
-    const _wDark = (d) => 0.72 * (1 - Math.exp(-d / 6));
+    const _wDark = (d) => 0.86 * (1 - Math.exp(-d / 6));   // the shader also turns it opaque, deep (04-materials.js)
     const _airLike = (v) => { const id = v & 255; return id !== B.WATER && !(P[id] && P[id].opaque); };
     function _waterDepth(cx2, y, cz2) {
       const k = cx2 + ',' + y + ',' + cz2;
@@ -122,8 +122,8 @@ corePart('mesh.chunk', function () {
         quadW(2, [x0,y+hc[0],z0],[x0,y+hc[1],z1],[x1,y+hc[2],z1],[x1,y+hc[3],z0], uv[0], uv[1], uv[2], uv[3], tt, sv[0], sv[1], sv[2], sv[3], lt, lt, lt, lt, dv[0], dv[1], dv[2], dv[3]);
       }
       // bottom: only if below is not water/opaque
-      const belowId = gb(x, y - 1, z) & 255;
-      if (belowId !== B.WATER && !(P[belowId] && P[belowId].opaque))
+      const belowRaw = gb(x, y - 1, z), belowId = belowRaw & 255;
+      if (belowId !== B.WATER && !opaqueVal(belowRaw))                      // a slab or a carpet under it shows it
         quad(2, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,0],[1,0],[1,1],[0,1], tile, 140, sideLite(x, y - 1, z));
       /* shade 253 marks "waving surface vertex" → only an open source surface waves; flowing stays static.
          Steps: a cell with water over it stands its full height (1, its side faces up to the cell above's,
@@ -137,13 +137,15 @@ corePart('mesh.chunk', function () {
       /* one side: corners a (bottom-left to top-left) and b in the vertex order the old faces used; ca/cb index hc */
       const side = (nRaw, nx, nz, ca, cb, P0, P1, ua, ub, base) => {
         const nId = nRaw & 255;
+        // a half-resolution chunk across its edge: no face on more water (its groups stand fuller), nor off a grown cell (seeEdge)
+        if (lod >= 2 && (nx < 0 || nx > 15 || nz < 0 || nz > 15) && (nId === B.WATER || !seeEdge(x, y, z, val))) return;
         const ha = hc[ca], hb = hc[cb];
         let fa = 0, fb = 0, footS = 0;
         if (nId === B.WATER) {
           const nf = nH(nRaw, nx, nz);
           if (Math.max(ha, hb) <= nf + 0.01) return;
           fa = Math.min(nf, ha); fb = Math.min(nf, hb); footS = nWave(nRaw, nx, nz);
-        } else if (P[nId] && P[nId].opaque) return;
+        } else if (opaqueVal(nRaw)) return;                // only a whole opaque block hides it: not a slab, stairs or carpet of one
         const lt = sideLite(nx, y, nz);
         quadV(2, [P0[0], y + fa, P0[1]], [P0[0], y + ha, P0[1]], [P1[0], y + hb, P1[1]], [P1[0], y + fb, P1[1]],
               [ua, fa], [ua, ha], [ub, hb], [ub, fb], fall, footS || base, topS(ca) || base, topS(cb) || base, footS || base, lt);
@@ -172,13 +174,13 @@ corePart('mesh.chunk', function () {
         }
         quad(3, [x0,y+frac,z0],[x0,y+frac,z1],[x1,y+frac,z1],[x1,y+frac,z0], uv[0], uv[1], uv[2], uv[3], topTile, level === 0 ? 255 : 240, lite);
       }
-      const belowId = gb(x, y - 1, z) & 255;
-      if (belowId !== B.LAVA && !(P[belowId] && P[belowId].opaque))
+      const belowRaw = gb(x, y - 1, z), belowId = belowRaw & 255;
+      if (belowId !== B.LAVA && !opaqueVal(belowRaw))
         quad(3, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,0],[1,0],[1,1],[0,1], tile, 140, lite);
       const topS = level === 0 ? 253 : 0;
       const bxpRaw = gb(x + 1, y, z); const bxpId = bxpRaw & 255;
       if (bxpId !== B.LAVA) {
-        if (!(P[bxpId] && P[bxpId].opaque))
+        if (!opaqueVal(bxpRaw))
           quadV(3, [x1,y0,z0],[x1,y+frac,z0],[x1,y+frac,z1],[x1,y0,z1], [1,0],[1,frac],[0,frac],[0,0], flow, 178,topS||178,topS||178,178, lite);
       } else { const nf = (8 - ((bxpRaw >> 8) & 7)) / 9;
         if (frac > nf + 0.01)
@@ -186,7 +188,7 @@ corePart('mesh.chunk', function () {
       }
       const bxnRaw = gb(x - 1, y, z); const bxnId = bxnRaw & 255;
       if (bxnId !== B.LAVA) {
-        if (!(P[bxnId] && P[bxnId].opaque))
+        if (!opaqueVal(bxnRaw))
           quadV(3, [x0,y0,z0],[x0,y0,z1],[x0,y+frac,z1],[x0,y+frac,z0], [0,0],[1,0],[1,frac],[0,frac], flow, 178,178,topS||178,topS||178, lite);
       } else { const nf = (8 - ((bxnRaw >> 8) & 7)) / 9;
         if (frac > nf + 0.01)
@@ -194,7 +196,7 @@ corePart('mesh.chunk', function () {
       }
       const bzpRaw = gb(x, y, z + 1); const bzpId = bzpRaw & 255;
       if (bzpId !== B.LAVA) {
-        if (!(P[bzpId] && P[bzpId].opaque))
+        if (!opaqueVal(bzpRaw))
           quadV(3, [x0,y0,z1],[x1,y0,z1],[x1,y+frac,z1],[x0,y+frac,z1], [0,0],[1,0],[1,frac],[0,frac], flow, 216,216,topS||216,topS||216, lite);
       } else { const nf = (8 - ((bzpRaw >> 8) & 7)) / 9;
         if (frac > nf + 0.01)
@@ -202,7 +204,7 @@ corePart('mesh.chunk', function () {
       }
       const bznRaw = gb(x, y, z - 1); const bznId = bznRaw & 255;
       if (bznId !== B.LAVA) {
-        if (!(P[bznId] && P[bznId].opaque))
+        if (!opaqueVal(bznRaw))
           quadV(3, [x0,y0,z0],[x0,y+frac,z0],[x1,y+frac,z0],[x1,y0,z0], [1,0],[1,frac],[0,frac],[0,0], flow, 216,topS||216,topS||216,216, lite);
       } else { const nf = (8 - ((bznRaw >> 8) & 7)) / 9;
         if (frac > nf + 0.01)

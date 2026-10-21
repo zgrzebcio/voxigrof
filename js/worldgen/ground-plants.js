@@ -64,10 +64,14 @@ corePart('gen.chunk', function () {
         const mx = (hash3(cx * 61 + 4400 + ai,     29, cz * 67 + 4400 + ai) * 16) | 0;
         const mz = (hash3(cx * 71 + 4400 + ai * 3, 31, cz * 73 + 4400 + ai) * 16) | 0;
         const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
-        if (h < 100 || h > CY - 2 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || Math.round(LVL[gi]) !== 0) continue;
+        /* rev 32 (SAV3): by the climate. The warm plains (level 1, not the Dryland or the Savanna) are wheat country, a patch
+           in most chunks and bigger (6-11); the cold plains (level -1) have the odd small one; level 0 as before */
+        const lv = Math.round(LVL[gi]), warmW = SAV3 && lv === 1 && DRYF[gi] < 0.5 && !SAV[gi], coldW = SAV3 && lv === -1;
+        if (h < 100 || h > CY - 2 || DES[gi] || SNO[gi] || TREE[gi] >= 0.5 || (lv !== 0 && !warmW && !coldW)) continue;
         const meadow = fbm((cx * 16 + mx) * 0.006 + 6006, (cz * 16 + mz) * 0.006 - 3003, 2) > 0.32;
-        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= (meadow ? 0.144 : 0.0288)) continue;   // twice as many patches since 0.826 (0.06, 0.012), a fifth more since 0.835491
-        const want = 4 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 4) | 0);
+        const chance = warmW ? (meadow ? 0.6 : 0.35) : coldW ? 0.02 : (meadow ? 0.144 : 0.0288);   // level 0: twice as many patches since 0.826, a fifth more since 0.835491
+        if (hash3(cx * 79 + 4400 + ai, 61, cz * 83 + 4400 + ai) >= chance) continue;
+        const want = warmW ? 6 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 6) | 0) : 4 + ((hash3(cx + 4400 + ai, 67, cz + 4400 + ai) * 4) | 0);
         for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
           const lx = mx + (((hash3(cx * 43 + ai + k * 7 + 4400,  71, cz * 47 + ai + k * 5) * 5) | 0) - 2);
           const lz = mz + (((hash3(cx * 53 + ai + k * 11 + 4400, 73, cz * 59 + ai + k * 3) * 5) | 0) - 2);
@@ -137,7 +141,7 @@ corePart('gen.chunk', function () {
           // ...a quarter since 0.8442 (half before): half the grass of every kind in the Dryland and the desert
           if (DRYF[gi] > 0.5) { grassCh *= 0.25; tallCh *= 0.25; flowerCh = 0; berryCh = 0; }
           // the Savanna: grass everywhere, much of it tall; no flowers or berries
-          if (SAV[gi]) { grassCh = 0.3 * (1 - alt * 0.75); tallCh = 0.16 * (1 - alt * 0.75); flowerCh = 0; berryCh = 0; }
+          if (SAV[gi]) { grassCh = 0.3 * (1 - alt * 0.75); tallCh = SAV_TALL * (1 - alt * 0.75); flowerCh = 0; berryCh = 0; }
           if (r < flowerCh) {
             data[idx(lx, h + 1, lz)] = hash3(cx * 31 + lx + 12, 19, cz * 29 + lz + 7) < 0.5 ? B.POPPY : B.ORCHID;
           } else if (r < flowerCh + berryCh) {
@@ -189,7 +193,7 @@ corePart('gen.chunk', function () {
               // the Dryland: a lot of them, about twice the green grass left beside them; half of it since 0.8442 (0.26, 0.06)
               gCh = 0.13; tCh = 0.03; bCh = 0.014;
             } else if ((top === B.GRASS || top === B.DIRT) && SAV[gi]) {
-              gCh = 0.02; tCh = 0.008; bCh = 0.004;               // the Savanna: a few, among its green grass
+              gCh = 0.02; tCh = SAV_DRY_TALL; bCh = 0.004;        // the Savanna: a few, among its green grass
             } else if (top === B.GRASS && !DES[gi] && !SNO[gi] && !OAS[gi] && TREE[gi] < 0.5 && Math.round(LVL[gi]) === 1) {
               gCh = 0.006; tCh = 0.0015; bCh = 0.0008;
             } else continue;

@@ -48,7 +48,7 @@ function migrateLegacyLayers(v) {
 }
 /* Looks were block ids of their own until 0.84691: a cell or a prefab cell holding one becomes its base block with the look in
    bits 16-23 (LOOK_OF_OLD_ID, blocks/looks.js), its variant byte kept (a pillar's axis, a cluster's direction). Run ONLY on
-   data without the `cells: 2` stamp: those ids are free and may be given to new blocks one day. */
+   data without the `cells: 3` stamp: those ids are free and may be given to new blocks one day. */
 function migrateLookVal(v) {
   if (typeof v !== 'number') return v;
   const nv = CORE.LOOK_OF_OLD_ID[v & 255];

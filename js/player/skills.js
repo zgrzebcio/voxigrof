@@ -50,7 +50,7 @@ const SKILLS = [
     desc: 'Climb a bare wall one block higher, for 30% less stamina' },
   { id: 'canopy',      cat: 'survival', name: 'Canopy Forager', cost: 1, req: ['grassWeaver'],
     desc: '30% better chance of sticks, saplings and apples from leaves' },
-  { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 2, req: ['canopy'],
+  { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 1, req: ['canopy'],
     desc: 'Each log you cut shakes the tree: every leaf on it has a 2% chance to fall and drop its loot' },
   // ---- crafting ----
   // the ids stay (they are what a save holds). `nimble` is Work Fingers now, and took the walking bonus over
@@ -63,12 +63,12 @@ const SKILLS = [
     desc: 'Tools and gear you craft from now on are Well made: 10% chance a use costs no durability' },
   { id: 'spareParts',  cat: 'crafting', name: 'Spare Parts',    cost: 1, req: ['nimble'],
     desc: '5% chance an ammo craft gives 1 extra' },
-  { id: 'mender',      cat: 'crafting', name: 'Mender',         cost: 2, req: ['fineWork', 'walkWork'],
+  { id: 'mender',      cat: 'crafting', name: 'Mender',         cost: 1, req: ['fineWork', 'walkWork'],
     desc: 'Worn-out tools and gear break instead of vanishing. Drop a worn one on the Repair zone under the crafting panel: half its recipe when broken, less the less worn it is (flint anywhere, the rest at a bench)' },
-  { id: 'dismantle',   cat: 'crafting', name: 'Dismantle',      cost: 2, req: ['mender'],   // 0.807
+  { id: 'dismantle',   cat: 'crafting', name: 'Dismantle',      cost: 1, req: ['mender'],   // 0.807
     desc: 'Drop a tool, weapon or piece of armor on the Dismantle zone under the equipment panel to break it down into half its recipe, less the more worn it is' },
   // ---- exploring ----
-  { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 2, req: [],
+  { id: 'treasureNose', cat: 'exploring', name: 'Treasure Nose', cost: 1, req: [],
     desc: '25% chance a loot chest holds one extra item, and 2.5% that it holds a key (wooden, copper, iron or golden)' },   // the key 0.8446
   { id: 'prospector',   cat: 'exploring', name: 'Prospector',    cost: 1, req: [],
     desc: '20% chance of one more ore from every ore block you mine' },
@@ -77,21 +77,21 @@ const SKILLS = [
   { id: 'packRat',      cat: 'exploring', name: 'Pack Rat',      cost: 1, req: [],
     desc: 'Item stacks hold 20 more (99) and block stacks 10 more (60); not the small stacks (stews, bowls, buckets)' },   // blocks only until 0.8442
   { id: 'hazardHide',   cat: 'exploring', name: 'Hazard Hide',   cost: 1, req: ['prospector', 'treasureNose'],
-    desc: '30% less damage from falls, lava and cactus' },   // explosions and temperature once they hurt
+    desc: '30% less damage from falls, falling blocks, lava and cactus' },   // explosions and temperature once they hurt
   // whatever clouds your sight or shakes it is 30% weaker: fog, a sandstorm, murky water, heatstroke's blur,
   // nausea's sway and the jolt of a hit
   { id: 'clearEyes',    cat: 'exploring', name: 'Clear Eyes',    cost: 1, req: ['hazardHide'],
     desc: 'Fog, sandstorms, murky water, blur, sway and the shake of a hit cloud or move your view 30% less' },
   // ---- husbandry ----
   { id: 'butcher',     cat: 'husbandry', name: 'Butcher',        cost: 1, req: [],
-    desc: '20% chance of one more meat (or leather) from animals you kill' },
-  { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 2, req: [],
+    desc: '20% chance of one more meat (or leather) from animals you kill, chitin from termites, fire from hellhounds, flesh from zombies and bones from skeletons' },
+  { id: 'preserver',   cat: 'husbandry', name: 'Preserver',      cost: 1, req: [],
     desc: 'Food you carry spoils 10% slower' },                        // 0.7911
   { id: 'lingering',   cat: 'husbandry', name: 'Lingering',      cost: 1, req: ['preserver'],   // after Preserver since 0.7911
     desc: 'Good food and potion effects last 25% longer' },   // good ones only
-  { id: 'gentleHand',  cat: 'husbandry', name: 'Gentle Hand',    cost: 2, req: ['butcher'],
-    desc: 'Taming horses and other tameable animals is 10% faster' },
-  { id: 'saddler',     cat: 'husbandry', name: 'Saddler',        cost: 2, req: ['gentleHand'],
+  { id: 'gentleHand',  cat: 'husbandry', name: 'Gentle Hand',    cost: 1, req: ['butcher'],
+    desc: 'Taming is 20% faster: the ride that tames a horse, and each kill counts 1.2 for a hellhound' },
+  { id: 'saddler',     cat: 'husbandry', name: 'Saddler',        cost: 1, req: ['gentleHand'],
     desc: 'The saddle recipe costs 20% less' },
   // 0.828, a path of its own
   { id: 'luckyHands',  cat: 'husbandry', name: 'Lucky Hands',    cost: 1, req: [],

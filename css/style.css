@@ -261,10 +261,10 @@
      Backspace hides every piece of HUD (the pause menu still opens over it); a dead player's pane keeps
      only the death screen. Classes, not inline styles, so each element's own display comes back. */
   body.hudHidden #hud, body.hudHidden #crosshair, body.hudHidden #hotbar, body.hudHidden #vitals,
-  body.hudHidden #xpBar, body.hudHidden #xpPops, body.hudHidden #quest, body.hudHidden #interact,
+  body.hudHidden #xpBar, body.hudHidden #xpPops, body.hudHidden #quest, body.hudHidden #interact, body.hudHidden #vitalsNear, body.hudHidden #wrongTool,
   body.hudHidden #blockname, body.hudHidden #feed, body.hudHidden #version,
   .dying #hud, .dying #crosshair, .dying #hotbar, .dying #vitals, .dying #xpBar, .dying #xpPops,
-  .dying #quest, .dying #interact, .dying #blockname, .dying #feed, .dying #version { display:none !important; }
+  .dying #quest, .dying #interact, .dying #vitalsNear, .dying #wrongTool, .dying #blockname, .dying #feed, .dying #version { display:none !important; }
   #furnacePanel .fChoked { color:#e8866e; font-size:11px; text-align:center; margin-top:4px; }   /* 0.801 */
   #furnGrid { display:flex; gap:16px; align-items:flex-start; justify-content:center; margin-top:8px; }
   #furnacePanel.bookOpen { border-top-left-radius:0; border-top-right-radius:0; }
@@ -485,6 +485,14 @@
               text-shadow:0 1px 3px #000, 0 0 6px rgba(0,0,0,.8); z-index:5; pointer-events:none;
               opacity:0; transition:opacity .12s; }
   #interact b { color:#fff; font-weight:600; }
+  /* stamina and oxygen while the inventory is shut: under the interact prompt (ui/vitals-hud.js; drawn at 2x, 110 x 44) */
+  #vitalsNear { position:fixed; left:50%; top:50%; margin-top:38px; transform:translateX(-50%); width:110px; height:44px;
+                z-index:5; pointer-events:none; display:none; }
+  /* the wrong-tool hint: the held tool's picture, crossed out in red, right of the crosshair (ui/hud.js) */
+  #wrongTool { position:fixed; left:50%; top:50%; margin-left:16px; margin-top:-11px; width:22px; height:22px;
+               background:center/contain no-repeat; image-rendering:pixelated; z-index:5; pointer-events:none; display:none; opacity:.9; }
+  #wrongTool::after { content:''; position:absolute; inset:0;
+                      background:linear-gradient(135deg, transparent 43%, #e33 43%, #e33 57%, transparent 57%); }
   /* held-item name sits ABOVE the vitals row (78 + 40 tall), where the hearts used to be */
   /* 100px since 0.7943 (was 124): under the variant slots, which sit just above the vitals */
   #blockname { position:fixed; left:50%; bottom:162px;   /* over the vitals' middle column since 0.82 (106px) */ transform:translateX(-50%); color:#fff; font-size:14px;

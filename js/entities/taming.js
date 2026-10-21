@@ -25,7 +25,7 @@ const TAMEABLE = {
     label: 'horse',
     food: [ITEM.GOLDEN_APPLE],       // what makes it accept you
     consumeFood: true,
-    tameTime: 16,                    // seconds in the saddle to fill the bar
+    tameTime: 22.4,                  // seconds in the saddle to fill the bar
     buckPenalty: 0.25,               // share of the final boost lost per early dismount
     needsSaddle: true,               // ...before a tamed one can actually be steered
     boost: { hp: 20, speed: 0.08, jump: 0.08 },   // health x5 since 0.823
@@ -41,13 +41,22 @@ const tameProps = (e) => (e && TAMEABLE[e.kind]) || null;
 const isTameable = (e) => !!tameProps(e);
 
 /* ---- a tamed horse's stance ----
-   Sneak + use on a tamed horse takes the next of these (tryTameInteract); `wander` is what every horse does left
-   alone. It follows the player whose word it was (`ownerId`, their profile; houndOwner in entities/hellhound.js finds
+   Sneak + use on a tamed horse takes the next of these (tryTameInteract), HORSE_STANCE_WAIT after the last press
+   (`stanceNext`, horseStanceTick); `wander` is what every horse does left alone. It follows the player whose word it was (`ownerId`, their profile; houndOwner in entities/hellhound.js finds
    them), at a walk near and a run when left behind; it does not come to them from out of range as a hound does.
    Told to lie it lies down (the pose is in _updateGrazer, entities/grazers.js); told to wait it stands. A rider overrides all of it,
    and a blow still sends it bolting. */
 const HORSE_STANCES = ['lie', 'wait', 'wander', 'follow'];
 const HORSE_FOLLOW_NEAR = 3.5, HORSE_FOLLOW_FAR = 7, HORSE_FOLLOW_RUN_AT = 14;
+const HORSE_STANCE_WAIT = 2;                     // seconds after the last press before a new stance takes hold
+// a stance pressed for takes hold once its wait is over (from _updateGrazer, every step of a tamed horse)
+function horseStanceTick(e, dt) {
+  if (!e.stanceNext) return;
+  e.stanceT -= dt;
+  if (e.stanceT > 0) return;
+  e.stance = e.stanceNext; e.stanceNext = null;
+  e._following = false; e.wanderT = 0;
+}
 // the speed it wants this step, its heading set; from _updateGrazer's heading, for any stance but 'wander'
 function horseStanceMove(e, dt) {
   e.state = 'stay';                              // not 'idle': an idle horse puts its head down to graze
@@ -240,12 +249,14 @@ function tryTameInteract() {
     mountRider(player, ent);
     return true;
   }
-  // sneak + use on a tamed one: its next stance, and it is this player's word it keeps
+  /* sneak + use on a tamed one: the next stance after the one pressed for (or the one it has), taking hold
+     HORSE_STANCE_WAIT after the last press (horseStanceTick), so clicking past 'wander' never lets it walk off; and it is
+     this player's word it keeps */
   if (player.sneaking && ent.kind === 'horse') {
-    ent.stance = HORSE_STANCES[(HORSE_STANCES.indexOf(ent.stance || 'wander') + 1) % HORSE_STANCES.length];
+    const now = ent.stance || 'wander', next = HORSE_STANCES[(HORSE_STANCES.indexOf(ent.stanceNext || now) + 1) % HORSE_STANCES.length];
     ent.owner = player; ent.ownerId = player.profileId || null;
-    ent._following = false; ent.wanderT = 0;
-    toast(`${ent.name}: ${ent.stance}`);
+    if (next === now) { ent.stanceNext = null; toast(`${ent.name}: stays ${now}`); }
+    else { ent.stanceNext = next; ent.stanceT = HORSE_STANCE_WAIT; toast(`${ent.name}: ${next} in ${HORSE_STANCE_WAIT} s`); }
     return true;
   }
   mountRider(player, ent);
@@ -319,7 +330,7 @@ function updateTaming(dt) {
   updateRidePanel(e);
   const tp = tameProps(e);
   if (!tp || e.tame) { hideTameBar(); return; }
-  const pace = (typeof hasSkill === 'function' && hasSkill('gentleHand')) ? 1.1 : 1;   // Gentle Hand
+  const pace = (typeof hasSkill === 'function' && hasSkill('gentleHand')) ? 1.2 : 1;   // Gentle Hand
   e.tameProg = Math.min(1, (e.tameProg || 0) + dt * pace / tp.tameTime);
   showTameBar(e, tp);
   if (e.tameProg >= 1) finishTaming(e, tp);

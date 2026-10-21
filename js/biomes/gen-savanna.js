@@ -34,7 +34,7 @@ corePart('gen.chunk', function () {
       function termiteHillPass() {
         for (let hz = Math.floor((cz * 16 - 2) / HILL_CELL); hz <= Math.floor((cz * 16 + 17) / HILL_CELL); hz++)
           for (let hx = Math.floor((cx * 16 - 2) / HILL_CELL); hx <= Math.floor((cx * 16 + 17) / HILL_CELL); hx++) {
-            if (hash2(hx * 173 + 41, hz * 151 - 37) >= HILL_CELL_CHANCE) continue;
+            if (hash2(hx * 173 + 41, hz * 151 - 37) >= (SAV3 ? HILL_CELL_CHANCE * 0.1 : HILL_CELL_CHANCE)) continue;   // rev 32: 90% fewer
             const span = HILL_CELL - 2 * HILL_EDGE;
             const wx = hx * HILL_CELL + HILL_EDGE + ((hash2(hx * 29 - 3, hz * 31 + 7) * span) | 0);
             const wz = hz * HILL_CELL + HILL_EDGE + ((hash2(hx * 37 + 11, hz * 43 - 5) * span) | 0);

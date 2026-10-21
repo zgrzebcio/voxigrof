@@ -100,8 +100,8 @@ const CREATIVE_ORDER = [
   B.GRASS, B.DIRT, B.STONE, B.COBBLE,
   // the wood chain, each row every wood in the woods table's order (woods/woods.js)
   ...woodBlocks('log'), ...woodBlocks('stripped'), ...woodBlocks('hollow'), ...woodBlocks('planks'), ...woodBlocks('leaves'),
-  B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,   // pink sand 0.822; glassy 0.824/0.8241
-  B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.PACKED_ICE, B.BONE_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833; packed ice 0.835
+  B.SAND, B.RED_SAND, B.PINK_SAND, B.GLASSY_SAND,   // pink sand 0.822; glassy 0.824 (red and pink are its looks)
+  B.SANDY_DIRT, B.GRAVEL, B.CLAY, B.SNOW, B.ICE, B.PACKED_ICE, B.BONE_BLOCK, B.SEASHELL_BLOCK, B.BONE_ASH_BLOCK, B.BEDROCK,   // ice 0.8321; bone block 0.833; packed ice 0.835
   B.MARBLE, B.GRANITE, B.LIMESTONE, B.DOLOMITE, B.BRICKS, B.ADOBE, B.SALT_CRUST, B.ASH,   // dolomite 0.809; adobe, salt crust 0.8091; ash 0.8191
   B.GLASS, B.GLOWSTONE, B.GLOWSTONE_SPENT, B.WOOL,   // spent 0.834
   // every ore together, the gem clusters right after the metals, then the blocks they press into
@@ -120,7 +120,7 @@ const CREATIVE_ORDER = [
   ...woodBlocks('sapling'),
   B.SHORT_GRASS, B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,   // dry grass and bush 0.84
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
-  B.FLINT_ROCK, B.STONE_PEBBLE,   // stone pebble 0.8095
+  B.FLINT_ROCK, B.STONE_PEBBLE, B.SEASHELL,   // stone pebble 0.8095
   B.GLOW_VINE, B.COBWEB,
 ];
 function _defaultCreativeInventory() {

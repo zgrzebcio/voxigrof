@@ -19,6 +19,11 @@ const CF_MAX_DROPS = 140, CF_MAX_FLAKES = 320;
 const CF_SNOW_LIFE = [7, 15];                         // seconds a flake takes to melt off
 const CF_FLASH_R = 48, CF_FLASH_MAX = 0.6;            // how near a strike flashes the lens, and how white at most
 const CF_FROST_IN_S = 18, CF_FROST_OUT_S = 10;        // a blizzard's frost creeping in round the edges, and going
+/* in a cobweb: its strands over the lens, a web in each corner and a faint one across the middle, eased in and out
+   (the cobweb's own art, textures/Billboards/cobweb/) */
+const CF_WEB_IN_S = 0.2, CF_WEB_OUT_S = 0.6, CF_WEB_ALPHA = 0.75;
+const _cfWebImg = (src) => { const i = new Image(); i.src = src; return i; };
+const _cfWeb = _cfWebImg('textures/Billboards/cobweb/cobweb.png'), _cfWebCorner = _cfWebImg('textures/Billboards/cobweb/cobweb_corner.png');
 
 // the sprites, drawn once: a drop (a dark rim, a clear middle, a glint), a soft flake and a six-armed crystal
 function _cfSprite(size, paint) {
@@ -104,7 +109,7 @@ function _cfStep(f, p, pane, dt) {
   if (dt < 0 || !p.spawned || p.dead || (typeof _fxScale === 'number' && _fxScale <= 0)) {
     // the title, a dead seat or the particles off: nothing on the lens
     if (f.shown) { f.c.style.display = 'none'; f.shown = false; }
-    f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = f.under = 0;
+    f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = f.under = f.web = 0;
     return;
   }
   const w = Math.max(1, Math.round(pane.clientWidth * CF_RES)), h = Math.max(1, Math.round(pane.clientHeight * CF_RES));
@@ -146,6 +151,10 @@ function _cfStep(f, p, pane, dt) {
   if (!(p.fireT > 0)) p._fireCold = false;
   f.cold = (f.cold || 0) + ((p._fireCold ? 1 : 0) - (f.cold || 0)) * (1 - Math.exp(-dt / 0.3));
   f.flash = Math.max(0, f.flash - dt * 2.6);
+  // in a cobweb: the cell at the eye or at the body's middle
+  const webAt = (yy) => (getBlock(Math.floor(p.pos.x), Math.floor(yy), Math.floor(p.pos.z)) & 255) === B.COBWEB;
+  const inWeb = webAt(ey) || webAt(p.pos.y + 0.9);
+  f.web = (f.web || 0) + ((inWeb ? 1 : 0) - (f.web || 0)) * (1 - Math.exp(-dt / (inWeb ? CF_WEB_IN_S : CF_WEB_OUT_S)));
   f.wet = Math.max(0, f.wet - dt / 1.8);
   // the drops: cling, then run down faster and faster, wandering a little, leaving a thin wet trail
   for (let i = f.drops.length - 1; i >= 0; i--) {
@@ -160,7 +169,7 @@ function _cfStep(f, p, pane, dt) {
     if (d.y - d.r > h) f.drops.splice(i, 1);
   }
   for (let i = f.flakes.length - 1; i >= 0; i--) if ((f.flakes[i].life -= dt) <= 0) f.flakes.splice(i, 1);
-  const any = f.drops.length || f.flakes.length || f.wet > 0.01 || f.frost > 0.01 || f.flash > 0.01 || f.fire > 0.01 || f.under > 0.01;
+  const any = f.drops.length || f.flakes.length || f.wet > 0.01 || f.frost > 0.01 || f.flash > 0.01 || f.fire > 0.01 || f.under > 0.01 || f.web > 0.01;
   if (!any) { if (f.shown) { g.clearRect(0, 0, w, h); f.c.style.display = 'none'; f.shown = false; } return; }
   if (!f.shown) { f.c.style.display = 'block'; f.shown = true; }
   g.clearRect(0, 0, w, h);
@@ -236,6 +245,18 @@ function _cfStep(f, p, pane, dt) {
       g.quadraticCurveTo(x + fw * 0.5 + sway, h - fh * 0.55, x + fw, h);
       g.closePath(); g.fill();
     }
+  }
+  // caught in a cobweb: a web strung in each corner of the lens, and a faint one across the middle
+  if (f.web > 0.01 && _cfWeb.complete && _cfWebCorner.complete && _cfWeb.naturalWidth) {
+    const s = Math.min(w, h) * 0.55;
+    g.globalAlpha = CF_WEB_ALPHA * f.web;
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {   // the corner art anchors top left: mirrored to each corner
+      g.save(); g.translate(sx > 0 ? 0 : w, sy > 0 ? 0 : h); g.scale(sx, sy); g.drawImage(_cfWebCorner, 0, 0, s, s); g.restore();
+    }
+    g.globalAlpha = CF_WEB_ALPHA * 0.45 * f.web;
+    const m = Math.min(w, h) * 0.9;
+    g.drawImage(_cfWeb, (w - m) / 2, (h - m) / 2, m, m);
+    g.globalAlpha = 1;
   }
   // lightning close by
   if (f.flash > 0.01) { g.fillStyle = `rgba(255,255,255,${f.flash.toFixed(3)})`; g.fillRect(0, 0, w, h); }

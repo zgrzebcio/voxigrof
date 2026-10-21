@@ -145,9 +145,10 @@ defineMob('zombie', {
   name: 'Zombie', group: 'monster', body: 'humanoid', night: true,
   hp: ZOMBIE_HP, walk: ZOMBIE_SPEED, chase: ZOMBIE_CHASE_SPEED,
   make: makeZombie, build: () => buildHumanoid(_newZombieMat()),
+  butcher: true,                                   // Butcher: one more flesh now and then (its first drop)
   // rotten flesh, now and then a nugget, a chest's key off one a player killed, and whatever it had picked up
   loot: (e, pop, first, byPlayer) => {
-    pop(ITEM.ROTTEN_FLESH, rollLoot(LOOT.monster));
+    first(ITEM.ROTTEN_FLESH, LOOT.monster);
     if (Math.random() < ZOMBIE_NUGGET_CHANCE)
       pop(ZOMBIE_NUGGETS[Math.floor(Math.random() * ZOMBIE_NUGGETS.length)], 1);
     _mobDropKey(pop, byPlayer);
@@ -158,9 +159,10 @@ defineMob('skeleton', {
   name: 'Skeleton', group: 'monster', body: 'humanoid', night: true,
   hp: SKEL_HP, walk: SKEL_SPEED, chase: SKEL_CHASE_SPEED,
   make: makeSkeleton, build: () => buildHumanoid(_newSkeletonMat()),
+  butcher: true,                                   // Butcher: one more bone now and then (its first drop)
   // bones, some of the arrows it carried, a chest's key off one a player killed
   loot: (e, pop, first, byPlayer) => {
-    pop(ITEM.BONE, rollLoot(LOOT.monster));
+    first(ITEM.BONE, LOOT.monster);
     pop(e.ammoId != null ? e.ammoId : ITEM.ARROW, rollLoot(LOOT.arrows));
     _mobDropKey(pop, byPlayer);
     /* The bow itself, once in a hundred thousand kills, and worn nearly through when it does

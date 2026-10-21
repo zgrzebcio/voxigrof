@@ -13,10 +13,16 @@ const _uwTint = new THREE.Color(0x0a2438);   // underwater murk color
    the surface up to RIVER_FLOW_UP cells over it, at RIVER_PUSH of the old push (RIVER_PUSH_FAST on a fast stretch), so
    you can still swim against an ordinary river. `river` false (fish) keeps to the gradient: they hold their place. */
 const RIVER_PUSH = 0.6, RIVER_PUSH_FAST = 1.0, RIVER_FLOW_UP = 3;
+/* ...and a wave rolling in from the sea pushes toward the shore on top of it all (wavePush, seasons/waves.js); not a fish */
 function waterFlowVec(x, y, z, out, river = true) {
   out.x = 0; out.z = 0;
   const val = getBlock(x, y, z);
   if ((val & 255) !== B.WATER) return false;
+  const flows = _waterFlowOnly(x, y, z, val, out, river);
+  const waved = river && typeof wavePush === 'function' && wavePush(x, y, z, out);
+  return flows || waved;
+}
+function _waterFlowOnly(x, y, z, val, out, river) {
   if (river)
     for (let k = 0, v = val; k <= RIVER_FLOW_UP && (v & 255) === B.WATER; k++, v = getBlock(x, y + k, z)) {
       const va = (v >> 8) & 255, fd = (va >> 3) & 15;

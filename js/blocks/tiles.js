@@ -98,6 +98,13 @@ corePart('blocks', function () {
                      CARVED_SANDSTONE:416, CARVED_RED_SANDSTONE:417, CARVED_PINK_SANDSTONE:418,
                      CARVED_ADOBE:419, CARVED_TERRACOTTA:420, TERRACOTTA_ROOF:421, THATCH:422,
                      CARVED_SNOW:423, CARVED_ICE:424, CARVED_OBSIDIAN:425, OBSIDIAN_BRICKS:426 });
+  T.SANDY_DIRT = 427;                                                  // the deep beach's sandy dirt, palms' ground
+  Object.assign(T, { SEASHELL_SIDE:428, SEASHELL_TOP:429 });           // the seashell's model art
+  // the coconut, ripe, and green while it grows (built at atlas build from the ripe art, 03-atlas.js)
+  Object.assign(T, { COCONUT_SIDE:430, COCONUT_TOP:431, COCONUT_YOUNG_SIDE:432, COCONUT_YOUNG_TOP:433 });
+  Object.assign(T, { SEASHELL_BLOCK_SIDE:434, SEASHELL_BLOCK_TOP:435 });   // the seashell block
+  Object.assign(T, { COBWEB_TANGLED:436, COBWEB_CORNER:437 });            // the cobweb's two looks (blocks/looks.js)
+  Object.assign(T, { BONE_ASH_BLOCK:438 });                                // the ash block's art in white (built in 03-atlas.js)
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -154,11 +161,10 @@ corePart('blocks', function () {
               PINK_SAND:187, PINK_SANDSTONE:188,                                       // pink sand and its sandstone
               // sand fused by lightning; the carved pumpkin and the jack o'lantern
               GLASSY_SAND:196, CARVED_PUMPKIN:197, JACK_O_LANTERN:198,
-              GLASSY_RED_SAND:199, GLASSY_PINK_SAND:200,                               // 0.8241
               YELLOWBERRY_BUSH:201, WHITEBERRY_BUSH:202,                               // the real yellow, and white
               ICE:203,                                                                 // 0.8321
-              // ice and snow bricks, the snow-ice brick both share (looks that are ids: blocks/looks.js); the bone block
-              ICE_BRICKS:204, SNOW_BRICKS:205, SNOW_ICE_BRICKS:206, BONE_BLOCK:207,
+              // ice and snow bricks: worked blocks of their own, never falling or melting, with looks (blocks/looks.js); the bone block
+              ICE_BRICKS:204, SNOW_BRICKS:205, BONE_BLOCK:207,
               // the burnt-out torch, the cold crystal torch, and the two glow blocks gone dark
               TORCH_UNLIT:209, CRYSTAL_TORCH:210, GLOWSTONE_SPENT:211, GLOWCRYSTAL_SPENT:212,
               PACKED_ICE:213,                                                          // the ice spikes' ice
@@ -174,12 +180,16 @@ corePart('blocks', function () {
               TERMITE_HILL:235,
               ACACIA_SAPLING:236,
               SHORT_GRASS:237,                                                         // the smallest grass plant (TALLGRASS is the middle one)
-              // looks that stay ids because they behave unlike their base (blocks/looks.js): thatch, carved snow and ice
-              THATCH:249, CARVED_SNOW:250, CARVED_ICE:251,
+              COCONUT:238,                                                             // hangs under a palm's crown (woods/coconuts.js); a retired look's id, see below
+              SEASHELL_BLOCK:239,                                                      // ten seashells pressed into a block; a retired look's id too
+              BONE_ASH_BLOCK:240,                                                      // five bone ash pressed into a block that falls like sand; a retired look's id
+              THATCH:249,                                                              // hay's look of its own: it does not fall
+              SANDY_DIRT:254,                                                          // where sand meets turf on a deep beach, and under every palm
+              SEASHELL:255,                                                            // lies on the sea's beaches, picked up by hand
             };
   /* RETIRED IDS. Every other look lives in the cell's bits 16-23 since 0.84691 (blocks/looks.js); the ids those looks
-     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 208, 238-248, 252, 253) are converted on load
-     (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 2` stamp. Free again, but reuse one only when that
+     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block) are converted on load
+     (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 3` stamp. Free again, but reuse one only when that
      conversion is gated by the stamp everywhere (it is: worlds in 16-worlds.js, prefabs in 34-structures.js). */
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants
      of the full block (SHAPE_SLAB below). Old saves are converted by migrateLegacyVal — never reuse them. */
@@ -214,5 +224,7 @@ corePart('blocks', function () {
   PROPS[B.AIR]     = { name:'Air', solid:false, opaque:false, raycast:false, pass:0, model:'cube', hardness:0,    faces:null, desc: '' };
   PROPS[B.GRASS]   = { name:'Grass', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.0, type:'grass', faces:[T.GRASS_SIDE,T.GRASS_SIDE,T.GRASS_TOP,T.DIRT,T.GRASS_SIDE,T.GRASS_SIDE], desc: '' };
   PROPS[B.DIRT]    = { name:'Dirt', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.8, type:'ground', faces:[T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT,T.DIRT], desc: '' };
+  // sandy dirt: dirt with sand through it, between a deep beach's sand and its turf, and the ground a palm takes root in
+  PROPS[B.SANDY_DIRT] = { name:'Sandy dirt', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.6, type:'ground', faces:Array(6).fill(T.SANDY_DIRT), desc: 'A palm sapling grows only in it' };
   PROPS[B.STONE]   = { name:'Stone', solid:true,  opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:8.0, type:'stone', faces:[T.STONE,T.STONE,T.STONE,T.STONE,T.STONE,T.STONE], desc: '' };
 });

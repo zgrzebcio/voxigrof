@@ -59,7 +59,7 @@ const SWAP_KEYS = [
   // movement bookkeeping + held light
   'wasMoving', 'lastFlying', '_hlId', '_hlLevel', '_hlX', '_hlY', '_hlZ', '_hlRaw',
   // this player's slice of the HUD
-  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl', 'progRingEl',
+  'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl', 'progRingEl', 'vitalsNearEl', 'vnctx', 'wrongToolEl', '_wrongToolKey',
   'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl', 'heatBlurEl', 'deathMarkEl',
   'deathEl', 'deathCauseEl', 'deathStatsEl', '_interactShown', 'blocknameTimer',
 ];
@@ -231,7 +231,7 @@ const playerRoster = () => PSTATE.map((s, i) => s.player.name || defaultPlayerNa
        `position: fixed` descendants. So `#hotbar { bottom: 6px }` lands at the bottom of the PANE
        rather than the bottom of the window, and the scale shrinks the whole HUD to suit a
        quarter-screen viewport.                                                                   */
-const HUD_PANE_IDS = ['hud', 'crosshair', 'progRing', 'interact', 'blockname', 'vitals',   // progRing 0.8446
+const HUD_PANE_IDS = ['hud', 'crosshair', 'progRing', 'interact', 'vitalsNear', 'wrongTool', 'blockname', 'vitals',   // progRing 0.8446
                       'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap', 'quest'];   // quest box 0.798
 /* The virtual cursor, the drag ghost and the item tooltip stay on the BODY rather than inside the
    pane, one set per player. They are positioned in raw screen coordinates — the same space mouse
@@ -288,6 +288,9 @@ function _bindPaneDom(pane, g) {
   g.vitalsEl     = q('#vitals');
   g.vctx         = g.vitalsEl.getContext('2d');
   g.vctx.imageSmoothingEnabled = false;
+  g.vitalsNearEl = q('#vitalsNear');               // this seat's stamina and oxygen under its crosshair
+  g.vnctx        = g.vitalsNearEl.getContext('2d');
+  g.wrongToolEl  = q('#wrongTool');                // ...and its wrong-tool hint
   g.xpBarEl      = q('#xpBar');
   g.xpFillEl     = q('#xpFill');
   g.xpLevelEl    = q('#xpLevel');
@@ -750,9 +753,9 @@ function renderAllViews(dt) {
         _scaleNameTagFor(other.selfModel, camera);     // hold it legible at range, for THIS eye
       }
     }
-    // this player's aimed block outline / crack overlay (both are single shared scene objects)
-    const sel = st.sel;
-    selBox.visible = !!sel;
+    // this player's aimed block outline / crack overlay (both are single shared scene objects); the outline goes with the HUD
+    const sel = st.sel, uiOff = typeof hudHidden !== 'undefined' && hudHidden;
+    selBox.visible = !!sel && !uiOff;
     if (sel) { selBox.position.set(sel.px, sel.py, sel.pz); selBox.scale.set(sel.sx, sel.sy, sel.sz); selBox.updateMatrix(); }
     const cr = st.crack;
     crackMesh.visible = !!cr;
@@ -762,7 +765,7 @@ function renderAllViews(dt) {
     // each seat's wand outline shows in its own view only
     for (let j = 0; j < PSTATE.length; j++) {
       const wp = PSTATE[j].player, L = wp && wp._wandLines;
-      if (L) L.visible = !menuScene && j === i && !!wp._wandShow;
+      if (L) L.visible = !menuScene && !uiOff && j === i && !!wp._wandShow;
     }
     alignSkyTo(camera);                  // the dome is drawn around THIS eye
     applyEyeVolumeFog();                 // water / lava murk for THIS eye, restored per pass

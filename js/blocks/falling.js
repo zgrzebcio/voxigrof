@@ -14,6 +14,7 @@ const _fallOpen = (id) => id === B.AIR || PROPS[id]?.model === 'cross';
 const FALL_WHOLE_BLOCKS = new Set([B.HAY]);
 const _fallsUnderGravity = (v) => {
   const id = v & 255;
+  if (PROPS[id]?.hangs) return false;              // a coconut hangs from its palm (woods/coconuts.js lets it go)
   if (CORE.layerCount(v)) return !!PROPS[id]?.layerStack;
   return LOOSE_LAYER_BLOCKS.has(v) || FALL_WHOLE_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';   // a whole sand, gravel or fiber block
 };
@@ -107,6 +108,7 @@ function _landBlocks(list) {
     for (const [x, y0, z, val] of list) {
       let y = y0;
       for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
+      if ((val & 255) === B.COCONUT && typeof coconutLanded === 'function') { coconutLanded(x, y, z, val); continue; }   // it cracks open (woods/coconuts.js)
       if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
         if (!player.canFly) for (const d of blockDrop(val)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
         continue;
@@ -125,8 +127,45 @@ function _spawnFallBlock(x, y, z, val) {
   group.traverse(o => o.layers.set(1));          // drawn, but kept out of the shadow maps
   group.position.set(x + 0.5, y + 0.5, z + 0.5);
   scene.add(group);
-  FALL_BLOCKS.push({ group, val, x, z, y, vy: 0 });
+  FALL_BLOCKS.push({ group, val, x, z, y, vy: 0, y0: y, hit: null });
   return true;
+}
+/* A block let go of where it hangs (a coconut off its palm): it falls from (x, y, z) as a moving block where a player may see
+   it, else it lands at once. */
+function dropBlockFrom(x, y, z, val) {
+  setBlock(x, y, z, B.AIR);
+  const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
+  if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) _landBlocks([[x, _landingY(x, y, z), z, val]]);
+}
+/* A FALLING BLOCK HURTS whoever it comes down on, players and creatures: FALL_HURT_PER a block it has fallen past the
+   first, up to FALL_HURT_MAX, times its PROPS `fallHurt` (1 when not given; a coconut 0.5, the hay bale 0), in VITAL_K
+   units like a fall of your own (player/hazards.js). Hazard Hide takes 30% off. Each body once a block. */
+const FALL_HURT_PER = 0.6, FALL_HURT_MAX = 6;      // 3 health a block, 30 at the most
+PROPS[B.HAY].fallHurt = 0;                          // a bale of hay lands soft
+// the hurt, in VITAL_K units, of a block of weight `w` that has fallen `fallen` blocks
+const fallBlockHurt = (fallen, w = 1) => Math.min(FALL_HURT_MAX, Math.max(0, fallen - 1) * FALL_HURT_PER) * w;
+function _fallBlockHits(f, ny) {
+  const w = PROPS[f.val & 255]?.fallHurt ?? 1;
+  if (!(w > 0)) return;
+  const units = fallBlockHurt(f.y0 - ny, w);
+  if (units <= 0) return;
+  const over = (px, pz, r, py, h) => Math.abs(px - f.x - 0.5) < 0.5 + r && Math.abs(pz - f.z - 0.5) < 0.5 + r && ny < py + h && ny + 1 > py;
+  for (const p of PLAYERS) {
+    if (!p.spawned || p.dead || p.canFly || (f.hit && f.hit.has(p))) continue;
+    if (!over(p.pos.x, p.pos.z, p.R || 0.3, p.pos.y, p.H || 1.8)) continue;
+    (f.hit || (f.hit = new Set())).add(p);
+    p.hp = Math.max(0, p.hp - units * VITAL_K * (typeof hasSkill === 'function' && hasSkill('hazardHide', p) ? 0.7 : 1));
+    p._dmgCause = 'was crushed by a falling block';
+  }
+  if (typeof ENTITIES === 'undefined') return;
+  for (const e of [...ENTITIES]) {
+    if (e.active === false || !(e.hp > 0) || e.boss || (f.hit && f.hit.has(e))) continue;
+    if (!over(e.x, e.z, entR(e), e.y, entH(e))) continue;
+    (f.hit || (f.hit = new Set())).add(e);
+    e.hp -= units * VITAL_K;                         // a creature's numbers are on the same 100 scale
+    e.hurtT = 0.25;
+    if (e.hp <= 0) { if (!player.canFly) _entDropLoot(e); const i = ENTITIES.indexOf(e); if (i >= 0) _removeEntity(i); }
+  }
 }
 function _updateFallBlocks(dt) {
   if (!FALL_BLOCKS.length) return;
@@ -140,6 +179,7 @@ function _updateFallBlocks(dt) {
     let land = null;
     for (let c = Math.floor(f.y); c >= Math.ceil(ny); c--)
       if (c <= 1 || !_fallOpen(getBlock(f.x, c - 1, f.z) & 255)) { land = c; break; }
+    _fallBlockHits(f, land == null ? ny : land);           // anyone it comes down on
     if (land == null) { f.y = ny; f.group.position.y = ny + 0.5; continue; }
     landed.push([f.x, Math.max(1, land), f.z, f.val]);
     scene.remove(f.group);

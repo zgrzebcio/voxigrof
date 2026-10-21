@@ -269,12 +269,14 @@ function saveWorld(syncToLS = false) {
     r.count || 1]);                                                   // a stacked drop's size
   const furnaces = [...FURNACES].map(([k, f]) =>
     [k, f.slots, +f.burn.toFixed(2), +f.burnMax.toFixed(2), +f.progress.toFixed(3),
-     +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0]);            // ash meter, banked XP
+     +(f.ash || 0).toFixed(3), f.xp || 0, f.ashy ? 1 : 0,             // ash meter, banked XP
+     f.spoilT ?? null]);                                               // the world clock its food last spoiled to
   const data = {
     savedAt: Date.now(),
-    cells: 2,                             // looks live in a cell's bits 16-23 (blocks/looks.js): nothing here to convert on load
+    cells: 3,                             // looks live in a cell's bits 16-23 (blocks/looks.js): nothing here to convert on load
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     burns: serializeBurns(),              // when each torch and glow block goes out (blocks/torches.js)
+    placedWater: serializePlacedWater(),  // water a bucket put down: not to drink or bottle (player/drinking.js)
     doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (blocks/doors.js)
     // mixed layer stacks and mixed slabs: [chunk key, [[cell index, [entries bottom to top: id | look << 8]], ...]]
     layers: [...LAYER_STACKS].map(([k, m]) => [k, [...m].map(([i, a]) => [i, Array.from(a)])]).filter(r => r[1].length),
@@ -370,9 +372,10 @@ async function loadWorld(w) {
   player._chiselRad = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
-  /* a save from before 0.84691 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
-     and only here, since those ids are free for new blocks */
-  const oldCells = !(data && data.cells >= 2);
+  /* a save without the stamp 3 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
+     and only here, since those ids are free for new blocks (stamp 2 still held snow-ice brick, carved snow and ice, and the
+     red and pink glassy sand as ids) */
+  const oldCells = !(data && data.cells >= 3);
   if (data && Array.isArray(data.layers))
     for (const rec of data.layers) {
       if (!Array.isArray(rec) || typeof rec[0] !== 'string' || !Array.isArray(rec[1])) continue;
@@ -416,6 +419,8 @@ async function loadWorld(w) {
       f.ash = Math.min(ASH_FUEL, Math.max(0, +rec[5] || 0));
       f.xp = Math.max(0, +rec[6] || 0);
       f.ashy = rec[7] !== 0;
+      if (typeof rec[8] === 'number') f.spoilT = rec[8];
+      f.inId = f.slots[1] ? f.slots[1].id : null;   // the smelt saved goes on with the input it was on
       // saved edits may carry the lit-front variant; claiming "lit" here forces the first
       // tick to write the correct variant either way (same-value writes are no-ops)
       f.lit = true;
@@ -430,6 +435,7 @@ async function loadWorld(w) {
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
   restoreSeasons(data && data.seasons);                                // what autumn took, for spring
   restoreBurns(data && data.burns);                                    // lights burning out
+  restorePlacedWater(data && data.placedWater);                        // a bucket's water (player/drinking.js)
   restoreBloodMoon(data && data.bloodLast);                            // 0.8192
   restoreBenches(data && data.benches);                                   // crafting bench orders
   // structure state must land BEFORE any chunk streams in, or already-rolled chunks re-roll
@@ -656,15 +662,17 @@ function setHudVisible(v) {
       const off = !v || (sel === '#hud' && debugHudHidden(i));
       el.style.display = off ? 'none' : '';
     }
-    if (!v) for (const sel of ['#vitals', '#xpBar', '#xpPops'])
+    // ...the stamina and oxygen under the crosshair and the wrong-tool hint too (ui/vitals-hud.js, ui/hud.js)
+    if (!v) for (const sel of ['#vitals', '#vitalsNear', '#wrongTool', '#xpBar', '#xpPops'])
       { const el = pane.querySelector(sel); if (el) el.style.display = 'none'; }
   }
   if (!v) {
-    // both of those cache their last shown state and only touch the DOM on a change, so the
-    // cached flags have to be cleared or neither would ever come back — for every player
+    // those cache their last shown state and only touch the DOM on a change, so the
+    // cached flags have to be cleared or none would ever come back — for every player
     forEachPlayerState((g) => {
       g.vitalsShown = false;
       if (g.xpBarEl) g.xpBarEl._shown = undefined;
+      g._wrongToolKey = '';
     });
   }
 }

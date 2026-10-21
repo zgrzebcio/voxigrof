@@ -21,6 +21,26 @@ corePart('biomes.make', function () {
     }
     const _warm = (temp) => BIG_CLIMATE ? smooth01(temp, 0.0, 0.22) : smooth01(temp, 0.02, 0.30);
     const _cold = (temp) => BIG_CLIMATE ? smooth01(-temp, 0.0, 0.22) : smooth01(-temp, 0.02, 0.30);
+    // the wobble the Dryland and the Savanna are read from: a column's warm level and a slow noise of its own
+    const _dryWobAt = (x, z, lvl) => lvl + 0.3 * fbm(x * DRY_WOB_F + 1771.3, z * DRY_WOB_F - 4419.7, 2);
+    /* That wobble at a column, and how far the Dryland's start moves toward the plains there: written into _dryOut as
+       [wob, shift] (terrainInfo and dryAt read it at once). Before rev 33 the wobble as it is and no shift. From rev 33
+       (DRY4, biomes/fields.js) no patch or band of either is narrower than DRY_MIN blocks. Four more samples DRY_E round the
+       column give the wobble's curvature and slope: the wobble is eased by its curvature (the mean over a disk, so a bump or
+       a dip narrower than DRY_MIN reads as the land round it: no islands, no holes), and where it runs steep the Dryland
+       starts earlier, so the band from the plains to the Savanna is never thinner than DRY_MIN. Only on warm land: the
+       rest is never either. */
+    const _dryOut = [0, 0];
+    function _dryBand(x, z, lvl) {
+      const w = _dryWobAt(x, z, lvl);
+      _dryOut[0] = w; _dryOut[1] = 0;
+      if (!DRY4 || lvl < 0.3 || lvl > DESERT_LVL + 0.2) return _dryOut;
+      const E = DRY_E, at = (ax, az) => _dryWobAt(ax, az, climateLevel(_temp(ax, az)));
+      const a = at(x + E, z), b = at(x - E, z), c = at(x, z + E), d = at(x, z - E);
+      _dryOut[0] = w + DRY_BLUR * (a + b + c + d - 4 * w) / (E * E);
+      _dryOut[1] = Math.max(0, DRY_MIN * Math.hypot(a - b, c - d) / (2 * E) - DRY_GAP);
+      return _dryOut;
+    }
 
     /* is a water higher than level L within FLUSH_SAFE of this column's bank (the river `rv0`, the lake `lw`, and the
        waters near them)? A level shore (FLUSH) is not laid there: that water's rim has to stand */
@@ -110,9 +130,10 @@ corePart('biomes.make', function () {
       const ddRed = DESERT3 ? smooth01(fbm(x * 0.0017 + 8813.1, z * 0.0017 - 6611.3, 2), -0.06, 0.06) : 1;
       // the Dryland (rev 23): the warm plains' hot side, short of the desert
       // ...and the Savanna (rev 28) its hot edge, on the same wobble: the Dryland keeps what lies before it
-      const dryWob = DRYLAND && LADDER ? lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2) : 0;
+      // (no patch of either narrower than DRY_MIN in rev 33: _dryBand above)
+      const dryWob = DRYLAND && LADDER ? _dryBand(x, z, lvl)[0] : 0, dryShift = DRYLAND && LADDER ? _dryOut[1] : 0;
       const fSav = SAVANNA && LADDER ? smooth01(dryWob, SAV_LO, SAV_HI) * (1 - fDesert) : 0;
-      const fDry = DRYLAND && LADDER ? smooth01(dryWob, DRY_FROM, DRY_TO) * (1 - fDesert) * (1 - fSav) : 0;
+      const fDry = DRYLAND && LADDER ? smooth01(dryWob, DRY_LO - dryShift, DRY_HI - dryShift) * (1 - fDesert) * (1 - fSav) : 0;
       /* Deep forests (rev 5): their own patches inside forest country, where trees stand denser and grow bigger. */
       const deepF = REV5 ? smooth01(fbm(x * 0.0022 * BS + 3137.1, z * 0.0022 * BS - 1289.3, 2), 0.18, 0.34) : 0;
 
@@ -146,7 +167,8 @@ corePart('biomes.make', function () {
       const rdh = smooth01(fbm(x * 0.0035 * BS + 941.3, z * 0.0035 * BS - 241.7, 2), 0.1, 0.55) * fRed * (1 - fDeepD);
       // snowy hills (biomeRev 10): the snow's own rolling hills, in patches as the desert's dunes, up to ~26 high
       const sh = SNOW_HILLS ? smooth01(fbm(x * 0.0035 * BS - 1641.3, z * 0.0035 * BS + 1141.7, 2), 0.28, 0.62) * fSnow : 0;
-      let h = 102 + cont * 16 + hills * hillAmp * (1 - 0.6 * calm) + mTerm + dh * 30 + sh * 26 * (1 - calm)   // calm: 0.837
+      const savFlat = 1 - SAV_FLAT * fSav;            // rev 36: the Savanna lies flatter
+      let h = 102 + cont * 16 + hills * hillAmp * (1 - 0.6 * calm) * savFlat + mTerm + dh * 30 + sh * 26 * (1 - calm)   // calm: 0.837
             + (TALL ? Math.max(0, cont) * 22 : 0);    // rev 12: the land climbs the further inland it lies
       if (rdh > 0.01) {
         const sp = 1 - Math.abs(fbm(x * 0.045 + 77.7, z * 0.045 - 55.5, 2));
@@ -174,7 +196,7 @@ corePart('biomes.make', function () {
          own), less on the plains, little in a desert */
       let hlv = 0;                                     // the hills' own height here (names them)
       if (HILLS) {
-        const land = smooth01(cont, -0.16, 0.02) * (1 - Math.min(1, mTerm / 30)) * (1 - 0.35 * fPlains) * (1 - 0.7 * fDesert);
+        const land = smooth01(cont, -0.16, 0.02) * (1 - Math.min(1, mTerm / 30)) * (1 - 0.35 * fPlains) * (1 - 0.7 * fDesert) * savFlat;
         if (land > 0.01) {
           const size = (fbm(x * 0.006 - 811.9, z * 0.006 + 433.1, 2) + 1) * 0.5;          // small .. medium, by region
           /* rev 15: in places the hills are smoother (`smo`: wider, gentler, no crags, fewer cliffs), in others
@@ -234,6 +256,30 @@ corePart('biomes.make', function () {
         } else
           h += cliff * SHORE_CLIFF_H * smooth01(h, WATER_LEVEL - 0.5, WATER_LEVEL + 1) * (1 - smooth01(h, WATER_LEVEL + 6, WATER_LEVEL + 18));
       }
+      /* A deep beach (rev 31, DBEACH in biomes/fields.js): on a warm coast, in a long stretch picked by a slow noise, where the
+         abyss noise says a big ocean lies off it, and not on a rocky coast. Its shape is laid on the continent noise: `into`, how
+         far in from where the land would meet the sea, gives a beach rising evenly to DB_SAND + 0.8 over DB_IN (the sand and, at
+         its top, the sandy band), then the land's own height again over DB_EASE; out to sea a shelf DB_SHALLOW deep over DB_SEA. */
+      let db = 0, dbd = 1e9;                           // dbd: blocks past the beach's inner edge (negative: on it)
+      if (DBEACH && warm > 0.01) {
+        const pick = smooth01(fbm(x * 0.0011 + 6113.9, z * 0.0011 - 2417.3, 2), -0.12, 0.08);
+        db = warm * pick * smooth01(deepN, DEEP_FROM - 0.3, DEEP_FROM) * (1 - smooth01(cliff, 0.1, 0.3));
+        const into = cont - (WATER_LEVEL - 102) / 16;            // > 0: inland of the sea's edge
+        if (db > 0.001 && into > -DB_SEA * 4 && into < DB_IN * 4) {
+          // in blocks: the noise's own slope here turns it into a distance, so the beach is as wide on a flat coast as a steep one
+          const cAt = (px, pz) => fbm(px * 0.0016 * OS, pz * 0.0016 * OS, 3);
+          const g = Math.max(0.00015, Math.hypot(cAt(x + 4, z) - cAt(x - 4, z), cAt(x, z + 4) - cAt(x, z - 4)) / 8);
+          const dist = into / g;
+          const W = DB_W0 + DB_W1 * (fbm(x * 0.004 + 3917.1, z * 0.004 - 2203.9, 2) + 1) * 0.5;   // this stretch's width
+          dbd = dist - W;
+          if (dist > -DB_SEA_W * 1.6 && dist < W + DB_EASE_W) {
+            const target = dist >= 0 ? WATER_LEVEL + 0.4 + (DB_SAND + 0.4) * Math.min(1, dist / W)
+                                     : WATER_LEVEL - 0.6 - DB_SHALLOW * Math.min(1, -dist / DB_SEA_W);
+            const w = db * (1 - smooth01(dist, W, W + DB_EASE_W)) * (1 - smooth01(-dist, DB_SEA_W, DB_SEA_W * 1.6));
+            h += (target - h) * w;
+          }
+        }
+      }
       // rev 15: the peaks eased before the water is cut, so a lake's level (read from the bare land) and its banks agree
       const capH = (v) => TALL && v > TALL_EASE ? TALL_EASE + (TALL_CAP - TALL_EASE) * (1 - Math.exp(-(v - TALL_EASE) / (TALL_CAP - TALL_EASE))) : v;
       if (UPLAND) h = capH(h);
@@ -290,7 +336,7 @@ corePart('biomes.make', function () {
           let toDiv = 1e9;
           if (DIVIDE && into > 0)
             for (const c of [...(rv0 && rv0.near || []), ...(lw && lw.near || [])])
-              if (c !== rv && c.level < rv.level && !_kin(rv, c)) toDiv = Math.min(toDiv, c.edge - WET_EDGE - DIV_REACH);
+              if (c !== rv && c.level < rv.level - DIV_JOIN && !_kin(rv, c)) toDiv = Math.min(toDiv, c.edge - WET_EDGE - DIV_REACH);
           if (toDiv <= 0) into = Math.min(into, -0.01);
           const L = rv.level;
           if (into > 0) {
@@ -380,6 +426,6 @@ corePart('biomes.make', function () {
       h = Math.min(TALL ? TALL_CAP : 196, Math.max(4, Math.floor(h)));
       return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, warm, cold, fTaiga, deepF,
                fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW,
-               fDeepD, ddAir, oas, ddRed, fDry, fSav };    // 0.84; ddRed 0.841; fDry 0.8411; fSav the Savanna
+               fDeepD, ddAir, oas, ddRed, fDry, fSav, db, dbd };   // 0.84; ddRed 0.841; fDry 0.8411; fSav the Savanna; db a deep beach
     }
 });

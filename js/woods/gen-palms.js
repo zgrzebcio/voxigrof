@@ -9,6 +9,11 @@ corePart('gen.chunk', function () {
          two out from the top so every leaf lies within the leaves' reach of wood (isLeavesConnected, woods/leaf-decay.js), out
          flat and drooping in steps, and now and then a short one between them. 22-main-loop.js grows the same from a sapling. */
       const PALM_W0 = 20, PALM_W1 = 14, PALM_RIB_W = 4;
+      /* where palms grow (rev 31): one tree cell in DB_PALMS on a deep beach, one in SHORE_PALMS on any other warm shore (a
+         third of what it was: the deep beaches are the palms' place now) */
+      const DB_PALMS = 0.072, SHORE_PALMS = 0.01;
+      // ...and only up to DB_PALM_TOP: the high land a deep beach's band reaches (hills, a mountain's flank) grows its own trees
+      const DB_PALM_TOP = 110;
       // `log(x, y, z, val)` and `leaf(x, y, z)` place; `rnd(k)` is 0..1 for the k-th roll of this tree
       function palmCrown(cx0, cy0, cz0, log, leaf, rnd) {
         leaf(cx0, cy0 + 1, cz0);
@@ -30,7 +35,7 @@ corePart('gen.chunk', function () {
       function palmTree(tx, tz, h, gcx, gcz) {
         const rnd = (k) => hash2(gcx * 41 + k * 7 + 3, gcz * 67 - k * 13 + 5);
         const th = 7 + ((rnd(1) * 5) | 0), a = rnd(2) * Math.PI * 2, lean = 0.8 + rnd(3) * 1.7, ca = Math.cos(a), sa = Math.sin(a);
-        put(tx, h, tz, B.DIRT, true);
+        put(tx, h, tz, DBEACH ? B.SANDY_DIRT : B.DIRT, true);   // a palm roots in sandy dirt (rev 31), the sapling's ground too
         let px = 0, pz = 0;
         for (let k = 1; k <= th; k++) {
           const t = (k - 1) / (th - 1), c = t * t * lean;

@@ -96,7 +96,7 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
   for (const id of [B.DIAMOND_ORE, B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]) set(id, XP_GEM_ORE);
   set(B.SULFUR_BLOCK, 5); set(B.OBSIDIAN, 25); set(B.GLOWSTONE, 0);
   // lightning's glassy sand is rare to come across
-  set(B.GLASSY_SAND, 20); set(B.GLASSY_RED_SAND, 20); set(B.GLASSY_PINK_SAND, 20);
+  set(B.GLASSY_SAND, 20);   // its red and pink looks too
   // scenery is free — you are not going to grind a level out of grass
   set(B.SHORT_GRASS, 0); set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
   for (const id of woodBlocks('leaves')) set(id, 0);                   // every wood's leaves (the woods table, woods/woods.js)
@@ -174,9 +174,10 @@ function flushOwedXP() {
 // ...and the bosses beaten, by kind (entities/frozen-king.js): each one a level of boss boost
 const restoreFeats = (r) => ({ biomes: new Set(r && Array.isArray(r.biomes) ? r.biomes.filter(b => typeof b === 'string') : []),
                                top: !!(r && r.top), bottom: !!(r && r.bottom),
-                               bosses: new Set(r && Array.isArray(r.bosses) ? r.bosses.filter(b => typeof b === 'string') : []) });
+                               bosses: new Set(r && Array.isArray(r.bosses) ? r.bosses.filter(b => typeof b === 'string') : []),
+                               lootChests: r && r.loot > 0 ? r.loot | 0 : 0 });   // loot chests opened (awardLootXP)
 const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p._feats.top, bottom: p._feats.bottom,
-                                           bosses: [...(p._feats.bosses || [])] } : null;
+                                           bosses: [...(p._feats.bosses || [])], loot: p._feats.lootChests || 0 } : null;
 // smelting XP lives on each furnace recipe since 0.775 (SMELT_RECIPES, blocks/furnace.js), paid on taking the output
 
 /* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its
@@ -186,10 +187,15 @@ const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p.
    and opening the thing. A table declares its own `xp: [min, max]` (supply crate = 4..10); one
    without the field falls back to this range. Paid once, on the first open, alongside the roll. */
 const XP_LOOT_DEFAULT = [3, 8];
+/* ...and the more loot chests a player has opened, the more the next one pays: times (1 + LOOT_XP_STEP x those opened
+   before it), counted per player in their feats (lootChests, saved as loot). */
+const LOOT_XP_STEP = 0.25;
 function awardLootXP(table, mul = 100) {   // mul: the chest's multiplier (lootXpMul in 34)
   const r = table && Array.isArray(table.xp) ? table.xp : XP_LOOT_DEFAULT;
   const lo = Math.max(0, r[0] | 0), hi = Math.max(lo, r[1] | 0);
-  addXP((lo + Math.floor(Math.random() * (hi - lo + 1))) * mul, 'loot chest');
+  const f = player._feats, opened = f ? f.lootChests || 0 : 0;
+  if (f) f.lootChests = opened + 1;
+  addXP(Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * mul * (1 + LOOT_XP_STEP * opened)), 'loot chest');
 }
 
 /* ---- the player-placed ledger ----

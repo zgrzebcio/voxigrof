@@ -2,7 +2,7 @@
 /* blocks/tnt.js: TNT. The fuse, the blinking, the blast. */
 
 /* ---- TNT: fuse tick, blinking, explosion ----
-   Placed TNT blocks live in TNTS with a countdown timer + a blink phase. The block ID stays
+   Lit TNT blocks live in TNTS with a countdown timer + a blink phase. The block ID stays
    B.TNT the whole time; only the variant byte's low bit toggles (0 → normal faces, 1 → white
    flash via the mesher swap). While a TNT is armed, its position is protected from being
    broken (isTNTFuseActive is checked by both mining paths and doBreak). */
@@ -12,6 +12,39 @@ const TNT_RADIUS = 4;
 const _tntKey = (x, y, z) => x + ',' + y + ',' + z;
 function armTNT(x, y, z) { TNTS.set(_tntKey(x, y, z), { t: TNT_FUSE, blinkT: 0, lit: 0 }); }
 function isTNTFuseActive(x, y, z) { return TNTS.has(_tntKey(x, y, z)); }
+/* TNT is lit by fire, never by being put down. A right click with fire in the hand (the Fire item, used up), a burning
+   torch, or flint struck on it (it may not catch, and wears the flint, as lighting a torch does: blocks/torches.js); a fire
+   burning beside it (_updateFires, 53-storms.js); lava beside it, when the TNT is put down or the lava comes
+   (tntHeatAround, from place-block.js and fluids/fluids.js); and another blast (explodeAt). */
+const _TNT_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+function tryLightTNT(hit) {
+  if (!hit || hit.id !== B.TNT || isTNTFuseActive(hit.x, hit.y, hit.z)) return false;
+  const held = heldUseId(), { x, y, z } = hit;
+  if (held !== ITEM.FIRE && held !== B.TORCH && held !== ITEM.FLINT) return false;
+  if (act && act.place) return true;                 // one strike a press
+  if (held === ITEM.FLINT) {
+    const took = Math.random() >= TORCH_STRIKE_FAIL;
+    if (Math.random() < FLINT_WEAR) spendHeld('used');
+    if (!took) {                                      // sparks that did not take
+      playBlockSound(B.FLINT_ROCK, 'hit', x, y, z);
+      if (typeof _fxEmber === 'function')
+        for (let i = 0; i < 4; i++) _fxEmber(x + 0.5, y + 1.02, z + 0.5, (Math.random() - 0.5) * 0.8, 0.4 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8);
+      return true;
+    }
+  } else if (held === ITEM.FIRE) spendHeld('used');
+  armTNT(x, y, z);
+  if (typeof _fireSound === 'function') _fireSound('fireIgnite', x + 0.5, y + 0.5, z + 0.5);
+  return true;
+}
+// fire or lava at (x, y, z) or beside it: any TNT there or beside it catches
+function tntHeatAround(x, y, z) {
+  const here = getBlock(x, y, z) & 255, hot = (id) => id === B.FIRE || id === B.LAVA;
+  for (const [dx, dy, dz] of _TNT_DIRS) {
+    const tx = x + dx, ty = y + dy, tz = z + dz, id = getBlock(tx, ty, tz) & 255;
+    if (here === B.TNT && hot(id) && !isTNTFuseActive(x, y, z)) armTNT(x, y, z);
+    if (hot(here) && id === B.TNT && !isTNTFuseActive(tx, ty, tz)) armTNT(tx, ty, tz);
+  }
+}
 function explodeAt(cx, cy, cz, R) {
   const survival = !player.canFly;
   const chained = [];

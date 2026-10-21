@@ -22,8 +22,9 @@ const CHEST_SAVE_MAX = 128;                           // the most slots a saved 
 
 /* METAL CHESTS: B.METAL_CHEST, the chest in iron, copper or gold (variant bits 4-5, where a wooden chest keeps
    its wood), 6 rows, a double 6 + 1 + 6. Its body is the metal block's own art with the wooden chest's fittings over
-   it. Never crafted: they lie about the world SEALED (bit 6), at any height on any block (trySpawnWorldChest), and a
-   key of their metal opens one, staying in its lock; then it is a chest like any other, and a pickaxe takes it home.
+   it. They lie about the world SEALED (bit 6), at any height on any block (trySpawnWorldChest), and a key of their
+   metal opens one, staying in its lock; then it is a chest like any other, and a pickaxe takes it home. One is also made at
+   the bench (a chest, a metal block, five iron: items/recipes.js), never sealed.
    Keys come from monsters (entities/entities.js). Any chest can be locked with a key like a door (useChest below; the codes
    live in DOOR_LOCKS with the doors', blocks/doors.js), and a locked chest broken takes its contents and itself with it. */
 const CHEST_ROWS_METAL = 6;

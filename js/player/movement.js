@@ -99,7 +99,7 @@ const DRAG_PER_SNOW = 0.10, DRAG_PER_LEAF = 0.05, DRAG_FLOOR = 0.2;
 const LEAF_DRAG_IDS = new Set(woodBlocks('leaves'));   // every wood's leaves (the woods table, woods/woods.js)
 // slowdown per layer of each block you wade through (sand, gravel and fiber stacks join snow and leaves)
 const DRAG_PER_LAYER = { [B.SNOW]: DRAG_PER_SNOW, [B.SAND]: 0.06, [B.RED_SAND]: 0.06, [B.PINK_SAND]: 0.06, [B.GRAVEL]: 0.05,
-                         [B.FIBER_BLOCK]: 0.04, [B.SALT_CRUST]: 0.03, [B.ASH]: 0.03 };
+                         [B.FIBER_BLOCK]: 0.04, [B.SALT_CRUST]: 0.03, [B.ASH]: 0.03, [B.BONE_ASH_BLOCK]: 0.03 };
 for (const id of woodBlocks('leaves', isTreeWood)) DRAG_PER_LAYER[id] = DRAG_PER_LEAF;   // leaf litter: the trees' leaves only
 // speed multiplier this cell imposes, given how far the feet sit above the cell floor
 function _cellDrag(val, feetOff, x, y, z) {

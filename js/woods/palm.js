@@ -8,6 +8,6 @@ defineWood('palm', {
   name: 'Palm',
   log: B.PALM_LOG, stripped: B.STRIPPED_PALM_LOG, planks: B.PALM_PLANKS, leaves: B.PALM_LEAVES, sapling: B.PALM_SAPLING,
   xp: { log: 2, sapling: 100 },
-  saplingOn: 'sand',
+  saplingOn: 'sandy_dirt',                     // sandy dirt only, the ground every palm in the world roots in
   grow: (x, y, z) => _growPalm(x, y, z),
 });

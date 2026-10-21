@@ -59,7 +59,8 @@ const FX_COLLIDE = 1, FX_REST = 2, FX_FADEIN = 4, FX_IN_WATER = 8, FX_DIE_IN_FLU
    with the block textures; nearest filtering keeps it crisp. */
 const FXS = { SMOKE_L: 0, SMOKE_M: 1, SMOKE_S: 2, SPARK: 3, STAR: 4, HEART: 5, Z: 6, DROP: 7,
               BUBBLE: 8, FLAME: 9, DUST: 10, BOOT: 11, HOOF: 12, EMBER: 13, BUTTERFLY: 14, BUTTERFLY2: 15,
-              RAIN: 16, FLAKE: 17, PUDDLE: 18, RING: 19 };   // the weather
+              RAIN: 16, FLAKE: 17, PUDDLE: 18, RING: 19,     // the weather
+              SPIDER: 20 };
 const _fxSheet = (() => {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -114,6 +115,8 @@ const _fxSheet = (() => {
     const d = Math.hypot(x - 7.5, y - 7.5);
     if (d > 5.4 && d < 6.9) px(FXS.RING, x, y, 1);
   }
+  // a spider seen from above: head, body, and four legs a side, tinted near black where it is made
+  map(FXS.SPIDER, ['.#.....#.', '#..#X#..#', '.#.XXX.#.', '..#XXX#..', '###XXX###', '..#XXX#..', '.#.XXX.#.', '#..#X#..#', '.#.....#.']);
   const tex = new THREE.CanvasTexture(c);          // default colour space: raw, like the atlas
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
@@ -317,6 +320,58 @@ class FxPool {
   }
 }
 
+/* ---------------------------------- spiders ----------------------------------
+   Sprites that walk, in their own small pool (FX.spiders). One on a web (`turn` >= 0, the seconds to its next turn) keeps
+   to its web's cell (`hx..hz`, the cell's middle): across one of a crossed web's two sheets (`dg` 1 or -1), or along a
+   corner web's sheet (`dg` 2 + its edge in CORE.WEB_EDGES), now and then stopping; it goes when its web does. One running
+   off (`turn` -1) keeps to the ground ahead of it, turning from walls and dropping off edges, fading as it goes. None at
+   all with Arachnophobia (Options > Gameplay, `arachnophobia` in 00-config.js). */
+class FxCrawlers extends FxPool {
+  constructor(max) {
+    super(max, false, () => _fxSheet);
+    const F = () => new Float32Array(max);
+    this.hx = F(); this.hy = F(); this.hz = F(); this.turn = F(); this.dg = F();
+    this._one.push(this.hx, this.hy, this.hz, this.turn, this.dg);   // swapped with the rest when one goes
+  }
+  update(dt) {
+    for (let i = 0; i < this.n; i++) {
+      if (this.turn[i] < 0) { this._run(i, dt); continue; }
+      if ((this.turn[i] -= dt) > 0) continue;
+      this.turn[i] = _rnd(0.5, 1.6);
+      this.vx[i] = this.vy[i] = this.vz[i] = 0;
+      if ((getBlock(Math.floor(this.hx[i]), Math.floor(this.hy[i]), Math.floor(this.hz[i])) & 255) !== B.COBWEB) {
+        this.life[i] = Math.min(this.life[i], this.age[i] + 0.3);   // its web is gone: so is it
+        continue;
+      }
+      if (Math.random() < 0.35) continue;                           // a pause
+      const t = _fxWebPoint(this.hx[i], this.hy[i], this.hz[i], this.dg[i]);
+      const dx = t[0] - this.x[i], dy = t[1] - this.y[i], dz = t[2] - this.z[i], k = _rnd(0.12, 0.3) / (Math.hypot(dx, dy, dz) || 1);
+      this.vx[i] = dx * k; this.vy[i] = dy * k; this.vz[i] = dz * k;
+    }
+    super.update(dt);
+  }
+  // one running off along the ground
+  _run(i, dt) {
+    const x = this.x[i], y = this.y[i], z = this.z[i], sp = Math.hypot(this.vx[i], this.vz[i]) || 1;
+    if (_fxSolid(Math.floor(x + this.vx[i] / sp * 0.12), Math.floor(y + 0.02), Math.floor(z + this.vz[i] / sp * 0.12))) {
+      const s = Math.random() < 0.5 ? 1 : -1, vx = this.vx[i];   // a wall ahead: a quarter turn, either way
+      this.vx[i] = -this.vz[i] * s; this.vz[i] = vx * s;
+    }
+    const fy = Math.floor(y - 0.06);
+    if (_fxSolid(Math.floor(x), fy, Math.floor(z))) { if (this.vy[i] < 0) this.y[i] = fy + 1.04; this.vy[i] = 0; }
+    else this.vy[i] -= 9 * dt;                                    // off an edge
+  }
+}
+/* A point on a web for a spider to walk to, a little in from the cell's sides: on a crossed web's sheet (x and z move
+   together, `dg` the way), or on a corner web's sheet (the two axes of its edge move together, the third anywhere). */
+function _fxWebPoint(hx, hy, hz, dg) {
+  const u = _rnd(-0.4, 0.4), h = _rnd(-0.4, 0.4);
+  if (dg < 2) return [hx + u, hy + h, hz + u * dg];
+  const [a, b] = CORE.WEB_EDGES[dg - 2], p = [0, 0, 0];
+  for (let k = 0; k < 3; k++) p[k] = a[k] || b[k] ? (a[k] || b[k]) * u : h;
+  return [hx + p[0], hy + p[1], hz + p[2]];
+}
+
 /* ---------------------------------- footprints ---------------------------------- */
 const _FX_DECAL_VSH = `
   attribute vec4 aColor;
@@ -399,6 +454,7 @@ const FX = {
   // rain and snow round each player, their own pool so a downpour never starves the rest
   weather: new FxPool(FX_LOW ? 900 : 2600, false, () => _fxSheet),
   puddles: new FxDecals(FX_LOW ? 48 : 128),       // ...and where it lands: puddles, rings on water
+  spiders: new FxCrawlers(FX_LOW ? 24 : 48),      // on cobwebs, and from under a pebble (above)
 };
 
 /* ---------------------------------- helpers ---------------------------------- */
@@ -706,6 +762,42 @@ function _fxBubble(x, y, z) {
   S.grav[i] = -0.6; S.drag[i] = 0.9; S.sway[i] = 0.35; S.fade[i] = 0.2;
   S.flags[i] = FX_IN_WATER;
 }
+/* A spider on the cobweb in cell (x, y, z), its value `v`, unless one is on it already: it walks the web for a while
+   (FxCrawlers above). From _fxAmbient. */
+const FX_SPIDER_COL = [0.16, 0.12, 0.1];
+function fxWebSpider(x, y, z, v) {
+  if (arachnophobia) return;
+  const S = FX.spiders, hx = x + 0.5, hy = y + 0.5, hz = z + 0.5;
+  for (let j = 0; j < S.n; j++) if (S.turn[j] >= 0 && S.hx[j] === hx && S.hy[j] === hy && S.hz[j] === hz) return;
+  let dg = Math.random() < 0.5 ? 1 : -1;
+  if (CORE.lookOf(v) === 2) {
+    const e = CORE.webCornerEdge((dx, dy, dz) => CORE.opaqueVal(getBlock(x + dx, y + dy, z + dz)));
+    if (e) dg = 2 + CORE.WEB_EDGES.indexOf(e);
+  }
+  const p = _fxWebPoint(hx, hy, hz, dg);
+  const i = S.add(p[0], p[1], p[2], _rnd(8, 16));
+  if (i < 0) return;
+  S.setRect(i, _R.SPIDER[0], _R.SPIDER[1], _R.SPIDER[2], _R.SPIDER[3]);
+  S.s0[i] = S.s1[i] = _rnd(0.09, 0.13);
+  const L = _fxLight(hx, hy, hz);
+  S.color(i, FX_SPIDER_COL[0] * L, FX_SPIDER_COL[1] * L, FX_SPIDER_COL[2] * L, 1);
+  S.hx[i] = hx; S.hy[i] = hy; S.hz[i] = hz; S.dg[i] = dg; S.turn[i] = _rnd(0, 0.8);
+  S.fade[i] = 0.15; S.flags[i] = FX_FADEIN;
+}
+/* A spider that was under a pebble picked up at (x, y, z) runs off across the ground, away from player `p`, and fades
+   away as it goes (player/foraging.js). */
+function fxSpiderFlee(x, y, z, p) {
+  if (arachnophobia || _fxScale <= 0) return;
+  const S = FX.spiders, i = S.add(x + 0.5, y + 0.04, z + 0.5, _rnd(2.2, 3));
+  if (i < 0) return;
+  S.setRect(i, _R.SPIDER[0], _R.SPIDER[1], _R.SPIDER[2], _R.SPIDER[3]);
+  S.s0[i] = S.s1[i] = _rnd(0.1, 0.13);
+  const L = _fxLight(x + 0.5, y + 0.5, z + 0.5);
+  S.color(i, FX_SPIDER_COL[0] * L, FX_SPIDER_COL[1] * L, FX_SPIDER_COL[2] * L, 1);
+  const a = Math.atan2(x + 0.5 - (p ? p.pos.x : x), z + 0.5 - (p ? p.pos.z : z)) + _rnd(-0.6, 0.6), s = _rnd(1.4, 2);
+  S.vx[i] = Math.sin(a) * s; S.vz[i] = Math.cos(a) * s;
+  S.turn[i] = -1; S.fade[i] = 0.75;                              // it fades over most of its run
+}
 function _fxZ(x, y, z) {
   const i = _fxSprite(_R.Z, x, y, z, 2.4, 0.13, 0.3);
   if (i < 0) return;
@@ -850,7 +942,7 @@ function fxHeldTick(dt, held, id, off) {
   const own = fxOwner(player);
   // a torch in the main hand sits on a lifted cross-model group (player/hands.js); its tip is ~0.47 up
   _fxHeldOne(dt, held, id, own, 'm', 0.47);
-  if (off && off.root.visible) _fxHeldOne(dt, off.held, off.heldId, own, 'o', 0.13);
+  if (off && off.root.visible && off.held.visible) _fxHeldOne(dt, off.held, off.heldId, own, 'o', 0.13);
 }
 /* Eating or drinking (from updateEating, while the eat timer runs): crumbs of the food's own colour
    fall from it in your hand, and — for everyone else — from your mouth. Milk splashes white. */
@@ -1328,6 +1420,9 @@ function _fxAmbient(dt) {
         S.color(i, c[0] * L, c[1] * L, c[2] * L, 1);
         S.vx[i] = _rnd(-0.3, 0.3); S.vy[i] = _rnd(-0.06, 0.1); S.vz[i] = _rnd(-0.3, 0.3);
         S.sway[i] = _rnd(1, 1.6); S.fade[i] = 0.2; S.flags[i] = FX_FADEIN | FX_FLAP;
+      } else if (id === B.COBWEB) {
+        // now and then a spider on it (none with Arachnophobia: fxWebSpider)
+        if (Math.random() < 0.04) fxWebSpider(x, y, z, v);
       } else if (_FX_GEM[id] && PROPS[id]?.model === 'cluster') {
         // a gem cluster glints
         _fxGlint(FX.sprites, x + _rnd(0.15, 0.85), y + _rnd(0.1, 0.7), z + _rnd(0.15, 0.85), _FX_GEM[id], 0.08);
@@ -1393,6 +1488,7 @@ function _fxSandstorm(p, dt) {
    splash on water (_fxRainLand). Nothing falls above the clouds. */
 const FX_RAIN_PER_S = 900, FX_SNOW_PER_S = 240, FX_BLIZZARD_PER_S = 1700;   // at full strength, before the particle setting (blizzard 700 before 0.837)
 const FX_PUDDLE_CHANCE = 0.03, FX_SPLASH_CHANCE = 0.12, FX_RING_CHANCE = 0.45;
+let _fxRainK = 0;                             // the heaviest rain round any player now, 0..1 (puddles grow with it)
 function _fxWeather(p, dt) {
   const ey = p.pos.y + (p.EYE || 1.62);
   p._fxWxT = (p._fxWxT || 0) - dt;
@@ -1466,10 +1562,11 @@ function _fxRainLand(x, y, z, water) {
   const hit = getBlock(bx, gy - 1, bz);
   if (!PROPS[hit & 255]?.opaque || CORE.shapeOfVal(hit)) return; // leaves, glass, a slab: no puddle
   const L = _fxLight(x, gy + 0.3, z);
-  if (Math.random() < FX_PUDDLE_CHANCE) {
-    const a = Math.random() * 6.283, w = _rnd(0.35, 0.8);
+  // the harder it rains, the more puddles, the bigger and the longer they stand (_fxRainK: the heaviest rain round a player)
+  if (Math.random() < FX_PUDDLE_CHANCE * (0.5 + _fxRainK)) {
+    const a = Math.random() * 6.283, w = _rnd(0.35, 0.8) * (0.6 + 1.2 * _fxRainK);
     FX.puddles.add(x, gy + 0.004, z, Math.cos(a), Math.sin(a), w, w * _rnd(0.6, 0.9), FXS.PUDDLE,
-                   0.42 * L, 0.5 * L, 0.62 * L, 0.32, _rnd(5, 9));
+                   0.42 * L, 0.5 * L, 0.62 * L, 0.32 + 0.1 * _fxRainK, _rnd(5, 9) * (0.7 + 0.8 * _fxRainK));
   }
   if (Math.random() < FX_SPLASH_CHANCE) _fxDrop(x, gy + 0.03, z, _rnd(-0.6, 0.6), _rnd(1, 1.8), _rnd(-0.6, 0.6), L, 0.3);
 }
@@ -1495,6 +1592,8 @@ function updateParticles(dt) {
       _fxSandstorm(p, dt);                    // 0.825
       _fxWeather(p, dt);                      // rain and snow
     }
+    _fxRainK = 0;
+    for (const p of PLAYERS) if (p.spawned && !p.dead) _fxRainK = Math.max(_fxRainK, p._fxRain || 0);
     // creatures near a player splash too
     if (typeof ENTITIES !== 'undefined')
       for (const e of ENTITIES) {
@@ -1511,8 +1610,9 @@ function updateParticles(dt) {
   FX.hand.update(dt);
   FX.weather.update(dt);                      // 0.83
   FX.puddles.update(dt);
+  FX.spiders.update(dt);
 }
-function fxClear() { FX.bits.clear(); FX.sprites.clear(); FX.decals.clear(); FX.hand.clear(); FX.weather.clear(); FX.puddles.clear(); }
+function fxClear() { FX.bits.clear(); FX.sprites.clear(); FX.decals.clear(); FX.hand.clear(); FX.weather.clear(); FX.puddles.clear(); FX.spiders.clear(); }
 
 /* ---------------------------------- the setting ---------------------------------- */
 const fxSel = document.getElementById('fxSel');

@@ -58,15 +58,22 @@ function updateWeatherGround(dt) {
   }
 }
 
-/* SNOWLINE: above it the ground keeps a cover of snow, in every biome. It follows the sun's year
-   (07-sky.js), so it sits high in summer and comes down the mountains in winter, and it is ragged by a block or
-   two either way. The season sweep lays the snow (_snowlineChunk); snow melt leaves anything above it alone
-   (woods/felling.js), and below it the snow melts away as any snow outside a cold biome does. */
-const SNOWLINE_SUMMER = 176, SNOWLINE_WINTER = 134;
+/* SNOWLINE: above it the ground keeps a cover of snow, but in warm land (SNOW_WARM_LIFT). It follows the sun's year
+   (07-sky.js), so it sits high in summer and comes down the mountains in winter, never under SNOWLINE_WINTER, and it is
+   ragged by a block or two either way. The season sweep lays the snow (_snowlineChunk); snow melt leaves anything above it
+   alone (woods/felling.js), and below it the snow melts away as any snow outside a cold biome does. */
+const SNOWLINE_SUMMER = 212, SNOWLINE_WINTER = 185;
 function snowlineY(x, z) {
   const s = typeof sunDeclination === 'function' ? sunDeclination() / SUN_DECL_MAX : 1;   // -1 midwinter .. 1 midsummer
   return SNOWLINE_WINTER + (SNOWLINE_SUMMER - SNOWLINE_WINTER) * (s + 1) / 2
-       + 2 * Math.sin(x * 0.11 + z * 0.07) + 1.5 * Math.sin(z * 0.13 - x * 0.05) + _snowBareLift(x, z);
+       + 2 * Math.sin(x * 0.11 + z * 0.07) + 1.5 * Math.sin(z * 0.13 - x * 0.05) + _snowBareLift(x, z) + _snowWarmLift(x, z);
+}
+/* Warm land keeps no snow on its mountains: from the warm plains' climate on (climAt, biomes/queries.js: 0 temperate, 0.5 the
+   warm plains, 1 the desert) the snowline is lifted out of reach, eased in over the temperate land's warm edge. */
+const SNOW_WARM_LIFT = 120;
+function _snowWarmLift(x, z) {
+  const c = typeof mainGen !== 'undefined' && mainGen && mainGen.climAt ? mainGen.climAt(x, z) : 0;
+  return c > 0.15 ? SNOW_WARM_LIFT * _smooth(Math.min(1, (c - 0.15) / 0.25)) : 0;
 }
 /* Bare mountains: about one in ten keeps no snow. A slow patchwork of the world's own (corners of a 384-block
    grid, 8.5% of them bare, eased between: about a tenth of the land) lifts the snowline out of reach there, so the snow draws back up the

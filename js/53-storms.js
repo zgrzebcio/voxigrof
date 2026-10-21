@@ -153,7 +153,8 @@ function _strikeTop(x, z) {
    straight under it. Each sand into its own glassy kind (red and pink 0.8241). Since 0.826 the heat spreads: the
    sand round it fuses too, in a patch up to FUSE_R across, likelier and deeper the nearer the strike (FUSE_CHANCE:
    right beside it 80%, then 55%, at the edge 25%), each column from its own top within a block of the strike's. */
-const FUSE_SANDS = new Map([[B.SAND, B.GLASSY_SAND], [B.RED_SAND, B.GLASSY_RED_SAND], [B.PINK_SAND, B.GLASSY_PINK_SAND]]);
+// sand -> the value it fuses into: glassy sand, red and pink as its looks (blocks/looks.js)
+const FUSE_SANDS = new Map([[B.SAND, B.GLASSY_SAND], [B.RED_SAND, withLook(B.GLASSY_SAND, 1)], [B.PINK_SAND, withLook(B.GLASSY_SAND, 2)]]);
 const FUSE_R = 2.3;
 const FUSE_CHANCE = (d) => d === 0 ? 1 : d <= 1 ? 0.8 : d <= 1.5 ? 0.55 : 0.25;
 function _fuseColumn(x, y, z, deep) {
@@ -440,6 +441,7 @@ function _updateFires(dt) {
     let fuel = 0;
     for (const [dx, dy, dz] of _FIRE_DIRS) {
       const nx = f.x + dx, ny = f.y + dy, nz = f.z + dz, v = getBlock(nx, ny, nz), id = v & 255;
+      if (id === B.TNT) { if (!isTNTFuseActive(nx, ny, nz)) armTNT(nx, ny, nz); continue; }   // a fire beside TNT lights it
       const b = _BURN.get(id);
       if (!b || (id === B.GRASS && dy !== -1)) continue;                          // grass burns from above only
       fuel++;

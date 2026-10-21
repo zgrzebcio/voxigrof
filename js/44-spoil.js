@@ -17,7 +17,8 @@
    something it has just cooked, a crafting bench, a fresh drop — the incoming item is brand new by
    definition, the minimum is the destination's own clock, and that site needs no code at all.
 
-   Spoilage was a cost of CARRYING food only; since 0.8098 food in a chest spoils at the same rate.
+   Spoilage was a cost of CARRYING food only; food in a chest spoils at the same rate, and so does food in a furnace
+   (_tickFurnaceSpoil, below).
 
    SALT: carried salt, or salt in the same chest, makes food last 50% longer (its clock runs at 2/3
    speed). Since 0.8192 a salt is used up the MOMENT it has work to do — salt put in beside food, or food put in
@@ -137,8 +138,8 @@ function tickSpoilage(dt) {
     if (typeof spawnDrop === 'function' && typeof player !== 'undefined')
       spawnDrop(id, Math.floor(player.pos.x), Math.floor(player.pos.y + 0.5), Math.floor(player.pos.z));
   }
-  // chests once per frame, whoever's seat this is
-  if (typeof PLAYERS === 'undefined' || PLAYERS.indexOf(player) <= 0) _tickChestSpoil();
+  // chests and furnaces once per frame, whoever's seat this is
+  if (typeof PLAYERS === 'undefined' || PLAYERS.indexOf(player) <= 0) { _tickChestSpoil(); _tickFurnaceSpoil(); }
   if (hotLost && typeof saveHotbar === 'function') saveHotbar();
   if (invLost && typeof saveInv === 'function') saveInv();
   if (offLost && typeof saveEquip === 'function') saveEquip();
@@ -211,20 +212,7 @@ function _tickChestSpoil() {
     c.saltT = left;
     const drain = salted * (1 - SALT_SLOW) + (elapsed - salted);       // seconds off the food's clocks (salted SALT_SLOW slower)
     const leftovers = [];
-    for (let i = 0; i < sl.length; i++) {
-      const s = sl[i];
-      if (!s || !isPerishable(s.id)) continue;
-      const max = spoilMax(s.id);
-      let f = slotFresh(s) - drain, lost = 0;
-      while (f <= 0 && s.count - lost > 0) { lost++; f += max; }
-      s.fresh = Math.max(0, f);
-      if (!lost) continue;
-      s.count -= lost;
-      const into = (s.id >= 256 ? ITEM_PROPS[s.id] : PROPS[s.id])?.spoilInto;
-      if (into != null) for (let n = 0; n < lost; n++) leftovers.push(into);
-      if (s.count <= 0) sl[i] = null;
-      changed = true;
-    }
+    if (_spoilSlots(sl, drain, leftovers) === 2) changed = true;
     // what spoiled food leaves (a bucket, rotten flesh) stays in the chest, or drops beside it when full
     for (const id of leftovers) {
       const same = sl.find(s => s && s.id === id && s.count < ((id >= 256 ? ITEM_PROPS[id] : PROPS[id])?.stack || 60) && !s.dur);
@@ -235,5 +223,45 @@ function _tickChestSpoil() {
     }
     if (changed && typeof invOpen !== 'undefined' && invOpen && (activeChest === k || activeChest2 === k)
         && typeof buildChestPanel === 'function') buildChestPanel();
+  }
+}
+/* `drain` seconds off the clock of every food in the slots `sl` (a chest's, a furnace's): the ones lost go, what they leave
+   (spoilInto) is pushed on `leftovers`. 0 = no food there, 1 = a clock moved, 2 = an item was lost. */
+function _spoilSlots(sl, drain, leftovers) {
+  let r = 0;
+  for (let i = 0; i < sl.length; i++) {
+    const s = sl[i];
+    if (!s || !isPerishable(s.id)) continue;
+    r = Math.max(r, 1);
+    const max = spoilMax(s.id);
+    let f = slotFresh(s) - drain, lost = 0;
+    while (f <= 0 && s.count - lost > 0) { lost++; f += max; }
+    s.fresh = Math.max(0, f);
+    if (!lost) continue;
+    s.count -= lost;
+    const into = (s.id >= 256 ? ITEM_PROPS[s.id] : PROPS[s.id])?.spoilInto;
+    if (into != null) for (let n = 0; n < lost; n++) leftovers.push(into);
+    if (s.count <= 0) sl[i] = null;
+    r = 2;
+  }
+  return r;
+}
+/* Food in a furnace (raw food waiting in the input, cooked food in the output) spoils at a chest's rate, on the same
+   world clock (`spoilT`, saved with the furnace: one out of range catches up when it is back). No salt reaches it. What
+   spoiled food leaves (rotten flesh, a bucket) drops on top of the furnace. Its open panel shows the clocks move. */
+function _tickFurnaceSpoil() {
+  if (typeof FURNACES === 'undefined') return;
+  const now = spoilClock();
+  for (const [k, f] of FURNACES) {
+    if (f.spoilT == null || f.spoilT > now) { f.spoilT = now; continue; }   // a new furnace, or a clock set back
+    const [x, y, z] = k.split(',').map(Number);
+    if (typeof inSimRangeChunk === 'function' && !inSimRangeChunk(Math.floor(x / 16), Math.floor(z / 16))) continue;
+    const elapsed = Math.floor(now - f.spoilT);
+    if (elapsed < 1) continue;
+    f.spoilT += elapsed;
+    const leftovers = [];
+    if (!_spoilSlots(f.slots, elapsed, leftovers)) continue;
+    for (const id of leftovers) if (typeof spawnDrop === 'function') spawnDrop(id, x, y + 1, z);
+    if (typeof _refreshFurnaceSlots === 'function') _refreshFurnaceSlots(k);
   }
 }

@@ -46,7 +46,7 @@
      food, foodSat, foodSatFull, foodHeal    what it gives, out of 100
      eatTime         seconds to eat it; drink: true = it is drunk
      foodEffect, foodEffectChance, foodEffectTime, foodCleanse, foodClearEffects
-     foodReturn      the item handed back (a bowl, a bucket, a bottle)
+     foodReturn      the item handed back (a bowl, a bucket, a bottle); foodReturnChance: how often, 0..1 (always if none)
      spoil           seconds until it goes off; spoilInto: what is left then (44-spoil.js)
    and a few of its own: key (a door's or chest's key), throwable, ...
 
@@ -113,7 +113,9 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               CHITIN_PLATE: 418,                   // a termite's shell plate (entities/termite.js)
               // bronze armor, between iron and steel: chitin and feathers in it (items/equipment.js)
               BRONZE_HELMET: 419, BRONZE_CHESTPLATE: 420, BRONZE_LEGGINGS: 421, BRONZE_BOOTS: 422, BRONZE_GLOVES: 423,
-              LEATHER_STRIP: 424 };                // cut from leather at the bench: belts and backpacks   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              LEATHER_STRIP: 424,
+              SEASHELL: 425,
+              COCONUT: 426, HALF_COCONUT: 427 };   // off a palm (woods/coconuts.js): opened by hand into two halves to drink                     // picked up on a sea beach (blocks/plants.js)                // cut from leather at the bench: belts and backpacks   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
 
 const ITEM_PROPS = {};
 // a group file's items into the table; each entry remembers its group

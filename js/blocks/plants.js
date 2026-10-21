@@ -62,17 +62,49 @@ corePart('blocks', function () {
      One entry, because the variant byte means nothing here; the array shape is only what the
      carpet model expects. */
   const FR = 1 / 64;
-  const FLINT_ROCK_BOX = [[[24 * FR, 0, 24 * FR, 40 * FR, 8 * FR, 40 * FR]]];
+  // a box from a model file's numbers, which are in 16ths of a block (textures/Blocks/Models/<name>/<name>.json)
+  const _m16 = (x0, y0, z0, x1, y1, z1) => [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16];
+  // ...made PROP_SMALL its size round the middle of the cell's floor: the pebbles and the seashell lie smaller than their files
+  const PROP_SMALL = 0.7;
+  const _m16s = (x0, y0, z0, x1, y1, z1) => { const k = PROP_SMALL, m = (v) => 8 + (v - 8) * k;
+    return _m16(m(x0), y0 * k, m(z0), m(x1), y1 * k, m(z1)); };
+  // the flint pebble's model (flint_pebble.json): one flat stone, its whole picture on every face (fullUV)
+  const FLINT_ROCK_BOX = [[_m16s(4.5, 0, 5.5, 11.5, 1.5, 10.5)]];
   PROPS[B.FLINT_ROCK] = { name:'Flint pebble', solid:false, opaque:false, raycast:true, noTarget:true,
                           pass:0, model:'carpet', topOnly:true, stack:50, hardness:0.4, type:'stone',
-                          boxes:FLINT_ROCK_BOX[0], boxesByVar:FLINT_ROCK_BOX,
+                          boxes:FLINT_ROCK_BOX[0], boxesByVar:FLINT_ROCK_BOX, fullUV:true,
                           faces:[T.FLINT_ROCK, T.FLINT_ROCK, T.FLINT_ROCK_TOP, T.FLINT_ROCK_TOP,
                                  T.FLINT_ROCK, T.FLINT_ROCK],
+                          washes: true,             // flowing water takes it away and carries off its flint (fluids/rules.js)
                           desc: 'Pick it up by hand for flint' };
   /* Stone pebble: the flint pebble's shape in plain stone, and the way into the stone age now that a
-     flint pickaxe breaks stone without keeping any. Picked up by hand for a pebble; five press into a stone. */
-  PROPS[B.STONE_PEBBLE] = { ...PROPS[B.FLINT_ROCK], name:'Stone pebble', faces: Array(6).fill(T.STONE),
+     flint pickaxe breaks stone without keeping any. Picked up by hand for a pebble; five press into a stone.
+     The stone's art at its own size (no fullUV): the whole stone picture on so small a stone would be too busy. */
+  PROPS[B.STONE_PEBBLE] = { ...PROPS[B.FLINT_ROCK], name:'Stone pebble', faces: Array(6).fill(T.STONE), fullUV:false,
                             desc: 'Pick it up by hand for a stone pebble' };
+  /* Seashell: lies on the sea's beaches (worldgen/desert-and-shore-plants.js), picked up by hand like a pebble for a
+     seashell. Its model (seashell.json): the fan, the dome over it and the hinge, the hinge's top in the side's art
+     (`partFaces`, one per box, read by the carpet model in chunks/mesher-models.js). */
+  const SEASHELL_BOX = [[_m16s(4, 0, 4.5, 12, 1, 11), _m16s(5, 1, 5.5, 11, 1.8, 10.5), _m16s(6.5, 0, 11, 9.5, 0.8, 12.5)]];
+  const SEASHELL_FACES = [T.SEASHELL_SIDE, T.SEASHELL_SIDE, T.SEASHELL_TOP, T.SEASHELL_TOP, T.SEASHELL_SIDE, T.SEASHELL_SIDE];
+  PROPS[B.SEASHELL] = { ...PROPS[B.FLINT_ROCK], name:'Seashell', hardness:0.3, boxes:SEASHELL_BOX[0], boxesByVar:SEASHELL_BOX,
+                        faces:SEASHELL_FACES, partFaces:[SEASHELL_FACES, SEASHELL_FACES, Array(6).fill(T.SEASHELL_SIDE)],
+                        desc: 'Found on sea beaches. Pick it up by hand' };
+  /* Coconut: hangs under a palm's crown, the top of its box against the frond's rib above it (woods/coconuts.js sprouts and
+     grows it). Variant bits 0-2 its stage, 0 a sprout .. COCO_RIPE ripe: the box grows from 3/16 to 8/16 across, green
+     until ripe (its art and the green look built from it, 03-atlas.js). A hatchet takes a ripe one as a coconut, a green one
+     gives nothing (50-loottable.js); a ripe one may fall by itself and crack open on the ground (blocks/falling.js). */
+  const COCO_RIPE = 5;
+  const _cocoBox = (st) => { const s = 3 + Math.min(st, COCO_RIPE), o = (16 - s) / 2; return [_m16(o, 16 - s, o, 16 - o, 16, 16 - o)]; };
+  const COCO_FACES = [T.COCONUT_SIDE, T.COCONUT_SIDE, T.COCONUT_TOP, T.COCONUT_TOP, T.COCONUT_SIDE, T.COCONUT_SIDE];
+  const COCO_YOUNG = [T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_TOP, T.COCONUT_YOUNG_TOP, T.COCONUT_YOUNG_SIDE, T.COCONUT_YOUNG_SIDE];
+  const COCO_BOXES = Array.from({ length: 8 }, (_, va) => _cocoBox(va));
+  PROPS[B.COCONUT] = { name:'Coconut', solid:false, opaque:false, raycast:true, noInv:true, pass:0, model:'carpet',
+                       stack:1, hardness:1.2, type:'wood', boxes:COCO_BOXES[COCO_RIPE], boxesByVar:COCO_BOXES, fullUV:true,
+                       faces:COCO_FACES, facesByVar:Array.from({ length: 8 }, (_, va) => (va >= COCO_RIPE ? COCO_FACES : COCO_YOUNG)),
+                       ripeStage:COCO_RIPE, hangs:true,   // held by the rib above it, never by gravity (woods/coconuts.js drops it)
+                       fallHurt:0.5,          // what a falling one does to who it hits, of a sand block's (blocks/falling.js)
+                       desc: '' };
   // the clay bricks block is TERRACOTTA since 0.8093 (same id, same recipe); its brick look is a variant
   PROPS[B.BRICKS]    = { name:'Terracotta', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:6.5, type:'stone', faces:[T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS], desc: '' };
   /* Gourds — 32 x 32 x 32 of this game's 64-pixel block, so half a cell across and half
@@ -100,6 +132,10 @@ corePart('blocks', function () {
      half the time (50-loottable.js). */
   PROPS[B.ASH] = { name:'Ash', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
                    stack:50, hardness:0.3, type:'ground', faces:Array(6).fill(T.ASH), desc: '' };
+  /* Bone ash block: five bone ash pressed together. Loose like sand: it falls, takes the carpet shape and piles in layers
+     (LOOSE_LAYER_BLOCKS, blocks/mining-rules.js; SHAPE_BLOCKS.layer, shapes/shape-blocks.js). Its art is the ash block's in white. */
+  PROPS[B.BONE_ASH_BLOCK] = { name:'Bone ash block', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
+                              stack:50, hardness:0.6, type:'ground', faces:Array(6).fill(T.BONE_ASH_BLOCK), desc: '' };
   /* Fire: a burning cell. It draws nothing — the flames are particles (53-storms.js) — but it is a light
      source, and it is what burns its neighbours: wood, leaves, grass. Never an item. */
   PROPS[B.FIRE] = { name:'Fire', solid:false, opaque:false, raycast:false, noTarget:true, noInv:true, pass:1, model:'none',

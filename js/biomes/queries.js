@@ -11,6 +11,25 @@ corePart('biomes.make', function () {
     const snowForestAt = (x, z) => fbm(x * 0.004 * BS + 2222, z * 0.004 * BS + 888, 2) > 0.25;
     // Ice Spikes (biomeRev 9): patches of the snow, below the mountains, standing with spikes of packed ice (02 genChunk)
     const iceSpikesAt = (x, z) => SPIKES && fbm(x * 0.004 * BS - 3311, z * 0.004 * BS + 1717, 2) > 0.36;
+    /* Mountains all round (x, z): six or more of the eight points DRY_MIN / 2 + 1 away are mountains by biomeAt's rule. A pocket
+       narrower than DRY_MIN has its rim beyond all eight; the mountains' edge has open land on one side. */
+    // the land's height round (x, z): the mean of the column (h) and eight points 6 blocks away
+    function _meanH(x, z, h) {
+      const r = 6, k = Math.SQRT1_2 * r;
+      let s = h;
+      for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r], [k, k], [-k, k], [k, -k], [-k, -k]])
+        s += terrainInfo(Math.round(x + dx), Math.round(z + dz)).h;
+      return s / 9;
+    }
+    function _mountainPocket(x, z) {
+      const r = DRY_MIN / 2 + 1, k = Math.SQRT1_2;
+      let n = 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [k, k], [-k, k], [k, -k], [-k, -k]]) {
+        const tn = terrainInfo(Math.round(x + dx * r), Math.round(z + dz * r));
+        if (tn.h > 150 && (tn.mt || 0) >= (tn.hlv || 0)) n++;
+      }
+      return n >= 6;
+    }
     // a place's climate word: warm or cold past a fifth of the way to desert or snow
     const _clim = (ti) => ti.warm > 0.2 ? 'Warm ' : ti.cold > 0.2 ? 'Cold ' : '';
 
@@ -26,6 +45,8 @@ corePart('biomes.make', function () {
         if (deep > 0.45 && h < 84) return 'Deep ' + _clim(ti) + 'Ocean';
         return h < 94 ? _clim(ti) + 'Ocean' : 'Beach';
       }
+      // a deep beach's sand and the sandy band behind it (rev 31)
+      if (DBEACH && (ti.db || 0) > 0.5 && ti.dbd < DB_BAND[1] && h >= ti.wl && ti.wl === WATER_LEVEL) return 'Deep Beach';
       if (h <= WATER_LEVEL + 3) {
         // find nearest wet column and its type; ocean uses width 4..8, river/lake 2..4
         let hitType = 0, minD2 = 9999;
@@ -55,7 +76,10 @@ corePart('biomes.make', function () {
       if (fDesert > 0.5) return dh > 0.35 ? 'Desert Hills' : 'Desert';
       /* rev 18: Mountains from 150, and only where the ridges make the height rather than the hills; raised land
          that is not that (the hills' own, or under 150 over 132) keeps its biome's name with 'Hills' */
-      const mountain = DIVIDE ? h > 150 && (ti.mt || 0) >= (ti.hlv || 0) : h > 132;
+      /* rev 33: near 150 the height the label reads is the mean round the column (_meanH): a mountain's flank or saddle
+         hovering at 150 no longer speckles into one-block pockets of the land's biome */
+      const mtH = DRY4 && DIVIDE && Math.abs(h - 150) <= 8 ? _meanH(x, z, h) : h;
+      const mountain = DIVIDE ? mtH > 150 && (ti.mt || 0) >= (ti.hlv || 0) : h > 132;
       const hilly = DIVIDE && !mountain && ((ti.hlv || 0) > 7 || h > 132);
       if (fSnow > 0.5) {
         if (mountain) return 'Snowy Mountains';
@@ -68,8 +92,11 @@ corePart('biomes.make', function () {
         return snowForestAt(x, z) ? 'Snow Forest' : 'Snow';
       }
       if (mountain) return 'Mountains';
-      if ((ti.fSav || 0) > 0.5) return 'Savanna';                       // the Dryland's hot edge (rev 28)
-      if ((ti.fDry || 0) > 0.5) return 'Dryland';                       // 0.8411
+      const sav = (ti.fSav || 0) > 0.5, dry = !sav && (ti.fDry || 0) > 0.5;
+      // rev 33: a pocket of either among the mountains, under DRY_MIN across, is the mountains' too
+      if ((sav || dry) && DRY4 && DIVIDE && h > 135 && _mountainPocket(x, z)) return 'Mountains';
+      if (sav) return 'Savanna';                                        // the Dryland's hot edge (rev 28)
+      if (dry) return 'Dryland';                                        // 0.8411
       if (fPlains > 0.5) return hilly ? 'Plains Hills' : _clim(ti) + 'Plains';   // warm and cold plains
       const deepW = deepF > 0.5 && !hilly ? 'Deep ' : '';               // deep forests
       const hl = hilly ? ' Hills' : '';
@@ -100,8 +127,8 @@ corePart('biomes.make', function () {
        reads the same scale. */
     function dryAt(x, z) {
       if (!DRYLAND || !LADDER) return 0;
-      const lvl = climateLevel(_temp(x, z)), wob = lvl + 0.3 * fbm(x * 0.0021 + 1771.3, z * 0.0021 - 4419.7, 2);
-      const d = smooth01(wob, DRY_FROM, DRY_TO);
+      const lvl = climateLevel(_temp(x, z)), wob = _dryBand(x, z, lvl)[0], shift = _dryOut[1];   // biomes/terrain.js
+      const d = smooth01(wob, DRY_LO - shift, DRY_HI - shift);
       if (d <= 0) return 0;
       const s = SAVANNA ? smooth01(wob, SAV_LO, SAV_HI) : 0;
       return (d * DRY_PALE + s * (1 - DRY_PALE)) * (1 - smooth01(lvl, DESERT_LVL - 0.1, DESERT_LVL + 0.1));   // not where the desert has begun (fDesert)
@@ -114,5 +141,6 @@ corePart('biomes.make', function () {
       return c < -1 ? -1 : c > 1 ? 1 : c;
     }
 
-    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2 };
+    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2,
+             DBEACH, DB_SAND, DB_BAND };
 });

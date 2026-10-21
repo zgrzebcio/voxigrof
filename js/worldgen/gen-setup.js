@@ -6,6 +6,19 @@
 corePart('gen.make', function () {
     const FLAT = terrainType === 'flat';
     const PINK_BEACHES = biomeRev >= 4;               // warm beaches run pink in places
+    const PINK_FROM = biomeRev >= 34 ? 0.28 : 0.1;    // ...where their noise passes this: about half as much from rev 34
+    /* rev 35: a deep beach's pink in smaller patches (its own finer noise, DB_PINK_F, and DB_PINK_UP higher), and a quarter fewer caves: no noise
+       caves where CAVE_GATE's slow field is low (worldgen/underground.js), and ROOM_SHARE of the room cells hold a room
+       (worldgen/gen-caves-plan.js); the caves that are there keep their size */
+    const REV35 = biomeRev >= 35, DB_PINK_F = 0.075, DB_PINK_UP = 0.1, CAVE_GATE = -0.27, ROOM_SHARE = REV35 ? 0.6 : 0.8;
+    /* rev 36: ore veins a tenth more often, coal and the rock patches as they were (ORE_MORE_K, worldgen/underground.js), and the
+       Savanna's tall grass half again as common and its tall dry grass nearly four times (SAV_TALL, SAV_DRY_TALL, worldgen/ground-plants.js);
+       its land lies flatter too (SAV_FLAT, biomes/fields.js) */
+    const REV36 = biomeRev >= 36, ORE_MORE_K = 1.1, SAV_TALL = REV36 ? 0.24 : 0.16, SAV_DRY_TALL = REV36 ? 0.03 : 0.008;
+    /* rev 37: a quarter more cobwebs (WEB_CH, worldgen/underground.js), 30% more cave lava pools (LAVA_POOL_CH, same file) and 40%
+       more lava mushrooms (LAVA_SHROOM_CH, worldgen/cave-floors.js). Each only raises its roll's threshold: what an older rev
+       placed is still placed */
+    const REV37 = biomeRev >= 37, WEB_CH = REV37 ? 0.003125 : 0.0025, LAVA_POOL_CH = REV37 ? 0.104 : 0.08, LAVA_SHROOM_CH = REV37 ? 0.021 : 0.015;
     const TALL_SPRUCE = biomeRev >= 6;                // spruce forest trees on a bare stem
     const LADDER = biomeRev >= 7;                     // the climate ladder (biomes/biomes.js)
     const SPIKES = biomeRev >= 9;                     // the Ice Spikes biome and the snow's icebergs
@@ -15,6 +28,7 @@ corePart('gen.make', function () {
     const SHORTGRASS = biomeRev >= 29;                // half the grass plants come up as short grass, the smallest
     const LAVA2 = biomeRev >= 25;                     // 20% more surface lava ponds in warm plains and the Dryland
     const PALM2 = biomeRev >= 26;                     // shore palms only where the land is level +1 or warmer
+    const SAV3 = biomeRev >= 32;                      // 60% fewer acacias, 90% fewer termite hills, wheat by the climate (0.8471)
     const FLUSH = biomeRev >= 27;                     // a river's or lake's shore level with its water is a little beach (FLUSH, biomes/fields.js)
     const WATER_LEVEL = FLAT ? FLAT_WATER_LEVEL : 99;
     const seedFn = xmur3(String(seedStr));
@@ -38,7 +52,7 @@ corePart('gen.make', function () {
     biome's name (biomeAt) and the sub-biome masks — live in biomes/biomes.js since 0.823 (BIOME_CORE, shipped into the
     worker beside this core). */
     const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
-    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2 } = bio;
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2, DBEACH, DB_SAND, DB_BAND } = bio;
     /* The desert update (0.84, rev 21, biomes/biomes.js): the Deep Desert's rock is banded sandstone from DD_ROCK_FROM up,
        a band of red every DD_BAND layers (ddStrata: `off` wobbles the bands by column). Rev 22 by its half,
        `kind`: 1 the Deep Desert, sandstone with a thin red band every DD_BAND_Y; 2 the Deep Red Desert, red sandstone

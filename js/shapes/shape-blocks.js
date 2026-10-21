@@ -21,16 +21,16 @@ corePart('blocks', function () {
   const SHAPE_BLOCKS = {
     slab:   [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.GLASS, ..._SANDSTONES, B.ADOBE,
              ..._ROCKS, ..._GLOWS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,
-             B.HAY, ..._METALS, B.DIRT, B.SNOW, ..._GEM_COAL, B.ICE],                          // ice takes snow's, for the snow-ice brick both share
+             B.HAY, ..._METALS, B.DIRT, B.SANDY_DIRT, B.SNOW, ..._GEM_COAL, B.ICE],                          // ice takes snow's, for the snow-ice brick both share
     stairs: [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.GLASS, ..._SANDSTONES, B.ADOBE,
              ..._ROCKS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,
-             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SNOW, B.ICE],
+             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SANDY_DIRT, B.SNOW, B.ICE],
     pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS,
              ..._ROCKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,
              ..._METALS],
     fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK],
     layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,
-             B.FIBER_BLOCK, B.SALT_CRUST, B.ASH,
+             B.FIBER_BLOCK, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK,
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE,
              B.HAY, B.ICE],
     cover:  [B.DIRT, B.GRASS, B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS,
@@ -41,15 +41,14 @@ corePart('blocks', function () {
              B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,
              B.OBSIDIAN, B.SNOW, B.ICE],
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH];   // salt 0.8097, ash 0.8191
+  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   /* THE LOOKS THAT ARE STILL IDS TAKE THEIR DEFAULT'S SHAPES. One list per block, its default first, then those looks
      (blocks/looks.js VARIANT_BLOCKS; blocks/variants.js checks the bar agrees). Looks in the cell's bits need nothing:
-     they are their base block. The glassy sands are blocks of their own on one bar. */
+     they are their base block. */
   const VARIANT_FAMILIES = [
-    [B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND],
-    [B.ICE, B.ICE_BRICKS, B.CARVED_ICE], [B.SNOW, B.SNOW_BRICKS, B.SNOW_ICE_BRICKS, B.CARVED_SNOW],
+    [B.ICE, B.ICE_BRICKS], [B.SNOW, B.SNOW_BRICKS],
     [B.HAY, B.THATCH],
   ];
   for (const [base, ...looks] of VARIANT_FAMILIES)

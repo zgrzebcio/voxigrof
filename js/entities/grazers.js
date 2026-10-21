@@ -71,6 +71,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
   /* ---- heading ---- */
   let moveSpeed = 0;
   e.faceYaw = null;                       // a ridden horse walks one way and looks another
+  if (horse && e.tame) horseStanceTick(e, dt);   // a stance pressed for, after its wait (entities/taming.js)
   /* a hellhound: houndThink turns it and says how fast it goes, whom it hunts, follows or bites; `houndBold`
      = it is after something, and goes off ledges and through water for it as a hunting bear does */
   let houndBold = false;

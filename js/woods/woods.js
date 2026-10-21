@@ -26,7 +26,7 @@
        xp         { log, hollow, sapling }: XP for breaking its log and its hollow log, and for a sapling of it
                   that grew (player/leveling.js). Not given: that block pays what any block pays
      its sapling
-       saplingOn  'sand': it takes grass, dirt, sand or red sand (the palm). Not given: grass only
+       saplingOn  'sandy_dirt': sandy dirt only (the palm). Not given: grass only
                   (player/place-block.js)
        grow       (x, y, z) => builds its tree where its sapling stood (the shapes: woods/saplings.js)
 

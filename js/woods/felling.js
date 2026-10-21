@@ -566,6 +566,7 @@ function tryChopLog(x, y, z) {
 function fellTreeFrom(x, y, z) {
   const logs = _floodLogs(x, y, z);
   if (!logs.length) return;
+  if (typeof coconutsOffFelled === 'function') coconutsOffFelled(logs);   // a palm's coconuts: now and then one whole (woods/coconuts.js)
 
   /* Canopy, gathered while the logs are still standing so reach is measured from wood.
 

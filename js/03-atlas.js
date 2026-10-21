@@ -24,6 +24,7 @@ const BIRCH_LEAF_TINT = 'rgb(128,167,85)';        // birch's paler, yellower gre
 const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the oak leaf art gone very pale and dry
 const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green
 const ACACIA_LEAF_TINT = 'rgb(126,156,58)';        // the acacia's crown, grey art: an olive, sun-dried green
+const COCONUT_YOUNG_TINT = 'rgb(104,168,52)';      // a coconut still growing: its art in this green
 const SAVANNA_GRASS_RGB = [196, 168, 74];          // the Savanna's golden grass, what GRASS_RGB is mixed toward there
 /* ================================================================================================ */
 
@@ -204,7 +205,13 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'carved_stone', 'carved_granite', 'carved_marble', 'carved_limestone', 'carved_dolomite'
                      ,'carved_sandstone', 'carved_red_sandstone', 'carved_pink_sandstone'
                      ,'carved_adobe', 'carved_terracotta', 'terracotta_roof', 'thatch'
-                     ,'carved_snow', 'carved_ice', 'carved_obsidian', 'obsidian_bricks'];
+                     ,'carved_snow', 'carved_ice', 'carved_obsidian', 'obsidian_bricks'
+                     ,'sandy_dirt'                                            // T 427
+                     ,'seashell_side', 'seashell_top'                        // T 428-429
+                     ,'coconut_side', 'coconut_top', 'coconut_young_side', 'coconut_young_top'   // T 430-433
+                     ,'seashell_block_side', 'seashell_block_top'                               // T 434-435
+                     ,'cobweb_tangled', 'cobweb_corner'                                         // T 436-437
+                     ,'bone_ash_block'];                                                        // T 438, built below
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -444,7 +451,7 @@ for (const n of ['grass', 'short_grass', 'tallgrass_bottom', 'tallgrass_top'])
 const WATER_TINT = { base: [58, 128, 214], cold: [30, 66, 158], warm: [70, 194, 196] };   // cold deeper, warm greener
 const WATER_ART_CONTRAST = 0.3;   // how much of the water art's light-and-dark pattern is kept (all of it before)
 const TILE_LAYER = (() => {
-  const N = ATLAS_TILES.length, d = new Float32Array(N * 4 * 2);
+  const N = ATLAS_TILES.length, d = new Float32Array(N * 4 * 3);
   // fourth channel: an animated tile's NEXT frame's layer plus how far towards it it is (0..1), else -1
   for (let i = 0; i < N; i++) { d[i * 4] = i; d[i * 4 + 1] = -1; d[i * 4 + 2] = SWAY_TILES[ATLAS_TILES[i]] || 0; d[i * 4 + 3] = -1; }
   for (const e of ATLAS_EMISSIVE) d[e.tile * 4 + 1] = e.layer;
@@ -458,7 +465,10 @@ const TILE_LAYER = (() => {
   for (const n of ['water', 'water_flow', 'water_flow_fast', 'water_fall']) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4] = 2; }
   // row 1's fourth channel: a river's top, whose ripples run downstream (04): 1 at the flow's pace, 2 faster
   for (const [n, v] of [['water_flow', 1], ['water_flow_fast', 2]]) { const i = ATLAS_TILES.indexOf(n); if (i >= 0) d[R1 + i * 4 + 3] = v; }
-  const t = new THREE.DataTexture(d, N, 2, THREE.RGBAFormat, THREE.FloatType);
+  // row 2: 1 where the tile darkens wet (CORE.WET_TILE, chunks/voxel-shared.js: rain, waves, drips; 04-materials.js)
+  const R2 = N * 8;
+  for (let i = 0; i < N && i < CORE.WET_TILE.length; i++) d[R2 + i * 4] = CORE.WET_TILE[i];
+  const t = new THREE.DataTexture(d, N, 3, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.needsUpdate = true;
   return t;
@@ -625,7 +635,40 @@ async function buildAtlas() {
     return c;
   };
   IMAGES.glowstone_spent = greyed(IMAGES.glowstone);
+  // a growing coconut: the ripe art in a young green, keeping its shading (the canvas 'color' blend)
+  const greened = (src) => {
+    if (!src) return src;
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const g2 = c.getContext('2d');
+    g2.imageSmoothingEnabled = false;
+    g2.drawImage(src, 0, 0);
+    g2.globalCompositeOperation = 'color';
+    g2.fillStyle = COCONUT_YOUNG_TINT;
+    g2.fillRect(0, 0, c.width, c.height);
+    g2.globalCompositeOperation = 'destination-in';     // the fill also painted the gaps
+    g2.drawImage(src, 0, 0);
+    return c;
+  };
+  IMAGES.coconut_young_side = greened(IMAGES.coconut_side);
+  IMAGES.coconut_young_top = greened(IMAGES.coconut_top);
   IMAGES.glowcrystal_spent = greyed(IMAGES.glowcrystal);
+  // the bone ash block: the ash block's art lifted to a bone white, keeping its grain
+  const whitened = (src) => {
+    if (!src) return src;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g2 = c.getContext('2d', { willReadFrequently: true });
+    g2.imageSmoothingEnabled = false;
+    g2.drawImage(src, 0, 0);
+    const im = g2.getImageData(0, 0, c.width, c.height), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const k = 0.7 + 0.3 * (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
+      d[i] = 242 * k; d[i + 1] = 236 * k; d[i + 2] = 222 * k;
+    }
+    g2.putImageData(im, 0, 0);
+    return c;
+  };
+  IMAGES.bone_ash_block = whitened(IMAGES.ash_block);
 
   /* The grass plants ship grey (the tall grass and the short), so they would read as white in the world. Each
      is tinted on the source image, where one multiply and one alpha restore do it: the grass colour, and its

@@ -11,10 +11,11 @@ defineItems('containers', {
                           desc: 'Drink it to remove all active effects. Goes off in 10 minutes, leaving the bucket' },
   [ITEM.WATER_BUCKET]:  { name: 'Water Bucket',  stack: 1,  icon: 'water_bucket', desc: '' },
   /* a glass bottle (4 glass at the bench) fills at any water: the right button held on it for half a second
-     (updateBottleFill, player/drinking.js). Drinking the water gives 25 thirst and the bottle back. `drink` with no
+     (updateBottleFill, player/drinking.js). Drinking the water gives 25 thirst and, 95% of the time, the bottle back. `drink` with no
      `food` is still something you consume (foodPropsOf). */
   [ITEM.GLASS_BOTTLE]:  { name: 'Glass bottle',  stack: 20, icon: 'glass_bottle', desc: 'Hold the right button on water for half a second to fill it' },
   [ITEM.WATER_BOTTLE]:  { name: 'Bottle of water', stack: 10, icon: 'water_bottle',
-                          eatTime: 1.4, drink: true, foodReturn: 415, desc: 'Drink it for 25 water. The bottle comes back' },
+                          eatTime: 1.4, drink: true, foodReturn: ITEM.GLASS_BOTTLE, foodReturnChance: 0.95,
+                          desc: 'Drink it for 25 water. The bottle nearly always comes back' },
   [ITEM.LAVA_BUCKET]:   { name: 'Lava Bucket',   stack: 1,  icon: 'lava_bucket', desc: '' },
 });

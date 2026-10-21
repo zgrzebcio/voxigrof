@@ -42,9 +42,9 @@ corePart('mesh.chunk', function () {
       quad(1, T3(x0,y0,z0),T3(x0,y1,z0),T3(x1,y1,z0),T3(x1,y0,z0),
            [1-b[0],b[1]],[1-b[0],b[4]],[1-b[3],b[4]],[1-b[3],b[1]], tile, 216, lite);  // -Z
     }
-    function emitCross(x, y, z, blockId, varb) {
+    function emitCross(x, y, z, blockId, varb, tileOver = null) {   // tileOver: a look's art (the cobweb's)
       // sulfur tip: variant 1 = flipped/down orientation, swap tile to the down-tip texture
-      let tile = PROPS[blockId].faces[0];
+      let tile = tileOver != null ? tileOver : PROPS[blockId].faces[0];
       if (blockId === B.SULFUR_UP_TIP && (varb & 1)) tile = T.SULFUR_DOWN_TIP;
       // per-variant billboard texture (berry bush growth stages)
       const tv = PROPS[blockId].tilesByVar;
@@ -68,13 +68,40 @@ corePart('mesh.chunk', function () {
       quad(1,[x+1,y,z+1],[x,y,z],[x,y+1,z],[x+1,y+1,z+1], [0,0],[1,0],[1,1],[0,1],tile,sh,lite);
       quad(1,[x+1,y+1,z+1],[x,y+1,z],[x,y,z],[x+1,y,z+1], [0,1],[1,1],[1,0],[0,0],tile,sh,lite);
     }
+    /* A cobweb: crossed like a plant in its look's art (plain, tangled: blocks/looks.js). The corner look is strung across
+       the edge where two blocks it touches meet at a right angle (webCornerEdge, blocks/looks.js): one sheet from that edge
+       to the cell's opposite edge, its art's anchored corner on the edge. Without such an edge it hangs as a plain web. */
+    function emitCobweb(x, y, z, val) {
+      const edge = lookOf(val) === 2 ? webCornerEdge((dx, dy, dz) => opaqueVal(gb(x + dx, y + dy, z + dz))) : null;
+      if (edge) {
+        const [a, b] = edge;
+        // the edge: on the a and b sides of the cell, running along the third axis; the far edge opposite it
+        const c = [0, 1, 2].find(k => !a[k] && !b[k]);
+        const at = (k, far, t) => {                            // a corner of the sheet in cell coordinates
+          const p = [0, 0, 0];
+          for (const k2 of [0, 1, 2]) {
+            const s = a[k2] || b[k2];
+            p[k2] = k2 === c ? t : (s > 0) !== far ? 1 : 0;
+          }
+          return [x + p[0], y + p[1], z + p[2]];
+        };
+        const e0 = at(c, false, 0), e1 = at(c, false, 1), f1 = at(c, true, 1), f0 = at(c, true, 0);
+        const tile = T.COBWEB_CORNER, lite = litMax(gl(x, y + 1, z), gl(x, y, z));
+        // the art's anchored corner (top left) at the edge's start, its top along the edge
+        quad(1, e0, e1, f1, f0, [0, 1], [1, 1], [1, 0], [0, 0], tile, 210, lite);
+        quad(1, f0, f1, e1, e0, [0, 0], [1, 0], [1, 1], [0, 1], tile, 210, lite);
+        return;
+      }
+      emitCross(x, y, z, B.COBWEB, 0, lookOf(val) === 1 ? T.COBWEB_TANGLED : T.COBWEB);
+    }
     for (let y = 1; y < Math.min(CY - 1, yCap); y++)
       for (let z = 0; z < 16; z++)
         for (let x = 0; x < 16; x++) {
           const val = data[x + (z << 4) + (y << 8)];
           const bid = val & 255;
           if (!lod && PROPS[bid] && PROPS[bid].model === 'cross') {   // a far chunk draws no plants or torches
-            if (PROPS[bid].torch) emitTorch(x, y, z, (val >> 8) & 255, bid);   // a stick, not a billboard (every torch)
+            if (bid === B.COBWEB) emitCobweb(x, y, z, val);               // its look, or strung across a corner
+            else if (PROPS[bid].torch) emitTorch(x, y, z, (val >> 8) & 255, bid);   // a stick, not a billboard (every torch)
             else if (PROPS[bid].shroom != null) emitShroom(x, y, z, PROPS[bid].shroom, (val >> 8) & 255);   // a model, grown so far
             else emitCross(x, y, z, bid, (val >> 8) & 255);
           }

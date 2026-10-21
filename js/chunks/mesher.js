@@ -44,7 +44,10 @@ corePart('voxel', function () {
   const DIR_SHADE = [   255,      140,      178,      178,      216,      216  ]; // baked light
   const mask = new Int32Array(16 * CY);      // reused across sweeps (max plane size)
   const maskL = new Uint16Array(16 * CY);    // parallel mask of per-face block-light level (with its colour bit)
-  const maskD = new Uint16Array(16 * CY);    // ...and of a grass face's dryness key (dryKey): faces merge only when it matches too
+  const maskD = new Uint16Array(16 * CY);    // ...and of a grass face's dryness key (dryKey): faces merge only when it matches too, and its wet bit
+  // a cell beside water (wetBeside, mesher-cubes.js): 1, 0, or -1 not looked at yet; its faces' light times SHORE_WET_SHADE
+  const WETC = new Int8Array(16 * 16 * CY);
+  const SHORE_WET_SHADE = 0.8, MD_WET = 0x4000;
   /* Light COLOUR: a packed light is block light (bits 0-3) | sky light (4-7) | LIGHT_COLD (bit 8), set where the
      brightest block light reaching the cell is a cold one (crystal torch, glowcrystal block, glow vine). The shader (04)
      tints that light blue. Two lights joined per nibble keep the colour of the brighter block light. */

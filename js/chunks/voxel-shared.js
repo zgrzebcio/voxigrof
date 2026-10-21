@@ -20,7 +20,7 @@ corePart('voxel', function () {
           FLINT_ROCK_BOX, GOURD_BOX, FULL_UV_BOX, _gourd, _carvedFaces, _carved, SHAPE_SLAB, SHAPE_STAIRS,
           SHAPE_PANE, SHAPE_FENCE, SHAPE_MASK, ROT_MASK, SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, SHAPE_COVER,
           SHAPE_WALL, VARIANT_BLOCKS, _ALL_PLANKS, _ROCKS,
-          LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal,
+          LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal, WEB_EDGES, webCornerEdge,
           pillarOfVal, nameOfVal, matKey, stackEntry, stackVal, _ROCK_LOOK_IDS,
           _SANDSTONES, _GLOWS, _NO_COVER, _METALS, _GEM_COAL, SHAPE_BLOCKS, LAYER_STACKING, VARIANT_FAMILIES,
           CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal, SHAPE_SLAB_MIX,
@@ -46,6 +46,27 @@ corePart('voxel', function () {
   DRY_TILE[T.GRASS_TOP] = 1; DRY_TILE[T.GRASS_SIDE] = 1;
   // ...and the grass PLANTS since 0.8444: short and tall grass pale by the same dryness at their foot (the shader, 04)
   DRY_TILE[T.GRASS_PLANT] = 1; DRY_TILE[T.TALL_BOT] = 1; DRY_TILE[T.TALL_TOP] = 1; DRY_TILE[T.SHORT_GRASS_PLANT] = 1;
+  /* The tiles that darken when wet: by rain, beside water and where the waves and a dripping player have been (the
+     shader, 04-materials.js, reads it as row 2 of TILE_LAYER, 03-atlas.js; the mesher's shore shade, mesher-cubes.js).
+     Every block's art but rock's (type 'stone'), a light's, and what is no plain surface (water, lava, glass, ice:
+     pass 2 and up). A look takes its block's answer; the grass's built tiles take the grass's. */
+  const WET_TILE = new Uint8Array(1024);
+  {
+    const tilesOf = (p) => [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || []), ...(p.facesByVar || []).flat()];
+    const wets = (p) => p.type !== 'stone' && !p.light && !p.lightByVar && !p.torch && (p.pass || 0) < 2;
+    const mark = (t, v) => { if (typeof t === 'number' && t >= 0 && t < 1024) WET_TILE[t] = v; };
+    for (const pass of [1, 0])                        // the wet ones first, then the dry ones win a shared tile
+      for (let id = 1; id < PROPS.length; id++) {
+        const p = PROPS[id];
+        if (!p || wets(p) !== !!pass) continue;
+        for (const t of tilesOf(p)) mark(t, pass);
+        for (const e of LOOKS[id] || []) if (e) for (const t of e.faces) mark(t, pass);
+      }
+    for (const set of BENCH_T) for (const t of set) mark(t, 1);
+    for (const set of FURNACE_T) for (const t of set) mark(t, 0);
+    for (const t of [T.GRASS_TOP_DRY, T.GRASS_SIDE_DRY, T.GRASS_TOP_SAV, T.GRASS_SIDE_SAV, T.GRASS_SNOW_SIDE,
+                     T.GRASS_TOP_WARM, T.GRASS_TOP_COLD, T.GRASS_SIDE_WARM, T.GRASS_SIDE_COLD]) mark(t, 1);
+  }
   const setTintSampler = (fn, dry) => { _climAt = fn || null; _dryAt = dry || null; };                                                     // 0.804                                                  // 0.801                                                 // 0.7947
   const CX = 16, CY = 250, CZ = 16;
   /* Flat ("superflat") worlds: a 25-block slab — 1 bedrock, 19 stone, 4 dirt, 1 grass — with a

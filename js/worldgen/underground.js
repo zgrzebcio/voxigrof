@@ -32,12 +32,20 @@ corePart('gen.chunk', function () {
           // appended, so every row above keeps the index that seeds its veins
           [B.DOLOMITE,     4, 24, 60, 60, 110, 40, 130],
         ];
+        /* rev 36: the ores' veins ORE_MORE_K as often (worldgen/gen-setup.js), coal's and the rock patches' as they were. The extra
+           tries come after a row's own (a higher `ai`), the last of them by a chance, so the veins already there stay where they are. */
+        const ORE_MORE = REV36 ? new Set([B.IRON_ORE, B.DIAMOND_ORE, B.COPPER_ORE, B.TIN_ORE, B.GOLD_ORE]) : null;
+        const moreTries = (n, salt) => {
+          const t = n * ORE_MORE_K;
+          return Math.floor(t) + (hash3(cx * 29 + salt, 97, cz * 31 + salt) < t % 1 ? 1 : 0);
+        };
         for (let oi = 0; oi < ORE_TYPES.length; oi++) {
           const [oreId, attempts, minN, maxN, bestLo, bestHi, rangeLo, rangeHi] = ORE_TYPES[oi];
+          const tries = ORE_MORE && ORE_MORE.has(oreId) ? moreTries(attempts, oi) : attempts;
           // gems grow as clusters in caves since 0.7945 (below). Skipped rather than removed, so every other
           // row keeps its index `oi`, which seeds its veins: the rest of the underground stays where it was
           if (PROPS[oreId].model === 'cluster') continue;
-          for (let ai = 0; ai < attempts; ai++) {
+          for (let ai = 0; ai < tries; ai++) {
             const lx = (hash3(cx * 47 + oi + ai,       11, cz * 43 + oi + ai    ) * 16) | 0;
             const lz = (hash3(cx * 53 + oi + ai * 3,   17, cz * 59 + oi + ai    ) * 16) | 0;
             const inBest = hash3(cx + oi * 7 + ai * 3, 31, cz + oi * 3 + ai * 7) < 0.7;
@@ -67,7 +75,7 @@ corePart('gen.chunk', function () {
            any height, from the deep rock up into the hills and crags just under the surface, in stone or sandstone. Up to
            RG_TRIES veins a chunk, 3-7 ore each, on top of the usual deep gold. */
         if (DESERT3) {
-          const RG_TRIES = 9, RG_ROCK = new Set([B.STONE, B.SANDSTONE, B.RED_SANDSTONE]);
+          const RG_TRIES = REV36 ? moreTries(9, 900) : 9, RG_ROCK = new Set([B.STONE, B.SANDSTONE, B.RED_SANDSTONE]);
           for (let ai = 0; ai < RG_TRIES; ai++) {
             const lx = (hash3(cx * 61 + 900 + ai, 13, cz * 67 + 900 + ai) * 16) | 0;
             const lz = (hash3(cx * 71 + 900 + ai * 3, 19, cz * 73 + 900 + ai) * 16) | 0;
@@ -187,6 +195,10 @@ corePart('gen.chunk', function () {
           const h = H[gi];
           const wx = cx * 16 + x, wz = cz * 16 + z;
           const capY = h - (h < WLV[gi] ? 9 : 6);                  // its own water
+          /* rev 35: a slow field takes the caves out of a quarter of the land (CAVE_GATE, worldgen/gen-setup.js); they pinch
+             shut over its edge (caveK narrows the bands, hardens the caverns) rather than end in a flat wall */
+          const caveK = REV35 ? smooth01(fbm(wx * 0.004 + 6123.7, wz * 0.004 - 2817.3, 2), CAVE_GATE - 0.06, CAVE_GATE + 0.06) : 1;
+          if (caveK <= 0) continue;
           // long-tunnel region gate (2D, per-column): ~40% of areas also grow long sweeping
           // tunnels from a separate LOW-frequency band pair (long wavelength = long tunnels)
           const longTun = fbm(wx * 0.003 + 4040, wz * 0.003 - 2020, 2) > 0.12;
@@ -194,7 +206,7 @@ corePart('gen.chunk', function () {
             // taper the band shut approaching the crust so noise never breaches the surface
             const taper = Math.min(1, (capY - y) * 0.25 + 0.4);
             // boost band width inside tall mountains so interiors are more cavernous
-            const w = (0.062 + (1 - y / 96) * 0.02 + Math.max(0, h - 90) * 0.00045) * taper;
+            const w = (0.062 + (1 - y / 96) * 0.02 + Math.max(0, h - 90) * 0.00045) * taper * caveK;
             const n1 = fbm3(wx * 0.055, y * 0.075, wz * 0.055, 2);
             if (Math.abs(n1) <= w) {                          // spaghetti band
               const n2 = fbm3(wx * 0.055 + 133.7, y * 0.075 - 71.3, wz * 0.055 + 291.1, 2);
@@ -211,7 +223,7 @@ corePart('gen.chunk', function () {
           // caverns — taller, lower carve threshold — held up by full stone pillars and
           // floor/ceiling rock spikes (per-column hash keeps them chunk-border stable).
           const grand = fbm(wx * 0.006 + 777, wz * 0.006 + 321, 2) > 0.30;
-          const thr = grand ? 0.40 : 0.47;
+          const thr = (grand ? 0.40 : 0.47) + (1 - caveK) * 0.3;
           const pr = hash2(wx * 13 + 5, wz * 29 - 11);
           const isPillar = grand && pr < 0.012;                          // full floor-to-ceiling pillar
           const stalag = grand && !isPillar && pr < 0.055 ? 4 + ((pr * 4096 | 0) % 7) : 0;   // floor spike
@@ -444,7 +456,7 @@ corePart('gen.chunk', function () {
       })();
       (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       // ---- cave lava pools (pool-seeded grid, bowl-shaped multi-y crater) ----
-      // 22×22 cells, 22% chance each, radius up to ~6 blocks. Per-cell pool y is deterministic;
+      // 22×22 cells, LAVA_POOL_CH of them (8%, 10.4% from rev 37), radius up to ~6 blocks. Per-cell pool y is deterministic;
       // each column within radius carves a lava column from (poolY - bowlDepth) up to poolY, with
       // bowlDepth tapering parabolically from ~4 at the centre to 0 at the rim → looks like a
       // real crater/pond, not a flat slab. Rim pass fills air side-neighbors with stone.
@@ -456,7 +468,7 @@ corePart('gen.chunk', function () {
           const ddx = wx - gcx * PCELL, ddz = wz - gcz * PCELL;
           const d2 = ddx * ddx + ddz * ddz;
           if (d2 > PR2) continue;
-          if (hash2(gcx * 31 + 5501, gcz * 37 + 6601) > 0.08) continue;
+          if (hash2(gcx * 31 + 5501, gcz * 37 + 6601) > LAVA_POOL_CH) continue;
           const poolY = 5 + Math.floor(hash2(gcx * 71 + 2201, gcz * 73 + 3301) * 40);   // 5..44
           // parabolic bowl: deeper in middle, 0 at edge
           const t = 1 - d2 / PR2;
@@ -602,14 +614,21 @@ corePart('gen.chunk', function () {
             const top = Math.min(H[(x + 2) + (z + 2) * 20] - 6, 95);
             for (let y = 4; y < top; y++) {
               if ((data[idx(x, y, z)] & 255) !== B.AIR) continue;
-              if (hash3(cx * 1601 + x, y + 8000, cz * 1409 + z) >= 0.0025) continue;
+              if (hash3(cx * 1601 + x, y + 8000, cz * 1409 + z) >= WEB_CH) continue;
               let rock = 0;
               for (const [dx, dy, dz] of WEB_NB) {
                 const nx = x + dx, nz = z + dz;
                 if (nx < 0 || nx > 15 || nz < 0 || nz > 15) continue;
                 if ((data[idx(nx, y + dy, nz)] & 255) === B.STONE) rock++;
               }
-              if (rock >= 2) data[idx(x, y, z)] = B.COBWEB;   // still hung in nooks; the pass at the end makes sure
+              /* still hung in nooks; the pass at the end makes sure. Its look: strung across the corner where two rock faces
+                 meet at a right angle (most of the time), else plain or tangled (blocks/looks.js) */
+              if (rock < 2) continue;
+              const solidAt = (dx, dy, dz) => { const nx = x + dx, nz = z + dz; return nx >= 0 && nx <= 15 && nz >= 0 && nz <= 15 && (data[idx(nx, y + dy, nz)] & 255) === B.STONE; };
+              const vert = solidAt(0, 1, 0) || solidAt(0, -1, 0), side = (a, b) => solidAt(a, 0, b);
+              const corner = ((side(1, 0) || side(-1, 0)) && (side(0, 1) || side(0, -1) || vert)) || ((side(0, 1) || side(0, -1)) && vert);
+              const r = hash3(cx * 1607 + x, y + 8100, cz * 1411 + z);
+              data[idx(x, y, z)] = (B.COBWEB | ((corner && r < 0.75 ? 2 : r < 0.5 ? 1 : 0) << 16)) >>> 0;
             }
           }
       }
@@ -701,7 +720,7 @@ corePart('gen.chunk', function () {
           [B.SAPPHIRE_ORE,  4,     93,     97,     80,     130,   false],
           [B.TOPAZ_ORE,     4,     78,     82,     60,     100,   false],
         ];
-        const CLUSTER_TRY_CHANCE = 0.05;
+        const CLUSTER_TRY_CHANCE = REV36 ? 0.05 * ORE_MORE_K : 0.05;   // rev 36: a tenth more; a try that came before still does
         const rockAt = (x, y, z) => {
           if (x < 0 || x > 15 || z < 0 || z > 15 || y < 1 || y > CY - 2) return false;
           const p = PROPS[data[idx(x, y, z)] & 255];

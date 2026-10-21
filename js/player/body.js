@@ -25,6 +25,7 @@ function _brightMat(p) {
   m.uniforms.uDirect.value = 0.0;
   m.uniforms.uShadowOn.value = 0.0;
   m.uniforms.uCloudOn.value = 0.0;                // its own copy never follows the clouds
+  m.uniforms.uWet.value = 0.0; m.uniforms.uWetBox.value.w = 0;   // ...nor the wet ground
   m.uniforms.uLightColor.value.set(1, 1, 1);
   if (m.uniforms.fogNear) m.uniforms.fogNear.value = 1e6;
   if (m.uniforms.fogFar) m.uniforms.fogFar.value = 1e7;
@@ -111,6 +112,7 @@ function applyCameraView(dt) {
     _selfModel.root.rotation.y = yawStand + dyaw * lie;
     _selfModel.root.rotation.x = -Math.PI / 2 * lie;     // onto its back, head toward the pillow
     _syncSelfHeld();
+    _selfHeld.visible = !mainHandBusy(player);            // both hands at work: put away (player/hands.js)
     // worn armor on the body, for third person and everyone else's view (player/equipment.js)
     if (typeof syncArmorOnModel === 'function') syncArmorOnModel(_selfModel, equipSlots);
     animateHumanoid(_selfModel, _selfPhase, swing * (1 - lie), -player.pitch * 0.6 * (1 - lie),
@@ -133,6 +135,7 @@ function applyCameraView(dt) {
     if (typeof poseBodyOffhand === 'function') {
       poseBodyOffhand(_selfModel, offhandItemId(),
                       (player._shieldHand === 'off' ? (player._shieldUp || 0) : 0) * (1 - lie));
+      if (_selfModel.offGrp && offHandBusy(player)) _selfModel.offGrp.visible = false;   // climbing, drinking, a bow drawn
       poseMainShield(_selfHeld, _selfHeldId,
                      (player._shieldHand === 'main' ? (player._shieldUp || 0) : 0) * (1 - lie));
     }

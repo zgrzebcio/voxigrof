@@ -6,6 +6,12 @@ defineItems('food', {
 // what each also gives in thirst, fruit, vegetables and protein is FOOD_NUTRITION in player/stats.js.
 // Every eatTime is 20% longer since 0.821.
   [ITEM.APPLE]:         { name: 'Apple',          stack: 79, icon: 'apple',         foodSatFull: 15, food: 25,  foodSat: 40,  eatTime: 1.8, spoil: 3600, desc: '' },   // an hour since 0.7992
+  /* the coconut, off a palm (woods/coconuts.js): not eaten whole, it is OPENED, the right button held `open.time` with it in
+     hand (player/eating.js), into `open.count` halves; a half is drunk more than eaten (its thirst, FOOD_NUTRITION) */
+  [ITEM.COCONUT]:       { name: 'Coconut',        stack: 20, icon: 'coconut',
+                          open: { into: ITEM.HALF_COCONUT, count: 2, time: 0.8 }, desc: 'Hold the right button to open it into two halves' },
+  [ITEM.HALF_COCONUT]:  { name: 'Half coconut',   stack: 30, icon: 'coconut_half',  foodSatFull: 0, food: 2,  foodSat: 4,   eatTime: 1.2, spoil: 1800, foodReturn: ITEM.BOWL, foodReturnChance: 0.5,
+                          desc: 'Drink it: 20 water, 10 when you are not thirsty, and a little fruit. Its shell may be left as a bowl' },
   [ITEM.MELON_SLICE]:   { name: 'Melon slice',    stack: 30, icon: 'melon_slice',   foodSatFull: 5, food: 5,  foodSat: 10,  eatTime: 0.84, spoil: 1200, desc: '' },
   [ITEM.CANTALOUPE_SLICE]: { name: 'Cantaloupe slice', stack: 30, icon: 'cantaloupe_slice', foodSatFull: 5, food: 5, foodSat: 10, eatTime: 0.84, spoil: 1200, desc: '' },
   // two colours, identical to eat — which bush you found is flavour, not a stat choice
@@ -23,7 +29,7 @@ defineItems('food', {
   // the crafted pie is RAW now (same id, so saves keep it) and a furnace bakes it
   [ITEM.PUMPKIN_PIE]:   { name: 'Raw pumpkin pie', stack: 10, icon: 'pumpkin_pie',  foodSatFull: 15, food: 30,  foodSat: 30,  eatTime: 4.8, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 3600, desc: '' },
   [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 35, food: 60, foodSat: 70, eatTime: 4.8, foodHeal: 15, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
-  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 10, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: 265, foodHeal: 5, spoil: 3600, desc: '' },
+  [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 10, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: ITEM.BOWL, foodReturnChance: 0.5, foodHeal: 5, spoil: 3600, desc: '' },
   [ITEM.BREAD]:         { name: 'Bread',          stack: 79, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
   [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 20, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 10, foodEffect: 'rapidRegen', desc: '' },
   [ITEM.MUTTON]:        { name: 'Mutton',         stack: 79, icon: 'mutton',        foodSatFull: 5, food: 10,  foodSat: 15,  eatTime: 2.16, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },

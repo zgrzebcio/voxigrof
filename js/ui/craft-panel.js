@@ -52,12 +52,13 @@ function _craftPickPaint() {
   _craftPickEl.style.left = (invCursor ? invCursor.x : innerWidth / 2) + 'px';
   _craftPickEl.style.top = (invCursor ? invCursor.y : innerHeight / 2) + 'px';
 }
-function craftPickAdd(r) {
+// one more on the batch counted out on the cursor; `half` (Ctrl+Shift): half of all there is room and stuff for, at once
+function craftPickAdd(r, half = false) {
   if (craftPick && craftPick.r !== r) craftPickCancel();
   const cap = (craftMode !== 'basic' && activeBench) ? maxCrafts(r)
             : Math.min(maxCrafts(r), CRAFT_QUEUE_MAX - craftQueue().length);
   if (cap <= 0) { feedWarn(craftPick ? 'No room for more' : 'Missing ingredients'); return; }
-  craftPick = { r, n: Math.min(cap, (craftPick ? craftPick.n : 0) + 1) };
+  craftPick = { r, n: Math.min(cap, (craftPick ? craftPick.n : 0) + (half ? Math.max(1, Math.ceil(cap / 2)) : 1)) };
   _craftPickPaint();
   _craftCtrlRefresh();
 }
@@ -200,10 +201,10 @@ function buildCraftPanel() {
     html += `<span class="cxp">${r.xpToGive ? `<img src="textures/Items/Useables/experience_bottle.png" alt="">${r.xpToGive}` : ''}</span>`;
     row.innerHTML = html;
     // Shift+click commits as many as you can afford (0.76: into the queue, or onto the bench's order)
-    // Ctrl: count a batch out on the cursor first, and order it when Ctrl is let go
+    // Ctrl: count a batch out on the cursor first, and order it when Ctrl is let go; Ctrl+Shift: half of the most at once
     row._recipe = r;                                  // the pad's X+A batch reads it back off the row
     row.querySelector('.cbtn').addEventListener('click',
-      (ev) => { if (ev.ctrlKey) craftPickAdd(r); else onRecipeClick(r, ev.shiftKey); });
+      (ev) => { if (ev.ctrlKey) craftPickAdd(r, ev.shiftKey); else onRecipeClick(r, ev.shiftKey); });
     rows.appendChild(row);
   }
   list.replaceChildren(rows);                // every row at once: the list is never seen empty, so it never snaps to 0

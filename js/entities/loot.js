@@ -9,7 +9,8 @@ function _entDropLoot(ent, byPlayer = false) {
   if (!def.loot) return;
   /* Butcher: an animal the player killed has a 20% chance of one more of its FIRST drop (the meat, a horse's
      leather), which is why a kind's `loot` drops that one through `first` and the rest through `pop`. */
-  const butcher = byPlayer && isAnimal(ent) && typeof hasSkill === 'function' && hasSkill('butcher');
+  // ...and of a kind whose entry says `butcher` (a termite's chitin, a hellhound's fire), animal or not
+  const butcher = byPlayer && (isAnimal(ent) || !!def.butcher) && typeof hasSkill === 'function' && hasSkill('butcher');
   const pop = (id, n) => {
     for (let i = 0; i < n; i++)
       spawnDrop(id, bx, by, bz, {

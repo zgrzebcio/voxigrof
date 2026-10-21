@@ -41,6 +41,8 @@ BUSH_NAME[B.YELLOWBERRY_BUSH] = 'yellow berry bush';   // 0.827
 BUSH_NAME[B.WHITEBERRY_BUSH] = 'white berry bush';
 BUSH_NAME[B.FLINT_ROCK] = 'flint pebble';
 BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
+BUSH_NAME[B.SEASHELL] = 'seashell';
+const PEBBLE_SPIDER_CHANCE = 0.2;                    // a stone or flint picked up: a spider was under it
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
 BUSH_NAME[B.CANTALOUPE] = 'cantaloupe';   // 0.8091
@@ -206,10 +208,12 @@ function harvestAtPlayer(readyOnly = false) {
       addXP(Math.floor(shroomSizeAt(x, t.y, z, t.v) / XP_SHROOM_STEP + 1e-6) + (shroomLeft(t.v) ? 0 : XP_SHROOM_GROWN));
     return BUSH_REPEAT;
   }
-  if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE) {   // the stone pebble the same way
+  if (id === B.FLINT_ROCK || id === B.STONE_PEBBLE || id === B.SEASHELL) {   // the stone pebble and the seashell the same way
     setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.COBBLE, 'break', x, t.y, z);
-    const got = id === B.FLINT_ROCK ? ITEM.FLINT : ITEM.STONE_PEBBLE;
+    // now and then a spider was under a stone or a flint, and runs off (49-particles.js; none with Arachnophobia)
+    if (id !== B.SEASHELL && Math.random() < PEBBLE_SPIDER_CHANCE && typeof fxSpiderFlee === 'function') fxSpiderFlee(x, t.y, z, player);
+    const got = id === B.FLINT_ROCK ? ITEM.FLINT : id === B.SEASHELL ? ITEM.SEASHELL : ITEM.STONE_PEBBLE;
     const n = 1 + lootBonus(hasSkill('luckyHands'));                  // Lucky Hands
     for (let i = 0; i < n; i++) bushGive(got, x, t.y, z);
     addXP(n * XP_FORAGE_ITEM);                            // one more a flint or pebble
@@ -254,8 +258,9 @@ function harvestAtPlayer(readyOnly = false) {
     _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_PER_STAGE * (ripe ? 7 : Math.min(6, st)));   // 35% ripe since 0.8273 (six stages)
     return BUSH_REPEAT;
   }
+  // the grass is cut down to short grass, as the tall grass to grass; short grass comes up whole
   if (id === B.TALLGRASS || id === B.SHORT_GRASS) {
-    setBlock(x, t.y, z, B.AIR);
+    setBlock(x, t.y, z, id === B.TALLGRASS ? B.SHORT_GRASS : B.AIR);
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
     _harvestFiber(x, t.y, z, 1, (id === B.SHORT_GRASS ? SHORT_GRASS_FIBER_PICK : GRASS_FIBER_PICK) - FIBER_BONUS);
     return BUSH_REPEAT;
@@ -303,11 +308,11 @@ function harvestAtPlayer(readyOnly = false) {
    grab animation instead of the arm stuttering back to the start. It is only armed on a pick
    that actually TOOK something — holding the key while walking up to a bush must not eat the
    first one, so an empty attempt costs nothing. */
-const BUSH_REPEAT = 0.3;                         // seconds between picks while the key is held
+const BUSH_REPEAT = 0.26;                         // seconds between picks while the key is held
 /* A berry bush is not consumed by a pick — it drops a stage and stays there — so the plain 0.3s
    repeat would let one held key strip a ripe bush AND immediately re-pick the empty one it just
    became, in the same breath. The longer cooldown makes each stage a deliberate, separate pick. */
-const BERRY_REPEAT = 1.1;
+const BERRY_REPEAT = 0.96;
 /* a TAP takes whatever is nearest, as it always did; once the key has been down longer than BUSH_TAP_S it is
    being held, and a held key only takes what is ready (findBushPickup's readyOnly). _bushHeldT is how long it has been
    down, per seat like the cooldown (36-splitscreen.js). */
@@ -318,9 +323,11 @@ function updateBushPickup(dt, wantPick) {
   const held = _bushHeldT > BUSH_TAP_S;
   _bushHeldT += dt;
   _bushCd -= dt;
+  // a held key takes only what is ready (readyOnly), so a picked bush is never stripped bare: no long berry wait then
+  if (held && _bushCd > BUSH_REPEAT) _bushCd = BUSH_REPEAT;
   if (_bushCd > 0) return;
   const cd = harvestAtPlayer(held);
-  if (cd) _bushCd = cd;
+  if (cd) _bushCd = held ? Math.min(cd, BUSH_REPEAT) : cd;
 }
 var handPlaceSwing = false;   // set on a SUCCESSFUL place; 24-hands consumes it for the swing
 var handPickSwing  = false;   // same, for a successful bush pickup

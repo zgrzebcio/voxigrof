@@ -40,6 +40,7 @@ const MINE_REQ = {
   [B.DOLOMITE]:    { tool: 'pick', tier: 2 },      // 0.809
   // glow vine: any tool at all harvests its crystals; a bare hand just tears it down
   [B.GLOW_VINE]:   { tool: 'any', tier: 0 },
+  [B.COCONUT]:     { tool: 'hatchet', tier: 1 },   // a hatchet takes it down whole; a hand only knocks it apart
 };
 // storage blocks: any pickaxe takes one back up; also on the pickaxe's list and in creative
 const STORAGE_BLOCK_IDS = [B.COAL_BLOCK, B.CHARCOAL_BLOCK, B.IRON_BLOCK, B.GOLD_BLOCK, B.TIN_BLOCK, B.COPPER_BLOCK,
@@ -63,7 +64,7 @@ function mineDropAllowed(heldId, blockId) {
 
 // which blocks each tool class speeds up (material families, incl. their slab/stair forms)
 const TOOL_BLOCKS = {
-  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND,
+  shovel: new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.DIRT, B.SANDY_DIRT, B.GRASS, B.SNOW, B.CLAY, B.GRAVEL, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK, B.GLASSY_SAND,
                    B.TERMITE_HILL]),   // glassy 0.824, red and pink 0.8241   // ash 0.8191   // salt crust 0.8091
   pick:   new Set([B.STONE, B.COBBLE, B.COAL_ORE, B.IRON_ORE, B.DIAMOND_ORE, B.BRICKS, B.ICE, B.BONE_BLOCK, B.PACKED_ICE,   // ice 0.8321; bone 0.833; packed 0.835
                    B.FURNACE, B.GRASS,
@@ -71,11 +72,11 @@ const TOOL_BLOCKS = {
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
                    B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE,   // pink 0.822
-                   B.METAL_CHEST]),                                               // 0.843
+                   B.METAL_CHEST, B.SEASHELL_BLOCK]),                               // 0.843
   // every wood's log, stripped log and planks come from the woods table (woods/woods.js); hollow logs join below
   hatchet: new Set([...woodBlocks('log'), ...woodBlocks('stripped'), ...woodBlocks('planks'),
                     B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.CACTUS, B.CHEST, B.BED,
-                    B.CARVED_PUMPKIN, B.JACK_O_LANTERN]),
+                    B.CARVED_PUMPKIN, B.JACK_O_LANTERN, B.COCONUT]),
   hoe:    new Set([...woodBlocks('leaves'), B.HAY]),          // every wood's leaves, the dry bush's too
   // shears are the wool tool; they also snip plant matter cleanly
   shears: new Set([B.WOOL, ...woodBlocks('leaves'), B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
@@ -156,11 +157,12 @@ const LEAF_BLOCKS = new Set(woodBlocks('leaves'));   // every wood's leaves (the
    a layer of one breaks away to nothing. */
 const LOOSE_LAYER_BLOCKS = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK,   // not ash: a whole ash block stands, its layers fall
                                     B.SNOW,     // a whole snow block falls too, and lands as a drift
-                                    B.ASH]);    // ...and a whole ash block, landing as a pile of 8 layers
+                                    B.ASH,      // ...and a whole ash block, landing as a pile of 8 layers
+                                    B.BONE_ASH_BLOCK]);
 /* By hand, slowly: the loose ground and glass. Twice what a flint tool of the block's own kind takes
    (handMineFactor); sand, gravel and snow come away a layer at a time (DIG_BY_LAYER, 22-main-loop.js), glass whole. */
 const DIG_BY_LAYER = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.SNOW]);
-const HAND_SLOW_BLOCKS = new Set([...DIG_BY_LAYER, B.GLASS, B.GLASSY_SAND, B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]);
+const HAND_SLOW_BLOCKS = new Set([...DIG_BY_LAYER, B.GLASS, B.GLASSY_SAND]);
 // the bare hand's speed on such a block: half of the flint tool that claims it (a flint pickaxe for glass, no class)
 function handMineFactor(id) {
   const FLINT = { shovel: ITEM.FLINT_SHOVEL, pick: ITEM.FLINT_PICKAXE, hatchet: ITEM.FLINT_HATCHET };

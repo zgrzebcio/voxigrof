@@ -159,8 +159,9 @@ corePart('mesh.chunk', function () {
             const own = PROPS[vid].model === 'wall';     // lit by its own cell
             // a carved pumpkin: its face on the side it was turned to, and the whole picture on each face
             const fv = PROPS[vid].facesByVar, fl = PROPS[vid].fullUV ? FULL_UV_BOX : undefined;
+            const pf = PROPS[vid].partFaces;             // a model whose boxes wear different art (the seashell's hinge)
             for (let bi = 0; bi < boxes.length; bi++)
-              emitBoxFaces(x, y, z, boxes[bi], fv ? fv[va & 3] : PROPS[vid].faces, own, 0, 0, fl);
+              emitBoxFaces(x, y, z, boxes[bi], fv ? fv[va & (fv.length - 1)] : pf ? pf[bi] : PROPS[vid].faces, own, 0, 0, fl);   // 4 by facing, or 8 by stage (the coconut)
           }
           else if (PROPS[vid].model === 'voxel') {
             // a voxel model: every box in its own material, lit from its own cell like a wall plate

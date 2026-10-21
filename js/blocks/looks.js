@@ -92,23 +92,41 @@ corePart('blocks', function () {
   defineLook(B.BONE_BLOCK, 1, 'brick', 'Bone block (brick)', T.BONE_BRICKS, { was: 208, pillar: false });
   defineLook(B.OBSIDIAN, 1, 'carved', 'Obsidian (carved)', T.CARVED_OBSIDIAN, { was: 252 });
   defineLook(B.OBSIDIAN, 2, 'brick',  'Obsidian (brick)',  T.OBSIDIAN_BRICKS, { was: 253 });
+  // glassy sand fused from red and pink sand: the same block, its own colour
+  defineLook(B.GLASSY_SAND, 1, 'red',  'Glassy red sand',  T.GLASSY_RED_SAND,  { was: 199 });
+  defineLook(B.GLASSY_SAND, 2, 'pink', 'Glassy pink sand', T.GLASSY_PINK_SAND, { was: 200 });
+  /* the cobweb: tangled, and strung across a corner. The corner one is drawn across the edge between two blocks it touches
+     (chunks/mesher-plants.js); with no such corner it hangs as a plain web */
+  defineLook(B.COBWEB, 1, 'tangled', 'Cobweb (tangled)', T.COBWEB_TANGLED);
+  defineLook(B.COBWEB, 2, 'corner',  'Cobweb (corner)',  T.COBWEB_CORNER);
+  /* The edge a corner web is strung across: the first of WEB_EDGES (ceiling ones first, [face a, face b] as [dx, dy, dz]
+     each) whose two blocks are opaque (`opaqueAt(dx, dy, dz)` asks the cell beside), or null: it hangs as a plain web.
+     Read by the mesher (chunks/mesher-plants.js) and by the spiders on a web (49-particles.js). */
+  const WEB_EDGES = [[[0, 1, 0], [1, 0, 0]], [[0, 1, 0], [-1, 0, 0]], [[0, 1, 0], [0, 0, 1]], [[0, 1, 0], [0, 0, -1]],
+                     [[1, 0, 0], [0, 0, 1]], [[1, 0, 0], [0, 0, -1]], [[-1, 0, 0], [0, 0, 1]], [[-1, 0, 0], [0, 0, -1]],
+                     [[0, -1, 0], [1, 0, 0]], [[0, -1, 0], [-1, 0, 0]], [[0, -1, 0], [0, 0, 1]], [[0, -1, 0], [0, 0, -1]]];
+  function webCornerEdge(opaqueAt) {
+    for (const e of WEB_EDGES) if (opaqueAt(e[0][0], e[0][1], e[0][2]) && opaqueAt(e[1][0], e[1][1], e[1][2])) return e;
+    return null;
+  }
+  /* the snow brick and the ice brick are blocks of their own (VARIANT_BLOCKS below: they never fall or melt) and carry the
+     other worked snow and ice: the snow-ice brick and carved snow are the snow brick's looks, carved ice the ice brick's */
+  defineLook(B.SNOW_BRICKS, 1, 'snow-ice brick', 'Snow-ice bricks', T.SNOW_ICE_BRICKS, { was: 206 });
+  defineLook(B.SNOW_BRICKS, 2, 'carved',         'Snow (carved)',   T.CARVED_SNOW,     { was: 250 });
+  defineLook(B.ICE_BRICKS,  1, 'carved',         'Ice (carved)',    T.CARVED_ICE,      { was: 251 });
   /* the gem clusters on a plain stone bed (0.7947) are the cluster with bed 1 (stone) in its variant bits now; a
      placed one's direction and layout are kept */
   [[139, B.DIAMOND_ORE], [140, B.EMERALD_ORE], [141, B.RUBY_ORE], [142, B.SAPPHIRE_ORE], [143, B.TOPAZ_ORE]]
     .forEach(([was, ore]) => { LOOK_OF_OLD_ID[was] = (ore | ((1 << CLUSTER_BED_SHIFT) << 8)) >>> 0; });
 
-  /* VARIANT BLOCKS: the looks that are still block ids of their own, because they behave unlike their base (snow falls
-     and melts, hay falls, ice is see-through and melts; their looks do none of that). Each is hidden from the
+  /* VARIANT BLOCKS: the looks that are still block ids of their own, because they behave unlike their base (snow falls,
+     melts and piles up, hay falls, ice melts; these do none of that). Each is hidden from the
      inventory: in hand it is its base block with the look picked, and broken it drops that base block. Each is built
      from the block it plays like (hardness, sound, tool). [id, plays like, name, tile, extra] */
   const VARIANT_BLOCKS = [
-    // ice and snow bricks; the snow-ice brick is a look of both (on both bars) and breaks back into snow. The ice
-    // brick is solid to see through, unlike ice; carved ice stays see-through
-    [B.ICE_BRICKS,      B.ICE,  'Ice (brick)',     T.ICE_BRICKS,      { opaque: true, pass: 0 }],
+    // the ice brick is see-through like ice; broken, each gives what its kind gives (blockDrop: snowballs to a shovel, ice nothing)
+    [B.ICE_BRICKS,      B.ICE,  'Ice (brick)',     T.ICE_BRICKS],
     [B.SNOW_BRICKS,     B.SNOW, 'Snow (brick)',    T.SNOW_BRICKS],
-    [B.SNOW_ICE_BRICKS, B.SNOW, 'Snow-ice bricks', T.SNOW_ICE_BRICKS],
-    [B.CARVED_SNOW,     B.SNOW, 'Snow (carved)',   T.CARVED_SNOW],
-    [B.CARVED_ICE,      B.ICE,  'Ice (carved)',    T.CARVED_ICE],
     // hay's thatch: the same tile all round, and it does not fall like the bale
     [B.THATCH,          B.HAY,  'Hay bale (thatch)', T.THATCH],
   ];

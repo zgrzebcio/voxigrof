@@ -24,6 +24,8 @@ corePart('gen.chunk', function () {
       const DDK = new Uint8Array(400);                         // the Deep Desert's half, ddStrata's kind
       const DRYF = new Float32Array(400);                      // how far into the Dryland, 0..1 (fDry in 55)
       const SAV = new Uint8Array(400);                         // the Savanna (rev 28, fSav in biomes/terrain.js)
+      const DBC = new Uint8Array(400);                         // a deep beach (rev 31, db in biomes/terrain.js)...
+      const DBD = new Float32Array(400);                       // ...and how far past its inner edge (dbd: negative on it)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
       // ocean 4..8 blocks, river/lake 2..4. WW cells: 0 dry, 1 ocean, 2 river/lake.
       // (WG x WG with a WM margin since 0.83547: 32 and 8 before rev 14)
@@ -70,6 +72,8 @@ corePart('gen.chunk', function () {
             DDK[i] = DDS[i] && DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0;
             DRYF[i] = DRYLAND ? ti.fDry : 0;
             SAV[i] = SAVANNA && ti.fSav > 0.5 ? 1 : 0;
+            DBC[i] = DBEACH && ti.db > 0.5 ? 1 : 0;
+            DBD[i] = DBC[i] ? ti.dbd : 1e9;
             RED[i] = ti.fRed > 0.5 && DDK[i] !== 1 ? 1 : 0;      // the (yellow) Deep Desert's half is not red
             ROCK[i] = (ti.dh > 0.5 && ti.fRed <= 0.5 && !OAS[i]) ? 1 : 0;   // tall desert hills expose stone (not in red zones)
             SNO[i] = ti.fSnow > 0.5 ? 1 : 0;
@@ -179,6 +183,9 @@ corePart('gen.chunk', function () {
 
       })();
       (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+      // a deep beach's sand at a cell of the 20 x 20 (rev 31): on it (DBD under DB_BAND[0]), at the sea's level, low enough
+      const dbSandAt = (g) => DBC[g] === 1 && WLV[g] === WATER_LEVEL && H[g] >= WATER_LEVEL && DBD[g] < DB_BAND[0]
+                              && H[g] <= WATER_LEVEL + DB_SAND + 1 && !DES[g];
       for (let z = 0; z < CZ; z++) {
         for (let x = 0; x < CX; x++) {
           const gi = (x + 2) + (z + 2) * 20;
@@ -245,9 +252,17 @@ corePart('gen.chunk', function () {
             const need = firm < -0.08 ? 6 : 4;
             steep = h - low >= need || (h - low === need - 1 && hash2(wx * 7 + 1291, wz * 5 - 733) < 0.5);
           }
+          /* a deep beach (rev 31): sand from the sea to near its inner edge, then a band of sandy dirt (DB_BAND) where the turf
+             begins (the tree pass grows its palms; the beach's slope and its edge are terrainInfo's) */
+          let dbSand = false, dbEdge = false;
+          if (DBC[gi] && wl === WATER_LEVEL && h >= wl && !rock && !DES[gi]) {
+            if (dbSandAt(gi)) { dbSand = true; shore = 1; }
+            // the band is one block: turf with the beach's sand beside it
+            else if (h >= WATER_LEVEL + 1 && (dbSandAt(gi - 1) || dbSandAt(gi + 1) || dbSandAt(gi - 20) || dbSandAt(gi + 20))) dbEdge = true;
+          }
           if (ROCK[gi] || rock) {
             topB = underB = B.STONE;
-          } else if (h < wl || (nearWater && shore !== 0) || DES[gi] === 1) {
+          } else if (h < wl || (nearWater && shore !== 0) || DES[gi] === 1 || dbSand) {
             const submerged = h < wl - 1;
             /* a beach's own floor: no clay, dirt or gravel patches. Rev 15: the beach's own block only just under
                the top (all of the first row, about half the second, a few of the third, by a patchy noise), then the shore
@@ -266,7 +281,8 @@ corePart('gen.chunk', function () {
                           : RED[gi] ? B.RED_SAND
                           /* a warm beach: near a desert but not in one, at and just under the waterline, in patches */
                           : (PINK_BEACHES && !DES[gi] && !OAS[gi] && WARM[gi] > 0.2 && h >= wl - 2
-                             && fbm(wx * 0.03 + 71.3, wz * 0.03 - 455.1, 2) > 0.1) ? B.PINK_SAND : B.SAND;   // -0.1 before 0.8233: about half as much
+                             && fbm(wx * (REV35 && dbSand ? DB_PINK_F : 0.03) + 71.3, wz * (REV35 && dbSand ? DB_PINK_F : 0.03) - 455.1, 2) > PINK_FROM + (REV35 && dbSand ? DB_PINK_UP : 0))
+                            ? B.PINK_SAND : B.SAND;   // PINK_FROM, DB_PINK_F (worldgen/gen-setup.js)
             if (shore === 2 && !submerged && !DES[gi]) topB = underB = B.GRAVEL;   // a gravel beach
             if (beachy && under === 2) topB = underB = B.GRAVEL;
             else if (beachy && under === 3) topB = underB = B.STONE;
@@ -293,6 +309,7 @@ corePart('gen.chunk', function () {
             }
             // the Savanna: its golden grass is the colour field's (dryAt); small patches of bare earth
             else if (SAV[gi] && fbm(wx * 0.06 - 3413.7, wz * 0.06 + 2207.9, 2) > 0.46) topB = B.DIRT;
+            if (dbEdge) topB = B.SANDY_DIRT;                     // a deep beach's sandy band
           }
           /* The Deep Desert: a column standing 3+ over a side is a bare crag of its banded rock, top to foot, and a
              little of that rock shows through the sand of the flats too */

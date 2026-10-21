@@ -90,14 +90,38 @@ corePart('biomes.make', function () {
        instead of 1.5), so the Savanna is a broad biome of its own, about as wide as the desert left beside it. Its
        termite hills fewer and spaced out (biomes/gen-savanna.js). */
     const SAV2 = biomeRev >= 30, SAV2_FROM = 1.2, SAV2_TO = 1.28;
-    const DESERT_LVL = SAV2 ? 1.75 : 1.5;
-    const SAV_LO = SAV2 ? SAV2_FROM : SAV_FROM, SAV_HI = SAV2 ? SAV2_TO : SAV_TO;
+    /* Wider Dryland and Savanna (biomeRev 32, DRY3): the Dryland half again as wide (DRY3_FROM..), the Savanna half again
+       as wide (SAV3_FROM..), the desert from DESERT_LVL 1.9; the warm plains give up what they make room for. The Dryland's
+       wobble a fifth longer (DRY_WOB_F). */
+    const DRY3 = biomeRev >= 32, DRY3_FROM = 0.91, DRY3_TO = 0.99, SAV3_FROM = 1.09, SAV3_TO = 1.17;
+    const DESERT_LVL = DRY3 ? 1.9 : SAV2 ? 1.75 : 1.5;
+    const SAV_LO = DRY3 ? SAV3_FROM : SAV2 ? SAV2_FROM : SAV_FROM, SAV_HI = DRY3 ? SAV3_TO : SAV2 ? SAV2_TO : SAV_TO;
+    const DRY_LO = DRY3 ? DRY3_FROM : DRY_FROM, DRY_HI = DRY3 ? DRY3_TO : DRY_TO, DRY_WOB_F = DRY3 ? 0.0021 / 1.2 : 0.0021;
+    /* No Dryland or Savanna narrower than DRY_MIN blocks (biomeRev 33, DRY4; _dryBand in biomes/terrain.js): DRY_E the reach of its
+       four samples, DRY_BLUR the disk mean's weight on the wobble's curvature (a disk of DRY_MIN / sqrt(2) radius: a bump
+       narrower than DRY_MIN falls under the line), DRY_GAP the wobble between the Dryland's middle and the Savanna's. */
+    /* Waters of other groups join when their levels are DIV_JOIN or less apart (biomeRev 34): no dry ridge between them (the
+       divide in biomes/terrain.js), only a small step, so a river or lake no longer ends a block short of the next water. */
+    const DIV_JOIN = biomeRev >= 34 ? 2 : 0;
+    /* A flatter Savanna (biomeRev 36): its rolling land and its hills, crags and cliffs SAV_FLAT lower (terrainInfo, biomes/terrain.js). */
+    const SAV_FLAT = biomeRev >= 36 ? 0.45 : 0;
+    const DRY4 = biomeRev >= 33, DRY_MIN = 16, DRY_E = 8, DRY_BLUR = DRY_MIN * DRY_MIN / 16, DRY_GAP = (SAV_LO + SAV_HI - DRY_LO - DRY_HI) / 2;
     /* Level shores (biomeRev 27): about half of a river's or a lake's shore lies level with its water, its first FLUSH_W
        columns' ground at the water's top, so a swimmer walks out instead of jumping a block; genChunk lays each such
        stretch as a little beach of sand (gravel on a gravel shore: worldgen/terrain-columns.js). A slow noise along the
        shore picks them, more of them where the shore is sand already (under FLUSH_SAND there, FLUSH_ELSE elsewhere).
        Never within FLUSH_SAFE of a higher water: its rim has to stand (terrainInfo, biomes/terrain.js). */
     const FLUSH = biomeRev >= 27, FLUSH_W = 2, FLUSH_SAND = 0.55, FLUSH_ELSE = 0.2, FLUSH_SAFE = 4;
+    /* Deep beaches (biomeRev 31): along a warm coast of a big ocean, in long stretches a slow noise picks (`db` in
+       terrainInfo), the land from the sea's edge in is laid out as a wide beach rising gently to DB_SAND + 1 over the water:
+       DB_W0 to DB_W0 + DB_W1 blocks wide by a slow noise, the distance read off the continent noise and its slope, easing back
+       into the land's own height over DB_EASE_W more; the sea in front shelves off gently (DB_SHALLOW deep over DB_SEA_W).
+       DB_IN and DB_SEA only bound, on the noise itself, where it is worth working the distance out. genChunk lays it as sand up
+       to DB_SAND over the water, a band of sandy dirt where it meets the turf, and grows most palms there
+       (worldgen/terrain-columns.js, woods/gen-tree-loop.js). */
+    const DBEACH = biomeRev >= 31, DB_IN = 0.02, DB_SEA = 0.025, DB_SHALLOW = 6, DB_SAND = 3;
+    const DB_W0 = 16, DB_W1 = 18, DB_EASE_W = 12, DB_SEA_W = 24;
+    const DB_BAND = [0, 1];                           // sand inside the beach's inner edge; the name and palms to a block past it
     // two waters that may meet at different heights: one group, or a river and a lake it leaves or enters
     const _kin = (a, b) => a.g === b.g || (!a.lake && b.lake && (a.up === b.g || a.dn === b.g)) || (!b.lake && a.lake && (b.up === a.g || b.dn === a.g));
     // the mountain valleys' depth 0..1 at a place, from the same mask the mountains use (0 outside mountain country)

@@ -101,11 +101,17 @@ const _drop = (id, n) => (n > 0 ? [{ id, count: n }] : []);
    a value with a look (polished stone, blocks/looks.js) gives its block back whole, whatever the block itself drops. */
 function blockDrop(blockVal, isNatural = false) {
   const blockId = blockVal & 255;
-  if (lookOf(blockVal)) return [{ id: blockId, count: 1 }];
+  // worked snow and ice, every look of them too: a shovel gets snowballs from snow brick as from snow; ice brick gives nothing, as ice
+  if (blockId === B.SNOW_BRICKS) return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
+  if (blockId === B.ICE_BRICKS) return [];
+  if (lookOf(blockVal) && blockId !== B.GLASSY_SAND && blockId !== B.COBWEB) return [{ id: blockId, count: 1 }];   // glassy sand's and the cobweb's looks break like them
   // a flint stone is never mined by hand (noTarget), but an explosion can still take one out —
   // and when it does it should hand over the same flint a pickup would
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
   if (blockId === B.STONE_PEBBLE) return [{ id: ITEM.STONE_PEBBLE, count: 1 }];   // 0.8095
+  if (blockId === B.SEASHELL) return [{ id: ITEM.SEASHELL, count: 1 }];
+  // a coconut: whole when ripe, nothing while it is green (its stage, variant bits 0-2: woods/coconuts.js)
+  if (blockId === B.COCONUT) return ((blockVal >> 8) & 7) >= PROPS[B.COCONUT].ripeStage ? [{ id: ITEM.COCONUT, count: 1 }] : [];
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
   if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash
   if (blockId === B.FIRE) return [];
@@ -124,9 +130,8 @@ function blockDrop(blockVal, isNatural = false) {
   if (blockId === B.GLOWSTONE_SPENT || blockId === B.GLOWCRYSTAL_SPENT) return [];
   // a flower comes apart into fiber, never the flower (its dye, picked with shears, comes with the paint update)
   if (FLOWER_BLOCKS.has(blockId)) return _drop(ITEM.FIBER, rollLoot(LOOT.flower));
-  /* Glassy sand, and its red and pink looks (variants since 0.8263), always break into glass shards: ahead of the
-     variant rule below, which would hand a red one back as plain glassy sand */
-  if (blockId === B.GLASSY_SAND || blockId === B.GLASSY_RED_SAND || blockId === B.GLASSY_PINK_SAND)   // 0.824; red, pink 0.8241
+  // glassy sand, its red and pink looks too, always breaks into glass shards
+  if (blockId === B.GLASSY_SAND)
     return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassySand));
   // a look that is a block of its own comes back as the block it is a look of: snow brick gives snow
   const vBase = typeof variantBaseOf === 'function' ? variantBaseOf(blockId) : null;

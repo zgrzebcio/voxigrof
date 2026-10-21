@@ -20,6 +20,8 @@ function _doPlace() {
   if (tryCarvePumpkin(hit)) { handPlaceSwing = true; return; }
   // flint or a glow crystal lights an unlit torch (blocks/torches.js)
   if (tryLightTorch(hit)) { handPlaceSwing = true; return; }
+  // fire, a burning torch or flint lights TNT (blocks/tnt.js)
+  if (tryLightTNT(hit)) { handPlaceSwing = true; return; }
   // survival: right-clicking a crafting bench opens the advanced recipe list instead of placing
   // a bench with an order on it opens on a TAP instead, so holding the button can cancel the order
   // ...and a mortar and pestle works the same way with its own list
@@ -198,16 +200,17 @@ function _doPlace() {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;
   }
-  // saplings require grass underneath (same rule as flowers), but for a wood whose `saplingOn` is 'sand' (the
+  // saplings require grass underneath (same rule as flowers), but for a wood whose `saplingOn` is 'sandy_dirt' (the
   // palm: the woods table, woods/woods.js)
-  const sandSapling = isSapling(id) && woodOf(id).saplingOn === 'sand';
+  const sandSapling = isSapling(id) && woodOf(id).saplingOn === 'sandy_dirt';
+  if (sandSapling && (getBlock(px, py - 1, pz) & 255) !== B.SANDY_DIRT) return;   // the palm: sandy dirt only
   if (isSapling(id) && !sandSapling) {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;                  // a planter works too
   }
-  /* such a sapling and the dry plants take grass, dirt, sand or red sand (a planter of soil or sand too); not
-     pink sand, that is the warm beach's */
-  if (sandSapling || id === B.DRY_GRASS || id === B.DRY_BUSH || id === B.DRY_TALL_LOWER) {
+  /* the dry plants take grass, dirt, sand or red sand (a planter of soil or sand too); not pink sand, that is the warm
+     beach's */
+  if (id === B.DRY_GRASS || id === B.DRY_BUSH || id === B.DRY_TALL_LOWER) {
     const bv = getBlock(px, py - 1, pz), b = bv & 255;
     if (CORE.layerCount(bv) || (b !== B.GRASS && b !== B.DIRT && b !== B.SAND && b !== B.RED_SAND && !potSoil(bv) && !potSand(bv))) return;
   }
@@ -348,7 +351,7 @@ function _doPlace() {
     tryPairChest(px, py, pz, varb & 3);       // link to a lone same-facing neighbour, if any
     registerChest(px, py, pz, varb & 3);      // spawn its animated mesh
   }
-  if (id === B.TNT) armTNT(px, py, pz);          // start the fuse the moment TNT is placed
+  if (id === B.TNT) tntHeatAround(px, py, pz);   // TNT waits for fire: put down beside fire or lava it catches (blocks/tnt.js)
   if (isSapling(id)) armSapling(px, py, pz, id);   // any wood's sapling starts its clock
   /* Only an OPAQUE block smothers the grass under it. Anything light still gets through — leaves,
      leaf litter, snow carpets, glass, a chest, every cross billboard — leaves the grass alive.

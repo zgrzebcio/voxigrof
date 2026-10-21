@@ -200,6 +200,12 @@ function _rebuildNock(id) {
     nockGroup.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
 }
 
+/* Both hands at work: climbing a wall or a ladder, drinking from the water, drawing a bow (the left hand holds it).
+   Whatever the hands hold is put away meanwhile: in first person here and in 40-shield.js (_poseOffhandArm), on the body in
+   player/body.js. The main hand only while climbing (drinking wants it empty, and it is the one with the bow). */
+const mainHandBusy = (p) => !!p._climbAnim;
+const offHandBusy = (p) => !!p._climbAnim || p._drinkProg > 0 || p._drawProg > 0;
+
 function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   if (!playing || menuScene || invOpen) {
     if (nockGroup) nockGroup.visible = false;
@@ -231,8 +237,9 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   // a torch is put away while your head is under water (torchDoused in 22-main-loop.js)
   const torchAway = curBlk === B.TORCH && typeof torchDoused === 'function' && torchDoused(player);
   handRoot.visible = true;
+  heldGroup.visible = !mainHandBusy(player);          // put away while both hands climb
   // a held torch's flame and a held gem's glint, in the hand scene (49-particles.js)
-  if (typeof fxHeldTick === 'function') fxHeldTick(dt, heldGroup, torchAway ? null : curBlk, handRoot.userData.off);
+  if (typeof fxHeldTick === 'function') fxHeldTick(dt, heldGroup, torchAway || !heldGroup.visible ? null : curBlk, handRoot.userData.off);
 
   /* swing triggers */
   const miningNow = !player.canFly && mining.active;

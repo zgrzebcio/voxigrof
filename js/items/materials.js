@@ -68,6 +68,7 @@ defineItems('materials', {
   // its own picture since 0.8098
   [ITEM.SALT]: { name: 'Salt', stack: 50, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
   [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 50, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
+  [ITEM.SEASHELL]:     { name: 'Seashell', stack: 79, icon: 'seashell', desc: 'Found on the sea\'s beaches' },
   // five rotten flesh pressed into one, which a bench works into leather (player/crafting.js)
   [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 50, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },
   // rendered off a pig. Not food — it is fuel and a crafting ingredient, so it never spoils

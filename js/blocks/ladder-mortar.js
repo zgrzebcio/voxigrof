@@ -7,11 +7,7 @@ corePart('blocks', function () {
      (50-loottable.js). Made by strikeLightning (53-storms.js) from any sand. */
   PROPS[B.GLASSY_SAND]    = { name:'Glassy sand', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.4, type:'ground',
                               faces:Array(6).fill(T.GLASSY_SAND), desc: 'Sand fused by lightning. Breaks into glass shards' };
-  // ...red sand and pink sand fuse into their own
-  PROPS[B.GLASSY_RED_SAND]  = { ...PROPS[B.GLASSY_SAND], name: 'Glassy red sand',  faces: Array(6).fill(T.GLASSY_RED_SAND) };
-  PROPS[B.GLASSY_PINK_SAND] = { ...PROPS[B.GLASSY_SAND], name: 'Glassy pink sand', faces: Array(6).fill(T.GLASSY_PINK_SAND) };
-  // red and pink are glassy sand's variants (each sand's own in 0.8261), so like every other look not in the palette
-  for (const id of [B.GLASSY_RED_SAND, B.GLASSY_PINK_SAND]) PROPS[id].noInv = true;
+  // ...red sand and pink sand fuse into its red and pink looks (blocks/looks.js)
   // fiber block: ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
   PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
@@ -46,7 +42,7 @@ corePart('blocks', function () {
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
   // break; a separate map (TNTS in blocks/tnt.js) protects blocks with an active fuse.
-  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.5, type:'tnt', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: '' };
+  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.5, type:'tnt', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: 'Light it with fire, a torch or flint' };
   // Obsidian: dark blast/lava-quench block. Very hard, pickaxe required (see MINE_REQ / TOOL_BLOCKS).
   PROPS[B.OBSIDIAN] = { name:'Obsidian', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:30, type:'stone', faces:[T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN], desc: '' };
   // Saplings — placed on grass, grow into a tree after 7..14 in-game days (tracked in SAPLINGS map)

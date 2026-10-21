@@ -7,6 +7,8 @@ const distInput = document.getElementById('distInput');
 const simInput  = document.getElementById('simInput');
 const sensInput = document.getElementById('sensInput');
 const rawMouseSel = document.getElementById('rawMouseSel');   // Options > Gameplay
+const wrongToolSel = document.getElementById('wrongToolSel'); // ...and the wrong-tool hint
+const arachnoSel = document.getElementById('arachnoSel');     // ...and Arachnophobia
 const shadowSel = document.getElementById('shadowSel');
 const splitDirSel = document.getElementById('splitDirSel');
 let playing = false;
@@ -124,6 +126,15 @@ function applySettings() {
     if (rm) _rawMouseOk = true;
     try { localStorage.setItem('vg_rawmouse', rm ? 'on' : 'off'); } catch {}
   }
+  if (wrongToolSel) {
+    wrongToolHint = wrongToolSel.value !== 'off';
+    try { localStorage.setItem('vg_wrongtool', wrongToolHint ? 'on' : 'off'); } catch {}
+  }
+  if (arachnoSel) {
+    arachnophobia = arachnoSel.value === 'on';
+    try { localStorage.setItem('vg_arachno', arachnophobia ? 'on' : 'off'); } catch {}
+    if (arachnophobia && typeof FX !== 'undefined') FX.spiders.clear();   // the ones about now go at once
+  }
   const d = clampi(+distInput.value || viewDist, 4, 32);
   distInput.value = d;
   if (d !== viewDist) { viewDist = d; applyViewDist(); rebuildQueues(); }
@@ -169,7 +180,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // 0.837, fixed at creation: off = always noon / a clear sky / no clouds / no animals / no monsters
               dayNight: !!newDayNightChk.checked, weather: !!newWeatherChk.checked, clouds: !!newCloudsChk.checked,
               animals: !!newAnimalsChk.checked, monsters: !!newMonstersChk.checked,
-              biomeRev: 30,                         // 30: the Savanna a big biome, its termite hills fewer and apart; 29: half the grass plants short grass; 28: the Savanna (acacias, termite hills) at the Dryland's hot edge; 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
+              biomeRev: 37,                         // 37: a quarter more cobwebs, 30% more cave lava pools, 40% more lava mushrooms; 36: a flatter Savanna with more tall grass and tall dry grass, a tenth more ore (not coal); 35: a quarter fewer caves, smaller pink patches on deep beaches; 34: half the pink beaches, waters a step or two apart join; 33: no Dryland or Savanna under 16 blocks across; 32: wider Dryland and Savanna, fewer acacias and termite hills, wheat by the climate; 31: deep beaches on warm big-ocean coasts, palms on sandy dirt; 30: the Savanna a big biome, its termite hills fewer and apart; 29: half the grass plants short grass; 28: the Savanna (acacias, termite hills) at the Dryland's hot edge; 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
               createdVersion: APP_VERSION, lastVersion: APP_VERSION,   // the game's alpha number
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);

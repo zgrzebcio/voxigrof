@@ -11,6 +11,39 @@ square. Every door opens onto a gravel path 2-3 wide that winds round the buildi
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
 ones, grass paths, and no loose sand drifted over the yards.
 
+**0.84766.** Eating a mushroom stew or a half coconut gives the bowl back half the time, a bottle of water the bottle 95% of the time, milk always its bucket; the tooltip says what is left and how often.
+
+**0.84765.** Thin logs that step sideways (an acacia's limbs) are joined by an elbow instead of standing apart. Hiding the HUD hides the block outline too.
+
+**0.84763.** Food in a furnace spoils like food in a chest. Taking the input out of a furnace, or swapping it for something else, starts the smelt again from nothing.
+
+**0.84762.** New recipes: a metal chest (a chest, an iron, gold or copper block and 5 iron ingots, at the bench), packed ice from 5 ice and back into 5 ice at the mortar, flint from 3 gravel and 5 fiber from a cactus at the mortar, and a bone ash block (5 bone ash) that falls like sand and takes the carpet shape. The pumpkin pie takes 2 sugar. Iron armor costs twice the ingots. A half coconut drunk leaves a bowl.
+
+**0.84761.** Taming takes 40% longer (a hellhound wants 7 animals, 4 monsters or 3 villagers); Gentle Hand now speeds it 20%. Hellhounds sleep at night, tamed ones too (they wake to fight, or to follow you when you walk off); a hound being tamed does not count its day while it sleeps. Asleep or told to lie, a hound slowly gets its fire back, and cold land burns it faster. A horse takes a new stance 2 s after your last click. Wool takes 10 string, and every string recipe twice as much. Spiders crawl on cobwebs, and one sometimes runs from under a picked-up stone or flint; Options > Gameplay > Arachnophobia removes them. New worlds: a quarter more cobwebs, 30% more cave lava pools, 40% more lava mushrooms.
+
+**0.8476.** Pebbles and seashells are smaller, and foraging is 15% faster. Seashells count as bone in the mortar (bone ash, bone meal) and in the bone block; ten of them make a seashell block at a bench, turned to face you when placed. Cobwebs come in three looks: plain, tangled, and a corner web strung where two blocks meet; walking into one covers your view with web. While the inventory is shut, stamina and oxygen sit under the crosshair. A crossed-out tool beside the crosshair warns that it is the wrong tool for that block (Options > Gameplay turns it off). Right-clicking a bench with finished work takes it out; holding the button still cancels. Butcher now also adds to zombie flesh and skeleton bones. Each loot chest you open gives 25% more chest experience than the one before. New worlds: a flatter Savanna with more tall grass and tall dry grass, and 10% more ore (not coal). Tall grass in the Savanna looks drier.
+
+**0.8475.** Every skill costs 1 point. Coconuts grow under palm crowns, small and green at first; ripe after about three days, they may fall by themselves and crack into two halves. A hatchet takes a ripe one whole; hold the right button with a coconut to open it into two halves, and drink a half for water (less when you are not thirsty) and a little fruit. A felled palm sometimes drops its coconuts (twice as often with Timber Shaker). Falling blocks (sand, gravel, coconuts) now hurt whoever they land on, more the further they fell; Hazard Hide takes 30% off, and hay bales hurt no one.
+
+**0.84741.** Palms on deep beaches grow only up to height 110 (none on the hills and mountains behind them) and a fifth fewer. Caves are 30% darker. New worlds: a quarter fewer caves (the same size), and the deep beaches' pink sand in smaller patches.
+
+**0.8474.** Half as many seashells. You cannot drink while standing in water, you stand still while you drink, and water poured from a bucket can be neither drunk nor bottled. Climbing, drinking and drawing a bow put away what your hands hold. Deep water is darker and hides its bottom. The snowline sits higher (from 185 up), and warm lands keep no snow on their mountains. A river's steps and waterfalls no longer spill a sheet of water over the pool below and the bank. Ice lines along chunk borders are gone. New worlds: half the pink beaches, and a river or lake one or two blocks above the next water joins it instead of stopping a block short.
+
+**0.8473.** Wet ground: rain darkens open ground the longer it rains, and it dries slowly after; blocks beside water are always wet, waves leave the beach wet where they break, and a player fresh out of the water or the rain leaves wet steps and small puddles. Rock and lights never darken. Rain puddles grow with the rain. Clouds have thin, see-through edges.
+
+**0.84721.** TNT no longer goes off when put down: light it with fire, a burning torch or flint (right click), or let fire or lava reach it.
+
+**0.8472.** Seashells lie on the sea's beaches, picked up by hand. The flint pebble has its own model and art, and the stone pebble the same shape in stone. Waves are bigger: a swell of water topped with foam that rises as it rolls in and falls in on the shore. New worlds: no Dryland or Savanna patch under 16 blocks across, and no one-block pockets of either on a mountain's flank.
+
+**0.8471.** New worlds: the Dryland and the Savanna about half again as wide (the warm plains and the desert a little smaller), 60% fewer acacias, 90% fewer termite hills, and wild wheat thick on the warm plains (a little on the cold ones). Termite workers (four to one over soldiers) climb trunks to eat trees from the top; after three logs one goes home and rests inside its hill a while. Hellhounds are a third rarer and always alone, far apart. Butcher adds to a termite's chitin and a hellhound's fire. Picking grass leaves short grass. Holding E no longer waits between ripe berry picks. Ctrl+Shift on a recipe counts out half the most you can craft at once. A bench pays a craft's experience when you take the items.
+
+**Deep beaches and waves (0.847, new worlds).** Warm coasts of the big oceans have long, wide beaches (16-34 blocks
+of sand over gentle shallows), a one-block edge of **sandy dirt** where the sand meets the turf, and most of the palms. Every
+palm grows on sandy dirt, and a palm sapling can only be planted in it. Waves roll in from the open sea and break on
+the shore, bigger in storms and strong wind; they push swimmers toward the beach. Flowing water no longer leaves dry
+holes when it fills a hollow, takes both halves of tall grass, and washes stone and flint pebbles away (they drop
+and float off with the current).
+
 **The Savanna (0.846, new worlds).** The hot edge of the Dryland, next to the desert: golden grass, much of it tall,
 flat-topped **acacia** trees standing apart (acacia logs, planks and leaves; no sapling yet) and **termite hills**,
 small or big. A hill keeps a few **termites**: workers chew the logs near it into hollow logs (a log house too), and

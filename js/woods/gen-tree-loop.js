@@ -20,8 +20,14 @@ corePart('gen.chunk', function () {
              coast, or behind the beach's sand), never on the sand itself */
           if (DESERT2 && h > WATER_LEVEL && h >= ti.wl + 1 && h < CY - 20) {
             if (ti.oas > 0.5) { if (r < 0.32) palmTree(tx, tz, h, gcx, gcz); continue; }
+            /* a deep beach (rev 31): its palms, on the dry sand and the sandy band behind it, never at the water's edge; nothing
+               else grows there */
+            if (DBEACH && ti.db > 0.5 && ti.wl === WATER_LEVEL && ti.dbd < DB_BAND[1] && h <= DB_PALM_TOP) {
+              if (h >= WATER_LEVEL + 1 && r < DB_PALMS) palmTree(tx, tz, h, gcx, gcz);
+              continue;
+            }
             // 0.8445 (PALM2, new worlds): from level +1 on, not from half way into it: none in a plain or cold land's edge
-            if (r < 0.03 && !(ti.fDesert > 0.5) && h <= WATER_LEVEL + 4 && ti.lvl >= (PALM2 ? 1 : 0.5) && !(ti.cliff > 0.45)) {
+            if (r < (DBEACH ? SHORE_PALMS : 0.03) && !(ti.fDesert > 0.5) && h <= WATER_LEVEL + 4 && ti.lvl >= (PALM2 ? 1 : 0.5) && !(ti.cliff > 0.45)) {
               let d = 0;
               for (let rr = 1; rr <= 9 && !d; rr++)
                 for (let k = 0; k < 8; k++) {
@@ -51,7 +57,7 @@ corePart('gen.chunk', function () {
              of the cells left a termite hill (woods/gen-acacia.js, biomes/gen-savanna.js) */
           if (SAVANNA && ti.fSav > 0.5) {
             if (h > CY - 14) continue;
-            if (r < 0.09) acaciaTree(tx, tz, h, gcx, gcz);
+            if (r < (SAV3 ? 0.036 : 0.09)) acaciaTree(tx, tz, h, gcx, gcz);   // rev 32: 60% fewer
             else if (!SAV2 && hash2(gcx * 131 - 17, gcz * 127 + 29) < HILL_CHANCE) termiteHill(tx, tz, wx, wz, h, gcx, gcz);   // rev 30: termiteHillPass below
             continue;
           }

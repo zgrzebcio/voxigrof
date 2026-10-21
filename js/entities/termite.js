@@ -1,7 +1,8 @@
 'use strict';
 /* entities/termite.js: termites, the Savanna's insects, which live in termite hills (blocks/termite-hill.js). Two
    kinds: the WORKER eats the logs near its hill into hollow logs (any log of a wood that has a hollow one, a
-   player's house too); the SOLDIER guards the hill and bites a player who comes close to it, or who has hit one of
+   player's house too), climbing a tree's trunk to eat it from the top down; once it has eaten its fill (TERMITE.full logs)
+   it goes home and stays in the hill a while (the hill's `rest`, blocks/termite-hill.js). The SOLDIER guards the hill and bites a player who comes close to it, or who has hit one of
    its hill's termites (the hill's `angryT`). Both drop a chitin plate now and then.
 
    Their model is a box model each (textures/Entity/Animals/termite_<kind>.json, entities/box-models.js), its legs
@@ -21,6 +22,10 @@ const TERMITE = {
   eatS: 14,                      // seconds a worker chews one log into a hollow one
   giveUpS: 20,                   // ...and to reach it, before it looks for another
   lostS: 40,                     // a termite without a hill and no player within 24 for this long goes back underground
+  climb: 1.2,                    // blocks a second up or down a trunk
+  treeUp: 28,                    // how high over its hill it looks for the top of a trunk
+  full: 3,                       // logs a worker eats before it goes home to rest
+  restS: 240,                    // ...and seconds it then stays inside its hill
 };
 const _termiteModel = {
   worker:  () => boxModel('textures/Entity/Animals/termite_worker.json', 'textures/Entity/Animals/termite_worker.png'),
@@ -66,20 +71,30 @@ function _termiteSpotBy(x, y, z) {
     }
   return null;
 }
-// the nearest log within TERMITE.look of its hill that it can reach, as { x, y, z, sx, sy, sz } (where it stands), or null
+// a cell beside a trunk a climbing termite clings in: open, or leaves
+const _termiteCling = (v) => !CORE.solidVal(v) || LEAF_BLOCKS.has(v & 255);
+/* The nearest log within TERMITE.look of its hill it can get at, as { x, y, z, sx, sy, sz (where it stands), climb }, or
+   null. In each column the TOPMOST log it can eat: a tree is eaten from the top of its trunk down. One standing on the
+   ground beside is walked to; one higher up is climbed to, up the trunk's side (`climb`). */
 function _termiteFindLog(e, hill) {
   const hx = Math.floor(e.hx), hz = Math.floor(e.hz), hy = hill ? hill.y : Math.floor(e.y), R = TERMITE.look;
   let best = null, bestD = Infinity;
-  for (let y = hy - 2; y <= hy + 3; y++)
-    for (let z = hz - R; z <= hz + R; z++)
-      for (let x = hx - R; x <= hx + R; x++) {
-        if (!_termiteFood(getBlock(x, y, z))) continue;
-        const d = (x + 0.5 - e.x) ** 2 + (z + 0.5 - e.z) ** 2 + (y - e.y) ** 2 * 4;
-        if (d >= bestD) continue;
-        const s = _termiteSpotBy(x, y, z);
-        if (!s) continue;
-        best = { x, y, z, sx: s[0], sy: s[1], sz: s[2] }; bestD = d;
+  for (let z = hz - R; z <= hz + R; z++)
+    for (let x = hx - R; x <= hx + R; x++) {
+      let y = hy + TERMITE.treeUp;
+      while (y >= hy - 2 && !_termiteFood(getBlock(x, y, z))) y--;
+      if (y < hy - 2) continue;
+      const d = (x + 0.5 - e.x) ** 2 + (z + 0.5 - e.z) ** 2;
+      if (d >= bestD) continue;
+      const s = _termiteSpotBy(x, y, z);
+      if (s) { best = { x, y, z, sx: s[0], sy: s[1], sz: s[2], climb: false }; bestD = d; continue; }
+      // up a trunk: a side of it to cling in at the log's height
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (!_termiteCling(getBlock(x + dx, y, z + dz))) continue;
+        best = { x, y, z, sx: x + dx + 0.5, sy: y, sz: z + dz + 0.5, climb: true }; bestD = d;
+        break;
       }
+    }
   return best;
 }
 
@@ -103,7 +118,7 @@ function updateTermite(e, dt, tp, i) {
   const hdx = e.hx - e.x, hdz = e.hz - e.z, homeD = Math.hypot(hdx, hdz);
   const tdHill = Math.hypot(tp.pos.x - e.hx, tp.pos.z - e.hz);
 
-  let speed = 0, chew = false;
+  let speed = 0, chew = false, cling = false;
   if (e.termite === 'soldier') {
     /* a soldier: on a player near its hill, or anywhere near when its hill is angry (or it is, without a hill) */
     const near = hill ? tdHill <= TERMITE.guard && Math.abs(tp.pos.y - hill.y) < 4 : false;
@@ -118,21 +133,42 @@ function updateTermite(e, dt, tp, i) {
     } else speed = _termiteStroll(e, dt, homeD, hdx, hdz);
   } else {
     /* a worker: away from a player that hit it; else to a log near its hill, chewing it hollow; else about the hill */
-    if (angry && huntable && pdist < 8) { e.yaw = Math.atan2(-pdx, -pdz); speed = TERMITE.run; e.food = null; }
+    if (e.down) {                                    // climbing back down a trunk, to the ground
+      cling = true;
+      if (_entBlocked(e.x, e.y - 0.05, e.z)) { e.down = false; cling = false; }
+      else e.y = Math.max(Math.floor(e.y - 0.05), e.y - TERMITE.climb * dt);
+    }
+    else if (angry && huntable && pdist < 8) { e.yaw = Math.atan2(-pdx, -pdz); speed = TERMITE.run; e.food = null; }
+    else if ((e.ate || 0) >= TERMITE.full) {         // full: home, and into the hill to rest
+      if (!hill || homeD < 0.9) { if (hill) termiteHillRest(hill); _removeEntity(i); return true; }
+      e.yaw = Math.atan2(hdx, hdz); speed = TERMITE.walk;
+    }
     else if (e.food) {
       const f = e.food, v = getBlock(f.x, f.y, f.z), hollow = _termiteFood(v);
       e.foodT = (e.foodT || 0) + dt;
-      if (!hollow || e.foodT > TERMITE.giveUpS + (e.eatT || 0)) { e.food = null; e.eatT = 0; }
+      if (!hollow || e.foodT > TERMITE.giveUpS + (e.eatT || 0) + (f.climb ? 30 / TERMITE.climb : 0)) {
+        if (f.climb && !_entBlocked(e.x, e.y - 0.05, e.z)) e.down = true;   // up a trunk still: down first
+        e.food = null; e.eatT = 0;
+      }
       else {
         const sdx = f.sx - e.x, sdz = f.sz - e.z, sd = Math.hypot(sdx, sdz);
         if (sd > 0.35) { e.yaw = Math.atan2(sdx, sdz); speed = TERMITE.walk; }
+        else if (f.climb && e.y < f.y - 0.02) {      // up the trunk's side
+          cling = true; e.yaw = Math.atan2(f.x + 0.5 - e.x, f.z + 0.5 - e.z);
+          e.y = Math.min(f.y, e.y + TERMITE.climb * dt);
+        }
         else {
+          cling = f.climb;
           e.yaw = Math.atan2(f.x + 0.5 - e.x, f.z + 0.5 - e.z);
           chew = true;
           e.eatT = (e.eatT || 0) + dt;
           e.chipT = (e.chipT || 0) - dt;
           if (e.chipT <= 0 && typeof fxHit === 'function') { e.chipT = 0.35; fxHit(f.x, f.y, f.z, v, Math.sign(e.x - f.x - 0.5), 0, Math.sign(e.z - f.z - 0.5)); }
-          if (e.eatT >= TERMITE.eatS) { setBlock(f.x, f.y, f.z, hollow); e.food = null; e.eatT = 0; e.lookT = 2; }
+          if (e.eatT >= TERMITE.eatS) {
+            setBlock(f.x, f.y, f.z, hollow); e.food = null; e.eatT = 0; e.lookT = 2;
+            e.ate = (e.ate || 0) + 1;
+            if (f.climb) e.down = true;                  // back down the trunk
+          }
         }
       }
     } else {
@@ -145,7 +181,7 @@ function updateTermite(e, dt, tp, i) {
       if (!e.food) speed = _termiteStroll(e, dt, homeD, hdx, hdz);
     }
   }
-  return _termiteMove(e, dt, speed, chew, i);
+  return _termiteMove(e, dt, speed, chew, i, cling);
 }
 // about its home: a stroll and a pause by turns, back toward the hill once past the leash. Its speed.
 function _termiteStroll(e, dt, homeD, hdx, hdz) {
@@ -157,8 +193,8 @@ function _termiteStroll(e, dt, homeD, hdx, hdz) {
   }
   return e.state === 'wander' ? TERMITE.walk : 0;
 }
-// walking (a hop over a block's step), falling, water and lava, then the pose. True when it died.
-function _termiteMove(e, dt, speed, chew, i) {
+// walking (a hop over a block's step), falling (not while it clings to a trunk), water and lava, then the pose. True when it died.
+function _termiteMove(e, dt, speed, chew, i, cling = false) {
   let moved = 0;
   const stunned = e.kx !== 0 || e.kz !== 0;
   e.wantMove = speed > 0 && !stunned;
@@ -179,7 +215,8 @@ function _termiteMove(e, dt, speed, chew, i) {
     if (Math.abs(e.kx) < 0.05 && Math.abs(e.kz) < 0.05) e.kx = e.kz = 0;
   }
   const wasGround = e.onGround;
-  if (e.vy <= 0 && _entBlocked(e.x, e.y - 0.02, e.z)) { e.y = Math.floor(e.y - 0.02) + 1; e.vy = 0; e.onGround = true; }
+  if (cling) { e.vy = 0; e.onGround = true; }
+  else if (e.vy <= 0 && _entBlocked(e.x, e.y - 0.02, e.z)) { e.y = Math.floor(e.y - 0.02) + 1; e.vy = 0; e.onGround = true; }
   else {
     const ny = _entFallStep(e, dt);
     if (_entBlocked(e.x, ny, e.z)) { if (e.vy < 0) { e.y = Math.floor(ny) + 1; e.onGround = true; } e.vy = 0; }
@@ -213,7 +250,7 @@ function _termiteMove(e, dt, speed, chew, i) {
 }
 
 /* Their entries in the creature table (entities/mobs.js says what each line is for). */
-const _termiteLoot = (e, pop) => pop(ITEM.CHITIN_PLATE, rollLoot(LOOT.chitin));
+const _termiteLoot = (e, pop, first) => first(ITEM.CHITIN_PLATE, LOOT.chitin);   // the Butcher skill adds to it
 defineMob('termite_worker', {
   name: 'Termite worker', group: 'animal', body: 'insect', unsaved: true,
   hp: 12, box: [0.3, 0.3], walk: TERMITE.walk, fallSafe: 10,

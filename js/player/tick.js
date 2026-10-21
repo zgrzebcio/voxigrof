@@ -135,6 +135,7 @@ function tickPlayer(dt, now, slot) {
   // hands on a wall, or on a ladder going somewhere: the climbing arms play and the hands are busy
   player._climbAnim = wallClimb || (onClimb && Math.abs(player.vy) > 0.2);
   if (joining || benching) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
+  if (player._drinkProg > 0) { fwd = 0; str = 0; dy = 0; }               // drinking: both hands to the water, you stand still
   if (menuScene) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // title camera: rotation only
   if (lying) {                                  // asleep: pinned to the mattress, look only
     fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0; player._climbAnim = false;
@@ -343,6 +344,7 @@ function tickPlayer(dt, now, slot) {
   if (typeof updateWandOutline === 'function') updateWandOutline(hit);   // what a held wand would do, outlined
 
   updateInteractPrompt();                   // "(E) to pickup grass" under the crosshair
+  updateWrongToolHint(hit, _entPriority || _swordOff);   // the held tool crossed out when it is the wrong one here
   /* Crafting bench: E works the bench you are looking at, a tap takes what is finished, holding
      the right button cancels its order. Runs before bush pickup, which it replaces while aimed at one. */
   const _eHeld = (playing && !invOpen && !menuScene && !joining) && ((kbOwner && !!keys['KeyE']) || act.padPick);

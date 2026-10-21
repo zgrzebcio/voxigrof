@@ -110,6 +110,26 @@ corePart('gen.chunk', function () {
         for (let k = 0; k < tall && h + k < CY - 1; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
       }
 
+      /* ---- seashells: now and then one on a sea beach's sand, within SHELL_REACH of the sea (the wet grid's ocean,
+         WW 1: never by a river or a lake), none on a snowy shore. Picked up by hand (player/foraging.js). ---- */
+      (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+        const SHELL_CHANCE = 0.02, SHELL_REACH = 5;
+        for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) {
+          const gi = (x + 2) + (z + 2) * 20, h = H[gi];
+          if (h < WATER_LEVEL || h > WATER_LEVEL + 3 || SNO[gi]) continue;
+          const wx = cx * 16 + x, wz = cz * 16 + z;
+          if (hash3(wx * 17 + 6101, 6262, wz * 19 - 6303) >= SHELL_CHANCE) continue;
+          const top = data[idx(x, h, z)] & 255;
+          if (top !== B.SAND && top !== B.PINK_SAND && top !== B.RED_SAND) continue;
+          if ((data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
+          let sea = false;
+          for (let dz = -SHELL_REACH; dz <= SHELL_REACH && !sea; dz++)
+            for (let dx = -SHELL_REACH; dx <= SHELL_REACH; dx++)
+              if (WW[(x + WM + dx) + (z + WM + dz) * WG] === 1) { sea = true; break; }
+          if (sea) data[idx(x, h + 1, z)] = B.SEASHELL;
+        }
+      })();
+
       /* ---- saplings: very sparse spawn on grass in tree-rich (forest) zones. Almost all oak;
          birch is a rare drop within an already-rare roll. ---- */
       for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) {

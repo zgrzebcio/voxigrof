@@ -46,5 +46,6 @@ corePart('gen.make', function () {
                dd: t.ddAir || 0 };                               // ...and the Deep Desert's heat
     };
     return { genChunk, heightAt, biomeAt, climateAt, climAt, rimeOpenAt: bio.rimeOpenAt,     // rimeOpenAt: castle sites
-             dryAt: bio.dryAt };                                                              // the Dryland's grass colour
+             dryAt: bio.dryAt,                                                                // the Dryland's grass colour
+             seaLevel: WATER_LEVEL };                                                         // the sea's top water y (seasons/waves.js)
 });

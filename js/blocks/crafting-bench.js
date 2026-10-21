@@ -113,14 +113,18 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
   if (!eHeld) player._benchNeedRelease = false;
 
   if (covered && eDown && _benchHasOrder(b)) feedWarn(STATION_COVERED_MSG);
-  // a tap of E takes whatever is finished
-  if (b && eDown && b.done > 0 && !covered) {
-    if (r) _giveItems(r.out[0], r.out[1] * b.done + skillSpareParts(r.out[0], b.done), 'crafted', true,
-                      skillCraftMeta(r.out[0]));   // Fine Work, Spare Parts
+  // what is finished comes out: a tap of E, or of the right button (below), while the rest of the order goes on
+  const takeDone = () => {
+    if (r) {
+      _giveItems(r.out[0], r.out[1] * b.done + skillSpareParts(r.out[0], b.done), 'crafted', true,
+                 skillCraftMeta(r.out[0]));   // Fine Work, Spare Parts
+      addXP((r.xpToGive || 0) * b.done);          // the crafts' experience is paid as they are taken, not as they are made
+    }
     b.done = 0; b.dirty = true;
     if (!b.units.length) _benchClear(key);
     refreshSlotsUI();
-  }
+  };
+  if (b && eDown && b.done > 0 && !covered) takeDone();
   // holding E works the order, one craft at a time
   const wants = !!(r && b.units.length && eHeld && !player._benchNeedRelease && !covered);
   if (wants && craftSpeed() <= 0 && eDown) feedWarn(_cantCraftMsg);
@@ -135,8 +139,7 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
     if (b.t >= r.timeToCraft) {
       b.t = 0;
       b.units.shift();
-      b.done++;
-      addXP(r.xpToGive || 0);
+      b.done++;                                    // its experience comes when it is taken (the tap above)
       if (typeof fxCraftPuff === 'function') fxCraftPuff(hit.x + 0.5, hit.y + 1.05, hit.z + 0.5, r.out[0]);   // one made
       b.dirty = true;
       // the last of the order made while you held E: the feed says so (put back in 0.8443, it was lost to a save)
@@ -152,7 +155,8 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
     interruptBenchWork(false);                           // let go, looked away, or nothing left to make
   }
 
-  // the right button on a busy bench: a short tap opens it, a long hold cancels its order
+  /* the right button on a busy bench: a short tap takes what is finished, or opens it when nothing is; a long hold cancels
+     its order */
   if (_benchHasOrder(b) && rmbHeld) {
     if (player._benchRmbKey !== key) { player._benchRmbKey = key; player._benchRmbT = 0; player._benchRmbDone = false; }
     player._benchRmbT = (player._benchRmbT || 0) + dt;
@@ -162,7 +166,10 @@ function updateBenchWork(dt, eHeld, rmbHeld) {
     }
   } else if (!rmbHeld) {
     const t = player._benchRmbT || 0;
-    if (t > 0 && t < BENCH_TAP_TIME && !player._benchRmbDone && hit && player._benchRmbKey === key) openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]);
+    if (t > 0 && t < BENCH_TAP_TIME && !player._benchRmbDone && hit && player._benchRmbKey === key) {
+      if (b && b.done > 0 && !covered) takeDone();
+      else openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]);
+    }
     player._benchRmbT = 0; player._benchRmbDone = false; player._benchRmbKey = null;
   }
 }
@@ -366,7 +373,7 @@ function benchPrompt() {
   const E = pad ? padNorthLabel() : 'E', RMB = pad ? 'LT' : 'RMB';
   const rows = [];
   if (b.units.length) rows.push(`(Hold <b>${E}</b>) craft ${r ? idName(r.out[0]) : 'unknown recipe'} · ${b.units.length * per} left`);
-  if (b.done) rows.push(`(<b>${E}</b>) take ${b.done * per}`);
+  if (b.done) rows.push(`(<b>${E}</b> or <b>${RMB}</b>) take ${b.done * per}`);
   rows.push(`(Hold <b>${RMB}</b>) cancel`);
   return rows.join('<br>');
 }

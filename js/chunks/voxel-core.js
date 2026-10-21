@@ -26,8 +26,8 @@ corePart('voxel', function () {
            SHAPE_SLAB_MIX, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, VARIANT_FAMILIES,   // 0.8263
            BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
            BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER,                               // cane 0.829; ice 0.833
-           LOOK_SHIFT, LOOKS, LOOK_OF_OLD_ID, lookOf, withLook, lookEntryOf, facesOfVal, pillarOfVal, nameOfVal,   // looks (blocks/looks.js)
-           matKey, stackEntry, stackVal };
+           LOOK_SHIFT, LOOKS, LOOK_OF_OLD_ID, lookOf, withLook, lookEntryOf, facesOfVal, pillarOfVal, nameOfVal, WEB_EDGES, webCornerEdge,   // looks (blocks/looks.js)
+           matKey, stackEntry, stackVal, WET_TILE };                                                       // WET_TILE: what darkens wet (chunks/voxel-shared.js)
 });
 
 const VOXEL_CORE = buildCore('voxel');

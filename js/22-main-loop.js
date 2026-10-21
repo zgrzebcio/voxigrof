@@ -404,7 +404,9 @@ function runWorldTick(dt, now) {
     updateNightMobs(dt);                    // the loaded land's monsters as night falls, and a few later (entities/spawning.js)
     updateBenchDisplays();                  // the order floating over each busy crafting bench
     tp = perfLap('doors+chests', tp);
-    if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)
+    if (typeof updateWaves === 'function') updateWaves(dt);           // the sea's waves (seasons/waves.js), before their foam is drawn
+    if (typeof updateWetness === 'function') updateWetness(dt);       // wet ground: the rain, the waves' wash, drips (seasons/wetness.js)
+  if (typeof updateParticles === 'function') updateParticles(dt);   // 49-particles.js (0.8)
     tp = perfLap('particles', tp);
   }
   /* The armour-stand preview is a single WebGL renderer whose canvas can only live in one panel at
@@ -469,6 +471,8 @@ function applyEyeVolumeFog() {
     applyMist(camera);                                    // weather fog and the rainbow where this eye is
     renderer.setClearColor(sharedUniforms.fogColor.value);
   }
+  // the rain's wet ground where this eye is (seasons/wetness.js)
+  if (typeof wetRainHere === 'function') sharedUniforms.uWet.value = wetRainHere(camera.position);
   // under water or in lava the sky is only murk: no dome, sun, moon, stars, flare or haze
   if (eyeId === B.LAVA || eyeId === B.WATER) {
     sharedUniforms.uSkyFog.value = 1; sharedUniforms.uHaze.value = 0;
@@ -489,6 +493,8 @@ function renderHandPass() {
      Shadow coords (vSC) are in world space and meaningless for hand geometry, so disable shadow. */
   const _hsa = sharedUniforms.uAmbient.value, _hsd = sharedUniforms.uDirect.value, _hss = sharedUniforms.uShadowOn.value;
   const _hsc = sharedUniforms.uCloudOn.value;   // cloud shade is world space too
+  const _hwet = sharedUniforms.uWet.value, _hwm = sharedUniforms.uWetBox.value.w;   // ...and the wet ground
+  sharedUniforms.uWet.value = 0; sharedUniforms.uWetBox.value.w = 0;
   _handSaveLC.copy(sharedUniforms.uLightColor.value);
   sharedUniforms.uAmbient.value = 1.0; sharedUniforms.uDirect.value = 0.0; sharedUniforms.uShadowOn.value = 0.0;
   sharedUniforms.uCloudOn.value = 0;
@@ -496,6 +502,7 @@ function renderHandPass() {
   renderer.render(handScene, handCam);
   sharedUniforms.uAmbient.value = _hsa; sharedUniforms.uDirect.value = _hsd; sharedUniforms.uShadowOn.value = _hss;
   sharedUniforms.uCloudOn.value = _hsc;
+  sharedUniforms.uWet.value = _hwet; sharedUniforms.uWetBox.value.w = _hwm;
   sharedUniforms.uLightColor.value.copy(_handSaveLC);
   renderer.autoClear = true;
 }

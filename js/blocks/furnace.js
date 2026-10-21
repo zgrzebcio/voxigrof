@@ -76,8 +76,10 @@ const ASH_XP = 1;                                              // per ash taken
 const NO_ASH_FUEL = new Set([ITEM.LAVA_BUCKET]);               // lava burns clean
 
 const furnaceKey = (x, y, z) => x + ',' + y + ',' + z;
+/* inId: what the input held when the smelt last ran (updateFurnaces resets the smelt when it changes); spoilT: the world
+   clock its food last spoiled to (44-spoil.js) */
 const mkFurnace = () => ({ slots: [null, null, null, null], burn: 0, burnMax: 1, progress: 0, lit: false,
-                           ash: 0, xp: 0, ashy: true });
+                           ash: 0, xp: 0, ashy: true, inId: null, spoilT: null });
 
 function openFurnace(x, y, z) {
   const k = furnaceKey(x, y, z);
@@ -135,6 +137,9 @@ function updateFurnaces(dt, quiet = false) {
     const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
     if ((getBlock(x, y, z) & 255) !== B.FURNACE) continue;   // chunk unloaded (0) — tick pauses
     const inn = f.slots[1], out = f.slots[2];
+    // the input taken out or swapped for something else: the smelt starts again from nothing (`inId`: what it was on)
+    const inId = inn ? inn.id : null;
+    if (inId !== f.inId) { f.progress = 0; f.inId = inId; }
     const rec = inn ? SMELT[inn.id] : undefined;
     // output rule: result must fit — empty slot, or same id with room
     const canSmelt = !!rec && (!out || (out.id === rec.out && out.count < stackSize(rec.out)));
@@ -172,9 +177,9 @@ function updateFurnaces(dt, quiet = false) {
         _refreshFurnaceSlots(k);
       }
     } else if (f.progress > 0) {
-      /* The smelt cools off instead of snapping back to zero: out of fuel, or the input taken
-         away, it slides back over PROGRESS_COOL_SEC — long enough to feed the fire another coal and
-         carry on from close to where it was. */
+      /* The smelt cools off instead of snapping back to zero: out of fuel, choked, or the output full, it slides
+         back over PROGRESS_COOL_SEC — long enough to feed the fire another coal and carry on from close to where
+         it was. (The input taken away resets it at once, above.) */
       f.progress = Math.max(0, f.progress - dt / PROGRESS_COOL_SEC);
     }
     if (lit !== f.lit) {                                     // swap the front face + light on/off

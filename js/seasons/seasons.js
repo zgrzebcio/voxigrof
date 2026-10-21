@@ -156,6 +156,7 @@ function updateSeasonGrowth(dt, ground = true) {
   updateWheatGrow(dt);
   updateShroomGrow(dt);
   updateCaneGrow(dt);
+  if (typeof updateCoconuts === 'function') updateCoconuts(dt);   // coconuts on the palms (woods/coconuts.js)
   if (ground) updateWeatherGround(dt);                           // rain washes, snow lays, salt grows
   updateIceMelt(dt);                                             // ice by heat
   if (typeof updateBurns === 'function') updateBurns(dt);        // torches and glow blocks burning out (blocks/torches.js)

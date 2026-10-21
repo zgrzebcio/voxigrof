@@ -6,7 +6,7 @@
 <title>voxiGrof</title>
 <!-- shared memory for the workers (0.8386): adds the isolation headers GitHub Pages cannot send; first visit reloads once -->
 <script src="coi-sw.js"></script>
-<link rel="stylesheet" href="css/style.css?v=0.8446">
+<link rel="stylesheet" href="css/style.css?v=0.8476">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -18,11 +18,13 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.84691</div>
+<div id="version">alpha 0.84766</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="progRing"></div>
 <div id="interact"></div>
+<canvas id="vitalsNear" width="220" height="88"></canvas>
+<div id="wrongTool"></div>
 <div id="blockname"></div>
 <div id="feed"></div>
 <!-- shown while a seat is being rebound: the game watches every device until one speaks -->
@@ -227,6 +229,18 @@
       </label>
       <label>Mouse sensitivity (%)
         <input id="sensInput" type="number" min="10" max="400" step="10">
+      </label>
+      <label title="On: no spiders anywhere, neither crawling on cobwebs nor running from under picked-up stones.">Arachnophobia
+        <select id="arachnoSel">
+          <option value="off">off</option>
+          <option value="on">on</option>
+        </select>
+      </label>
+      <label title="A small picture of the tool in your hand, crossed out, beside the crosshair when it is the wrong tool for the block you aim at (it wears twice as fast and pays no experience there).">Wrong-tool hint
+        <select id="wrongToolSel">
+          <option value="on">on</option>
+          <option value="off">off</option>
+        </select>
       </label>
       <label title="On: the mouse's own movement, without the system's pointer acceleration, so a fast stroke turns exactly as far as a slow one. Off: the system's pointer speed and acceleration apply. Changing it may need a new sensitivity.">Raw mouse input
         <select id="rawMouseSel">
@@ -568,8 +582,11 @@ window.THREE = THREE;
 <script defer src="js/seasons/weather.js"></script>
 <script defer src="js/seasons/weather-sky.js"></script>
 <script defer src="js/seasons/weather-ground.js"></script>
+<script defer src="js/seasons/waves.js"></script>
+<script defer src="js/seasons/wetness.js"></script>
 <script defer src="js/seasons/seasons.js"></script>
 <script defer src="js/seasons/growth.js"></script>
+<script defer src="js/woods/coconuts.js"></script>
 <script defer src="js/seasons/ice.js"></script>
 <script defer src="js/52-clouds.js"></script>
 <script defer src="js/53-storms.js"></script>

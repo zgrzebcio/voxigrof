@@ -47,14 +47,17 @@ const BLOCK_VARIANTS = {
   [B.PINK_SANDSTONE]: _looks(B.PINK_SANDSTONE, 1, 2, 3),
   // hay's thatch, a block of its own: it stays where it is put, unlike the bale (FALL_WHOLE_BLOCKS, blocks/falling.js)
   [B.HAY]:          [{ id: B.THATCH, name: 'thatch' }],
-  // glassy sand is a block of its own, red and pink its looks (each sand's look in 0.8261). Every one breaks into
-  // glass shards (blockDrop, 50)
-  [B.GLASSY_SAND]:    [{ id: B.GLASSY_RED_SAND, name: 'red' }, { id: B.GLASSY_PINK_SAND, name: 'pink' }],
-  // ice and snow bricks and carved, blocks of their own; the snow-ice brick is on both bars (and breaks back into snow)
-  [B.ICE]:            [{ id: B.ICE_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' },
-                       { id: B.CARVED_ICE, name: 'carved' }],
-  [B.SNOW]:           [{ id: B.SNOW_BRICKS, name: 'brick' }, { id: B.SNOW_ICE_BRICKS, name: 'snow-ice brick' },
-                       { id: B.CARVED_SNOW, name: 'carved' }],
+  // glassy sand's red and pink looks. Every one breaks into glass shards (blockDrop, 50)
+  [B.GLASSY_SAND]:    _looks(B.GLASSY_SAND, 1, 2),
+  // the cobweb tangled and in a corner (it breaks like the plain one: blockDrop, 50)
+  [B.COBWEB]:         _looks(B.COBWEB, 1, 2),
+  /* worked snow and ice: the snow brick and the ice brick are blocks of their own (they never fall or melt), the rest
+     their looks, shown on the snow's and the ice's bar; the snow-ice brick is on both. Ice before snow: the snow brick
+     is the snow's (_VARIANT_BASE) */
+  [B.ICE]:            [{ id: B.ICE_BRICKS, name: 'brick' }, { id: B.SNOW_BRICKS, look: 1, name: 'snow-ice brick' },
+                       { id: B.ICE_BRICKS, look: 1, name: 'carved' }],
+  [B.SNOW]:           [{ id: B.SNOW_BRICKS, name: 'brick' }, { id: B.SNOW_BRICKS, look: 1, name: 'snow-ice brick' },
+                       { id: B.SNOW_BRICKS, look: 2, name: 'carved' }],
 };// the default's own name in the tooltip's list of variants (ui/inventory.js); 'default' for the rest
 const VARIANT_DEFAULT_NAME = {};
 /* A gem cluster's bed: the same block with the rock in its variant bits rather than a block of
@@ -95,7 +98,6 @@ VARIANT_DEFAULT_BITS[B.WHEAT] = 0; VARIANT_DEFAULT_NAME[B.WHEAT] = 'ripe'; VARIA
 // cell's bits, or a bits-only option, is that block already)
 const _VARIANT_BASE = {};
 for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k) _VARIANT_BASE[v.id] = +k;
-_VARIANT_BASE[B.SNOW_ICE_BRICKS] = B.SNOW;        // on both the ice and the snow bar: broken, it is snow
 const variantBaseOf = (blockId) => _VARIANT_BASE[blockId] ?? null;
 // a look that is a block of its own takes its default's shapes (VARIANT_FAMILIES, shapes/shape-blocks.js): say so at boot if not
 for (const k in BLOCK_VARIANTS) for (const v of BLOCK_VARIANTS[k]) if (v.id !== +k

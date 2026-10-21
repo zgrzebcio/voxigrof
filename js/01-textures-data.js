@@ -5,6 +5,7 @@ const TEXTURES = {
   grass_block_top:  'textures/Blocks/Natures/Ground/grass_block_top.png',
   grass_block_side: 'textures/Blocks/Natures/Ground/grass_block_side.png',
   dirt:             'textures/Blocks/Natures/Ground/dirt.png',
+  sandy_dirt:       'textures/Blocks/Natures/Ground/sandy_dirt.png',
   stone:            'textures/Blocks/Natures/Underground/stone.png',
   sand:             'textures/Blocks/Natures/Sands/sand_top.png',                // top and bottom; sides below
   sand_side:        'textures/Blocks/Natures/Sands/sand_side.png',               // 0.8091
@@ -78,7 +79,9 @@ const TEXTURES = {
   polished_pink_sandstone: 'textures/Blocks/Decorations/Sandstone/polished_pink_sandstone.png',
   fiber_block:          'textures/Blocks/Natures/fibre_block.png',
   ladder:               'textures/Blocks/Interactables/ladder.png',
-  cobweb:           'textures/Billboards/cobweb.png',
+  cobweb:           'textures/Billboards/cobweb/cobweb.png',
+  cobweb_tangled:   'textures/Billboards/cobweb/cobweb_tangled.png',
+  cobweb_corner:    'textures/Billboards/cobweb/cobweb_corner.png',
   gravel:           'textures/Blocks/Natures/Ground/gravel.png',
   // red_mushroom, blue_mushroom, brown_mushroom: cut from their sheets since 0.821 (CROP_TILES, below)
   crafting_bench_top:   'textures/Blocks/Interactables/Crafting_station/crafting_station_top.png',
@@ -213,10 +216,15 @@ const TEXTURES = {
   berry_bush_red:           'textures/Billboards/Plants/Berry_bush/redberry_bush.png',
   berry_bush_blue:          'textures/Billboards/Plants/Berry_bush/blueberry_bush.png',
   berry_bush_yellow:        'textures/Billboards/Plants/Berry_bush/blackberry_bush.png',   // 0.7947, from the red one
-  // flint stone — PLACEHOLDER art: blackstone, which was already in the repo and unused.
-  // Swap both of these for a real flint texture when one exists; nothing else has to change.
-  flint_rock:               'textures/Blocks/Natures/Blackstone/blackstone_side.png',
-  flint_rock_top:           'textures/Blocks/Natures/Blackstone/blackstone_top.png',
+  // the flint pebble's model art (its boxes: blocks/plants.js); the seashell's beside it
+  flint_rock:               'textures/Blocks/Models/flint_pebble/flint_pebble_side.png',
+  flint_rock_top:           'textures/Blocks/Models/flint_pebble/flint_pebble_top.png',
+  seashell_side:            'textures/Blocks/Models/seashell/seashell_side.png',
+  seashell_top:             'textures/Blocks/Models/seashell/seashell_top.png',
+  coconut_side:             'textures/Blocks/Plants/coconut_block_side.png',   // its green look is built from these (03-atlas.js)
+  coconut_top:              'textures/Blocks/Plants/coconut_block_top.png',
+  seashell_block_side:      'textures/Blocks/Decorations/big_seashell_side.png',
+  seashell_block_top:       'textures/Blocks/Decorations/big_seashell_top.png',
   // dolomite and the mossy and polished rocks
   dolomite:                 'textures/Blocks/Natures/Underground/dolomite.png',
   dolomite_bricks:          'textures/Blocks/Decorations/Dolomite/dolomite_bricks.png',
@@ -433,6 +441,9 @@ const ITEM_TEXTURES = {
   apple:       'textures/Items/Consumables/Fruits/apple.png',
   flint:       'textures/Items/Materials/flint.png',
   stone_pebble: 'textures/Items/Materials/stone_pebble.png',     // 0.8095
+  seashell:     'textures/Items/Materials/seashell.png',
+  coconut:      'textures/Items/Consumables/Fruits/coconut.png',
+  coconut_half: 'textures/Items/Consumables/Fruits/coconut_half.png',
   cantaloupe_slice: 'textures/Items/Consumables/Others/cantaloupe_slice.png',   // 0.8098
   salt_dust:    'textures/Items/Materials/salt_dust.png',        // 0.8097
   clay_ball:   'textures/Items/Materials/clay_ball.png',

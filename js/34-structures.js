@@ -368,9 +368,9 @@ function migrateStructure(raw, src) {
   }
 
   /* slabs and stairs lost their own ids in 0.783: an older prefab's become shape variants of the full block. A cell is
-     [x, y, z, id, variant, look]: the look (blocks/looks.js) is optional. Looks were ids of their own until 0.84691: a
-     prefab without the `cells: 2` stamp has them converted here (blocks/legacy.js migrateLookVal). */
-  const oldCells = !(p.cells >= 2);
+     [x, y, z, id, variant, look]: the look (blocks/looks.js) is optional. Looks were ids of their own: a prefab without
+     the `cells: 3` stamp has them converted here (blocks/legacy.js migrateLookVal). */
+  const oldCells = !(p.cells >= 3);
   for (const b of p.blocks) {
     const v = (b[3] | ((b[4] | 0) << 8) | ((b[5] | 0) << 16)) >>> 0;
     let nv = migrateLegacyVal(v);
@@ -380,7 +380,7 @@ function migrateStructure(raw, src) {
       if (nv >>> 16) b[5] = (nv >>> 16) & 255; else if (b.length > 5) b.length = 5;
     }
   }
-  p.cells = 2;
+  p.cells = 3;
   // unknown block ids: a prefab built on a newer build, or an id that has since moved
   const unknown = new Set();
   for (const b of p.blocks) if (!PROPS[b[3]]) unknown.add(b[3]);
@@ -550,7 +550,7 @@ function captureStructure(bx, by, bz, size, name) {
       }
   return {
     id: name,
-    cells: 2,                     // looks are a cell's sixth number, not ids of their own (blocks/looks.js)
+    cells: 3,                     // looks are a cell's sixth number, not ids of their own (blocks/looks.js)
     size: [v.w, v.h, v.l],
     blocks,
     loot,

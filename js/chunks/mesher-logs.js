@@ -58,6 +58,34 @@ corePart('mesh.chunk', function () {
         if (logInto(x, y, z - 1, 2, fam)) { b[2] = 0; flared = true; }
         if (logInto(x, y, z + 1, 2, fam)) { b[5] = 1; flared = true; }
       }
+      /* 3. CORNERS. Two logs side by side on the same axis, where one ENDS one way and the other the other way, are one
+         bent branch (an acacia's limb: a stair of upright logs, each step ending at its top beside the next one's foot).
+         Each draws an arm across to their shared face, square, as wide as the narrower one's flat bark, round the middle of the cell
+         along its axis (`joins`), and its open end is cut back to that band (`clipHi` / `clipLo`): an elbow, not two
+         posts a gap apart. Parallel trunks both run on past each other and are left apart. Wood only. */
+      const A = va === 1 ? 0 : va === 2 ? 2 : 1;               // world axis the log runs along
+      const Pa = va === 1 ? 1 : 0, Qa = va === 2 ? 1 : 2;      // the two axes across it
+      const joins = [];                                        // [axis across, side, the arm's half width]
+      let clipHi = null, clipLo = null;
+      if (fam === 'wood') {
+        const ua = [0, 0, 0]; ua[A] = 1;
+        const runs = (nx, ny, nz) => { const n = logAt(nx, ny, nz, fam); return !!n && n.axis === va; };
+        const endHi = !runs(x + ua[0], y + ua[1], z + ua[2]), endLo = !runs(x - ua[0], y - ua[1], z - ua[2]);
+        if (endHi || endLo) for (const k of [Pa, Qa]) for (const s of [1, -1]) {
+          const d = [0, 0, 0]; d[k] = s;
+          const nx = x + d[0], ny = y + d[1], nz = z + d[2], n = logAt(nx, ny, nz, fam);
+          if (!n || n.axis !== va) continue;
+          const hiJoin = endHi && !runs(nx - ua[0], ny - ua[1], nz - ua[2]);   // we end on top, it at its foot
+          const loJoin = endLo && !runs(nx + ua[0], ny + ua[1], nz + ua[2]);
+          if (!hiJoin && !loJoin) continue;
+          const half = Math.min(logWidthPx(myW), logWidthPx(n.w)) / 128 * (1 - 2 * LOG_BEVEL);   // inside the bevels
+          joins.push([k, s, half]);
+          if (hiJoin) clipHi = Math.max(clipHi ?? 0, 0.5 + half);
+          if (loJoin) clipLo = Math.min(clipLo ?? 1, 0.5 - half);
+        }
+      }
+      if (clipHi != null) b[A + 3] = Math.min(b[A + 3], clipHi);
+      if (clipLo != null) b[A] = Math.max(b[A], clipLo);
       const F = PROPS[id].faces, side = F[0], top = F[2];
       /* An end cap is culled only against a same-axis log at least as wide as this cell — the
          narrower of two stacked logs must keep its cap or you see into the hollow.
@@ -79,8 +107,6 @@ corePart('mesh.chunk', function () {
          the box had, and a bevel strip borrows the mapping of the side face next to it. Only the
          mesh changes — collision and the selection box stay the box. Cactus has them too since 0.794. */
       const cut = LOG_BEVEL * logWidthPx(myW) / 64;
-      const A = va === 1 ? 0 : va === 2 ? 2 : 1;               // world axis the log runs along
-      const Pa = va === 1 ? 1 : 0, Qa = va === 2 ? 1 : 2;      // the two axes across it
       const a0 = b[A], a1 = b[A + 3], p0 = b[Pa], p1 = b[Pa + 3], q0 = b[Qa], q1 = b[Qa + 3];
       const at = (a, p, q) => { const l = [0, 0, 0]; l[A] = a; l[Pa] = p; l[Qa] = q; return l; };
       // per face direction (0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z): shade, the cell it takes light from, uv of a local point
@@ -102,7 +128,8 @@ corePart('mesh.chunk', function () {
       // the two end caps (culled against the trunk they continue), an octagon as a band and two trapezoids
       for (const [s, av] of [[1, a1], [-1, a0]]) {
         const d = 2 * A + (s < 0 ? 1 : 0);
-        if (capped(x + NB[d][0], y + NB[d][1], z + NB[d][2])) continue;
+        // an end cut back to a corner's band lies inside the cell: whatever is beyond cannot hide it
+        if ((s > 0 ? clipHi : clipLo) == null && capped(x + NB[d][0], y + NB[d][1], z + NB[d][2])) continue;
         const n = unit(A, s), L = lit(d);
         face([at(av, p0, q0 + cut), at(av, p1, q0 + cut), at(av, p1, q1 - cut), at(av, p0, q1 - cut)], n, d, top, SH[d], L);
         if (cut > 0) {
@@ -134,11 +161,25 @@ corePart('mesh.chunk', function () {
         face([at(a0, pi, qi), at(a1, pi, qi), at(a1, pi, qe), at(a0, pi, qe)], unit(Pa, sp), dp, side, SH[dp], litMax(lit(dp), lit(dq)));
         face([at(a0, pi, qi), at(a1, pi, qi), at(a1, pe, qi), at(a0, pe, qi)], unit(Qa, sq), dq, side, SH[dq], litMax(lit(dp), lit(dq)));
       }
+      /* the corners' arms (3. above): a bark box from this log's side out to the shared face, its four sides only (one end
+         is inside the log, the other meets the neighbour's arm) */
+      for (const [k, s, half] of joins) {
+        const o = k === Pa ? Qa : Pa, lo = [0, 0, 0], hi = [0, 0, 0];
+        lo[k] = s > 0 ? b[k + 3] : 0; hi[k] = s > 0 ? 1 : b[k];
+        if (hi[k] - lo[k] < 0.001) continue;                    // flared out to the edge already
+        lo[A] = lo[o] = 0.5 - half; hi[A] = hi[o] = 0.5 + half;
+        for (const m of [A, o]) for (const t of [1, -1]) {
+          const d = 2 * m + (t < 0 ? 1 : 0), u = (m + 1) % 3, w = (m + 2) % 3, v = t > 0 ? hi[m] : lo[m];
+          const pt = (pu, pw) => { const l = [0, 0, 0]; l[m] = v; l[u] = pu; l[w] = pw; return l; };
+          face([pt(lo[u], lo[w]), pt(hi[u], lo[w]), pt(hi[u], hi[w]), pt(lo[u], hi[w])], unit(m, t), d, side, SH[d], lit(d));
+        }
+      }
     }
     for (let y = 0; y < yCap; y++)
       for (let z = 0; z < 16; z++)
         for (let x = 0; x < 16; x++) {
           const val = data[x + (z << 4) + (y << 8)];
-          if (PROPS[val & 255].model === 'log') emitLog(x, y, z, val);
+          const lp = PROPS[val & 255];
+          if (lp && lp.model === 'log') emitLog(x, y, z, val);   // an id this build does not know is skipped, as everywhere else
         }
 });

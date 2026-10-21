@@ -43,7 +43,13 @@ function markDirty(c) {
     c.dirty = true;
     // the edit itself goes out at once; its follow-ups only over a job that has been out a while (an old, slow one)
     if (c.editRush && (byPlayer || now - (c.meshSentAt || 0) > RUSH_OVER_MS)) _rushOver(c);
-  } else tryQueueMesh(c, 0, true);
+  } else {
+    tryQueueMesh(c, 0, true);
+    /* not queued: a neighbour is not in or not lit yet. Remembered, and meshed when that neighbour comes in
+       (finishChunkGen's loop takes a dirty chunk even with a mesh): dropped, the chunk kept its old mesh for good — ice
+       frozen while the chunk beside it was away kept the water's faces along their border. */
+    if (!c.queuedMesh) c.dirty = true;
+  }
 }
 const RUSH_OVER_MS = 120;
 // queue a rushed mesh of a chunk that is still meshing: pump's fast lane sends it over the job already out

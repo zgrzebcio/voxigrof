@@ -67,6 +67,12 @@ const sharedUniforms = {
   uDryPale:    { value: BIOMES.DRY_PALE },
   // the grass plants' tiles (grass, tall bottom, tall top, short): they pale in dry and warm land (FSH)
   uDryPlants:  { value: new THREE.Vector4(CORE.T.GRASS_PLANT, CORE.T.TALL_BOT, CORE.T.TALL_TOP, CORE.T.SHORT_GRASS_PLANT) },
+  /* Wet ground (seasons/wetness.js): how wet the rain has made the open ground where this eye is, 0..1; and the wet map,
+     the waves' wash and a dripping player's steps round player one (r how wet, g the wet block's top y), uWetBox its first
+     column x and z, its size, and 1 while it holds anything. Both 0 for icons and the hand. */
+  uWet:        { value: 0 },
+  uWetMap:     { value: null },
+  uWetBox:     { value: new THREE.Vector4(0, 0, 1, 0) },
 };
 /* The haze of the sky in a direction: added to the fog colour, so it is the same on the sky dome, the
    clouds and the fogged land. A soft halo round the sun, and near the horizon a sunset glow, strongest on the
@@ -211,6 +217,9 @@ const FSH = /* glsl */`
   uniform vec2 uSavTiles;                           // the Savanna's grass top and side
   uniform float uDryPale;                           // the dryness of the Dryland's pale grass (BIOMES.DRY_PALE)
   uniform vec4 uDryPlants;                          // grass, tall grass bottom and top (0.8444), short grass
+  uniform float uWet;                               // the rain's wetness here (seasons/wetness.js)
+  uniform highp sampler2D uWetMap;                  // the waves' wash and the drips: r how wet, g the wet block's top y / 255
+  uniform vec4 uWetBox;                             // the wet map's first column x, z, its size, on
   in float vDry;
   in float vClim;
   in vec2 vUv;
@@ -272,9 +281,11 @@ const FSH = /* glsl */`
     }
     /* Grass plants pale with the land (0.8444): short and tall grass take a dry, pale green by the dryness at their
        foot, and a little of it in any warm land (the climate colour from a warm plain on), so they no longer stand
-       bright green on pale ground; in the Savanna a golden one. The colour keeps the texel's own brightness. */
-    if (abs(vTile - uDryPlants.x) < 0.5 || abs(vTile - uDryPlants.y) < 0.5 || abs(vTile - uDryPlants.z) < 0.5 || abs(vTile - uDryPlants.w) < 0.5) {
-      float pale = max(dryK * 0.7, clamp((vClim - 0.25) * 1.2, 0.0, 0.3));
+       bright green on pale ground; in the Savanna a golden one. The colour keeps the texel's own brightness. The tall
+       grass goes further toward it in the Savanna (0.88 of the way, not all: a little green is left in it). */
+    bool tallPlant = abs(vTile - uDryPlants.y) < 0.5 || abs(vTile - uDryPlants.z) < 0.5;
+    if (tallPlant || abs(vTile - uDryPlants.x) < 0.5 || abs(vTile - uDryPlants.w) < 0.5) {
+      float pale = max(max(dryK * 0.7, tallPlant ? savK * 0.88 : 0.0), clamp((vClim - 0.25) * 1.2, 0.0, 0.3));
       if (pale > 0.004) {
         float lum = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
         tex.rgb = mix(tex.rgb, lum * mix(vec3(1.16, 1.14, 0.66), vec3(1.26, 1.06, 0.48), savK), pale);
@@ -284,6 +295,7 @@ const FSH = /* glsl */`
        so the way downstream in the world is against v's slope over the surface, worked out here from the screen-space
        derivatives; the ripples' phase runs along that in world units, continuous from one block to the next. */
     vec2 dpx = dFdx(vWp.xz), dpy = dFdy(vWp.xz);
+    vec3 faceN = normalize(cross(dFdx(vWp), dFdy(vWp)));   // the face's normal (either way round), for the wet map below
     float dvx = dFdx(vUv.y), dvy = dFdy(vUv.y);
     float rflow = texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 1), 0).a;
     if (rflow > 0.5) {
@@ -317,6 +329,25 @@ const FSH = /* glsl */`
     float skyN = floor(pk / 16.0 + 0.001);
     float bl = (pk - skyN * 16.0) / 15.0;
     float sky = skyN / 15.0;
+    /* Wet (seasons/wetness.js): open ground darkens in the rain by how wet it has got where this eye is (a face the sky
+       reaches), and the waves' wash and a dripping player's steps by the wet map: the block whose face this is, when its
+       top is the wet one. A little darker and a little richer in colour. Only tiles that take it (row 2 of uTileLayer:
+       not rock, not a light, no water or glass). */
+    if ((uWet > 0.001 || uWetBox.w > 0.5) && texelFetch(uTileLayer, ivec2(int(vTile + 0.5), 2), 0).r > 0.5) {
+      float wet = uWet * smoothstep(0.8, 1.0, sky);
+      if (uWetBox.w > 0.5) {
+        vec3 q = vWp - faceN * (dot(faceN, cameraPosition - vWp) < 0.0 ? -0.02 : 0.02);   // just inside the block
+        ivec2 c = ivec2(floor(q.xz) - uWetBox.xy);
+        int n = int(uWetBox.z);
+        if (c.x >= 0 && c.y >= 0 && c.x < n && c.y < n) {
+          vec2 m = texelFetch(uWetMap, c, 0).rg;
+          float top = floor(m.g * 255.0 + 0.5);
+          if (m.r > 0.0 && q.y > top - 1.0 && q.y < top + 0.05) wet = max(wet, m.r);
+        }
+      }
+      float lumW = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+      tex.rgb = max(mix(vec3(lumW), tex.rgb, 1.0 + 0.2 * wet), 0.0) * (1.0 - 0.3 * wet);
+    }
     // sun/moon shadows: soft PCF compare against the two depth maps. Without a map (shadows off, or past the
     // shadow window far from the player) the sky light stands in for it (0.8245; everything counted as lit
     // before, so turning shadows off lit every cave with the sun): open sky in the sun, a cave in the dark.
@@ -342,7 +373,10 @@ const FSH = /* glsl */`
     float fog = smoothstep(fogNear, fogFar, vDepth);
     vec3 fogC = fogColor;
     if (fog > 0.0) fogC += skyHaze(normalize(vWp - cameraPosition));   // the far land takes the sky's glow (0.817)
-    fragColor = vec4(mix(lit, fogC, fog), tex.a);
+    /* Deep water hides what lies under it: a water surface's depth shade comes in vDry, negative (VSH_WATER), and the deeper
+       it is the less of the bottom shows through, none from about ten blocks down. */
+    float alpha = vDry < -0.004 ? mix(tex.a, 1.0, smoothstep(0.3, 0.75, -vDry)) : tex.a;
+    fragColor = vec4(mix(lit, fogC, fog), alpha);
   }`;
 
 // Water-specific vertex shader: sinusoidal Y-wave on top faces (shade ≈ 1.0)
@@ -358,7 +392,7 @@ const VSH_WATER = /* glsl */`
      the quad; carried in the light byte (0.835491) it was unpacked bit by bit and blending it drew false glow lines */
   in float dark;
   out float vClim;
-  out float vDry;                            // water has no dry look: its dark attribute is the depth shade (0.8442)
+  out float vDry;                            // water has no dry look: it carries the depth shade here, NEGATIVE (FSH: deep water opaque)
   out vec2 vUv;
   flat out float vTile;
   out float vShade;
@@ -368,7 +402,7 @@ const VSH_WATER = /* glsl */`
   out vec3 vWp;                              // world position, for the cloud shade (0.815)
   flat out float vFill;                      // never a fast leaf (0.8386)
   void main() {
-    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim; vFill = 0.0; vDry = 0.0;
+    vUv = uv; vTile = tile; vShade = shade * (1.0 - dark); vClim = clim; vFill = 0.0; vDry = -dark;   // the depth, negative: FSH makes deep water opaque
     vBlock = uLightOverride >= 0.0 ? uLightOverride : blockLight;
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Waving surface vertices are marked with shade 253/255 by emitWater; every vertex of one

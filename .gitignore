@@ -1,4 +1,4 @@
-desktop.ini
+*.ini
 .idea
 .DS_Store
 *.txt
@@ -6,3 +6,4 @@ desktop.ini
 *.zip
 .mcp.json
 toolsrc
+plans

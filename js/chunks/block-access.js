@@ -196,6 +196,8 @@ function setBlock(x, y, z, val) {
       // a ladder is something you built: it drops back as a ladder. A vine just falls apart.
       if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
     }
+  // a coconut hangs from the palm log over it: that log gone, it falls (woods/coconuts.js)
+  if (oldId === B.PALM_LOG && newId !== B.PALM_LOG && typeof coconutLostHold === 'function') coconutLostHold(x, y - 1, z);
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
   if (newId === B.AIR && y + 1 <= WORLD_TOP) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;

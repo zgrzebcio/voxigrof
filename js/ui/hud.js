@@ -77,7 +77,18 @@ function padNorthLabel() {
   return /dualshock|dualsense|playstation|\bps[45]\b/.test(id) ? '△' : 'Y';
 }
 var _interactShown = '';
+/* The prompt under the crosshair, and under it the stamina and oxygen while the inventory is shut (#vitalsNear,
+   ui/vitals-hud.js): one line of prompt has room above them, a taller one pushes them down. Measured only when the
+   text changes. */
 function updateInteractPrompt() {
+  _interactText();
+  if (vitalsNearEl && vitalsNearEl._for !== _interactShown) {
+    vitalsNearEl._for = _interactShown;
+    const h = _interactShown ? interactEl.offsetHeight : 0;
+    vitalsNearEl.style.marginTop = (18 + Math.max(20, h + 3)) + 'px';
+  }
+}
+function _interactText() {
   // the name over whatever entity you are looking at (entities/taming.js): its own spot, never the prompt's
   if (typeof updateEntityHoverTag === 'function') updateEntityHoverTag();
   // a crafting bench with an order on it says how far along it is and what E does
@@ -100,6 +111,13 @@ function updateInteractPrompt() {
       return;
     }
   }
+  // a coconut under the crosshair: how far grown it is (woods/coconuts.js)
+  const coco = typeof coconutPrompt === 'function' ? coconutPrompt() : '';
+  if (coco) {
+    if (coco !== _interactShown) { interactEl.innerHTML = coco; _interactShown = coco; }
+    interactEl.style.opacity = '1';
+    return;
+  }
   // water under the crosshair with an empty hand (0.82, player/stats.js): it takes E before the bushes do
   const drink = typeof drinkPrompt === 'function' ? drinkPrompt() : '';
   if (drink) {
@@ -116,6 +134,25 @@ function updateInteractPrompt() {
   const txt = `(<b>${keyLabel}</b>) to pickup ${t.name}`;
   if (txt !== _interactShown) { interactEl.innerHTML = txt; _interactShown = txt; }
   interactEl.style.opacity = '1';
+}
+
+/* The wrong-tool hint: the held tool's picture, crossed out (style.css), right of the crosshair while it aims at a block
+   another tool is for (isWrongTool, blocks/mining-rules.js: such a dig wears it twice as fast and pays no experience).
+   Not for a creature or a sword swung at a block (`none`), nor in creative, where every block breaks at once; off in
+   Options > Gameplay (wrongToolHint, 00-config.js). Per seat, from tickPlayer. */
+var wrongToolEl = document.getElementById('wrongTool');
+var _wrongToolKey = '';
+function updateWrongToolHint(hit, none) {
+  if (!wrongToolEl) return;
+  const held = heldUseId(), p = ITEM_PROPS[held];
+  let src = '';
+  if (wrongToolHint && hit && !none && !player.canFly && p && p.tool && isWrongTool(held, getBlock(hit.x, hit.y, hit.z)))
+    src = renderBlockIcon(held);                   // '' while its art is still loading: asked again next frame
+  const key = src ? String(held) : '';
+  if (key === _wrongToolKey) return;
+  _wrongToolKey = key;
+  wrongToolEl.style.display = key ? 'block' : 'none';
+  if (key) wrongToolEl.style.backgroundImage = 'url("' + src + '")';
 }
 
 // block name pops in above the hotbar on selection, then fades out
