@@ -62,6 +62,7 @@ const SWAP_KEYS = [
   'hudEl', 'blocknameEl', 'hotbarEl', 'interactEl', 'vitalsEl', 'vctx', 'questEl', 'progRingEl', 'vitalsNearEl', 'vnctx', 'wrongToolEl', '_wrongToolKey',
   'xpBarEl', 'xpFillEl', 'xpLevelEl', 'xpPopsEl', 'hurtEl', 'heatBlurEl', 'deathMarkEl',
   'deathEl', 'deathCauseEl', 'deathStatsEl', '_interactShown', 'blocknameTimer',
+  'feedEl',                 // this player's own feed (ui/feed.js)
 ];
 
 const PSTATE = [];          // one entry per joined player; PSTATE[0] is player one
@@ -232,7 +233,8 @@ const playerRoster = () => PSTATE.map((s, i) => s.player.name || defaultPlayerNa
        rather than the bottom of the window, and the scale shrinks the whole HUD to suit a
        quarter-screen viewport.                                                                   */
 const HUD_PANE_IDS = ['hud', 'crosshair', 'progRing', 'interact', 'vitalsNear', 'wrongTool', 'blockname', 'vitals',   // progRing 0.8446
-                      'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap', 'quest'];   // quest box 0.798
+                      'xpBar', 'xpPops', 'hotbar', 'deathScreen', 'invWrap', 'quest',   // quest box 0.798
+                      'feed'];                     // each seat's own feed: copied empty (_makePane)
 /* The virtual cursor, the drag ghost and the item tooltip stay on the BODY rather than inside the
    pane, one set per player. They are positioned in raw screen coordinates — the same space mouse
    events arrive in — so putting them inside the pane's scaled wrapper would transform them twice.
@@ -249,7 +251,7 @@ function _makePane(index) {
   for (const id of HUD_PANE_IDS) {
     const src = document.getElementById(id);
     if (!src) continue;
-    inner.appendChild(index === 0 ? src : src.cloneNode(true));
+    inner.appendChild(index === 0 ? src : src.cloneNode(id !== 'feed'));   // a feed starts empty, not with seat one's rows
   }
   // the damage vignette is created (not appended) by player/hazards.js — one per pane
   inner.appendChild(index === 0 ? hurtEl : hurtEl.cloneNode(true));
@@ -301,6 +303,7 @@ function _bindPaneDom(pane, g) {
   g.deathEl      = q('#deathScreen');
   g.deathCauseEl = q('#deathCause');
   g.deathStatsEl = q('#deathStats');
+  g.feedEl       = q('#feed');                    // this seat's own feed (ui/feed.js)
   // this seat's own inventory panel, and its cursor set (which lives on the body — see _makePane)
   g.invWrapEl = q('#invWrap');
   g.invEl     = q('#inv');
@@ -481,6 +484,10 @@ function leavePlayer() {
   withSlot(i, () => {
     toggleInventory(false);
     updatePlayerLight(i, 0, 0, 0, 0);
+    // a fish in their hands goes back in the world, an otter round their neck is set down (player/fish-hold.js, entities/otter.js)
+    if (typeof releaseHeldFish === 'function') releaseHeldFish(false);
+    if (typeof otterTakeOff === 'function') otterTakeOff(player, true);
+    if (typeof meerkatTakeOff === 'function') meerkatTakeOff(player, true);   // ...and a meerkat on the shoulder (entities/meerkat.js)
   });
   if (activeSlot === i) useSlot(0);
   // ...then drop everything they owned out of the scene and the DOM
@@ -729,7 +736,10 @@ function renderAllViews(dt) {
   /* The title panorama is one camera pointed at scenery — nobody has joined it and nothing in it
      is playable, so it draws once through player one's view whatever the player count says. */
   const n = menuScene ? 1 : PSTATE.length;
-  for (let i = 0; i < PSTATE.length; i++) PSTATE[i].pane.style.display = i < n ? '' : 'none';
+  for (let i = 0; i < PSTATE.length; i++) {
+    const disp = i < n ? '' : 'none', pane = PSTATE[i].pane;
+    if (pane.style.display !== disp) pane.style.display = disp;   // every frame: written only when it changes
+  }
   const full = n <= 1 ? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight,
                           gx: 0, gy: 0 } : null;
   renderer.setScissorTest(n > 1);
@@ -753,6 +763,8 @@ function renderAllViews(dt) {
         _scaleNameTagFor(other.selfModel, camera);     // hold it legible at range, for THIS eye
       }
     }
+    // this player's own tamed animals' names, seen from far (ui/animals.js)
+    if (typeof petTagsFor === 'function') petTagsFor(st.player, camera);
     // this player's aimed block outline / crack overlay (both are single shared scene objects); the outline goes with the HUD
     const sel = st.sel, uiOff = typeof hudHidden !== 'undefined' && hudHidden;
     selBox.visible = !!sel && !uiOff;
@@ -826,6 +838,7 @@ function _serializeSlot(i) {
     spawnBedKey: p.spawnBedKey || null,
     aliveT: +(p.aliveT || 0).toFixed(1), dead: !!p.dead, cause: p._dmgCause || null, deathDay: p._deathDay ?? null,   // 0.757
     deathMark: serializeDeathMark(p),                                                                       // 0.827
+    waypoints: serializeWaypoints(p),     // their named spots (ui/waypoints.js)
     feats: serializeFeats(p),                                                                               // 0.8283
     craftQueue: serializeCraftQueue(p),   // personal crafting queue, ingredients already taken
     skills: serializeSkills(p),           // learned skills
@@ -957,6 +970,7 @@ function applyExtraPlayerRestore(slot) {
   player.aliveT = +rec.aliveT || 0; player.dead = !!rec.dead; player._dmgCause = rec.cause || null;
   player._deathDay = typeof rec.deathDay === 'number' ? rec.deathDay : null;
   player._deathMarks = restoreDeathMark(rec.deathMark);  // 0.827; a list since 0.8442
+  player._waypoints = restoreWaypoints(rec.waypoints);   // their named spots (ui/waypoints.js)
   player._restacked = false;                             // stacks fitted once the inventory is back (15-drops.js)
   player._feats = restoreFeats(rec.feats);               // 0.8283
   player.craftQueue = restoreCraftQueue(rec.craftQueue);

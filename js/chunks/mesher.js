@@ -130,7 +130,12 @@ corePart('voxel', function () {
   // layers: Map(cell index -> block ids bottom to top) for this chunk's mixed layer stacks, or null
   // lod: 0 full detail, 1 no small things, 2 half resolution (see LEVEL OF DETAIL above)
   // ox, oz: the chunk's world origin, for things that vary by place (a mushroom's size); null for icons and drops
-  function meshChunk(dataBuf, sxnB, sxpB, sznB, szpB, lightBuf, lxnB, lxpB, lznB, lzpB, layers, lod = 0, ox = null, oz = 0) {
+  // plates: Map(cell index -> plate value) of the pressure plates lying in other blocks' cells (PLATE_OVER), or null
+  // covers: Map(cell index -> its six cover values, 0 where none) of the covers lying in other blocks' cells (COVER_OVER), or null
+  // fills: Map(cell index -> block value) of the blocks fallen into doorways (DOOR_FILL), or null
+  // rails: Map((x + 1) + (z + 1) * 18 + y * 324 -> value) of the fences and walls lying in other blocks' cells (RAIL_OVER), this
+  //        chunk's and the ring of cells round it (their joins), x and z from -1 to 16; or null
+  function meshChunk(dataBuf, sxnB, sxpB, sznB, szpB, lightBuf, lxnB, lxpB, lznB, lzpB, layers, lod = 0, ox = null, oz = 0, plates = null, covers = null, fills = null, rails = null) {
     /*@include mesh.chunk*/
   }
 });

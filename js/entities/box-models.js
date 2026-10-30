@@ -1,36 +1,40 @@
 'use strict';
-/* entities/box-models.js: box models read from JSON files, the shape Blockbench writes ("Java block model"): a list of
-   boxes (`elements`), each with its `from` and `to` corners in 16ths of a block, its six `faces` and the part of the
-   sheet each shows (`uv`: left, top, right, bottom), maybe a `rotation` { origin, axis, angle } and the `bone` it
-   moves with (`bones`: name, pivot, parent). Used by the termite hill (blocks/termite-hill.js) and the termites
-   (entities/termite.js). The worn backpack reads the same shape its own way (41-backpack.js).
+/* entities/box-models.js: box models, in the shape Blockbench writes ("Java block model"): a list of boxes
+   (`elements`), each with its `from` and `to` corners in 16ths of a block, its six `faces` and the part of the sheet each
+   shows (`uv`: left, top, right, bottom), maybe a `rotation` { origin, axis, angle } and the `bone` it moves with
+   (`bones`: name, pivot, parent). Used by the termite hill (blocks/termite-hill.js), the termites (entities/termite.js),
+   the otter (entities/otter.js), the clam (blocks/clam.js); the worn backpack reads the same shape its own way
+   (41-backpack.js, from BOX_MODEL_DATA too).
 
-   UV UNITS. A file with `texture_size` gives its uv in 16ths of the sheet each way (Blockbench's own). One without it
-   (the termite hill's) gives them in model pixels of 8 texels, the block art's scale: a 256 px sheet is 32 wide.
+   THE MODELS ARE SCRIPTS: js/models/*.js, each a defineBoxModel(name, {...}) made from the JSON a model was handed over in
+   (toolsrc/json-to-model.js), loaded right after this file. The game never fetches a model file; a model is asked for by
+   its name (boxModel) and only its sheet is loaded, the first time.
 
-   A model is fetched the first time it is asked for (boxModel); until its file and its sheet are in, `ready` is
-   false and the callers ask again. */
-const _boxModels = {};                         // json url -> { ready, failed, json, tex, du, dv }
-function boxModel(jsonUrl, texUrl) {
-  let m = _boxModels[jsonUrl];
+   UV UNITS. A model with `texture_size` gives its uv in 16ths of the sheet each way (Blockbench's own). One without it
+   (the termite hill's) gives them in model pixels of 8 texels, the block art's scale: a 256 px sheet is 32 wide. So does
+   one whose uv run past 16 though it has a `texture_size` (the clam's): 16ths never do.
+
+   Until a model's sheet is in, `ready` is false and the callers ask again. */
+const BOX_MODEL_DATA = {};                     // name -> the model's boxes (js/models/*.js)
+function defineBoxModel(name, json) { BOX_MODEL_DATA[name] = json; }
+const _boxModels = {};                         // name -> { ready, failed, json, tex, du, dv }
+function boxModel(name, texUrl) {
+  let m = _boxModels[name];
   if (m) return m;
-  m = _boxModels[jsonUrl] = { ready: false, failed: false, json: null, tex: null, du: 16, dv: 16 };
-  let img = false;
-  const done = () => {
-    if (!m.json || !img) return;
-    const ts = m.json.texture_size, w = m.tex.image.width, h = m.tex.image.height;
+  m = _boxModels[name] = { ready: false, failed: false, json: BOX_MODEL_DATA[name] || null, tex: null, du: 16, dv: 16 };
+  if (!m.json) { m.failed = true; console.error('box model ' + name + ': no such model (js/models/*.js)'); }
+  m.tex = new THREE.TextureLoader().load(texUrl, () => {
+    if (!m.json) return;
+    const w = m.tex.image.width, h = m.tex.image.height, els = m.json.elements || [];
+    const past16 = els.some(el => Object.values(el.faces || {}).some(f => f.uv && f.uv.some(n => n > 16)));
+    const ts = m.json.texture_size && !past16;
     m.du = ts ? 16 : w / 8; m.dv = ts ? 16 : h / 8;
     m.ready = true;
-  };
-  m.tex = new THREE.TextureLoader().load(texUrl, () => { img = true; done(); }, undefined,
-                                         (e) => { m.failed = true; console.error('box model sheet ' + texUrl + ':', e); });
+  }, undefined, (e) => { m.failed = true; console.error('box model sheet ' + texUrl + ':', e); });
   m.tex.colorSpace = THREE.SRGBColorSpace;
   m.tex.magFilter = THREE.NearestFilter;
   m.tex.minFilter = THREE.NearestMipmapLinearFilter;
   m.tex.generateMipmaps = true;
-  fetch(jsonUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)))
-    .then((json) => { m.json = json; done(); })
-    .catch((e) => { m.failed = true; console.error('box model ' + jsonUrl + ':', e); });
   return m;
 }
 // a box's six faces as seen from outside: [the JSON's name for it, its corners top left, top right, bottom left,

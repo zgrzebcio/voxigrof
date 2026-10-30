@@ -53,6 +53,16 @@ _skeletonTex.generateMipmaps = true;
 function _newSkeletonMat() {
   return new THREE.MeshBasicMaterial({ map: _skeletonTex, transparent: true, alphaTest: 0.5 });
 }
+/* Mummy skin (textures/Entity/Zombie/mummy.png, drawn by toolsrc/mummy-tex.js): a zombie in the desert, wrapped in old
+   linen. The zombie's layout at the skeleton's double resolution (128x128), so the same rig takes it. */
+const _mummyTex = new THREE.TextureLoader().load('textures/Entity/Zombie/mummy.png');
+_mummyTex.colorSpace = THREE.SRGBColorSpace;
+_mummyTex.magFilter = THREE.NearestFilter;
+_mummyTex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
+_mummyTex.generateMipmaps = true;
+function _newMummyMat() {
+  return new THREE.MeshBasicMaterial({ map: _mummyTex, transparent: true, alphaTest: 0.5 });
+}
 const ENT_WATER_DARK = 0.55;                 // a creature's light under water
 // light at a cell -> 0..1 brightness, matching the world shader's day/night response
 function _lightAt(x, y, z) {

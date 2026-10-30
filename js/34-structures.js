@@ -9,7 +9,8 @@
       non-air cell as [x, y, z, id, variant] — variant is what preserves double slabs, stair
       facings, log widths, door hinges and everything else that lives in the high byte.
 
-   2. STORAGE. The JSON is downloaded, to drop into structures/ and list in the manifest. Since
+   2. STORAGE. The JSON is downloaded, to drop into structures/warm/, cold/ or temperate/ (the climate it is built for)
+      and list in the manifest by that path. Since
       0.82424 the browser keeps no copy (they used to go to localStorage and spawn on their own);
       old copies are cleared at load.
 
@@ -379,7 +380,7 @@ function migrateStructure(raw, src) {
     if (oldBerries) nv = migrateBerryVal(nv);
     if (nv !== v) {
       b[3] = nv & 255; b[4] = (nv >> 8) & 255;
-      if (nv >>> 16) b[5] = (nv >>> 16) & 255; else if (b.length > 5) b.length = 5;
+      if (nv >>> 16) b[5] = (nv >>> 16) & 255; else if (b.length > 6) b[5] = 0; else if (b.length > 5) b.length = 5;
     }
   }
   p.cells = 4;
@@ -539,22 +540,34 @@ function captureStructure(bx, by, bz, size, name) {
   const v = structVolume(bx, by, bz, size);
   const blocks = [];
   const loot = {};
+  const plates = [];                                        // pressure plates lying in other blocks' cells (blocks/pressure-plates.js)
   for (let dy = 0; dy < v.h; dy++)
     for (let dz = 0; dz < v.l; dz++)
       for (let dx = 0; dx < v.w; dx++) {
         const val = getBlock(v.x0 + dx, v.y0 + dy, v.z0 + dz);
         const id = val & 255;
         if (id === B.AIR || id === B.STRUCTURE_BLOCK) continue;
+        const ov = plateOverAt(v.x0 + dx, v.y0 + dy, v.z0 + dz);   // saved up (not pressed), its look a sixth number too
+        if (ov) plates.push(lookOf(ov) ? [dx, dy, dz, ov & 255, ((ov >> 8) & 255) & ~PLATE_PRESSED, lookOf(ov)]
+                                       : [dx, dy, dz, ov & 255, ((ov >> 8) & 255) & ~PLATE_PRESSED]);
         const look = lookOf(val);                           // a look rides as a sixth number (blocks/looks.js)
-        blocks.push(look ? [dx, dy, dz, id, (val >> 8) & 255, look] : [dx, dy, dz, id, (val >> 8) & 255]);
+        const hi = (val >>> 25) & 63;                       // ...and the cell's bits 25-30 as a seventh (shapes/shapes.js: joins set by hand)
+        blocks.push(hi ? [dx, dy, dz, id, (val >> 8) & 255, look, hi] : look ? [dx, dy, dz, id, (val >> 8) & 255, look] : [dx, dy, dz, id, (val >> 8) & 255]);
         // every captured container is wired to the default table; edit the JSON to retarget it
         if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too
       }
+  const signs = structureSignsIn(v);
+  const covers = structureCoversIn(v);                      // covers lying in other blocks' cells (blocks/covers.js)
+  const rails = structureRailsIn(v);                        // ...and fences and walls on slabs and stairs (blocks/rails.js)
   return {
     id: name,
     cells: 4,                     // looks are a cell's sixth number, not ids of their own (blocks/looks.js); berry bushes in seven stages
     size: [v.w, v.h, v.l],
     blocks,
+    ...(plates.length ? { plates } : {}),   // laid by applyStructurePlates once the blocks holding them are down
+    ...(covers.length ? { covers } : {}),   // ...and by applyStructureCovers
+    ...(rails.length ? { rails } : {}),     // ...and by applyStructureRails
+    ...(signs.length ? { signs } : {}),     // what its signs say (blocks/signs.js applyStructureSigns)
     loot,
     lootTables: DEFAULT_LOOT,
     // sensible defaults so a freshly saved prefab already spawns; tune in the JSON.
@@ -584,24 +597,59 @@ function downloadStructure(prefab) {
    edit store, re-floods light and runs the per-block hooks. A dungeon is well over a thousand
    cells and a village several hundred, so doing one in a single frame is a visible freeze. The
    caller feeds this a budget and comes back next frame. */
-// `swap`: block id -> block id while stamping, a group's `replace` (a desert village's dirt is sand)
+// `swap`: block id -> block id while stamping, a group's `replace` (a desert village's dirt is sand), and its "wood": the
+// wood a chest, a bed or a crafting bench is made of, kept in their variant bits (_swapWood)
 function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
   const blocks = prefab.blocks;
   const end = Math.min(blocks.length, from + budget);
   for (let i = from; i < end; i++) {
     const b = blocks[i];
     if (!Array.isArray(b) || b.length < 4) continue;
-    const [dx, dy, dz, id0, variant = 0, look = 0] = b;
+    const [dx, dy, dz, id0, variant0 = 0, look = 0, hi = 0] = b;
     const id = swap && swap[id0] != null ? swap[id0] : id0;
+    const variant = swap && swap.wood ? _swapWood(id, variant0, swap.wood) : variant0;
     if (!PROPS[id]) continue;                       // prefab references a block this build lacks
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;
-    setBlock(x, y, z, (id | ((variant & 255) << 8) | ((look & 255) << 16)) >>> 0);
+    setBlock(x, y, z, (id | ((variant & 255) << 8) | ((look & 255) << 16) | ((hi & 63) << 25)) >>> 0);
     if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind
     // a door's mesh comes up with its bottom half in setBlock (doors are shapes of their material)
     if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342
+    // a structure's torches and glow blocks never burn out (saved so with the world's lights: BURNS, blocks/torches.js)
+    if (BURN_S[id]) BURNS.set(x + ',' + y + ',' + z, [x, y, z, BURN_NEVER]);
+    // ...and a fire it lays burns: on hay for good (fireStamped, 53-storms.js)
+    if (id === B.FIRE && typeof fireStamped === 'function') fireStamped(x, y, z);
   }
   return end;
+}
+
+/* The wood a swap's "wood" names, put in the variant bits of what keeps its wood there: a wooden chest (CHEST_WOODS), a
+   bed (BED_WOODS), a crafting bench (BENCH_WOODS: it has no spruce art, so spruce is the dark bench, STRUCT_BENCH_WOOD).
+   A wood the block has no art for leaves it as it is. */
+const STRUCT_BENCH_WOOD = { spruce: 'dark' };
+function _swapWood(id, va, wood) {
+  if (id === B.CHEST) {
+    const w = CHEST_WOODS.indexOf(wood);
+    return w < 0 ? va : (va & ~((3 << CHEST_WOOD_SHIFT) | CHEST_WOOD_HIGH)) | chestWoodBits(w);
+  }
+  if (id === B.BED) {
+    const w = BED_WOODS.indexOf(wood);
+    return w < 0 ? va : (va & ~(3 << BED_WOOD_SHIFT)) | (w << BED_WOOD_SHIFT);
+  }
+  if (id === B.CRAFTING_BENCH) {
+    const w = BENCH_WOODS.indexOf(STRUCT_BENCH_WOOD[wood] || wood);
+    return w < 0 ? va : (va & ~(7 << V.BENCH_WOOD_SHIFT)) | (w << V.BENCH_WOOD_SHIFT);
+  }
+  return va;
+}
+/* `replace` (a lone prefab's spawn.replace, a group's replace): one map of swaps for everywhere ({ "2": 7 }), or maps by
+   biome ({ "Cold Plains": {...}, "Spruce Forest": {...} }): the FULL name first ("Cold Plains"; a plain "Plains" is not
+   it), then its base ("Spruce Forest" for a Deep Spruce Forest or its hills). The swaps for (x, z), or null. */
+function _swapFor(replace, x, z, full) {
+  if (!replace || typeof replace !== 'object') return null;
+  if (!Object.values(replace).some(v => v && typeof v === 'object')) return replace;
+  const name = full || mainGen.biomeAt(x, z), sw = replace[name] || replace[BIOMES.biomeBase(name)];
+  return sw && typeof sw === 'object' ? sw : null;
 }
 
 // loot markers are keyed by prefab-local coords; translate them into the world once, at the end
@@ -619,6 +667,10 @@ function stampStructure(prefab, ox, oy, oz) {
   if (!prefab || !Array.isArray(prefab.blocks)) return 0;
   stampStructureSlice(prefab, ox, oy, oz, 0, prefab.blocks.length);
   applyStructureLoot(prefab, ox, oy, oz);
+  applyStructurePlates(prefab, ox, oy, oz);
+  applyStructureCovers(prefab, ox, oy, oz);
+  applyStructureRails(prefab, ox, oy, oz);
+  applyStructureSigns(prefab, ox, oy, oz);
   return prefab.blocks.length;
 }
 
@@ -881,8 +933,17 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
     const j = PLACE_QUEUE[i];
     const w = j.w ?? 1, h = j.h ?? 1, l = j.l ?? 1;
     if (j.phase === 0 && !_footprintReady(j.ox, j.oz, w, l)) {
-      if (++j.tries > PLACE_MAX_TRIES) { PLACE_QUEUE.splice(i--, 1); }
+      // a wide prefab (_spawnWide) waits as long as its anchor chunk is in; that let go, it is rolled again on its return
+      if (j.site) { if (!_chunkLoaded(j.ox, j.oz)) { for (const k of j.claimed) _structPlaced.delete(k); PLACE_QUEUE.splice(i--, 1); } }
+      else if (++j.tries > PLACE_MAX_TRIES) { PLACE_QUEUE.splice(i--, 1); }
       continue;
+    }
+    // ...and is sat on its ground now that all of it is in: its lowest, as an embed is
+    if (j.site) {
+      const fp = _footprint(j.ox, j.oz, w, l), st = j.site;
+      if (fp.wet || fp.lo < st.minY || fp.lo > st.maxY || fp.hi - fp.lo > st.slope) { PLACE_QUEUE.splice(i--, 1); continue; }
+      j.oy = fp.lo + 1 - st.sink;
+      j.site = null;
     }
     if (j.kind === 'sweep') {                          // a village's sand carpets
       const before = j.step;
@@ -947,6 +1008,10 @@ function processPlacementQueue(budget = PLACE_BUDGET) {
     left -= j.step - before;
     if (j.step >= j.prefab.blocks.length) {
       applyStructureLoot(j.prefab, j.ox, j.oy, j.oz);
+      applyStructurePlates(j.prefab, j.ox, j.oy, j.oz, j.swap);   // its pressure plates on slabs, steps, carpets (blocks/pressure-plates.js)
+      applyStructureCovers(j.prefab, j.ox, j.oy, j.oz, j.swap);   // ...and its covers lying in other blocks' cells (blocks/covers.js)
+      applyStructureRails(j.prefab, j.ox, j.oy, j.oz, j.swap);    // ...and its fences and walls on slabs and stairs (blocks/rails.js)
+      applyStructureSigns(j.prefab, j.ox, j.oy, j.oz);           // ...and what its signs say (blocks/signs.js)
       // ...and the snow it was set into closes back round it (the igloo)
       if (j.blend) _bulkWrite(j.ox - SNOW_BACK_R, j.oz - SNOW_BACK_R, w + 2 * SNOW_BACK_R, l + 2 * SNOW_BACK_R,
                               () => _resnowAround(j.prefab, j.ox, j.oz));
@@ -1129,8 +1194,9 @@ function _planVillage(g, cx, cz) {
       if (site(pick(wellKinds, 710 + j), originX + Math.cos(ang) * dist, originZ + Math.sin(ang) * dist, true)) break;
     }
   /* A group's `replace`: block swaps for everything it builds, its foundations too — a desert village's dirt
-     is sand ({"2": 7}); its paths keep their own block. */
-  const swap = g.replace && typeof g.replace === 'object' ? g.replace : null;
+     is sand ({"2": 7}); its paths keep their own block. Or maps by biome, read at the village's middle (_swapFor): a
+     village on the Cold Plains or in a spruce forest is all spruce. */
+  const swap = _swapFor(g.replace, originX, originZ);
   const sand = swap && swap[B.DIRT] != null ? swap[B.DIRT] : null;
   for (const t of taken) {
     const o = { top: sand ?? B.DIRT, deep: sand ?? B.STONE };
@@ -1507,14 +1573,16 @@ function trySpawnStructureInChunk(cx, cz) {
     const [w, h, l] = p.size || [1, 1, 1];
     /* The prefab is stamped the moment this chunk's terrain lands, and setBlock silently drops
        writes into chunks that have not generated yet. Anchoring inside the chunk keeps the whole
-       footprint local; anything too wide to fit is skipped rather than half-placed. */
-    if (w > 14 || l > 14) continue;
+       footprint local. One wider than that (the pyramid) waits for its footprint instead (_spawnWide). */
+    if (w > 14 || l > 14) { if (_spawnWide(p, s, cx, cz, w, h, l)) return; continue; }
     const ax = cx * 16 + 1 + Math.floor(_structHash(cx, cz, 91) * Math.max(1, 15 - w));
     const az = cz * 16 + 1 + Math.floor(_structHash(cx, cz, 97) * Math.max(1, 15 - l));
+    let bio = null;
     if (Array.isArray(s.biomes) && s.biomes.length) {
-      const bio = BIOMES.biomeBase(mainGen.biomeAt(ax, az));   // base name
+      bio = BIOMES.biomeBase(mainGen.biomeAt(ax, az));   // base name
       if (!s.biomes.includes(bio)) continue;
     }
+    const swap = _swapFor(s.replace, ax, az);         // `spawn.replace`, by biome (the pyramid of red sand on red sand)
     const minY = s.minY ?? 0, maxY = s.maxY ?? 255;
     const mode = structMode(s);
 
@@ -1538,7 +1606,7 @@ function trySpawnStructureInChunk(cx, cz) {
         }
         // queued like every other piece so the carve + stamp is spread across frames
         queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: ay, oz: az, w, h, l,
-                         carve: mode === 'underground' });
+                         carve: mode === 'underground', swap });
         done = true;
         break;
       }
@@ -1553,7 +1621,7 @@ function trySpawnStructureInChunk(cx, cz) {
       if (hi < lo) continue;
       const ay = lo + Math.floor(_structHash(cx, cz, 131) * (hi - lo + 1));
       if (!_volumeClear(ax, ay, az, w, h, l)) continue;
-      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: ay, oz: az, w, h, l });
+      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: ay, oz: az, w, h, l, swap });
       return;
     }
 
@@ -1566,17 +1634,49 @@ function trySpawnStructureInChunk(cx, cz) {
       if (fp.hi - fp.lo > 10) continue;                     // a cliff, not a slope
       /* `pillar`: [top, deep] block ids to prop it up with instead of dirt and stone (the desert ruins: sand over
          sandstone); `sink`: layers of it set into the ground, so it stands half buried */
-      const sink = s.sink | 0, o = { from: sink };
-      if (Array.isArray(s.pillar)) { o.top = s.pillar[0] | 0; o.deep = s.pillar[1] | 0; }
-      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1 - sink, oz: az, w, h, l, blend: true, blendOpts: o });
+      const sink = s.sink | 0, o = _pillarOpts(s, sink, swap);
+      queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1 - sink, oz: az, w, h, l, blend: true, blendOpts: o, swap });
       return;
     }
 
     // "surface": untouched behaviour — demands a flat site rather than reshaping one
     if (fp.hi - fp.lo > 1) continue;
-    queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1, oz: az, w, h, l });
+    queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: fp.lo + 1, oz: az, w, h, l, swap });
     return;                          // at most one structure per chunk
   }
+}
+
+// an embed's blend options: its sunk layers, and its `pillar` [top, deep] blocks (swapped too)
+function _pillarOpts(s, sink, swap) {
+  const o = { from: sink }, sw = (id) => (swap && swap[id] != null ? swap[id] : id) | 0;
+  if (Array.isArray(s.pillar)) { o.top = sw(s.pillar[0] | 0); o.deep = sw(s.pillar[1] | 0); }
+  return o;
+}
+/* A lone prefab wider than a chunk (the pyramid, 25 x 25), embed or surface: anchored in this chunk and reaching into
+   the chunks beside it, which may not be in yet, so its ground is not read here. The job waits for its whole footprint
+   and sits it then (`site`, processPlacementQueue), or drops it if that ground will not do (water, a cliff, out of its
+   height band). Its biome is read at its middle. The chunks it covers roll nothing of their own (marked tried in
+   _structPlaced), and it is not laid over a chunk a settlement holds. Its anchor chunk let go before the footprint was
+   in: the marks are taken back, and it is rolled again (the same one) when that chunk comes back. */
+function _spawnWide(p, s, cx, cz, w, h, l) {
+  const mode = structMode(s);
+  if (mode !== 'embed' && mode !== 'surface') return false;
+  const ax = cx * 16 + Math.floor(_structHash(cx, cz, 91) * 16), az = cz * 16 + Math.floor(_structHash(cx, cz, 97) * 16);
+  const full = mainGen.biomeAt(ax + (w >> 1), az + (l >> 1)), bio = BIOMES.biomeBase(full);
+  if (Array.isArray(s.biomes) && s.biomes.length && !s.biomes.includes(bio)) return false;
+  const claimed = [];
+  for (let x = cx; x <= Math.floor((ax + w - 1) / 16); x++)
+    for (let z = cz; z <= Math.floor((az + l - 1) / 16); z++) {
+      const k = structChunkKey(x, z);
+      if (_groupClaimed.get(k)?.size) return false;
+      claimed.push(k);
+    }
+  for (const k of claimed) _structPlaced.add(k);
+  const swap = _swapFor(s.replace, 0, 0, full), sink = mode === 'embed' ? s.sink | 0 : 0;
+  queuePlacement({ kind: 'prefab', prefab: p, ox: ax, oy: 0, oz: az, w, h, l, swap, claimed,
+                   blend: mode === 'embed', blendOpts: _pillarOpts(s, sink, swap),
+                   site: { minY: s.minY ?? 0, maxY: s.maxY ?? 255, sink, slope: mode === 'embed' ? 10 : 1 } });
+  return true;
 }
 
 /* Nothing solid anywhere in the box. Used by air placement, where there is no ground to test. */
@@ -1641,7 +1741,8 @@ function restoreStructPlaced(list) {
 
 /* ---------------------------------- outline ---------------------------------- */
 /* A single reusable wireframe box. Only the structure block the player last opened shows one, so
-   one mesh is enough and there is nothing to pool. */
+   one mesh is enough and there is nothing to pool. Its MIDDLE is marked in orange, for building symmetric: a line round
+   the box where its width is halved and one where its length is (an odd size: through the middle block's centre). */
 let _outline = null;
 let _outlineFor = null;             // "x,y,z" of the structure block that owns it
 function _ensureOutline() {
@@ -1652,6 +1753,19 @@ function _ensureOutline() {
   _outline.renderOrder = 4;
   _outline.layers.set(1);           // never casts a shadow
   _outline.visible = false;
+  // the middle: two loops round the unit box (x = 0 and z = 0), scaled and placed with it as its child
+  const h = 0.5, mid = [];
+  for (const [a, b] of [[[-h, -h], [h, -h]], [[h, -h], [h, h]], [[h, h], [-h, h]], [[-h, h], [-h, -h]]]) {
+    mid.push(0, a[0], a[1], 0, b[0], b[1]);                       // the loop where x is halved (y, z round it)
+    mid.push(a[1], a[0], 0, b[1], b[0], 0);                       // ...and where z is (x, y round it)
+  }
+  const midGeo = new THREE.BufferGeometry();
+  midGeo.setAttribute('position', new THREE.Float32BufferAttribute(mid, 3));
+  const middle = new THREE.LineSegments(midGeo,
+    new THREE.LineBasicMaterial({ color: 0xffa53d, transparent: true, opacity: 0.85, depthTest: false }));
+  middle.renderOrder = 4;
+  middle.layers.set(1);
+  _outline.add(middle);
   scene.add(_outline);
   return _outline;
 }

@@ -51,6 +51,8 @@ function interactProgress() {
   if (player.dead || menuScene || !playing) return 0;
   if (player._milkProg > 0) return player._milkProg;
   if (player._unsealProg > 0) return player._unsealProg;                // a sealed chest's key turning
+  if (player._clamProg > 0) return player._clamProg;                    // a clam opening, its pearl taken (blocks/clam.js)
+  if (player._grabProg > 0) return player._grabProg;                    // a fish being taken in hand (player/fish-hold.js)
   if (player._fillProg > 0) return player._fillProg;                    // a bottle filling at water
   if (player._eatProg > 0) return player._eatProg;                      // a meal or a drink
   if (player._drawProg > 0) return Math.min(1, player._drawProg);       // a bow being drawn
@@ -76,6 +78,12 @@ function padNorthLabel() {
   const id = (g && g.id || '').toLowerCase();
   return /dualshock|dualsense|playstation|\bps[45]\b/.test(id) ? '△' : 'Y';
 }
+// South face button: A on an Xbox pad, Cross on a PlayStation one
+function padSouthLabel() {
+  const g = typeof getPad === 'function' ? getPad() : null;
+  const id = (g && g.id || '').toLowerCase();
+  return /dualshock|dualsense|playstation|\bps[45]\b/.test(id) ? '✕' : 'A';
+}
 var _interactShown = '';
 /* The prompt under the crosshair, and under it the stamina and oxygen while the inventory is shut (#vitalsNear,
    ui/vitals-hud.js): one line of prompt has room above them, a taller one pushes them down. Measured only when the
@@ -91,12 +99,26 @@ function updateInteractPrompt() {
 function _interactText() {
   // the name over whatever entity you are looking at (entities/taming.js): its own spot, never the prompt's
   if (typeof updateEntityHoverTag === 'function') updateEntityHoverTag();
+  // a live fish in your hands says how near it is to wriggling free, before anything else (player/fish-hold.js)
+  const fish = typeof heldFishPrompt === 'function' ? heldFishPrompt() : '';
+  if (fish) {
+    if (fish !== _interactShown) { interactEl.innerHTML = fish; _interactShown = fish; }
+    _promptShown();
+    return;
+  }
+  // the wrench in hand says what the block aimed at is set to (player/wrench.js)
+  const wr = typeof wrenchPrompt === 'function' ? wrenchPrompt() : '';
+  if (wr) {
+    if (wr !== _interactShown) { interactEl.innerHTML = wr; _interactShown = wr; }
+    _promptShown();
+    return;
+  }
   // a crafting bench with an order on it says how far along it is and what E does
   if (typeof benchPrompt === 'function') {
     const a = benchPrompt();
     if (a) {
       if (a !== _interactShown) { interactEl.innerHTML = a; _interactShown = a; }
-      interactEl.style.opacity = '1';
+      _promptShown();
       return;
     }
   }
@@ -107,22 +129,31 @@ function _interactText() {
     const a = tameablePrompt();
     if (a) {
       if (a !== _interactShown) { interactEl.innerHTML = a; _interactShown = a; }
-      interactEl.style.opacity = '1';
+      _promptShown();
       return;
     }
   }
-  // a coconut under the crosshair: how far grown it is (woods/coconuts.js)
-  const coco = typeof coconutPrompt === 'function' ? coconutPrompt() : '';
+  // a coconut or a cocoa pod under the crosshair: how far grown it is (woods/coconuts.js, woods/cocoa.js); a vine with
+  // shears in hand: what cutting it does (woods/vines.js)
+  const coco = (typeof coconutPrompt === 'function' ? coconutPrompt() : '') || (typeof cocoaPrompt === 'function' ? cocoaPrompt() : '')
+            || (typeof vinePrompt === 'function' ? vinePrompt() : '');
   if (coco) {
     if (coco !== _interactShown) { interactEl.innerHTML = coco; _interactShown = coco; }
-    interactEl.style.opacity = '1';
+    _promptShown();
+    return;
+  }
+  // a clam under the crosshair: what is in it and what the right button does (blocks/clam.js)
+  const clam = typeof clamPrompt === 'function' ? clamPrompt() : '';
+  if (clam) {
+    if (clam !== _interactShown) { interactEl.innerHTML = clam; _interactShown = clam; }
+    _promptShown();
     return;
   }
   // water under the crosshair with an empty hand (0.82, player/stats.js): it takes E before the bushes do
   const drink = typeof drinkPrompt === 'function' ? drinkPrompt() : '';
   if (drink) {
     if (drink !== _interactShown) { interactEl.innerHTML = drink; _interactShown = drink; }
-    interactEl.style.opacity = '1';
+    _promptShown();
     return;
   }
   const t = typeof findBushPickup === 'function' ? findBushPickup() : null;
@@ -133,8 +164,10 @@ function _interactText() {
   const keyLabel = lastInputDevice === 'pad' ? padNorthLabel() : 'E';
   const txt = `(<b>${keyLabel}</b>) to pickup ${t.name}`;
   if (txt !== _interactShown) { interactEl.innerHTML = txt; _interactShown = txt; }
-  interactEl.style.opacity = '1';
+  _promptShown();
 }
+// the prompt up (every frame while there is one: written only when it was not)
+function _promptShown() { if (interactEl.style.opacity !== '1') interactEl.style.opacity = '1'; }
 
 /* The wrong-tool hint: the held tool's picture, crossed out (style.css), right of the crosshair while it aims at a block
    another tool is for (isWrongTool, blocks/mining-rules.js: such a dig wears it twice as fast and pays no experience).
@@ -169,13 +202,13 @@ function buildHotbar() {                         // rebuilt on any slot change -
   hotbarEl.innerHTML = '';
   hotbarEl._offKey = undefined;                  // the offhand slot went with the clear
   hotbarEl._chiselKey = undefined;               // ...and the chisel's shape slot and radial
-  // the bar's own slots and the ones a worn belt opens (hotbarLen, player/equipment.js); the tenth is key 0
+  // the bar's own slots and the ones a worn belt opens, or creative's 12 (hotbarLen, player/equipment.js); keys HOTBAR_KEY_LABELS
   const n = typeof hotbarLen === 'function' ? hotbarLen() : HOTBAR.length;
   if (hotbarSel >= n) hotbarSel = n - 1;
   for (let i = 0; i < n; i++) {
     const div = document.createElement('div');
     div.className = 'slot' + (i === hotbarSel ? ' sel' : '') + (i >= HOTBAR_SLOTS ? ' beltHot' : '');
-    div.innerHTML = `<span class="key">${(i + 1) % 10}</span>` + slotInner(HOTBAR[i]);
+    div.innerHTML = `<span class="key">${HOTBAR_KEY_LABELS[i] ?? ''}</span>` + slotInner(HOTBAR[i]);
     hotbarEl.appendChild(div);
   }
   syncOffhandSlot();

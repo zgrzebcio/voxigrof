@@ -16,7 +16,7 @@ corePart('biomes', function () {
     { lvl:  0, to:  0.10, air: 0,   biomes: 'Plains, Forest, Birch Forest, Mountains' },
     { lvl:  1, to:  0.27, air: 6,   biomes: 'Warm Plains, Dryland (0.8411, its hot side by the desert)' },
     { lvl:  2, to:  0.51, air: 14,  biomes: 'Desert, Desert Hills' },
-    { lvl:  3,            air: 20,  biomes: 'Red Sand, Red Sand Hills, Deep Desert (0.84, its hottest heart) and Deep Red Desert (0.841, the other half of it); an Oasis now and then in a desert' },
+    { lvl:  3,            air: 20,  biomes: 'Red Sand, Red Sand Hills, Deep Desert (0.84, its hottest heart) and Deep Red Desert (0.841, the other half of it), its open Flat (0.84884); an Oasis now and then in a desert' },
   ];
   const LADDER_LO = CLIMATE_LADDER[0].lvl, LADDER_HI = CLIMATE_LADDER[CLIMATE_LADDER.length - 1].lvl;
   // the temperature field as a smooth level: a level's own band runs from lvl - 0.5 to lvl + 0.5

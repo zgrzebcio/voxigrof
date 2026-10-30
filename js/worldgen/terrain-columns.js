@@ -24,6 +24,7 @@ corePart('gen.chunk', function () {
       const DDK = new Uint8Array(400);                         // the Deep Desert's half, ddStrata's kind
       const DRYF = new Float32Array(400);                      // how far into the Dryland, 0..1 (fDry in 55)
       const SAV = new Uint8Array(400);                         // the Savanna (rev 28, fSav in biomes/terrain.js)
+      const JNG = new Uint8Array(400);                         // the Jungle (rev 43, fJungle in biomes/terrain.js)
       const DBC = new Uint8Array(400);                         // a deep beach (rev 31, db in biomes/terrain.js)...
       const DBD = new Float32Array(400);                       // ...and how far past its inner edge (dbd: negative on it)
       // wider wet grid (32x32, 8-block margin) so beach width can vary per water type:
@@ -72,6 +73,7 @@ corePart('gen.chunk', function () {
             DDK[i] = DDS[i] && DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0;
             DRYF[i] = DRYLAND ? ti.fDry : 0;
             SAV[i] = SAVANNA && ti.fSav > 0.5 ? 1 : 0;
+            JNG[i] = JUNGLE && ti.fJungle > 0.5 ? 1 : 0;
             DBC[i] = DBEACH && ti.db > 0.5 ? 1 : 0;
             DBD[i] = DBC[i] ? ti.dbd : 1e9;
             RED[i] = ti.fRed > 0.5 && DDK[i] !== 1 ? 1 : 0;      // the (yellow) Deep Desert's half is not red

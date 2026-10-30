@@ -48,6 +48,7 @@ const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed') - SICK_
 // gear plus Weathered's 10%: the one total both the stat panel and anything that reads it use
 const _resSum = (field) => _equipSum(field) + ((typeof hasSkill === 'function' && hasSkill('weathered')) ? 0.1 : 0)
   + _effectSum(field)                                          // effects too: the Frozen King's curse -30% cold
+  + (field === 'coldResist' && typeof otterScarfCold === 'function' ? otterScarfCold() : 0)   // an otter round the neck (entities/otter.js)
   - (field === 'coldResist' ? WET_COLD_RES * wetness() : 0);   // wet: up to half the cold resistance gone (by % 0.8324)
 const _resPct = (field) => Math.round(Math.min(1, Math.max(-1, _resSum(field))) * 100);
 function playerColdResist() { return _resPct('coldResist'); }
@@ -73,6 +74,8 @@ const STAT_TIPS = {
   'hazard reduction': 'How much less damage falls, lava and cactus do to you.',
   'regen':           'How fast your health heals and your breath comes back, and how much energy and healing food gives you. Rapid regen adds 50%; being tired (energy 20 or less) takes up to 70% off, protein or fruit sickness up to 20% each. Never under 0%.',   // 0.832; oxygen 0.8321; 0.8323
   'mining speed':    'How fast you break blocks with any tool or your hand. Vegetable sickness will take up to 25% off.',   // 0.8323
+  'item pickup range': 'How far away things lying on the ground are picked up. A tamed meerkat on your shoulder adds 10% to 30%, by its level and its taming.',
+  'foraging reach':  'How far round you E reaches grass, bushes, flint and pebbles. A tamed meerkat on your shoulder adds 10% to 30%, by its level and its taming.',
   'spoil speed':     'How fast the food you carry spoils. Preserver takes 10% off, salt in use 25% (both: 65%). Lower is better.',   // 0.832; salt 25% since 0.8321
   'effect duration': 'How long the good effects of food and potions last, Rapid regen too. Lingering makes it 125%; being wet takes 20% off. Bad effects keep their own length.',   // 0.832
   'visibility reduction': 'How much weaker everything that clouds or shakes your sight is: fog, a sandstorm, murky water, heatstroke\'s blur, nausea\'s sway and the jolt of a hit. Clear Eyes gives 30%.',   // 0.8291

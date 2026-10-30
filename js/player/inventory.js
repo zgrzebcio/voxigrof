@@ -82,8 +82,13 @@ const carrySlot = (src, n) => {
    line up on screen and a quick-move lands where you expect. */
 const INV_COLS = 8, INV_ROWS = 4;
 const HOTBAR_SLOTS = INV_COLS;                 // 8
-// ...and up to 2 more a worn belt opens (hotbarLen, player/equipment.js): every hotbar array holds HOTBAR_MAX
-const HOTBAR_MAX = HOTBAR_SLOTS + 2;
+/* ...and up to 2 more a worn belt opens in survival, while creative's bar is always 12 wide (keys 1-9, 0, - and =;
+   hotbarLen, player/equipment.js): every hotbar array holds HOTBAR_MAX */
+const HOTBAR_BELT_MAX = HOTBAR_SLOTS + 2;
+const HOTBAR_MAX = HOTBAR_SLOTS + 4;
+// each slot's key, as drawn on it (ui/hud.js), and the key codes that pick it (17-input.js)
+const HOTBAR_KEY_LABELS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
+const HOTBAR_KEY_CODES = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal'];
 const INV_SLOTS = INV_COLS * INV_ROWS;         // 32
 const INV2_SLOTS = INV_SLOTS;                  // second grid matches (creative palette overflows it)
 
@@ -118,10 +123,10 @@ const CREATIVE_ORDER = [
   B.CRYSTAL_TORCH, B.TORCH_UNLIT,                                                                // 0.834
   B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.YELLOW_MUSHROOM, B.LAVA_MUSHROOM,   // 0.8091; yellow 0.822
   ...woodBlocks('sapling'),
-  B.SHORT_GRASS, B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT,   // dry grass and bush 0.84
+  B.SHORT_GRASS, B.TALLGRASS, B.DRY_GRASS, B.DRY_BUSH, B.POPPY, B.ORCHID, B.PINCUSHION, B.WHEAT, B.CARROT,   // dry grass and bush 0.84
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
-  B.FLINT_ROCK, B.STONE_PEBBLE, B.SEASHELL,   // stone pebble 0.8095
-  B.GLOW_VINE, B.COBWEB,
+  B.FLINT_ROCK, B.STONE_PEBBLE, B.SEASHELL, B.CLAM,   // stone pebble 0.8095
+  B.GLOW_VINE, B.VINE, B.COBWEB,
 ];
 function _defaultCreativeInventory() {
   const rank = new Map();
@@ -130,7 +135,7 @@ function _defaultCreativeInventory() {
   // blocks in palette order, then a few useful items (infinite water bucket) appended
   const sorted = PLACEABLE.filter(id => isObtainable(id) && !PROPS[id].noCreative)   // not the grilled mushrooms
                           .sort((a, b) => rankOf(a) - rankOf(b))
-                          .concat([ITEM.WATER_BUCKET, ITEM.LAVA_BUCKET, ITEM.BUILD_WAND, ITEM.BREAK_WAND, ITEM.FIRE]);   // the wands 0.8371 / 0.8374; fire 0.845
+                          .concat([ITEM.WATER_BUCKET, ITEM.LAVA_BUCKET, ITEM.BUILD_WAND, ITEM.BREAK_WAND, ITEM.WRENCH, ITEM.FIRE]);   // the wands 0.8371 / 0.8374; fire 0.845; the wrench
   /* The hotbar starts EMPTY. Creative used to deal the first eight blocks into it, which
      meant every session opened holding grass, dirt and stone whether or not that was what you
      wanted — and the palette read as if it began at slot nine. The whole palette lives in the
@@ -153,8 +158,10 @@ function _defaultCreativeInventory() {
    quietly bin whatever sat in the slots that no longer exist. Instead everything is poured into
    one list and dealt back out, so the items survive even though their positions shift once. */
 function migrateStash(hot, inv, inv2) {
-  // a stash already in today's shape keeps every slot where it was (a hotbar of 8 from before the belt's slots is padded)
-  if (Array.isArray(hot) && (hot.length === HOTBAR_SLOTS || hot.length === HOTBAR_MAX) && Array.isArray(inv) && inv.length === INV_SLOTS
+  // a stash already in today's shape keeps every slot where it was (a hotbar of 8 from before the belt's slots, or of 10 from
+  // before creative's 12, is padded)
+  if (Array.isArray(hot) && (hot.length === HOTBAR_SLOTS || hot.length === HOTBAR_BELT_MAX || hot.length === HOTBAR_MAX)
+      && Array.isArray(inv) && inv.length === INV_SLOTS
       && (inv2 == null || (Array.isArray(inv2) && inv2.length === INV2_SLOTS)))
     return { hot: _validArr(hot, HOTBAR_MAX), inv: _validArr(inv, INV_SLOTS), inv2: _validArr(inv2, INV2_SLOTS) };
   const all = [];
@@ -232,3 +239,57 @@ const saveHotbar = () => { if (currentInvMode === 'survival') survStash.hot = HO
 const saveInv    = () => { if (currentInvMode === 'survival') { survStash.inv = invSlots; survStash.inv2 = invSlots2; } };
 const saveAll = () => { saveHotbar(); saveInv(); if (typeof saveEquip === 'function') saveEquip(); };
 var hotbarSel = 0;
+
+/* ---- the middle button: the block aimed at into the hand (17-input.js) ----
+   In the hotbar already: that slot is picked. Else, in creative, a full stack of it goes into an empty hotbar slot, or
+   the held one; in survival the stack of it you carry (the inventory, then the backpack) is moved there, an empty slot
+   first, else changing places with the held one, and you carry none: nothing. A look that is a block of its own picks
+   the block it is a look of (variantBaseOf), a plate lying in another block's cell the plate.
+   `copy` (Ctrl held): only a block already in the hotbar, picked, and what it places as set to the aimed block's own:
+   its look or option on the variant bar (survival: with the chisel worn, variantOptions) and its chisel shape (with the
+   hammer, chiselEquipped); creative needs neither. */
+function pickBlock(copy) {
+  if (!playing || invOpen || player.dead || (typeof hotbarLocked === 'function' && hotbarLocked())) return false;
+  const hit = typeof currentRay === 'function' ? currentRay() : null;
+  if (!hit) return false;
+  const v = hit.over ? overValAt(hit.x, hit.y, hit.z, hit.bi) : getBlock(hit.x, hit.y, hit.z);
+  const vid = CORE.slabMixed(v) ? hit.id & 255 : v & 255;       // a mixed slab: the half aimed at
+  const id = variantBaseOf(vid) ?? vid;
+  if (!PROPS[id] || !PLACEABLE.includes(id)) return false;
+  const n = hotbarLen();
+  let at = HOTBAR.slice(0, n).findIndex(s => s && s.id === id);
+  if (at < 0) {
+    if (copy) return false;
+    const empty = HOTBAR.slice(0, n).findIndex(s => !s);
+    at = empty >= 0 ? empty : hotbarSel;
+    if (player.canFly) HOTBAR[at] = mkSlot(id, stackSize(id));
+    else {
+      const from = [invSlots, invSlots2].map(g => [g, g.slice(0, gridLen(g)).findIndex(s => s && s.id === id)]).find(([, k]) => k >= 0);
+      if (!from) return false;                                   // none carried
+      const [g, k] = from;
+      [g[k], HOTBAR[at]] = [HOTBAR[at], g[k]];                   // into the empty slot, or the held stack back in its place
+      saveInv();
+    }
+  }
+  hotbarSel = at;
+  if (copy) _pickCopy(id, vid, v);
+  saveHotbar(); buildHotbar(); updateHotbar();
+  if (typeof flashBlockName === 'function') flashBlockName();
+  return true;
+}
+// the variant bar's pick and the chisel's shape from a block value (pickBlock with Ctrl)
+function _pickCopy(id, vid, v) {
+  const o = typeof variantOptions === 'function' ? variantOptions(id) : null;
+  if (o) {
+    const look = lookOf(v), mask = o.reduce((m, x) => m | (x.bits || 0), 0), bits = ((v >> 8) & 255) & mask;
+    const same = (x) => x.id === vid && (x.look || 0) === look;
+    let k = o.findIndex(x => same(x) && ((x.bits || 0) & mask) === bits);
+    if (k < 0) k = o.findIndex(same);
+    if (k >= 0) _variantPicks()[id] = k;
+  }
+  if (typeof chiselEquipped === 'function' && chiselEquipped()) {
+    const fam = CORE.slabMixed(v) ? 'slab' : CORE.shapeOfVal(v), rot = (v >> 8) & CORE.ROT_MASK;
+    const key = !fam ? 'block' : fam === 'slab' ? (rot >= 2 && !CORE.slabMixed(v) ? 'vslab' : 'slab') : fam === 'layer' ? 'carpet' : fam;
+    if (key === 'block' || _chiselShape(key).key === key) player.chiselShape = key;
+  }
+}

@@ -12,6 +12,8 @@ corePart('voxel', function () {
           CAVE_DIRT_AT, CAVE_YELLOW_BUSH, ICE_FROM_WATER, CANE_STEPS, CANE_JOIN_LEFT, B, V, SIDE_FACE,
           furnaceRockOf, benchWoodOf, furnaceTile, benchTile, PROPS, LOG_W_MIN, LOG_W_MAX, LOG_W_BLOCK,
           LOG_W_NORMAL, logWidthPx, logWidthOf, LOG_BEVEL, logCutBox, LOG_CUT_COLL, SLAB_HALF, WALL_T, WALL_VAR,
+          LOG_W_QUAD, isQuadW, QUAD_LEVELS, LOG_W_QUAD_MIN, QUAD_WIDTHS, quadOf, quadLevel, quadW, quadExtent, COCOA_BITS,
+          LOG_CUT_SHIFT, LOG_CUT_MAX, QUAD_CUT_UNITS, logCutOf, quadReach,
           CLUSTER_DIRS, CLUSTER_LAYOUTS, _clusterLayout, CLUSTER_UP, _clusterTurn, CLUSTER_BOXES, CLUSTER_HIT,
           CLUSTER_BED_SHIFT, CLUSTER_BEDS, CLUSTER_BED_OF, MORTAR_VOX, MORTAR_S, MORTAR_C, MORTAR_FACES,
           MORTAR_BOXES, SHROOM_SHAPE, _shroom, SHROOM_WHERE, _anyShroom, _grilled, _SHROOM_STD, _SHROOM_WHITE,
@@ -29,7 +31,16 @@ corePart('voxel', function () {
           FENCE_POST_COLL, FENCE_ARM, FENCE_DIAG, FENCE_ARM_COLL, FENCE_DIAG_COLL, FENCE_DIRS, _fenceArm,
           _joinSpec, FENCE_SPEC, WALL_SPEC, joinBoxesAt, COVER_BOX, opaqueVal, SHAPE_DIM, lightDim, shapeBoxesAt,
           HOLLOW_FILLS, HOLLOW_WALLS, HOLLOW_CORE_UP, HOLLOW_CORE_LYING, HOLLOW_SWAP, HOLLOW_INNER, _hollowOnAxis,
-          _hollowParts, _hollowBoxes, hollowParts, hollowBoxes } = BLOCKS;
+          _hollowParts, _hollowBoxes, hollowParts, hollowBoxes, CLAM_BITS, SHAPE_PLATE, PLATE_PRESSED, PLATE_BURIED, PLATE_BOX, PLATE_STEP_RECTS, plateOverBoxes,
+          COVER_T, COVER_THIN, COVER_MIN_AREA, _COVER_E, COVER_AXIS, COVER_UV, coverHostBoxes, _coverFree, _coverSide, coverOverBoxes,
+          doorFillBoxes, isDoorVal,
+          SHAPE_SIGN, SIGN_STAND, SIGN_WALL, SIGN_HANG, SIGN_FRONT, SIGN_MID_Y, _SIGN_AUTHORED, SIGN_BOX,
+          WALL_BACK, WALL_BACK_PX, SHAPE_GATE, GATE_AXIS_Z, GATE_OPEN, GATE_SWING_POS, GATE_WALL,
+          JOIN_MANUAL, JOIN_ARMS_SHIFT, STAIR_FORCE_SHIFT, FENCE_POST_TALL, joinsAs, WALL_FACE, _wallBack,
+          JOIN_BACK, isJoinFamily, joinTakes, autoJoins, _joinCell, joinLinks, RAIL_EPS,
+          gateFamily, DIAG_RAILS, _cornerOut, joinDiagsAt, wallShift, joinPickBoxes,
+          joinSlopesAt, slopeBoxesOf, GATE_RAILS, GATE_FOOT, GATE_TOP, _gatePanel, gateBoxes,
+          RAIL_LIFT, railHostOk, railLift, railOverBoxes } = BLOCKS;
   /* The climate colour: grass and water blend smoothly toward their warm or cold look by a value per
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */

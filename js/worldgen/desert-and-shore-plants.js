@@ -97,7 +97,15 @@ corePart('gen.chunk', function () {
         const isBeach = (top === B.SAND || top === B.RED_SAND || top === B.PINK_SAND || top === B.GRAVEL);
         /* The old chance per cell (beach 0.85%, bank 0.25%) x 1.3, spread over a seed and about 5.6 more cells round it
            (8 neighbours x 70%), so the seed chance is that over 6.6. A fifth more since 0.8356 (x 1.2). */
-        const s = (isBeach ? 0.85 : 0.25) * 0.01 * 1.3 * 1.2 / 6.6;
+        // rev 44: CANE_HOT_MUL times as often by the Jungle, a desert or the Savanna (this column or one within 2 of it)
+        let hot = false;
+        if (REV44)
+          for (let dz = -2; dz <= 2 && !hot; dz++)
+            for (let dx = -2; dx <= 2; dx++) {
+              const g = gi + dx + dz * 20;
+              if (JNG[g] || DES[g] || RED[g] || SAV[g]) { hot = true; break; }
+            }
+        const s = (isBeach ? 0.85 : 0.25) * 0.01 * 1.3 * 1.2 / 6.6 * (hot ? CANE_HOT_MUL : 1);
         const wx = cx * 16 + x, wz = cz * 16 + z;
         let grow = caneSeed(wx, wz, s);
         if (!grow && hash3(wx * 7 + 919, 4343, wz * 5 - 717) < 0.7)
@@ -127,6 +135,40 @@ corePart('gen.chunk', function () {
             for (let dx = -SHELL_REACH; dx <= SHELL_REACH; dx++)
               if (WW[(x + WM + dx) + (z + WM + dz) * WG] === 1) { sea = true; break; }
           if (sea) data[idx(x, h + 1, z)] = B.SEASHELL;
+        }
+      })();
+
+      /* ---- clams (rev 38): on the floor of a warm sea (the wet grid's ocean, warm past a fifth), CLAM_TOP and under, in beds
+         a slow noise draws. Each stands in the water (WATERLOGGED), turned any way; a fifth hold sand, where a pearl may grow,
+         and one in a thousand a pearl already (blocks/clam.js). Rev 39: CLAM_APART between any two; a place the hashes pick
+         (clamSlot) keeps its clam only if no other place they pick within that is ranked higher (clamRank). Both are hashes and
+         noise of the place alone, so a chunk and its neighbour agree. ---- */
+      if (REV38) (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+        const { HAS_SHIFT, SAND, PEARL } = CLAM_BITS;
+        const clamSlot = (wx, wz) => {
+          const r = hash3(wx * 13 + 7171, 7373, wz * 11 - 7575);
+          if (r >= CLAM_CH) return false;
+          const bed = smooth01(fbm(wx * CLAM_BED_F + 1919.1, wz * CLAM_BED_F - 2727.3, 2), 0.05, 0.35);
+          return r < CLAM_CH * bed;
+        };
+        const clamRank = (wx, wz) => hash3(wx * 3 + 1231, 4561, wz * 5 - 7891);
+        const outranked = (wx, wz) => {
+          const me = clamRank(wx, wz), R = CLAM_APART - 1;
+          for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++)
+            if ((dx || dz) && dx * dx + dz * dz < CLAM_APART * CLAM_APART && clamSlot(wx + dx, wz + dz) && clamRank(wx + dx, wz + dz) > me) return true;
+          return false;
+        };
+        for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) {
+          const gi = (x + 2) + (z + 2) * 20, h = H[gi];
+          if (h + 1 > CLAM_TOP || WLV[gi] !== WATER_LEVEL || WARM[gi] <= 0.2 || WW[(x + WM) + (z + WM) * WG] !== 1) continue;
+          const wx = cx * 16 + x, wz = cz * 16 + z;
+          if (!clamSlot(wx, wz) || (REV39 && outranked(wx, wz))) continue;
+          const floor = data[idx(x, h, z)], cell = data[idx(x, h + 1, z)];
+          if (!PROPS[floor & 255] || !PROPS[floor & 255].opaque || cell !== B.WATER) continue;   // still water on a whole block
+          const r = hash3(wx * 7 - 8181, 8383, wz * 5 + 8585);
+          const has = r < 0.001 ? PEARL : r < 0.201 ? SAND : 0;
+          const facing = (hash3(wx + 9191, 9393, wz - 9595) * 4) | 0;
+          data[idx(x, h + 1, z)] = (B.CLAM | ((facing | (has << HAS_SHIFT)) << 8) | WATERLOGGED) >>> 0;
         }
       })();
 

@@ -141,6 +141,10 @@ function applyCameraView(dt) {
     }
     // a worn backpack, riding on the torso so it leans with a sneak (41-backpack.js)
     if (typeof poseBodyBack === 'function') poseBodyBack(_selfModel, backpackItemId());
+    // a live fish held out in both hands (player/fish-hold.js), an otter round the neck (entities/otter.js)
+    if (typeof poseHeldFishOnBody === 'function') poseHeldFishOnBody(_selfModel, player);
+    if (typeof poseOtterScarf === 'function') poseOtterScarf(_selfModel, player, dt);
+    if (typeof poseMeerkatShoulder === 'function') poseMeerkatShoulder(_selfModel, player, dt);   // a meerkat on the shoulder (entities/meerkat.js)
     // arms tucked in at the sides while asleep, rather than hanging as if standing
     if (lie > 0.01) {
       _selfModel.armR.rotation.x *= (1 - lie); _selfModel.armL.rotation.x *= (1 - lie);

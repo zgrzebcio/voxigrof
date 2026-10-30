@@ -34,6 +34,9 @@ const LOOT = {
   // plants
   berry:       [[1, 1], [1, 0.75], [1, 0.35]],            // a ripe bush picked
   wheat:       [[1, 1], [1, 0.4]],
+  carrot:      [[1, 1]],                                  // a ripe carrot: one; only Lucky Hands adds a second
+  cocoaBeans:  [[1, 1], [1, 0.5]],                        // a ripe cocoa pod: one bean, half the time a second (woods/cocoa.js)...
+  cocoaFat:    [[1, 0.25]],                               // ...and a quarter of the time a lump of fat
   melon:       [[2, 1], [1, 0.7], [1, 0.5], [1, 0.3], [1, 0.15]],
   salt:        [[1, 0.7], [1, 0.1]],                          // salt crust: 70% one, 10% a second
   fiberCarpet: [[1, 0.85], [1, 0.1625]],                      // a fiber carpet layer: 85% one fiber, 16% a second (25% more 0.827; +10 points each 0.8441)
@@ -55,8 +58,10 @@ const LOOT = {
   fat:         [[1, 0.4], [1, 0.15]],
   bearLeather: [[1, 1], [1, 0.6], [1, 0.3], [1, 0.05]],              // a polar bear's thick hide, 1-3
   bearFat:     [[1, 1], [1, 0.8], [1, 0.5], [1, 0.2]],    // ...and all that fat, 1-4
+  bearFur:     [[1, 0.9], [1, 0.3]],                      // ...and its fur, 90% one and 30% a second (Butcher adds)
   houndFire:   [[1, 1], [1, 0.33], [1, 0.33]],            // a hellhound: fire, 1-3
   fireKill:    [[1, 1]],                                  // what a hound killed, or a player killed with fire, leaves: 1 fire
+  otterFur:    [[1, 0.4], [1, 0.05]],                     // an otter: fur, 40% one and 5% a second
   woolString:  [[1, 0.7], [1, 0.2]],                      // a woolly sheep killed
   shearWool:   [[1, 1], [1, 0.6], [1, 0.25]],             // shearing
   // monsters
@@ -87,7 +92,7 @@ const BLOCK_DROP = {
   [B.STONE]: B.COBBLE,
 };
 const FLOWER_BLOCKS = new Set([B.POPPY, B.ORCHID, B.PINCUSHION]);   // 0.826
-const GRAVEL_FLINT_CHANCE = 0.05;          // a gravel block, and since 0.799 a gravel layer too (22-main-loop.js)
+const GRAVEL_FLINT_CHANCE = 0.1;           // a gravel block, and a gravel layer dug off (blocks/layer-drops.js)
 const GOURD_FIBER_CHANCE = 0.5;            // a melon or pumpkin also gives a fiber (40% until 0.8441)
 const ORE_LOOT = {
   [B.IRON_ORE]: [ITEM.RAW_IRON, 'iron'], [B.GOLD_ORE]: [ITEM.RAW_GOLD, 'gold'],
@@ -98,8 +103,16 @@ const ORE_LOOT = {
 const _drop = (id, n) => (n > 0 ? [{ id, count: n }] : []);
 
 /* Returns [{id, count}, ...] (empty array = no drops). isNatural = the leaf decayed on its own. Takes an id or a cell's VALUE:
-   a value with a look (polished stone, blocks/looks.js) gives its block back whole, whatever the block itself drops. */
+   a value with a look (polished stone, blocks/looks.js) gives its block back whole, whatever the block itself drops; a
+   value that took a second thing to place (a mossy look's vine, a chest's planks: paidNeedOf, blocks/variants.js) gives
+   that back too. */
 function blockDrop(blockVal, isNatural = false) {
+  const out = _blockDropOwn(blockVal, isNatural);
+  const back = typeof paidNeedOf === 'function' ? paidNeedOf(blockVal) : null;
+  if (back != null) out.push({ id: back, count: 1 });
+  return out;
+}
+function _blockDropOwn(blockVal, isNatural) {
   const blockId = blockVal & 255;
   // worked snow and ice, every look of them too: a shovel gets snowballs from snow brick as from snow; ice brick gives nothing, as ice
   if (blockId === B.SNOW_BRICKS) return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
@@ -112,6 +125,9 @@ function blockDrop(blockVal, isNatural = false) {
   if (blockId === B.SEASHELL) return [{ id: ITEM.SEASHELL, count: 1 }];
   // a coconut: whole when ripe, nothing while it is green (its stage, variant bits 0-2: woods/coconuts.js)
   if (blockId === B.COCONUT) return ((blockVal >> 8) & 7) >= PROPS[B.COCONUT].ripeStage ? [{ id: ITEM.COCONUT, count: 1 }] : [];
+  // a cocoa pod: beans and now and then fat when ripe, nothing while it is green (its stage: COCOA_BITS, woods/cocoa.js)
+  if (blockId === B.COCOA)
+    return cocoaRipe(blockVal) ? [..._drop(ITEM.COCOA_BEANS, rollLoot(LOOT.cocoaBeans)), ..._drop(ITEM.FAT, rollLoot(LOOT.cocoaFat))] : [];
   if (blockId === B.SALT_CRUST) return _drop(ITEM.SALT, rollLoot(LOOT.salt));      // 0.8097
   if (blockId === B.ASH) return [{ id: ITEM.ASHES, count: 4 }];                    // a whole block of ash
   if (blockId === B.FIRE) return [];
@@ -175,6 +191,8 @@ function blockDrop(blockVal, isNatural = false) {
     return out;
   }
   if (blockId === B.WHEAT) return _drop(ITEM.WHEAT, rollLoot(LOOT.wheat));
+  // a carrot: one when ripe (variant 0), nothing while it grows
+  if (blockId === B.CARROT) return ((blockVal >> 8) & 7) ? [] : _drop(ITEM.CARROT, rollLoot(LOOT.carrot));
   // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
   if (blockId === B.SHORT_GRASS || blockId === B.TALLGRASS || blockId === B.TALL_LOWER || blockId === B.TALL_UPPER ||
       isBerryBush(blockId)) return [];

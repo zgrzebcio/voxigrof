@@ -6,6 +6,13 @@
 const fallingBlocks = new Map();   // "x,y,z" -> full block VALUE (id + variant)
 // a cell a falling block drops into: empty, or a billboard it simply crushes on the way through
 const _fallOpen = (id) => id === B.AIR || PROPS[id]?.model === 'cross';
+/* ...and, to a WHOLE falling block (sand, gravel, a hay bale), an open door's cell with nobody in it: it falls past the panel
+   and rests in the doorway (DOOR_FILL, blocks/doors.js). A full pile of sand or gravel (8 layers of one block: what a sand
+   block that once fell lies as) counts as the whole block there; a lesser pile does not go in. */
+const _fullPile = (v) => CORE.layerCount(v) === LAYER_MAX && !CORE.layerMixed(v) && LOOSE_LAYER_BLOCKS.has(v & 255);
+const _fallsWhole = (v) => (!CORE.layerCount(v) && CORE.opaqueVal(v)) || _fullPile(v);
+const _asWhole = (v) => _fullPile(v) ? ((v & 255) | (lookOf(v) << 16)) >>> 0 : v;
+const _fallOpenFor = (x, y, z, v) => _fallOpen(getBlock(x, y, z) & 255) || (_fallsWhole(v) && doorTakesFall(x, y, z));
 // Carpets fall too — snow and leaf litter both need ground under them, and digging out that
 // ground used to leave a sheet of snow hanging in the air. Since 0.785 that is any stack of layers you
 // wade through (snow, leaves, sand, gravel, fiber); solid layers (stone, planks, ...) stay put. By VALUE.
@@ -25,7 +32,7 @@ function scheduleFall(x, y, z) {
   // billboards don't hold up a falling block — they get crushed, so they count as empty here
   // ...and a stack resting on a stack that takes it is queued too: processFalling pours it in
   const below = getBlock(x, y - 1, z);
-  if (!_fallOpen(below & 255) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
+  if (!_fallOpenFor(x, y - 1, z, val) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
   fallingBlocks.set(`${x},${y},${z}`, val);        // keep the variant: carpets carry layer count
 }
 /* 0.8444. Gravity blocks only ever fell when something beside them was edited, so sand or gravel the world made over a
@@ -85,10 +92,10 @@ function _litEdits(cells, fn) {
     if (a.glow) relight(a.x0, a.y0, a.z0, a.x1, a.y1, a.z1);
   }
 }
-// where a block dropped from (x, y, z) comes to rest: the lowest open cell it can reach
-function _landingY(x, y, z) {
+// where a block (val) dropped from (x, y, z) comes to rest: the lowest open cell it can reach
+function _landingY(x, y, z, val) {
   let c = y;
-  while (c > 1 && _fallOpen(getBlock(x, c - 1, z) & 255)) c--;
+  while (c > 1 && _fallOpenFor(x, c - 1, z, val)) c--;
   return c;
 }
 /* A whole sand, gravel or fiber block lands as a loose pile of 8 walk-through layers, pouring into a stack below
@@ -107,8 +114,10 @@ function _landBlocks(list) {
   _litEdits(list, () => {
     for (const [x, y0, z, val] of list) {
       let y = y0;
-      for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpen(getBlock(x, y, z) & 255); k++) y++;   // something moved into the spot
+      for (let k = 0; k < 4 && y < WORLD_TOP && !_fallOpenFor(x, y, z, val); k++) y++;   // something moved into the spot
       if ((val & 255) === B.COCONUT && typeof coconutLanded === 'function') { coconutLanded(x, y, z, val); continue; }   // it cracks open (woods/coconuts.js)
+      // in a doorway it rests whole beside the door (blocks/doors.js)
+      if (_fallsWhole(val) && doorTakesFall(x, y, z)) { doorFillLand(x, y, z, val); continue; }
       if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
         if (!player.canFly) for (const d of blockDrop(val)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
         continue;
@@ -135,7 +144,7 @@ function _spawnFallBlock(x, y, z, val) {
 function dropBlockFrom(x, y, z, val) {
   setBlock(x, y, z, B.AIR);
   const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
-  if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) _landBlocks([[x, _landingY(x, y, z), z, val]]);
+  if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) _landBlocks([[x, _landingY(x, y, z, val), z, val]]);
 }
 /* A FALLING BLOCK HURTS whoever it comes down on, players and creatures: FALL_HURT_PER a block it has fallen past the
    first, up to FALL_HURT_MAX, times its PROPS `fallHurt` (1 when not given; a coconut 0.5, the hay bale 0), in VITAL_K
@@ -178,7 +187,7 @@ function _updateFallBlocks(dt) {
     // the first whole cell it reaches this frame that has no room under it is where it stops
     let land = null;
     for (let c = Math.floor(f.y); c >= Math.ceil(ny); c--)
-      if (c <= 1 || !_fallOpen(getBlock(f.x, c - 1, f.z) & 255)) { land = c; break; }
+      if (c <= 1 || !_fallOpenFor(f.x, c - 1, f.z, f.val)) { land = c; break; }
     _fallBlockHits(f, land == null ? ny : land);           // anyone it comes down on
     if (land == null) { f.y = ny; f.group.position.y = ny + 0.5; continue; }
     landed.push([f.x, Math.max(1, land), f.z, f.val]);
@@ -206,16 +215,19 @@ function processFalling(dt) {
     if (!inSimRange(x, z)) continue;              // frozen out of range — keep it queued
     if (getBlock(x, y, z) !== val) { fallingBlocks.delete(k); continue; }        // stale
     const below = getBlock(x, y - 1, z);
-    if (!_fallOpen(below & 255)) {                // landed
+    if (!_fallOpenFor(x, y - 1, z, val)) {        // landed
       fallingBlocks.delete(k);
+      if (BLOCKS.isDoorVal(below)) continue;      // on a door shut again (or one filled): it stays a whole block, not a pile
       /* ...a falling stack pours down into a stack below that takes it, and a whole sand, gravel
          or fiber block lands as a loose pile of 8 walk-through layers, pouring in the same way */
       if (CORE.layerCount(val) ? canStackLayer(below, val & 255) : LOOSE_LAYER_BLOCKS.has(val)) settle.push([x, y, z, val]);
       continue;
     }
     fallingBlocks.delete(k);
+    // a full pile over an open door (no air under it, only the doorway) drops in as its block, whole
+    if (_fullPile(val) && !_fallOpen(below & 255)) starts.push([x, y, z, _asWhole(val)]);
     // a see-through stack steps down a cell; a whole block takes to the air
-    if (CORE.layerCount(val) || !CORE.opaqueVal(val)) todo.push([x, y, z, val]);
+    else if (CORE.layerCount(val) || !CORE.opaqueVal(val)) todo.push([x, y, z, val]);
     else starts.push([x, y, z, val]);
   }
   for (const [x, y, z, val] of todo) {
@@ -233,7 +245,7 @@ function processFalling(dt) {
       for (const [x, y, z, val] of starts) {
         setBlock(x, y, z, B.AIR);
         const seen = typeof _fxNear !== 'function' || _fxNear(x + 0.5, y + 0.5, z + 0.5);
-        if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) now.push([x, _landingY(x, y, z), z, val]);
+        if (!(seen && FALL_BLOCKS.length < FALL_BLOCKS_MAX && _spawnFallBlock(x, y, z, val))) now.push([x, _landingY(x, y, z, val), z, val]);
         _fallWakeBeside(x, y, z);                // its neighbours may hang over the same hole
       }
     });

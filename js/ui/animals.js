@@ -1,6 +1,7 @@
 'use strict';
-/* ui/animals.js: animals on screen. The name over the one you look at, the prompt under the crosshair, the taming
-   bar, the riding panel, and the naming window. */
+/* ui/animals.js: animals on screen. The name over the one you look at, the prompt under the crosshair, your tamed
+   animals' names seen from far, the mark over one you are taming, the taming bar, the riding panel, and the naming
+   window. */
 
 // the entity this player is looking at, within label reach and in plain sight, or null
 function _hoverEntity() {
@@ -23,8 +24,8 @@ function entitySubText(ent) {
   if (ent.kind === 'cow' && ent.gender === 'F') return ent.milkCd > 0 ? `milk in ${_mmss(ent.milkCd)}` : 'milk is ready';
   if (ent.kind === 'sheep') return ent.woolly ? 'wool is ready' : `growing wool (${_mmss(ent.woolLeft || 0)})`;
   if (ent.kind === 'horse' && ent.tame && ent.stance && ent.stance !== 'wander') return ent.stance;   // what it was told
-  if (ent.kind === 'hellhound' && typeof houndSubText === 'function') return houndSubText(ent);   // its taming, or behaviour and stance
-  return '';
+  const sub = mobOf(ent).subText;                // its own (the creature table): a hound's taming, an otter's stance
+  return sub ? sub(ent) : '';
 }
 const entityHeadText = (ent) =>
   `${ent.gender ? ent.gender + ' ' : ''}${ent.name}${entitySizeText(ent)}${ent.level != null ? ' ' + ent.level + ' lvl' : ''}`;
@@ -50,6 +51,7 @@ function _entTagTexture(head, sub) {
 }
 function updateEntityHoverTag() {
   const ent = _hoverEntity();
+  player._hoverEnt = ent;               // its pet tag gives way to this one (petTagsFor)
   let s = player._hoverTag;
   if (!ent) { if (s) s.visible = false; return; }
   if (!s) {
@@ -75,7 +77,7 @@ function updateEntityHoverTag() {
 function tameablePrompt() {
   if (!playing || menuScene || invOpen || player.riding) return null;
   const ent = pickEntity(ENT_INTERACT_REACH);    // crosshair reach: close range only
-  if (ent && ent.kind === 'hellhound' && typeof houndPrompt === 'function') return houndPrompt(ent);   // 0.845, entities/hellhound.js
+  if (ent && mobOf(ent).prompt) return mobOf(ent).prompt(ent);   // its own lines (the creature table): the hellhound, the otter
   const tp = tameProps(ent);
   if (!tp) return null;
   const head = entityHead(ent);
@@ -88,6 +90,117 @@ function tameablePrompt() {
     sub = `(use to climb on${pct ? ` · tamed ${pct}%` : ''})`;
   } else sub = `(tamable with ${ITEM_PROPS[tp.food[0]].name})`;
   return `${head}<br><span style="opacity:.8;font-size:.9em">${sub}</span>`;
+}
+
+/* ---------------------------------- somebody's animals, from far ----------------------------------
+   PET TAGS. A tamed animal's name hangs over it as a player's does (the plate, seen through the world, held legible at range
+   by the same rule as _scaleNameTagFor), but only in its owner's view, so a lost horse, hound or otter can be found from
+   afar. One with no owner on record (a horse tamed before owners were kept) shows to every player. It gives way while
+   the animal is the one under the crosshair (the hover tag says its name then). Kept once a frame (updatePetTags,
+   22-main-loop.js), shown per view (petTagsFor, 36-splitscreen.js). */
+const PET_TAGS = new Map();             // the animal -> its sprite
+const PET_TAG_LIFT = 0.45;              // over its head
+// which animals have a tag is worked out every LIST_PASS_S (a walk over every creature); where each tag is, every frame
+const _petWant = new Set();
+let _petPassT = 0;
+function updatePetTags(dt) {
+  if ((_petPassT -= dt) <= 0 || (!playing && _petWant.size)) {
+    _petPassT = LIST_PASS_S;
+    _petWant.clear();
+    if (!menuScene && playing) for (const e of ENTITIES) if (e.tame && e.hp > 0 && e.model.root.parent) _petWant.add(e);
+  }
+  for (const [e, s] of PET_TAGS)
+    if (!_petWant.has(e) || !(e.hp > 0) || !e.model.root.parent) { scene.remove(s); s.material.map?.dispose(); s.material.dispose(); PET_TAGS.delete(e); _petWant.delete(e); }
+  for (const e of _petWant) {
+    let s = PET_TAGS.get(e);
+    if (!s) {
+      s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+      s.renderOrder = 10;               // after the world, so it reads on top like a player's tag
+      s.layers.set(1);                  // the no-shadow layer the name tags use
+      scene.add(s);
+      PET_TAGS.set(e, s);
+    }
+    if (s.userData.name !== e.name) {
+      const { tex, aspect } = _nameTagTexture(e.name);
+      s.material.map?.dispose(); s.material.map = tex; s.material.needsUpdate = true;
+      s.userData.name = e.name; s.userData.baseW = NAME_TAG_H * aspect; s.userData.baseH = NAME_TAG_H;
+    }
+    const r = e.model.root.position;    // where it is drawn, between its ticks
+    s.position.set(r.x, r.y + entH(e) + PET_TAG_LIFT, r.z);
+  }
+}
+/* every tag taken down: a world left for the title screen or another world (quitToMenu, loadWorld). updatePetTags only
+   runs while a world does, so without this the last world's tags hung over the title screen and the next world's loading */
+function clearPetTags() {
+  for (const s of PET_TAGS.values()) { scene.remove(s); s.material.map?.dispose(); s.material.dispose(); }
+  PET_TAGS.clear();
+  _petWant.clear();
+}
+// one view's pass (renderAllViews): the tags of `p`'s own animals, held legible at range for this eye; the rest hidden
+function petTagsFor(p, cam) {
+  const world = !menuScene && !!currentWorld && !worldJoining();
+  for (const [e, s] of PET_TAGS) {
+    const owner = e.ownerId == null && !e.owner ? p : houndOwner(e);
+    s.visible = world && owner === p && p._hoverEnt !== e && !p.dead;
+    if (!s.visible) continue;
+    const k = Math.min(NAME_TAG_MAX_K, Math.max(1, cam.position.distanceTo(s.position) / NAME_TAG_FULL_D));
+    s.scale.set(s.userData.baseW * k, s.userData.baseH * k, 1);
+  }
+}
+/* TAMING MARKS. While this player is taming a hellhound or an otter (its `taming`), a mark over it on their own screen,
+   placed as the death mark is (at the edge of the view, on the side to turn to, when it is off screen or behind): its
+   name, sex and level, how far the taming is, how far away it is. Per seat, from tickPlayer, in the seat's pane. */
+const TAME_MARK_EDGE = 28;
+const _tmV = new THREE.Vector3();
+function syncTamingMarks() {
+  const st = typeof PSTATE !== 'undefined' ? PSTATE[activePlayerSlot()] : null;
+  if (!st || !st.pane) return;
+  let box = st.pane._tameMarks;
+  if (!box) {
+    box = document.createElement('div');
+    box.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:3';
+    st.pane.appendChild(box);
+    st.pane._tameMarks = box;
+  }
+  const p = player, list = [];
+  const show = !menuScene && playing && p.spawned && !p.dead && !!currentWorld;
+  if (show) for (const e of ENTITIES) if (e.taming && e.hp > 0 && houndOwner(e) === p) list.push(e);
+  const boxShown = show ? '' : 'none';                  // setHudVisible hides the box itself on the title screen
+  if (box.style.display !== boxShown) box.style.display = boxShown;
+  while (box.children.length < list.length) {
+    const c = document.createElement('div');
+    c.style.cssText = 'position:absolute;display:none;transform:translate(-50%,-50%);color:#eaffe0;white-space:nowrap;' +
+      'font:600 13px system-ui,sans-serif;text-shadow:0 1px 3px #000;background:rgba(20,60,20,.5);' +
+      'border:1px solid rgba(160,235,140,.75);border-radius:6px;padding:2px 7px';
+    box.appendChild(c);
+  }
+  const W = st.pane.clientWidth, H = st.pane.clientHeight;
+  if (list.length) camera.updateMatrixWorld();
+  for (let i = 0; i < box.children.length; i++) {
+    const c = box.children[i], e = list[i];
+    if (!e || !W || !H) { if (c.style.display !== 'none') c.style.display = 'none'; continue; }
+    const r = e.model.root.position, d = Math.hypot(r.x - p.pos.x, r.y - p.pos.y, r.z - p.pos.z);
+    _tmV.set(r.x, r.y + entH(e) + 0.6, r.z).applyMatrix4(camera.matrixWorldInverse);
+    const behind = _tmV.z > 0;
+    _tmV.applyMatrix4(camera.projectionMatrix);
+    let sx = _tmV.x, sy = _tmV.y;
+    if (behind) { sx = -sx; sy = -sy; }
+    let x = (sx * 0.5 + 0.5) * W, y = (0.5 - sy * 0.5) * H;
+    const hx = W / 2 - TAME_MARK_EDGE, hy = H / 2 - TAME_MARK_EDGE, dx = x - W / 2, dy = y - H / 2;
+    if (behind || Math.abs(dx) > hx || Math.abs(dy) > hy) {
+      const k = Math.min(hx / Math.max(1e-6, Math.abs(dx)), hy / Math.max(1e-6, Math.abs(dy)));
+      x = W / 2 + dx * k; y = H / 2 + dy * k;
+    }
+    const sub = mobOf(e).subText ? mobOf(e).subText(e) : 'taming';
+    // what it is: its sex and level, as the naming dialog and the ride panel give them
+    const sex = e.gender === 'F' ? ' ♀' : e.gender === 'M' ? ' ♂' : '';
+    const lvl = e.level != null ? ` · ${e.level} lvl` : '';
+    const txt = `🐾 ${e.name}${sex}${lvl} · ${sub} · ${Math.round(d)} m`;
+    if (c._txt !== txt) { c._txt = txt; c.textContent = txt; }
+    c.style.display = 'block';
+    c.style.left = x.toFixed(1) + 'px';
+    c.style.top = y.toFixed(1) + 'px';
+  }
 }
 
 /* ---------------------------------- the taming bar ----------------------------------

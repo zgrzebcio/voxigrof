@@ -28,8 +28,8 @@ corePart('biomes', function () {
   }
   // the names every biome-keyed list should treat alike (entity spawns, structures, mushrooms): the base name
   // ...and a forest's or the plains' hills count as that forest or plain
-  // ...but the Deep Desert is its own: no desert village there, and the pyramid will be; the Deep Red one too
-  const biomeBase = (name) => String(name || '').replace(/^Deep (?!(Red )?Desert$)/, '').replace(/^(Warm|Cold) /, '').replace(/^((?:Birch |Spruce )?Forest|Plains) Hills$/, '$1');
+  // ...but the Deep Desert is its own: no desert village there; the Deep Red one too, and its Flat (the great pyramid's)
+  const biomeBase = (name) => String(name || '').replace(/^Deep (?!(Red )?Desert( Flat)?$)/, '').replace(/^(Warm|Cold) /, '').replace(/^((?:Birch |Spruce )?Forest|Plains|Jungle) Hills$/, '$1');
   return { makeBiomes, biomeBase, CLIMATE_LADDER, DRY_PALE };
 });
 

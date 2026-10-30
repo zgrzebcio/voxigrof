@@ -1,18 +1,20 @@
 'use strict';
-/* seasons/growth.js: things that grow. Wheat by stage, mushrooms (and their autumn), sugar cane. */
+/* seasons/growth.js: things that grow. The crops (wheat, carrots) by stage, mushrooms (and their autumn), sugar cane. */
 
-/* ---- wheat growth: variants 1..6 are stages 0..5, 0 is ripe (its art is wheat_stage6 since 0.8273; 1..7 before). Same adoption sweep and pause
-   outside the simulation radius as the berry bushes (woods/felling.js), each stage on its own clock. ---- */
-const wheatGrow = new Map();
-const WHEAT_STAGE_LIFE = 0.35, WHEAT_STAGE_JITTER = 0.3;    // in-game days per stage
+/* ---- crop growth: CROP_BLOCKS (wheat, carrots), variants 1..6 are stages 0..5, 0 is ripe (wheat's art is wheat_stage6 since
+   0.8273; 1..7 before). Same adoption sweep and pause outside the simulation radius as the berry bushes (woods/felling.js),
+   each stage on its own clock. ---- */
+const CROP_BLOCKS = new Set([B.WHEAT, B.CARROT]);
+const cropGrow = new CellClocks();                            // "x,y,z" -> seconds to its next stage (chunks/chunks.js)
+const WHEAT_STAGE_LIFE = 0.35, WHEAT_STAGE_JITTER = 0.3;    // in-game days per stage, for every crop
 const _wheatLife = () => (WHEAT_STAGE_LIFE + Math.random() * WHEAT_STAGE_JITTER) * _dayLen();
 let _wheatTimer = 0, _wheatSweep = 0;
-// a ripe wheat picked (harvestAtPlayer in player/foraging.js): the plant stays, cut back to its first stage, and grows again
-function wheatRegrow(x, y, z) {
-  setBlock(x, y, z, B.WHEAT | (1 << 8));
-  wheatGrow.set(x + ',' + y + ',' + z, _wheatLife());
+// a ripe crop picked (harvestAtPlayer in player/foraging.js): the plant stays, cut back to its first stage, and grows again
+function cropRegrow(x, y, z, id) {
+  setBlock(x, y, z, id | (1 << 8));
+  cropGrow.set(x + ',' + y + ',' + z, _wheatLife());
 }
-function updateWheatGrow(dt) {
+function updateCropGrow(dt) {
   _wheatSweep += dt;
   if (_wheatSweep >= 5) {
     _wheatSweep = 0;
@@ -21,7 +23,7 @@ function updateWheatGrow(dt) {
       const x = Math.floor(sp.pos.x) + (Math.random() * 48 | 0) - 24, z = Math.floor(sp.pos.z) + (Math.random() * 48 | 0) - 24;
       const y = Math.floor(sp.pos.y) + (Math.random() * 12 | 0) - 6;
       const v = getBlock(x, y, z);
-      if ((v & 255) === B.WHEAT && ((v >> 8) & 7)) { const k = x + ',' + y + ',' + z; if (!wheatGrow.has(k)) wheatGrow.set(k, _wheatLife()); }
+      if (CROP_BLOCKS.has(v & 255) && ((v >> 8) & 7)) { const k = x + ',' + y + ',' + z; if (!cropGrow.has(k)) cropGrow.set(k, _wheatLife()); }
     }
   }
   _wheatTimer += dt;
@@ -29,17 +31,15 @@ function updateWheatGrow(dt) {
   const step = _wheatTimer * (typeof tickFactor === 'function' ? tickFactor() : 1) * seasonGrowth();
   _wheatTimer = 0;
   if (!step) return;                                            // winter: nothing grows
-  for (const [k, t] of wheatGrow) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;
-    const v = getBlock(x, y, z), st = (v >> 8) & 7;
-    if ((v & 255) !== B.WHEAT || !st) { wheatGrow.delete(k); continue; }
+  cropGrow.forEachInSim((k, t, x, y, z) => {
+    const v = getBlock(x, y, z), st = (v >> 8) & 7, id = v & 255;
+    if (!CROP_BLOCKS.has(id) || !st) { cropGrow.delete(k); return; }
     const left = t - step;
-    if (left > 0) { wheatGrow.set(k, left); continue; }
+    if (left > 0) { cropGrow.set(k, left); return; }
     const next = st >= 6 ? 0 : st + 1;                           // past stage 5 it is ripe (6 until 0.8273)
-    setBlock(x, y, z, B.WHEAT | (next << 8));
-    if (next) wheatGrow.set(k, _wheatLife()); else wheatGrow.delete(k);
-  }
+    setBlock(x, y, z, id | (next << 8));
+    if (next) cropGrow.set(k, _wheatLife()); else cropGrow.delete(k);
+  });
 }
 /* ---- mushrooms grow ----
    A mushroom's variant: bits 0-2 the size it grows to (1..7 = 0.5x..1.5x; 0 = one from the world generator or from
@@ -79,7 +79,7 @@ function shroomSizeAt(x, y, z, vr) {
   }
   return size * Math.max(0.12, 1 - shroomLeft(vr) / SHROOM_STEPS);
 }
-const shroomGrow = new Map();       // "x,y,z" -> seconds to its next step (growing) or until it goes (grown)
+const shroomGrow = new CellClocks();   // "x,y,z" -> seconds to its next step (growing) or until it goes (grown)
 const _shroomStepS = () => SHROOM_GROW_S / SHROOM_STEPS;
 // a new mushroom, just come up: a random full size, all its growing ahead of it
 function sproutShroom(x, y, z, id) {
@@ -171,24 +171,22 @@ function updateShroomGrow(dt) {
   const step = _shroomTickT * (typeof tickFactor === 'function' ? tickFactor() : 1);
   _shroomTickT = 0;
   const day = !(typeof isDarkTime === 'function' && isDarkTime());
-  for (const [k, t] of shroomGrow) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;                              // its clock waits while nobody is near
+  shroomGrow.forEachInSim((k, t, x, y, z) => {                  // its clock waits while nobody is near
     const v = getBlock(x, y, z), id = v & 255;
-    if (!SHROOM_WILD.has(id)) { shroomGrow.delete(k); continue; }
+    if (!SHROOM_WILD.has(id)) { shroomGrow.delete(k); return; }
     const vr = (v >> 8) & 255, left = shroomLeft(vr);
     if (left) {
-      if (!day) continue;                                         // growing waits for morning
-      if (t - step > 0) { shroomGrow.set(k, t - step); continue; }
+      if (!day) return;                                           // growing waits for morning
+      if (t - step > 0) { shroomGrow.set(k, t - step); return; }
       setBlock(x, y, z, id | (((vr & 7) | ((left - 1) << 3)) << 8));
       shroomGrow.set(k, left > 1 ? _shroomStepS() : SHROOM_LIFE_S);
-      continue;
+      return;
     }
-    if (getSkyWorld(x, y, z) === 0) { shroomGrow.delete(k); continue; }   // grown in the dark: it stays
-    if (t - step > 0) { shroomGrow.set(k, t - step); continue; }
+    if (getSkyWorld(x, y, z) === 0) { shroomGrow.delete(k); return; }   // grown in the dark: it stays
+    if (t - step > 0) { shroomGrow.set(k, t - step); return; }
     setBlock(x, y, z, B.AIR);                                     // its time is up
     shroomGrow.delete(k);
-  }
+  });
 }
 /* ---- sugar cane grows ----
    A cane's variant bits 0-2 are the steps it still has to grow (CANE_STEPS a sprout .. 0 grown; the mesher draws stage
@@ -197,7 +195,7 @@ function updateShroomGrow(dt) {
    scan) and by planting (player/placing.js); its clock waits outside the simulation radius, and in winter. */
 const CANE_MAX_H = 5;
 const CANE_STEP_LIFE = 0.15, CANE_STEP_JITTER = 0.1;   // in-game days a step: a new block about every 20 minutes
-const caneGrow = new Map();
+const caneGrow = new CellClocks();                            // "x,y,z" -> seconds to its next step (chunks/chunks.js)
 const _caneLife = () => (CANE_STEP_LIFE + Math.random() * CANE_STEP_JITTER) * _dayLen();
 function queueCaneGrow(x, y, z) { caneGrow.set(x + ',' + y + ',' + z, _caneLife()); }
 // can this grown cane put a shoot on top: the column's top, under CANE_MAX_H, air above, water beside its foot
@@ -222,22 +220,20 @@ function updateCaneGrow(dt) {
   const step = _caneTickT * (typeof tickFactor === 'function' ? tickFactor() : 1) * seasonGrowth();
   _caneTickT = 0;
   if (!step) return;                                             // winter: nothing grows
-  for (const [k, t] of caneGrow) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;
+  caneGrow.forEachInSim((k, t, x, y, z) => {
     const v = getBlock(x, y, z);
-    if ((v & 255) !== B.SUGAR_CANE) { caneGrow.delete(k); continue; }
-    if (t - step > 0) { caneGrow.set(k, t - step); continue; }
+    if ((v & 255) !== B.SUGAR_CANE) { caneGrow.delete(k); return; }
+    if (t - step > 0) { caneGrow.set(k, t - step); return; }
     const left = (v >> 8) & 7;
     if (left) {                                                  // a stage on
       setBlock(x, y, z, B.SUGAR_CANE | ((((v >> 8) & ~7) | (left - 1)) << 8));
       if (left > 1 || _caneCanRise(x, y, z)) caneGrow.set(k, _caneLife()); else caneGrow.delete(k);
-      continue;
+      return;
     }
     caneGrow.delete(k);
     if (_caneCanRise(x, y, z)) {                                 // grown: a new shoot on top, past the seedling
       setBlock(x, y + 1, z, B.SUGAR_CANE | ((CANE_STEPS - 1) << 8));
       queueCaneGrow(x, y + 1, z);
     }
-  }
+  });
 }

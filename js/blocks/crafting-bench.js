@@ -15,8 +15,12 @@ PROPS.forEach((p, id) => { if (p && p.mortar) STATION_MODE[id] = 'mortar'; });  
 const isStation = (id) => STATION_MODE[id & 255] != null;
 /* A station needs its top clear: any block or plant standing on a bench or a mortar stops it —
    it will not open, its order cannot be worked or taken, and one open in front of you closes the moment
-   something is put (or falls) on it. */
-const stationCovered = (x, y, z) => (getBlock(x, y + 1, z) & 255) !== B.AIR;
+   something is put (or falls) on it. A torch stood on it does not; a cover lying over it in its own cell does (a mortar's,
+   the top of a furnace's chimney: blocks/covers.js). */
+const stationCovered = (x, y, z) => {
+  const up = getBlock(x, y + 1, z) & 255;
+  return (up !== B.AIR && !PROPS[up]?.torch) || !!coverAt(x, y, z, 1);
+};
 const STATION_COVERED_MSG = 'Clear the top of it first';
 function openBench(x, y, z, mode = 'advanced') {
   if (stationCovered(x, y, z)) { feedWarn(STATION_COVERED_MSG); return; }
@@ -75,7 +79,7 @@ function recipeRank(r) {
   }
   const p = ITEM_PROPS[id];
   if (!p) return 60;
-  if (p.packSlots || p.beltSlots || p.shield || p.chisel) return 5;   // backpack, belt, shield, hammer: carried gear
+  if (p.packSlots || p.beltSlots || p.hotbarSlots || p.shield || p.chisel) return 5;   // backpack, belt, shield, hammer: carried gear
   if (p.ranged) return 10;                                            // the bow tops the tools
   if (p.tool) {
     const mat = Object.keys(_RANK_TOOL_MAT).find(m => p.icon && p.icon.startsWith(m));
@@ -339,7 +343,10 @@ function _animatePestle(key, b) {
 /* The order tag over a bench or mortar shows through walls, but only to someone within BENCH_TAG_NEAR of it;
    farther off it is hidden. */
 const BENCH_TAG_NEAR = 8;
-function updateBenchDisplays() {
+let _benchNearT = 0;
+function updateBenchDisplays(dt) {
+  const near = (_benchNearT -= dt) <= 0;                 // who is near a tag: every LIST_PASS_S
+  if (near) _benchNearT = LIST_PASS_S;
   for (const [key, b] of BENCHES) {
     if (!_benchHasOrder(b)) { _benchClear(key); continue; }
     _animatePestle(key, b);                              // only a mortar being worked does anything
@@ -359,6 +366,7 @@ function updateBenchDisplays() {
       continue;
     }
     if (b.dirty) { b.dirty = false; _drawBenchTag(b); b.sprite.material.map.needsUpdate = true; }
+    if (!near) continue;
     const sp = b.sprite.position;
     b.sprite.visible = PLAYERS.some(p => p.spawned && !p.dead && Math.hypot(p.pos.x - sp.x, p.pos.y + 1 - sp.y, p.pos.z - sp.z) < BENCH_TAG_NEAR);
   }

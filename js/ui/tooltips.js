@@ -24,6 +24,13 @@ function _blockFormsHTML(id) {
   // the default leads the list: its own name where it has one (a furnace's stone), else "default"
   if (vars && vars.length)
     html += list('Variants', [(typeof VARIANT_DEFAULT_NAME !== 'undefined' && VARIANT_DEFAULT_NAME[id]) || 'default', ...vars.map(v => v.name)]);
+  // what placing it takes beside itself, by variant (WHAT A PICK TAKES, blocks/variants.js)
+  if (typeof VARIANT_DEFAULT_NEED !== 'undefined') {
+    const dn = VARIANT_DEFAULT_NEED[id], needs = [];
+    if (dn != null) needs.push(`${(VARIANT_DEFAULT_NAME[id] || 'default')}: 1 ${PROPS[dn].name.toLowerCase()}`);
+    for (const v of vars || []) if (v.need != null) needs.push(`${v.name}: 1 ${PROPS[v.need].name.toLowerCase()}`);
+    if (needs.length) html += list('Placing takes', needs);
+  }
   const shapes = PROPS[typeof heldBlockOf === 'function' ? heldBlockOf(id) : id]?.shapes;
   if (shapes && typeof CHISEL_SHAPES !== 'undefined') {
     const names = CHISEL_SHAPES.filter(s => !s.soon && shapes[CHISEL_BLOCK_SHAPE[s.key]]).map(s => s.name.toLowerCase());
@@ -58,9 +65,10 @@ function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's
     if (p.shield) conds.push(['raise', 'Slows you down, cannot sprint', 'bad']);
     conds.push(['worn', p.packSlots ? `+${p.packSlots} backpack slots`
                       : p.beltSlots ? `+${p.beltSlots} belt slots`
+                      : p.hotbarSlots ? `+${p.hotbarSlots} hotbar slots`                                          // the belt
                       : p.chisel ? (p.equip === 'necklace' ? 'In the Neck slot: hold R to pick a block variant'   // the chisel
                                                            : 'Hold Q (hold B on a gamepad) to pick a block shape') : 'No effect',   // 0.78
-                (p.packSlots || p.beltSlots || p.chisel) ? '' : 'none']);
+                (p.packSlots || p.beltSlots || p.hotbarSlots || p.chisel) ? '' : 'none']);
   }
   if (p.ammo) conds.push(['hit', 'No effect', 'none']);
   if (p.foodClearEffects) conds.push(['drink', 'Removes all active effects', '']);   // milk
@@ -134,8 +142,10 @@ function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's
     if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull * og)]);
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
     // what else it fills (0.82, FOOD_NUTRITION in player/stats.js)
-    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein'], ['energy', 'energy']])   // energy 0.832
+    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein'], ['energy', 'energy'], ['stamina', 'stamina']]) {   // energy 0.832
       if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst
+      if (p[k + 'Full'] != null) rows.push([label + ' when full', '+' + _tipNum(p[k + 'Full'])]);   // a carrot's vegetables, a coconut's water
+    }
     if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);
     // what is handed back once it is eaten or drunk, and how often (foodReturnChance)
@@ -179,14 +189,18 @@ function itemDisplayName(id, dur) {
   // a block shows its picked variant, "Stone (brick)"
   return (id < 256 && typeof variantNameOf === 'function' ? variantNameOf(id) : p.name) || '';
 }
-// place the panel near the cursor but always fully on screen
+/* place the panel near the cursor but always fully on screen. Called every frame while something is under the cursor:
+   its words are written only when they change, and it is measured (a layout of the page) only then or when it was
+   hidden; the rest of the time only its place moves, and only when it does. */
 function showTooltip(html) {
-  ctipEl.innerHTML = html;
-  ctipEl.style.display = 'block';
-  const r = ctipEl.getBoundingClientRect();
+  if (ctipEl._html !== html) { ctipEl.innerHTML = html; ctipEl._html = html; ctipEl._size = null; }
+  if (ctipEl.style.display !== 'block') { ctipEl.style.display = 'block'; ctipEl._size = null; }
+  if (!ctipEl._size) { const r = ctipEl.getBoundingClientRect(); ctipEl._size = [r.width, r.height]; }
+  const [w, h] = ctipEl._size;
   let x = invCursor.x + 16, y = invCursor.y + 18;
-  if (x + r.width > window.innerWidth - 6) x = invCursor.x - r.width - 12;
-  if (y + r.height > window.innerHeight - 6) y = invCursor.y - r.height - 12;
-  ctipEl.style.left = Math.max(6, x) + 'px';
-  ctipEl.style.top = Math.max(6, y) + 'px';
+  if (x + w > window.innerWidth - 6) x = invCursor.x - w - 12;
+  if (y + h > window.innerHeight - 6) y = invCursor.y - h - 12;
+  const left = Math.max(6, x) + 'px', top = Math.max(6, y) + 'px';
+  if (ctipEl.style.left !== left) ctipEl.style.left = left;
+  if (ctipEl.style.top !== top) ctipEl.style.top = top;
 }

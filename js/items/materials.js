@@ -69,8 +69,12 @@ defineItems('materials', {
   [ITEM.SALT]: { name: 'Salt', stack: 50, icon: 'salt_dust', desc: 'Scraped from salt crust' },   // 0.8097
   [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 50, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
   [ITEM.SEASHELL]:     { name: 'Seashell', stack: 79, icon: 'seashell', desc: 'Found on the sea\'s beaches' },
+  [ITEM.PEARL]:        { name: 'Pearl', stack: 79, icon: 'pearl', desc: 'Grown from sand in a clam on a warm sea floor' },
+  [ITEM.FUR]:          { name: 'Fur', stack: 79, icon: 'fur', desc: 'Soft, thick fur, from otters and polar bears. Lines bronze armor' },
   // five rotten flesh pressed into one, which a bench works into leather (player/crafting.js)
   [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 50, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },
   // rendered off a pig. Not food — it is fuel and a crafting ingredient, so it never spoils
   [ITEM.FAT]:           { name: 'Fat',            stack: 79, icon: 'fat',           desc: 'Burns well for 1.5 smelt. Used as crafting ingredient' },
+  [ITEM.COCOA_BEANS]:   { name: 'Cocoa beans',    stack: 79, icon: 'cocoa_beans',   desc: 'From a ripe cocoa pod on a jungle trunk. Five grind into cocoa powder at the mortar' },
+  [ITEM.COCOA_POWDER]:  { name: 'Cocoa powder',   stack: 79, icon: 'cocoa_powder',  desc: 'Ground from cocoa beans at the mortar. Used as crafting ingredient' },
 });

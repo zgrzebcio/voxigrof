@@ -41,8 +41,9 @@ corePart('blocks', function () {
   PROPS[B.SULFUR_UP_TIP]   = { name:'Sulfur tip', solid:false, opaque:false, raycast:true, pass:1, model:'cross', stack:50, hardness:0.6, type:'stone', boxes:[[0.2,0,0.2,0.8,0.8,0.8]], faces:[T.SULFUR_UP_TIP], desc: '' };
   // TNT: full cube. Variant byte's low bit (0/1) is the "lit" blink flag — mesher swaps faces to
   // the snow (white) tile when set, so a ticking TNT visibly pulses. hardness 0.5 for a quick pre-arm
-  // break; a separate map (TNTS in blocks/tnt.js) protects blocks with an active fuse.
-  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.5, type:'tnt', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: 'Light it with fire, a torch or flint' };
+  // break; a separate map (TNTS in blocks/tnt.js) protects blocks with an active fuse. Put down it sounds of cloth
+  // (`placeSound`, read by playBlockSound in 32-sound.js); its own sound is heard when it is lit (armTNT).
+  PROPS[B.TNT] = { name:'TNT', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.5, type:'tnt', placeSound:'wool', faces:[T.TNT_SIDE,T.TNT_SIDE,T.TNT_TOP,T.TNT_BOTTOM,T.TNT_SIDE,T.TNT_SIDE], desc: 'Light it with fire, a torch or flint' };
   // Obsidian: dark blast/lava-quench block. Very hard, pickaxe required (see MINE_REQ / TOOL_BLOCKS).
   PROPS[B.OBSIDIAN] = { name:'Obsidian', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:30, type:'stone', faces:[T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN,T.OBSIDIAN], desc: '' };
   // Saplings — placed on grass, grow into a tree after 7..14 in-game days (tracked in SAPLINGS map)

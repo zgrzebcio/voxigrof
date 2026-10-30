@@ -13,6 +13,7 @@ rawMouseSel.value = rawMouse ? 'on' : 'off';   // 0.8443
 if (wrongToolSel) wrongToolSel.value = wrongToolHint ? 'on' : 'off';
 if (arachnoSel) arachnoSel.value = arachnophobia ? 'on' : 'off';
 shadowSel.value = String(shadowR);
+if (shadowQSel) shadowQSel.value = shadowQ;
 // render scale (06-renderer): applied the moment it is picked
 const scaleSel = document.getElementById('scaleSel');
 scaleSel.value = String(renderScale);
@@ -27,6 +28,30 @@ const texSel = document.getElementById('texSel');
 texSel.value = (() => { try { return localStorage.getItem(TEX_Q_KEY) || 'auto'; } catch { return 'auto'; } })();
 texSel.options[0].textContent = 'auto (' + (detectLowTextures() ? 'low' : 'high') + ')';
 texSel.addEventListener('change', () => applyTexQuality(texSel.value));
+// clouds fancy, fast or off (52-clouds.js) and how many workers make land (10-workers.js): applied the moment they are picked
+const cloudsSel = document.getElementById('cloudsSel');
+cloudsSel.value = cloudsSetting;
+cloudsSel.addEventListener('change', () => applyClouds(cloudsSel.value));
+const threadsSel = document.getElementById('threadsSel');
+threadsSel.value = threadsSetting;
+threadsSel.options[0].textContent = 'auto (' + workers.length + ')';
+threadsSel.addEventListener('change', () => applyThreads(threadsSel.value));
+/* POWER SAVER: the cheap end of the settings that cost the most, in one click: 30 frames a second, the render distance 8
+   and the simulation distance 3 (only ever lowered), particles fewer, shadows off, clouds fast, background threads 2. The
+   form shows them at once and they are applied as the menu's closing applies them (applySettings); each can be changed
+   again after, it is not a mode. */
+function applyPowerSaver() {
+  fpsSel.value = '30';
+  distInput.value = Math.min(+distInput.value || viewDist, 8);
+  simInput.value = Math.min(+simInput.value || simRadius, 3);
+  shadowSel.value = '0';
+  const fx = document.getElementById('fxSel');
+  for (const [el, v] of [[fx, 'fewer'], [cloudsSel, 'fast'], [threadsSel, '2']])
+    if (el && el.value !== v) { el.value = v; el.dispatchEvent(new Event('change')); }   // each applies on its own change
+  applySettings();
+  toast('power saver: 30 fps, shorter distances, fewer particles, no shadows, fast clouds, 2 threads');
+}
+document.getElementById('powerSaverBtn').addEventListener('click', (e) => { e.stopPropagation(); applyPowerSaver(); });
 splitDirSel.value = splitDir;
 applyShadowDist();
 player.canFly = modeSel.value !== 'survival';
@@ -50,7 +75,15 @@ for (const k of Object.keys(localStorage))
 localStorage.removeItem('vg_hotbar_survival');
 localStorage.removeItem('vg_inv_survival');
 setInterval(() => { if (currentWorld && playing) saveWorld(); }, 60000);   // autosave every 1m
-window.addEventListener('beforeunload', () => { if (currentWorld) saveWorld(true); });
+/* Closing or reloading the page: the world is written at once to its closing-time copy (saveWorld(true): IndexedDB may not
+   finish), and if it had changed since its last save the browser asks first whether to leave (its own dialog: a page
+   cannot put its own words in it). */
+window.addEventListener('beforeunload', (e) => {
+  if (!currentWorld) return;
+  const unsaved = worldUnsaved();
+  saveWorld(true);
+  if (unsaved) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // measure the display refresh rate — rAF is vsync-bound, so fps caps above it can't add
 // frames; surface that in the menu and in the HUD's "FPS x / max" readout. Use the SHORTEST

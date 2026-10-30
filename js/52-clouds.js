@@ -163,9 +163,28 @@ function _cloudTex(url) {
 const CLOUD_ALPHA = 0.92;                   // clouds let 8% of what is behind them through
 const CLOUD_EDGE_A = '0.14';                // a cloud's outermost cells are this share as opaque (a GLSL number)
 const CLOUD_HITS = 6;                       // cloud cells a ray may look through before it stops
+/* CLOUDS (Options > Video, saved as `vg_clouds`): 'fancy' walks a ray up to CLOUD_STEPS cells and looks through
+   CLOUD_HITS of them; 'fast' CLOUD_Q.fast's, so the far clouds thin out sooner for less of the graphics card's work;
+   'off' draws no layer and no cloud shade on the land (updateClouds). A world made without clouds has none
+   whatever this says. The numbers go to the shader as defines: a change rebuilds it (applyClouds). */
+const CLOUD_Q = { fancy: { steps: CLOUD_STEPS, hits: CLOUD_HITS }, fast: { steps: 64, hits: 2 } };
+let cloudsSetting = (() => { try { const v = localStorage.getItem('vg_clouds'); return v === 'fast' || v === 'off' ? v : 'fancy'; } catch { return 'fancy'; } })();
+const _cloudQ = () => CLOUD_Q[cloudsSetting] || CLOUD_Q.fancy;
+function applyClouds(v) {
+  if (v !== 'fancy' && v !== 'fast' && v !== 'off') return;
+  if (v === cloudsSetting) return;
+  cloudsSetting = v;
+  try { localStorage.setItem('vg_clouds', v); } catch {}
+  const q = _cloudQ();
+  if (cloudMat.defines.CLOUD_STEPS_N !== q.steps || cloudMat.defines.CLOUD_HITS_N !== q.hits) {
+    cloudMat.defines.CLOUD_STEPS_N = q.steps; cloudMat.defines.CLOUD_HITS_N = q.hits;
+    cloudMat.needsUpdate = true;
+  }
+}
 const cloudMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3,
   side: THREE.BackSide,
+  defines: { CLOUD_STEPS_N: _cloudQ().steps, CLOUD_HITS_N: _cloudQ().hits },
   transparent: true,                        // a touch see-through (CLOUD_ALPHA); it still writes its depth
   uniforms: {
     ...sharedUniforms,                      // shared by reference: fog, day light and the cloud state stay live
@@ -238,7 +257,7 @@ const cloudMat = new THREE.ShaderMaterial({
       vec4 acc = vec4(0.0);
       float tHit = -1.0;
       int hits = 0;
-      for (int i = 0; i < ${CLOUD_STEPS}; i++) {
+      for (int i = 0; i < CLOUD_STEPS_N; i++) {
         if (cell.xz != lastC) {
           lastC = cell.xz;
           wx = cloudWx(cell.xz + 0.5 + uCloudOff);
@@ -262,7 +281,7 @@ const cloudMat = new THREE.ShaderMaterial({
           if (tHit < 0.0) tHit = t;
           float a = ca * (1.0 - acc.a);
           acc += vec4(cloudCellCol(o, rd, t, face, wx.y, far) * a, a);
-          if (acc.a > 0.96 || ++hits >= ${CLOUD_HITS}) break;
+          if (acc.a > 0.96 || ++hits >= CLOUD_HITS_N) break;
         }
         if (!filled) skip = false;
         if (tMax.x < tMax.y && tMax.x < tMax.z) { t = tMax.x; tMax.x += inv.x; cell.x += st.x; face = 0; }
@@ -300,8 +319,8 @@ scene.add(cloudMesh);
 function updateClouds(dt) {
   const p = typeof PLAYERS !== 'undefined' && PLAYERS[0] ? PLAYERS[0] : (typeof player !== 'undefined' ? player : null);
   if (!p || !p.pos) return;
-  // a world made without clouds: no layer and no shadows from it
-  const none = typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.clouds === false && !menuScene;
+  // a world made without clouds, or clouds off in Options: no layer and no shadows from it
+  const none = cloudsSetting === 'off' || (typeof currentWorld !== 'undefined' && !!currentWorld && currentWorld.clouds === false && !menuScene);
   cloudMesh.visible = !none && _cloudTexReady === 2;
   if (none) { sharedUniforms.uCloudOn.value = 0; return; }
   _cloudWxT += dt;
@@ -330,6 +349,7 @@ scene.fog = new THREE.Fog(0xffffff, 1e6, 1e7);   // three's own materials follow
    it. Round each eye it thickens over SAND_FOG_EASE_S (most of the way in 30-60 s) down to SAND_FOG_FAR blocks of
    sight; under a roof or in a cave it thins to SAND_FOG_ROOF_FAR, so the room is clear but the storm outside is not. */
 const SAND_FOG_FAR = 3.5, SAND_FOG_ROOF_FAR = 18, SAND_FOG_EASE_S = 15, SAND_FOG_CLEAR_S = 8;
+const CURSE_FOG_FAR = 4;                       // the Dead Pharaoh's curse: sight this far (applyMist)
 const _sandYellow = new THREE.Color(0.86, 0.71, 0.45), _sandRed = new THREE.Color(0.74, 0.4, 0.22), _sandCol = new THREE.Color();
 function _sandAround(st, cam, now, dts) {
   if (st.sandT == null || now - st.sandT > 500) {      // sampled twice a second
@@ -369,6 +389,11 @@ function applyMist(cam) {
   st.dense += (m.dense - st.dense) * k; st.light += (m.light - st.light) * k; st.bow += (m.bow - st.bow) * k;
   _sandAround(st, cam, now, dts);
   _precipAround(st, cam, now, dts);                       // 0.83
+  /* the Dead Pharaoh's curse (`sandBlind`, entities/pharaoh.js) on the player behind this eye: a whirl of sand a few blocks
+     round them, roof or none, there within a second and gone as fast */
+  const blind = typeof playerHasEffect === 'function' && playerHasEffect('sandBlind') ? 1 : 0;
+  st.curse = (st.curse || 0) + (blind - (st.curse || 0)) * (1 - Math.exp(-dts / 0.6));
+  if (st.curse < 0.003) st.curse = 0;
   // above the cloud layer the air is clear, whatever the weather below
   // ...and Clear Eyes takes 30% off fog and sand alike (player/skills.js)
   const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // vegetable sickness too
@@ -382,9 +407,11 @@ function applyMist(cam) {
   far += (Math.min(far, RAIN_FOG_FAR) - far) * rain;                                                     // 0.83
   far += (Math.min(far, SNOW_FOG_FAR) - far) * snow;
   far += (Math.min(far, BLIZZARD_FOG_FAR + (BLIZZARD_ROOF_FAR - BLIZZARD_FOG_FAR) * st.sandIn) - far) * bliz;
+  const curse = st.curse;                                 // not thinned by Clear Eyes: it is a curse, not weather
+  far += (Math.min(far, CURSE_FOG_FAR) - far) * curse;
   U.fogFar.value = far;
   U.fogNear.value = far * (ratio + (0.1 - ratio) * light) * (1 - dense) * (1 - sand)   // thick fog starts at the eye
-                  * Math.max(0, 1 - 0.3 * rain - 0.4 * snow - 0.95 * bliz);
+                  * Math.max(0, 1 - 0.3 * rain - 0.4 * snow - 0.95 * bliz) * (1 - curse);
   const a = Math.max(dense, light);
   _mistCol.copy(_mistGrey).multiplyScalar(0.2 + 0.8 * _skyDayF);
   U.fogColor.value.lerp(_mistCol, a * 0.85);
@@ -392,11 +419,12 @@ function applyMist(cam) {
     _sandCol.copy(_sandYellow).lerp(_sandRed, st.sandRed || 0).multiplyScalar(0.2 + 0.8 * _skyDayF);
     U.fogColor.value.lerp(_sandCol, Math.min(1, sand * 1.15));
   }
+  if (curse > 0) U.fogColor.value.lerp(_sandCol.copy(_sandYellow).multiplyScalar(0.35 + 0.65 * _skyDayF), curse);
   if (rain > 0.01) U.fogColor.value.lerp(_wxCol.copy(_rainGrey).multiplyScalar(0.2 + 0.8 * _skyDayF), rain * 0.6);
   const white = Math.min(1, snow * 0.7 + bliz);
   if (white > 0.01) U.fogColor.value.lerp(_wxCol.copy(_snowWhite).multiplyScalar(0.18 + 0.82 * _skyDayF), white);
   U.uDirect.value *= (1 - 0.5 * a) * (1 - 0.6 * sand) * (1 - 0.35 * rain) * (1 - 0.3 * snow) * (1 - 0.85 * bliz);   // the sun comes through soft (a blizzard all but hides it)
-  const wx = 0.3 * rain + 0.4 * snow + bliz;
+  const wx = 0.3 * rain + 0.4 * snow + bliz + curse;
   skyVisibility(Math.max(0, 1 - dense - 0.6 * light - sand - wx));
   // the sky dome greys over with it, all the way in thick fog, and the sun's glow fades
   U.uSkyFog.value = Math.min(1, dense + 0.6 * light + sand + wx);

@@ -31,6 +31,10 @@ defineItems('food', {
   [ITEM.COOKED_PUMPKIN_PIE]: { name: 'Pumpkin pie', stack: 10, icon: 'cooked_pumpkin_pie', foodSatFull: 35, food: 60, foodSat: 70, eatTime: 4.8, foodHeal: 15, foodEffect: 'spicyPumpkin', spoil: 7200, desc: '' },
   [ITEM.MUSHROOM_STEW]: { name: 'Mushroom stew',  stack: 10, icon: 'mushroom_stew', foodSatFull: 25, food: 45,  foodSat: 60, eatTime: 3, foodReturn: ITEM.BOWL, foodReturnChance: 0.5, foodHeal: 5, spoil: 3600, desc: '' },
   [ITEM.BREAD]:         { name: 'Bread',          stack: 79, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
+  // five berries of any kind on a bread make two (items/recipes.js): food, or over-food when full; fruit and stamina (FOOD_NUTRITION)
+  [ITEM.JAM_SANDWICH]:  { name: 'Jam sandwich',   stack: 30, icon: 'jam_sandwich',  foodSatFull: 20, food: 25, eatTime: 2.16, spoil: 14400, desc: 'Berry jam on bread' },
+  // a carrot: a little food and a lot of vegetables (less when they are full: FOOD_NUTRITION's vegFull); a horse's best food
+  [ITEM.CARROT]:        { name: 'Carrot',         stack: 79, icon: 'carrot',        foodSatFull: 0, food: 5, eatTime: 1.1, spoil: 10800, desc: 'A horse loves it' },
   [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 20, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 10, foodEffect: 'rapidRegen', desc: '' },
   [ITEM.MUTTON]:        { name: 'Mutton',         stack: 79, icon: 'mutton',        foodSatFull: 5, food: 10,  foodSat: 15,  eatTime: 2.16, foodEffect: 'nausea', foodEffectChance: 0.5, spoil: 1800, desc: '' },
   [ITEM.COOKED_MUTTON]: { name: 'Cooked mutton',  stack: 79, icon: 'cooked_mutton', foodSatFull: 20, food: 30,  foodSat: 35,  eatTime: 2.4, spoil: 14400, desc: '' },

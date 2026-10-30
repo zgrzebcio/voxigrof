@@ -1,5 +1,5 @@
 'use strict';
-/* woods/wood-blocks.js: the blocks of the woods. Stripped logs, spruce, rime, palm and acacia (log, planks, leaves),
+/* woods/wood-blocks.js: the blocks of the woods. Stripped logs, spruce, rime, palm, acacia and jungle (log, planks, leaves),
    and the Dryland's dry leaves.
    A part of BLOCK_CORE (blocks/blocks.js): it fills PROPS for its blocks. */
 
@@ -35,6 +35,14 @@ corePart('blocks', function () {
   PROPS[B.STRIPPED_ACACIA_LOG] = { name:'Stripped acacia log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:2.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG_TOP,T.STRIPPED_ACACIA_LOG_TOP,T.STRIPPED_ACACIA_LOG,T.STRIPPED_ACACIA_LOG], desc: '' };
   PROPS[B.ACACIA_PLANKS]       = { name:'Acacia planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:Array(6).fill(T.ACACIA_PLANKS), desc: '' };
   PROPS[B.ACACIA_LEAVES]       = { name:'Acacia leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.ACACIA_LEAVES), desc: '' };
+  /* Jungle: the Jungle's trees, from a giant on a 2x2 trunk (its logs quarters of one, LOG_W_QUAD in blocks/basic.js)
+     down to bent little ones. Its sapling takes grass, as an oak's. */
+  PROPS[B.JUNGLE_SAPLING]      = { name:'Jungle sapling', solid:false, opaque:false, raycast:true, pass:1, model:'cross', topOnly:true, stack:79, hardness:0, type:'grass', boxes:[[0.25,0,0.25,0.75,0.8,0.75]], faces:[T.JUNGLE_SAPLING],
+                                   desc: 'Grows any of the jungle\'s trees, a giant too where it has room' };
+  PROPS[B.JUNGLE_LOG]          = { name:'Jungle log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:3.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.JUNGLE_LOG,T.JUNGLE_LOG,T.JUNGLE_LOG_TOP,T.JUNGLE_LOG_TOP,T.JUNGLE_LOG,T.JUNGLE_LOG], desc: 'Grows in the Jungle' };
+  PROPS[B.STRIPPED_JUNGLE_LOG] = { name:'Stripped jungle log', solid:true, opaque:false, raycast:true, pass:0, model:'log', rot:'all', stack:50, hardness:2.5, type:'wood', boxes:LOG_CUT_COLL[0], boxesByVar:LOG_CUT_COLL, faces:[T.STRIPPED_JUNGLE_LOG,T.STRIPPED_JUNGLE_LOG,T.STRIPPED_JUNGLE_LOG_TOP,T.STRIPPED_JUNGLE_LOG_TOP,T.STRIPPED_JUNGLE_LOG,T.STRIPPED_JUNGLE_LOG], desc: '' };
+  PROPS[B.JUNGLE_PLANKS]       = { name:'Jungle planks', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:3.0, type:'wood', faces:Array(6).fill(T.JUNGLE_PLANKS), desc: '' };
+  PROPS[B.JUNGLE_LEAVES]       = { name:'Jungle leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.JUNGLE_LEAVES), desc: '' };
   /* Dry leaves: the Dryland's big dry bushes, oak leaves gone pale. They stand on the ground with no wood, so they
      never decay (not leaves to 22-main-loop.js), and give sticks only (50-loottable.js). */
   PROPS[B.DRY_LEAVES]        = { name:'Dry leaves', solid:false, opaque:false, raycast:true, pass:1, model:'cube', stack:50, hardness:0.4, type:'grass', faces:Array(6).fill(T.DRY_LEAVES),

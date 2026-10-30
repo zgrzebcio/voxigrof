@@ -42,7 +42,7 @@ const ZOMBIE_PACK_MIN = 1, ZOMBIE_PACK_MAX = 1;
 const ZOMBIE_CAP = 10;                   // hard ceiling — chunk reloads must not stack up forever
 const ZOMBIE_BURN_GRACE = 0.7;           // seconds in the open before it catches
 const ZOMBIE_BURN_DPS = 9;
-const ZOMBIE_SPAWN_MIN_DIST = 24;        // never comes up in a player's sight close by
+const ZOMBIE_SPAWN_MIN_DIST = 40;        // never comes up close by a player: 2.5 chunks at least
 /* Night mobs come out this long before sunset (in days of worldTime), and daylight burns them from sunrise until
    this long before it. By the day's own sunrise and sunset since 0.818 (sunTimes, 07-sky.js): late in summer,
    early in winter. They were 0.47 and 0.45 of a fixed 06:00-18:00 day. */
@@ -90,8 +90,18 @@ function makeZombie() {
   return {
     model: buildHumanoid(_newZombieMat()),
     own: { riseT: ZOMBIE_RISE_TIME, burnT: 0, sunT: 0, dmg: ZOMBIE_DMG },
-    ready: _sinkModel,
+    ready: (e) => { _sinkModel(e); if (_zombieMummyAt(e.x, e.z)) _zombieMummify(e); },
   };
+}
+/* A zombie risen in a desert is a MUMMY: the same zombie in old linen (_newMummyMat, entities/rig.js). Its look only; it
+   is a zombie in all else. MUMMY_BIOMES: full biome names. */
+const MUMMY_BIOMES = new Set(['Desert', 'Desert Hills', 'Red Sand', 'Red Sand Hills', 'Deep Desert', 'Deep Red Desert', 'Deep Red Desert Flat']);
+const _zombieMummyAt = (x, z) => !!mainGen && MUMMY_BIOMES.has(mainGen.biomeAt(Math.floor(x), Math.floor(z)));
+function _zombieMummify(e) {
+  e.mummy = true;
+  const mat = e.model.mat;
+  mat.map = _mummyTex;
+  mat.needsUpdate = true;
 }
 
 /* What one skeleton is made of. It rises out of the ground exactly like a zombie; what differs is the loadout
@@ -118,9 +128,11 @@ function makeSkeleton() {
    a doorway, under leaves, in a cave or one block into an overhang all read as shade, which is
    what makes hiding spots meaningful. Water puts the fire out too. A short grace period stops a
    zombie flickering alight every time it crosses a one-block gap in a roof.
-   Returns true if it burned to death (the caller must remove it immediately). */
+   Returns true if it burned to death (the caller must remove it immediately). Burnt by the sun it leaves nothing and
+   pays no experience: only a monster the player (or a fire) kills drops its loot. */
 
 function _zombieBurnTick(e, dt) {
+  if (e.sunProof) return false;                // the Dead Pharaoh's mummies walk in the sun (entities/pharaoh.js)
   const hx = Math.floor(e.x), hz = Math.floor(e.z);
   const wet = isWaterVal(getBlock(hx, Math.floor(e.y + 0.4), hz));
   const lit = isBurningDaylight() && !wet && getSkyWorld(hx, Math.floor(e.y + 1.5), hz) >= 15;
@@ -133,9 +145,7 @@ function _zombieBurnTick(e, dt) {
   if (e.sunT < ZOMBIE_BURN_GRACE) return false;
   e.burnT = 0.5;
   e.hp -= ZOMBIE_BURN_DPS * dt;
-  if (e.hp > 0) return false;
-  if (!player.canFly) _entDropLoot(e);       // no XP: the sun did it, not the player
-  return true;
+  return e.hp <= 0;
 }
 
 /* Their entries in the creature table (entities/mobs.js says what each line is for). `night` is what makes them

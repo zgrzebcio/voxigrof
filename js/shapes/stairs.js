@@ -42,14 +42,17 @@ corePart('blocks', function () {
     const flipOf = v => stairVarOf(v) & 4;
     const axis   = i => i < 2 ? 0 : 1;
     let shape = 0, fside = 0;                         // shape 0 straight, 1 inner, 2 outer; fside 0=left(f) 1=right(f)
+    // a shape set by hand (the wrench: STAIR_FORCE_SHIFT, shapes/shapes.js) wins over the neighbours
+    const force = (val >>> STAIR_FORCE_SHIFT) & 7;
+    if (force >= 2 && force <= 5) { shape = force <= 3 ? 1 : 2; fside = force & 1; }
     // outer: the stair the tall side faces (M) turns perpendicular, unless it's a continuing run
-    const fd = STAIR_DIR[M], fv = g(x + fd[0], y, z + fd[1]);
-    if (isSt(fv) && flipOf(fv) === flip && axis(tallOf(fv)) !== axis(M)) {
+    const fd = STAIR_DIR[M], fv = force ? 0 : g(x + fd[0], y, z + fd[1]);
+    if (!force && isSt(fv) && flipOf(fv) === flip && axis(tallOf(fv)) !== axis(M)) {
       const t = tallOf(fv), gd = STAIR_DIR[STAIR_OPP[t]], gg = g(x + gd[0], y, z + gd[1]);
       if (!isSt(gg) || tallOf(gg) !== M || flipOf(gg) !== flip) { shape = 2; fside = t === STAIR_CCW[M] ? 1 : 0; }
     }
     // inner: the stair on the low side (opp M) turns perpendicular (outer wins if both, per MC)
-    if (!shape) {
+    if (!shape && !force) {
       const bd = STAIR_DIR[STAIR_OPP[M]], bv = g(x + bd[0], y, z + bd[1]);
       if (isSt(bv) && flipOf(bv) === flip && axis(tallOf(bv)) !== axis(M)) {
         const t = tallOf(bv), gd = STAIR_DIR[t], gg = g(x + gd[0], y, z + gd[1]);

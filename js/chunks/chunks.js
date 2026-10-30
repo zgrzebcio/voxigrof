@@ -54,6 +54,45 @@ function forEachGlowNear(x, z, r, fn) {
       for (const p of m.values()) if (fn(p[0], p[1], p[2]) === false) return;
     }
 }
+/* CELL CLOCKS: "x,y,z" -> seconds left, for the slow things that count down a cell at a time, once a second: crops and
+   berry bushes (a stage), mushrooms and sugar cane (a step), snow melting and fallen leaves rotting (a layer). The same
+   calls as a Map (set, get, has, delete, clear, size), but each cell's key is read into numbers once, and the cells are
+   kept by chunk, so the once-a-second pass (forEachInSim) visits only the chunks in the simulation range. As plain Maps
+   every pass split the key of every cell ever seen, near or far (a cell out of range keeps its clock, paused, for when a
+   player comes back, so the far ones are many). */
+class CellClocks {
+  constructor() { this.cells = new Map(); this.byChunk = new Map(); }
+  get size() { return this.cells.size; }
+  has(k) { return this.cells.has(k); }
+  get(k) { const c = this.cells.get(k); return c ? c.t : undefined; }
+  set(k, t) {
+    const c = this.cells.get(k);
+    if (c) { c.t = t; return this; }
+    const p = k.split(','), x = +p[0], y = +p[1], z = +p[2], cx = Math.floor(x / 16), cz = Math.floor(z / 16), ck = cx + ',' + cz;
+    let b = this.byChunk.get(ck);
+    if (!b) this.byChunk.set(ck, b = { ck, cx, cz, cells: new Map() });
+    const rec = { k, x, y, z, t, b };
+    b.cells.set(k, rec);
+    this.cells.set(k, rec);
+    return this;
+  }
+  delete(k) {
+    const c = this.cells.get(k);
+    if (!c) return false;
+    this.cells.delete(k);
+    c.b.cells.delete(k);
+    if (!c.b.cells.size) this.byChunk.delete(c.b.ck);
+    return true;
+  }
+  clear() { this.cells.clear(); this.byChunk.clear(); }
+  // fn(key, secondsLeft, x, y, z) for every cell of a chunk in the simulation range; fn may set and delete as it goes
+  forEachInSim(fn) {
+    for (const b of this.byChunk.values()) {
+      if (!inSimRangeChunk(b.cx, b.cz)) continue;
+      for (const c of b.cells.values()) fn(c.k, c.t, c.x, c.y, c.z);
+    }
+  }
+}
 const genQueue = [];           // {cx, cz, d2}
 const meshQueue = [];
 const meshResults = [];        // finished meshes waiting for capped main-thread upload

@@ -8,14 +8,22 @@
    broken (isTNTFuseActive is checked by both mining paths and doBreak). */
 const TNTS = new Map();                  // "x,y,z" -> { t, blinkT, lit }
 const TNT_FUSE = 3.0;
-const TNT_RADIUS = 4;
+const TNT_RADIUS = 5.2;                   // blocks (a sphere; its loops run over whole cells, Math.ceil)
 const _tntKey = (x, y, z) => x + ',' + y + ',' + z;
-function armTNT(x, y, z) { TNTS.set(_tntKey(x, y, z), { t: TNT_FUSE, blinkT: 0, lit: 0 }); }
+// lit, however it was (fire, a torch, flint, lava, a plate, a blast): its own sound, the one TNT's blocks make, at half
+// a placed block's loudness (putting one down sounds of cloth instead: its `placeSound`, blocks/ladder-mortar.js)
+const TNT_LIT_GAIN = 0.425;
+function armTNT(x, y, z) {
+  TNTS.set(_tntKey(x, y, z), { t: TNT_FUSE, blinkT: 0, lit: 0 });
+  if (typeof playSound === 'function')
+    playSound(blockSoundKey(B.TNT), { gain: TNT_LIT_GAIN, rate: 0.95 + Math.random() * 0.1, pos: { x: x + 0.5, y: y + 0.5, z: z + 0.5 } });
+}
 function isTNTFuseActive(x, y, z) { return TNTS.has(_tntKey(x, y, z)); }
 /* TNT is lit by fire, never by being put down. A right click with fire in the hand (the Fire item, used up), a burning
    torch, or flint struck on it (it may not catch, and wears the flint, as lighting a torch does: blocks/torches.js); a fire
    burning beside it (_updateFires, 53-storms.js); lava beside it, when the TNT is put down or the lava comes
-   (tntHeatAround, from place-block.js and fluids/fluids.js); and another blast (explodeAt). */
+   (tntHeatAround, from place-block.js and fluids/fluids.js); a pressure plate pressed beside it, over it or on the block over
+   it (PLATE_REACH, blocks/pressure-plates.js); and another blast (explodeAt). */
 const _TNT_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 function tryLightTNT(hit) {
   if (!hit || hit.id !== B.TNT || isTNTFuseActive(hit.x, hit.y, hit.z)) return false;
@@ -50,9 +58,10 @@ function explodeAt(cx, cy, cz, R) {
   const chained = [];
   const R2 = R * R;
   if (typeof fxExplode === 'function') fxExplode(cx + 0.5, cy + 0.5, cz + 0.5, R);   // a smoke ball and flying sparks
-  for (let dy = -R; dy <= R; dy++)
-    for (let dz = -R; dz <= R; dz++)
-      for (let dx = -R; dx <= R; dx++) {
+  const Ri = Math.ceil(R);                 // the whole cells the sphere can reach (R need not be whole)
+  for (let dy = -Ri; dy <= Ri; dy++)
+    for (let dz = -Ri; dz <= Ri; dz++)
+      for (let dx = -Ri; dx <= Ri; dx++) {
         const d2 = dx * dx + dy * dy + dz * dz;
         if (d2 > R2) continue;
         // fuzzy shell: cells near the sphere surface drop out with rising probability, so the
@@ -71,6 +80,14 @@ function explodeAt(cx, cy, cz, R) {
             for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
         }
         TNTS.delete(_tntKey(x, y, z));
+        // a pressure plate lying in the cell goes with it, not down onto the floor left (blocks/pressure-plates.js)
+        if (_plateOverN && plateOverAt(x, y, z)) breakPlateOver(x, y, z, survival && Math.random() < 0.5, true);
+        // ...and the covers lying in it (blocks/covers.js)
+        if (_coverOverN) breakCoversAt(x, y, z, () => survival && Math.random() < 0.5);
+        // ...and a block fallen into a doorway (blocks/doors.js)
+        if (_doorFillN && doorFillAt(x, y, z)) breakDoorFill(x, y, z, survival && Math.random() < 0.5, true);
+        // ...and a fence or a wall lying on its slab or stairs (blocks/rails.js)
+        if (_railOverN && railOverAt(x, y, z)) breakRail(x, y, z, survival && Math.random() < 0.5, true);
         setBlock(x, y, z, B.AIR);
         queueWaterAround(x, y, z);
         queueLavaAround(x, y, z);

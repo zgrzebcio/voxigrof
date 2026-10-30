@@ -132,19 +132,45 @@ function doorPanelGeom(hinged = true, hingeRight = false) {
   // BOTH textured faces keeps front and back consistent with each other.
   if (hingeRight) for (let i = 16; i < 24; i++) uv.setX(i, 1 - uv.getX(i));
   uv.needsUpdate = true;
+  /* two groups, not the box's six: the four edges (its first 24 indices) and the two faces (the last 12). three draws a
+     call per group, so six were six calls a door for two materials */
+  geo.clearGroups();
+  geo.addGroup(0, 24, 0);
+  geo.addGroup(24, 12, 1);
   return geo;
 }
 function doorMaterials(mat) {                          // fresh per door — tinted by world light
   const t = doorTexture(mat);
   const face = new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
   const edge = new THREE.MeshBasicMaterial({ color: new THREE.Color(t.edge).convertSRGBToLinear() });
-  return { mats: [edge, edge, edge, edge, face, face], face, edge, edgeRGB: t.edge };
+  return { mats: [edge, face], face, edge, edgeRGB: t.edge };   // by doorPanelGeom's groups
 }
 
+/* a door as a thing held (player/hands.js, through buildDropGeom in 15-drops.js): its panel, two high, scaled to about a
+   block's height, unlit. One model per look, cloned; its art fills in when it arrives (asked again on each call). */
+const _doorItemProto = new Map();
+const DOOR_ITEM_SCALE = 0.55;
+function doorItemNode(mat) {
+  const look = doorLookOf(mat), t = doorTexture(mat);
+  let g = _doorItemProto.get(look);
+  if (!g) {
+    const face = new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
+    const edge = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    g = new THREE.Group();
+    g.add(new THREE.Mesh(doorPanelGeom(false), [edge, face]));
+    g.scale.setScalar(DOOR_ITEM_SCALE);
+    g.userData.edge = edge;
+    _doorItemProto.set(look, g);
+  }
+  g.userData.edge.color.set(t.edge).convertSRGBToLinear();   // its frame colour, once its art is in
+  return g.clone();
+}
 // a door's mesh, from its bottom cell's value (it took facing, open and hinge before)
+// (its bottom cell set again, opened or shut: it starts to swing at once, not at the next pass of updateDoors)
 function registerDoor(x, y, z, val) {
   const k = x + ',' + y + ',' + z;
-  if (DOORS.has(k) || !isDoorAt(val)) return;
+  if (DOORS.has(k)) { _doorSwing.add(k); return; }
+  if (!isDoorAt(val)) return;
   const dv = doorDv(val), mat = matKey(val), open = !!(dv & 4), hingeRight = !!(dv & DOOR_HINGE_R);
   const m = doorMaterials(mat);
   const group = new THREE.Group();
@@ -152,7 +178,7 @@ function registerDoor(x, y, z, val) {
   const o = doorOri(dv);
   group.position.set(x + (open ? o[3] : o[0]), y, z + (open ? o[4] : o[1]));
   group.rotation.y = open ? o[5] : o[2];
-  scene.add(group);
+  scene.add(freezeModel(group));                       // still until it swings (_doorStep)
   DOORS.set(k, { group, x, y, z, mat, face: m.face, edge: m.edge, edgeRGB: m.edgeRGB, lastB: -1 });
 }
 function removeDoorMesh(k) {
@@ -162,6 +188,7 @@ function removeDoorMesh(k) {
     d.group.children[0].geometry.dispose();
     d.face.dispose(); d.edge.dispose();
     DOORS.delete(k);
+    _doorSwing.delete(k);
   }
 }
 function clearDoors() { for (const k of [...DOORS.keys()]) removeDoorMesh(k); }
@@ -258,6 +285,7 @@ function useDoor(x, y, z) {
   const val = getBlock(x, y, z);
   if (!isDoorAt(val)) return;
   const by = ((val >> 8) & 8) ? y - 1 : y, k = x + ',' + by + ',' + z;
+  if (doorJammed(x, by, z)) return;                          // something fell into it: no hand moves it (a plate still does)
   const lock = DOOR_LOCKS.get(k), held = HOTBAR[hotbarSel];
   const bound = isKeyItem(held?.id) ? keyBoundCode(held) : null;
   const say = (fn, msg) => { if (typeof fn === 'function') fn(msg); };
@@ -290,6 +318,113 @@ function useDoor(x, y, z) {
   }
   toggleDoor(x, y, z);
 }
+/* ---- a block fallen into a doorway: the trap ----
+   A door that opens lets go of what lies on it: sand, red sand, gravel or a hay bale (the gravity blocks, blocks/falling.js)
+   on its top half falls into its cells, past the panel standing open, and comes to rest in the doorway as a WHOLE block,
+   not a pile: DOOR_FILL "cx,cz" -> Map(cell index -> its value), beside the door's own value. The doorway is shut: the
+   block fills the room the panel leaves (doorFillBoxes, shapes/boxes.js, drawn by the mesher from the map the mesh job
+   carries) and collides as a whole block (blockBoxes, chunks/block-access.js). The door is jammed: no hand opens or shuts
+   it (useDoor), a pressure plate still swings it. The block is aimed at and broken by itself (bi DOOR_FILL_BI, overValAt in
+   blocks/covers.js); broken, the one over it in the doorway drops into its place, and what lay over the door falls in
+   again. The door gone, its fallen blocks take its cells. It falls the moment the door opens, also onto someone standing
+   in the doorway: they are shoved out through it to their side (doorFillLand). Saved as `doorFill` (16-worlds.js). */
+const DOOR_FILL = new Map();
+let _doorFillN = 0;
+const DOOR_FILL_BI = 16;                 // a ray's `bi` on one (a plate in another cell is 9, a cover 10-15)
+function doorFillAt(x, y, z) {
+  if (!_doorFillN) return 0;
+  const m = DOOR_FILL.get(Math.floor(x / 16) + ',' + Math.floor(z / 16));
+  return m ? (m.get(_plateCellI(x, y, z)) || 0) : 0;
+}
+// put one there (v a block value), or take it away (v 0); its chunk is meshed again
+function setDoorFill(x, y, z, v) {
+  const cx = Math.floor(x / 16), cz = Math.floor(z / 16), ck = cx + ',' + cz, i = _plateCellI(x, y, z);
+  let m = DOOR_FILL.get(ck);
+  const had = !!(m && m.has(i));
+  if (v) { if (!m) DOOR_FILL.set(ck, m = new Map()); m.set(i, v >>> 0); if (!had) _doorFillN++; }
+  else if (had) { m.delete(i); _doorFillN--; if (!m.size) DOOR_FILL.delete(ck); }
+  else return;
+  markDirty(getChunk(cx, cz));
+}
+const doorFillBoxesAt = (x, y, z) => doorFillAt(x, y, z) ? BLOCKS.doorFillBoxes(getBlock(x, y, z)) : null;
+// a door with something fallen into it, either half, or into its other half of a double door
+function doorJammed(x, by, z) {
+  if (!_doorFillN) return false;
+  const filled = (fx, fz) => !!(doorFillAt(fx, by, fz) || doorFillAt(fx, by + 1, fz));
+  if (filled(x, z)) return true;
+  const dv = doorDv(getBlock(x, by, z)), p = doorPartnerCell(x, by, z, dv & 3, dv & DOOR_HINGE_R);
+  return !!p && filled(p.x, p.z);
+}
+// does the cell take a falling block: an open door's with nothing fallen into it yet (blocks/falling.js asks)
+const _doorOpenEmpty = (x, y, z) => { const v = getBlock(x, y, z); return isDoorAt(v) && !!(doorDv(v) & 4) && !doorFillAt(x, y, z); };
+const doorTakesFall = _doorOpenEmpty;
+/* A block coming to rest in a doorway (blocks/falling.js, _landBlocks): whoever stands in that cell (you mostly do, opening a
+   door: its shut panel lies along one side of its cell) is shoved out of it through the doorway, to the side they are on,
+   so nobody is left inside the block. */
+function doorFillLand(x, y, z, val) {
+  const f = doorDv(getBlock(x, y, z)) & 3, a = f < 2 ? 'z' : 'x', c = a === 'z' ? z : x;   // the way through it
+  const inCell = (px, py, pz, r, h) => px + r > x && px - r < x + 1 && pz + r > z && pz - r < z + 1 && py < y + 1 && py + h > y;
+  const out = (at, r) => (at < c + 0.5 ? c - r - 0.02 : c + 1 + r + 0.02);
+  for (const p of PLAYERS)
+    if (p.spawned && !p.dead && inCell(p.pos.x, p.pos.y, p.pos.z, p.R, p.H)) {
+      p.pos[a] = out(p.pos[a], p.R);
+      if (p.vel) p.vel[a] = 0;
+    }
+  for (const e of ENTITIES)
+    if (e.active !== false && inCell(e.x, e.y, e.z, entR(e), entH(e))) e[a] = out(e[a], entR(e));
+  setDoorFill(x, y, z, val);
+}
+// broken by a player or a blast: the one over it in the doorway drops into its place, and what lies over the door falls in again
+function breakDoorFill(x, y, z, drops, quiet) {
+  const fv = doorFillAt(x, y, z);
+  if (!fv) return;
+  setDoorFill(x, y, z, 0);
+  if (!quiet) {
+    playBlockSound(fv & 255, 'break', x, y, z);
+    if (typeof fxBreak === 'function') fxBreak(x, y, z, fv);
+  }
+  if (drops) for (const d of blockDrop(fv, false)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
+  const up = doorFillAt(x, y + 1, z);
+  if (up && doorTakesFall(x, y, z)) { setDoorFill(x, y + 1, z, 0); setDoorFill(x, y, z, up); scheduleFall(x, y + 2, z); }
+  else scheduleFall(x, y + 1, z);
+}
+/* setBlock's hook (chunks/block-access.js, last): a door opening lets what lies on it fall; a door gone leaves its fallen
+   blocks in its cells as blocks of their own */
+function doorFillChanged(x, y, z, oldVal, val) {
+  const open = (v) => isDoorAt(v) && !!(doorDv(v) & 4);
+  if (open(val) && !open(oldVal) && ((val >> 8) & 8)) scheduleFall(x, y + 1, z);   // the top half opened: what is over it
+  // ...or sand put down on a door standing open (setBlock's own gravity rule looks only for air under it)
+  else if (y > 0 && (val & 255) && _fallsWhole(val) && _doorOpenEmpty(x, y - 1, z)) scheduleFall(x, y, z);
+  if (!_doorFillN || isDoorAt(val)) return;
+  const fv = doorFillAt(x, y, z);
+  if (!fv) return;
+  setDoorFill(x, y, z, 0);
+  if (!(val & 255)) setBlock(x, y, z, fv);
+  else if (!player.canFly) for (const d of blockDrop(fv)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
+}
+function serializeDoorFill() {
+  const out = [];
+  for (const [ck, m] of DOOR_FILL) {
+    const [cx, cz] = ck.split(',').map(Number);
+    for (const [i, v] of m) out.push([cx * 16 + (i & 15), i >> 8, cz * 16 + ((i >> 4) & 15), v]);
+  }
+  return out;
+}
+// as a world loads (its chunks are not in yet: nothing to mesh again)
+function restoreDoorFill(list) {
+  DOOR_FILL.clear();
+  _doorFillN = 0;
+  if (!Array.isArray(list)) return;
+  for (const r of list) {
+    if (!Array.isArray(r) || !r.slice(0, 4).every(Number.isInteger) || !PROPS[r[3] & 255]) continue;
+    const ck = Math.floor(r[0] / 16) + ',' + Math.floor(r[2] / 16), i = _plateCellI(r[0], r[1], r[2]);
+    let m = DOOR_FILL.get(ck);
+    if (!m) DOOR_FILL.set(ck, m = new Map());
+    if (!m.has(i)) _doorFillN++;
+    m.set(i, r[3] >>> 0);
+  }
+}
+
 // saved with the world: [[key, code], ...]
 const serializeDoorLocks = () => [...DOOR_LOCKS];
 function restoreDoorLocks(list) {
@@ -298,41 +433,56 @@ function restoreDoorLocks(list) {
     if (Array.isArray(e) && typeof e[0] === 'string' && Number.isInteger(e[1])) DOOR_LOCKS.set(e[0], e[1]);
 }
 
-// per-frame: swing each door toward its block state's angle; hide while the chunk is unloaded
+/* Once a frame only the doors swinging (`_doorSwing`) are stepped. Every LIST_PASS_S each door is looked over: hidden while
+   its chunk is out, gone when its cell is no door, its late art, its light; and one whose cell says another angle starts
+   to swing. A door opened or shut by setBlock starts at once (registerDoor). */
+const _doorSwing = new Set();
+let _doorPassT = 0;
 function updateDoors(dt) {
-  for (const [k, d] of DOORS) {
-    const c = getChunk(Math.floor(d.x / 16), Math.floor(d.z / 16));
-    if (!c || !c.data) { d.group.visible = false; continue; }
-    const val = getBlock(d.x, d.y, d.z);
-    if (!isDoorAt(val)) { removeDoorMesh(k); continue; }
-    // a look whose art had not loaded yet when the door was made
-    if (!d.face.map.image) { const t = doorTexture(d.mat); if (t.tex.image) { d.edgeRGB = t.edge; d.lastB = -1; } }
-    d.group.visible = true;
-    const dv = doorDv(val);
-    const o = doorOri(dv);
-    const open = (dv & 4);
-    const target = open ? o[5] : o[2];
-    const diff = target - d.group.rotation.y;
-    if (Math.abs(diff) > 0.002) {
-      const step = Math.max(-9 * dt, Math.min(9 * dt, diff));
-      d.group.rotation.y += step;
-    } else d.group.rotation.y = target;
-    // slide the small flush-correction offset in lockstep with the swing, so the panel ends up
-    // flat against the wall inside its cell instead of poking out by the thickness
-    const tpx = d.x + (open ? o[3] : o[0]), tpz = d.z + (open ? o[4] : o[1]);
-    const lerp = Math.min(1, 12 * dt);
-    d.group.position.x += (tpx - d.group.position.x) * lerp;
-    d.group.position.z += (tpz - d.group.position.z) * lerp;
-    // tint by world light at the door cell (same curves as the chunk shader, approximated)
-    const bl = getLightWorld(d.x, d.y, d.z) / 15;
-    const sky = getSkyWorld(d.x, d.y, d.z) / 15;
-    const skyF = SKY_FLOOR + (1 - SKY_FLOOR) * sky * sky;   // must track the chunk shader in 04-materials.js (SKY_FLOOR 0.8442)
-    const sun = sharedUniforms.uAmbient.value + sharedUniforms.uDirect.value;
-    const b = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
-    if (Math.abs(b - d.lastB) > 0.02) {
-      d.lastB = b;
-      d.face.color.setScalar(b).convertSRGBToLinear();
-      d.edge.color.set(d.edgeRGB ?? DOOR_EDGE_RGB).multiplyScalar(b).convertSRGBToLinear();
+  if ((_doorPassT -= dt) <= 0) {
+    _doorPassT = LIST_PASS_S;
+    for (const [k, d] of DOORS) {
+      const c = getChunk(Math.floor(d.x / 16), Math.floor(d.z / 16));
+      if (!c || !c.data) { d.group.visible = false; continue; }
+      const val = getBlock(d.x, d.y, d.z);
+      if (!isDoorAt(val)) { removeDoorMesh(k); continue; }
+      // a look whose art had not loaded yet when the door was made
+      if (!d.face.map.image) { const t = doorTexture(d.mat); if (t.tex.image) { d.edgeRGB = t.edge; d.lastB = -1; } }
+      d.group.visible = true;
+      _doorSwing.add(k);                                 // stepped below; it leaves the set the moment it is where it should be
+      // tint by world light at the door cell (same curves as the chunk shader, approximated)
+      const bl = getLightWorld(d.x, d.y, d.z) / 15;
+      const sky = getSkyWorld(d.x, d.y, d.z) / 15;
+      const skyF = SKY_FLOOR + (1 - SKY_FLOOR) * sky * sky;   // must track the chunk shader in 04-materials.js (SKY_FLOOR 0.8442)
+      const sun = sharedUniforms.uAmbient.value + sharedUniforms.uDirect.value;
+      const b = Math.min(1, skyF * sun * 0.92 + (bl * 0.45 + bl * bl * 0.85));
+      if (Math.abs(b - d.lastB) > 0.02) {
+        d.lastB = b;
+        d.face.color.setScalar(b).convertSRGBToLinear();
+        d.edge.color.set(d.edgeRGB ?? DOOR_EDGE_RGB).multiplyScalar(b).convertSRGBToLinear();
+      }
     }
   }
+  for (const k of _doorSwing) {
+    const d = DOORS.get(k), val = d ? getBlock(d.x, d.y, d.z) : 0;
+    if (!d || !isDoorAt(val) || !_doorStep(d, val, dt)) _doorSwing.delete(k);
+  }
+}
+// one frame of a door's swing toward the angle its cell says; false once it is there (and still)
+function _doorStep(d, val, dt) {
+  const dv = doorDv(val), o = doorOri(dv), open = (dv & 4), g = d.group;
+  const target = open ? o[5] : o[2];
+  // the small flush-correction offset slides in lockstep with the swing, so the panel ends up flat against the wall
+  // inside its cell instead of poking out by the thickness
+  const tpx = d.x + (open ? o[3] : o[0]), tpz = d.z + (open ? o[4] : o[1]);
+  const diff = target - g.rotation.y;
+  if (Math.abs(diff) < 1e-6 && Math.abs(tpx - g.position.x) < 1e-4 && Math.abs(tpz - g.position.z) < 1e-4) return false;
+  if (Math.abs(diff) > 0.002) g.rotation.y += Math.max(-9 * dt, Math.min(9 * dt, diff));
+  else g.rotation.y = target;
+  const lerp = Math.min(1, 12 * dt);
+  g.position.x += (tpx - g.position.x) * lerp;
+  g.position.z += (tpz - g.position.z) * lerp;
+  if (g.rotation.y === target && Math.abs(tpx - g.position.x) < 1e-3 && Math.abs(tpz - g.position.z) < 1e-3) { g.position.x = tpx; g.position.z = tpz; }
+  g.updateMatrix();                                    // a still model (freezeModel): moved by hand
+  return true;
 }

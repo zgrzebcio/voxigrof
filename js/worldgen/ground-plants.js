@@ -85,6 +85,32 @@ corePart('gen.chunk', function () {
         }
       }
 
+      /* ---- wild carrots (rev 41): one try a chunk for a patch of 3-5 on the mild plains (level 0, not the warm or the cold
+         ones, nor the Dryland or the Savanna), CARROT_MEADOW in the flowery meadows and CARROT_PLAINS elsewhere, in any stage.
+         After the wheat, on grass with air over it. ---- */
+      if (REV41) {
+        const mx = (hash3(cx * 61 + 5400, 29, cz * 67 + 5400) * 16) | 0;
+        const mz = (hash3(cx * 71 + 5400, 31, cz * 73 + 5400) * 16) | 0;
+        const gi = (mx + 2) + (mz + 2) * 20, h = H[gi];
+        const mild = Math.round(LVL[gi]) === 0 && !DES[gi] && !SNO[gi] && !SAV[gi] && DRYF[gi] < 0.5 && TREE[gi] < 0.5;
+        if (mild && h >= 100 && h <= CY - 2) {
+          const meadow = fbm((cx * 16 + mx) * 0.006 + 6006, (cz * 16 + mz) * 0.006 - 3003, 2) > 0.32;
+          if (hash3(cx * 79 + 5400, 61, cz * 83 + 5400) < (meadow ? CARROT_MEADOW : CARROT_PLAINS)) {
+            const want = 3 + ((hash3(cx + 5400, 67, cz + 5400) * 3) | 0);
+            for (let k = 0, got = 0; k < want * 4 && got < want; k++) {
+              const lx = mx + (((hash3(cx * 43 + k * 7 + 5400, 71, cz * 47 + k * 5) * 5) | 0) - 2);
+              const lz = mz + (((hash3(cx * 53 + k * 11 + 5400, 73, cz * 59 + k * 3) * 5) | 0) - 2);
+              if (lx < 0 || lx > 15 || lz < 0 || lz > 15) continue;
+              const lh = H[(lx + 2) + (lz + 2) * 20];
+              if (lh < 100 || lh > CY - 2) continue;
+              if ((data[idx(lx, lh, lz)] & 255) !== B.GRASS || (data[idx(lx, lh + 1, lz)] & 255) !== B.AIR) continue;
+              data[idx(lx, lh + 1, lz)] = B.CARROT | ((((hash3(cx * 37 + lx + 5500, lh, cz * 41 + lz + 5500) * 7) | 0) % 7) << 8);
+              got++;
+            }
+          }
+        }
+      }
+
       /* ---- flint stones: dark nodules lying loose on the turf, 0.05% of grass columns.
          Runs BEFORE the plant scatter on purpose — the plants all require air above them, so
          claiming the cell first is what stops a 22% grass roll from swallowing a 0.05% one.

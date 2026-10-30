@@ -12,9 +12,15 @@ defineItems('useables', {
   [ITEM.IRON_KEY]:      { name: 'Iron key',      stack: 1, icon: 'iron_key', key: true, desc: 'Opens a sealed iron chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
   [ITEM.GOLDEN_KEY]:    { name: 'Golden key',    stack: 1, icon: 'golden_key', key: true, desc: 'Opens a sealed gold chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
   [ITEM.COPPER_KEY]:    { name: 'Copper key',    stack: 1, icon: 'copper_key', key: true, desc: 'Opens a sealed copper chest, and stays in its lock. Also locks a door or a chest like the wooden key' },
+  // works any locked chest open with the right button held (blocks/chest.js: PICK_* and _pickDone)
+  [ITEM.LOCK_PICK]:     { name: 'Lock pick',     stack: 1, icon: 'lockpick',
+                          desc: 'Hold the right button on a locked chest, sealed or a player\'s: half the time it opens. It may break, more often on a metal chest' },
   // fire in the hand. Placed, it sets that spot alight (igniteAt, 53-storms.js); a hellhound eats it
   [ITEM.FIRE]:          { name: 'Fire',          stack: 30, icon: 'fire', desc: 'Place it to set a fire. A hellhound eats it' },
   [ITEM.SNOWBALL]:      { name: 'Snowball',      stack: 20, icon: 'snowball', throwable: true, desc: 'Can be thrown to knock back friends or enemies' },
   // put on a tamed horse to steer it (entities/taming.js); it comes back when the horse dies
   [ITEM.SADDLE]:        { name: 'Saddle',        stack: 1,  icon: 'saddle', desc: 'Use it on a tamed animal to ride it' },
+  // creative's debug stick (player/wrench.js)
+  [ITEM.WRENCH]:        { name: 'Wrench',        stack: 1,  icon: 'wrench',
+                          desc: 'Creative only. Right-click a side of a fence or a wall to join or part it there, a wall\'s top to turn it; stairs\' top or bottom to turn them upside down, their side to turn them round; anything else that turns, to turn it. Sneak: a fence or wall joins by itself again, stairs take their next corner' },
 });

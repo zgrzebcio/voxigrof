@@ -1,6 +1,6 @@
 'use strict';
 /* blocks/plants.js: plants and small things on the ground. Cactus, berry bushes and their six stages, flint and
-   stone pebbles, gourds and the carved pumpkin, salt crust, ash, fire, wheat; and the structure block.
+   stone pebbles, gourds and the carved pumpkin, salt crust, ash, fire, wheat, carrots; and the structure block.
    A part of BLOCK_CORE (blocks/blocks.js). */
 
 corePart('blocks', function () {
@@ -111,6 +111,29 @@ corePart('blocks', function () {
                        ripeStage:COCO_RIPE, resting:COCO_RESTING, hangs:true,   // held from above (or resting, from below), never by gravity: woods/coconuts.js drops it
                        fallHurt:0.5,          // what a falling one does to who it hits, of a sand block's (blocks/falling.js)
                        desc: '' };
+  /* Cocoa pod: hangs on the side of a straight jungle trunk (woods/cocoa.js sprouts, grows and drops it). Variant bits 0-1
+     (FACE) the side its trunk is on: 0 +Z, 1 -Z, 2 +X, 3 -X; bits 2-3 (STAGE) 0 a bud .. RIPE: the pod swells from 4/16 to
+     8/16 across under a short stem into the bark, green until ripe (its art and the green look built from it, 03-atlas.js).
+     A ripe one gives cocoa beans and now and then fat, a green one nothing (50-loottable.js). Not plantable yet: wild only. */
+  const COCOA_BITS = { FACE: 3, STAGE_SHIFT: 2, STAGE_MASK: 3, RIPE: 3 };
+  const COCOA_SIZE = [[4, 5], [5, 6.5], [6, 8], [8, 9]];   // [across, tall] in 16ths, by stage
+  const _cocoaBoxes = (face, st) => {
+    const [s, h] = COCOA_SIZE[st], top = 12, lo = 8 - s / 2, hi = 8 + s / 2;
+    // the pod and its stem, laid against the +Z side, then turned to the side its trunk is on
+    const parts = [[lo, top - h, 15 - s, hi, top, 15], [7, top, 13.5, 9, top + 1.5, 16]];
+    return parts.map(([x0, y0, z0, x1, y1, z1]) =>
+      face === 0 ? _m16(x0, y0, z0, x1, y1, z1) : face === 1 ? _m16(x0, y0, 16 - z1, x1, y1, 16 - z0)
+      : face === 2 ? _m16(z0, y0, x0, z1, y1, x1) : _m16(16 - z1, y0, x0, 16 - z0, y1, x1));
+  };
+  const COCOA_FACES = [T.COCOA_SIDE, T.COCOA_SIDE, T.COCOA_TOP, T.COCOA_TOP, T.COCOA_SIDE, T.COCOA_SIDE];
+  const COCOA_YOUNG = [T.COCOA_YOUNG_SIDE, T.COCOA_YOUNG_SIDE, T.COCOA_YOUNG_TOP, T.COCOA_YOUNG_TOP, T.COCOA_YOUNG_SIDE, T.COCOA_YOUNG_SIDE];
+  const COCOA_BOXES = Array.from({ length: 16 }, (_, va) => _cocoaBoxes(va & COCOA_BITS.FACE, (va >> COCOA_BITS.STAGE_SHIFT) & COCOA_BITS.STAGE_MASK));
+  PROPS[B.COCOA] = { name:'Cocoa pod', solid:false, opaque:false, raycast:true, pass:0, model:'carpet', noInv:true,
+                     stack:50, hardness:0.5, type:'grass', boxes:COCOA_BOXES[COCOA_BITS.RIPE << COCOA_BITS.STAGE_SHIFT], boxesByVar:COCOA_BOXES, fullUV:true,
+                     faces:COCOA_FACES, facesByVar:Array.from({ length: 16 }, (_, va) => ((va >> COCOA_BITS.STAGE_SHIFT) >= COCOA_BITS.RIPE ? COCOA_FACES : COCOA_YOUNG)),
+                     hangs:true,            // held by its trunk, never by gravity: woods/cocoa.js breaks it when the trunk goes
+                     pageSeen:true,         // the worker lists it as a chunk comes in, so woods/cocoa.js knows every pod (cocoaSeen)
+                     desc: 'Grows on straight jungle trunks. Ripe, it gives cocoa beans' };
   // the clay bricks block is TERRACOTTA since 0.8093 (same id, same recipe); its brick look is a variant
   PROPS[B.BRICKS]    = { name:'Terracotta', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:6.5, type:'stone', faces:[T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS,T.BRICKS], desc: '' };
   /* Gourds — 32 x 32 x 32 of this game's 64-pixel block, so half a cell across and half
@@ -165,6 +188,9 @@ corePart('blocks', function () {
      stages 0-6 (seasons/seasons.js climbs them). Only ripe wheat gives wheat when gathered. */
   PROPS[B.WHEAT]    = { name:'Wheat', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:79, hardness:0, type:'grass', boxes:[[0.15,0,0.15,0.85,0.9,0.85]], faces:[T.WHEAT],
                         tilesByVar: [T.WHEAT, T.WHEAT_S0, T.WHEAT_S1, T.WHEAT_S2, T.WHEAT_S3, T.WHEAT_S4, T.WHEAT_S5, T.WHEAT_S5], desc: '' };   // six growing stages since 0.8273 (seven before); 7 only in old saves
+  // the carrot grows as wheat does: variant 0 ripe (its stage 6 art), 1-6 its growing stages 0-5; only a ripe one gives a carrot
+  PROPS[B.CARROT]   = { name:'Carrot', solid:false, opaque:false, raycast:true, noTarget:true, pass:1, model:'cross', stack:79, hardness:0, type:'grass', boxes:[[0.2,0,0.2,0.8,0.6,0.8]], faces:[T.CARROT_S6],
+                        tilesByVar: [T.CARROT_S6, T.CARROT_S0, T.CARROT_S1, T.CARROT_S2, T.CARROT_S3, T.CARROT_S4, T.CARROT_S5, T.CARROT_S5], desc: '' };
   PROPS[B.WOOL]    = { name:'Wool', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2.5, type:'wool', faces:[T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL,T.WOOL], desc: '' };
   PROPS[B.HAY]     = { name:'Hay bale', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:1.0, type:'grass', faces:[T.HAY_SIDE,T.HAY_SIDE,T.HAY_TOP,T.HAY_TOP,T.HAY_SIDE,T.HAY_SIDE], desc: '' };
 });

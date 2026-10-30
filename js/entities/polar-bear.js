@@ -92,5 +92,6 @@ defineMob('polar_bear', {
   save: (e) => ({ sz: e.size, g: e.gender, lv: e.level }),
   load: (s) => summon('polar_bear', s.x, s.y, s.z, { hp: s.hp, size: s.d.sz, gender: s.d.g, level: s.d.lv, hx: s.hx, hz: s.hz }),
   // a thick hide and a lot of fat
-  loot: (e, pop, first) => { first(ITEM.LEATHER, LOOT.bearLeather); pop(ITEM.FAT, rollLoot(LOOT.bearFat)); },
+  // the leather and the fur each through `first`: Butcher's extra (entities/loot.js) is rolled for both
+  loot: (e, pop, first) => { first(ITEM.LEATHER, LOOT.bearLeather); first(ITEM.FUR, LOOT.bearFur); pop(ITEM.FAT, rollLoot(LOOT.bearFat)); },
 });

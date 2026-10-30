@@ -37,7 +37,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   over it. There are no `spawnSheep`-style functions any more (only the boss keeps its own `spawn`); to change
   what one kind starts with, change its `make`. `buildEntity(kind, look)` gives the model alone.
 - **Woods: the woods table** (`WOODS`, `woods/woods.js`; its header lists every field and who reads it), one file
-  per wood beside it (`oak.js`, `birch.js`, `spruce.js`, `rime.js`, `palm.js`, `dry-bush.js`, `acacia.js`: their order in
+  per wood beside it (`oak.js`, `birch.js`, `spruce.js`, `rime.js`, `palm.js`, `dry-bush.js`, `acacia.js`, `jungle.js`: their order in
   `index.html` is the order of every list). An entry: its blocks (`log`, `stripped`, `hollow`, `planks`, `leaves`,
   `sapling`), `tree`, `seasonal`, `apples`, `shroom`, `charcoalS`, `burn`, `xp`, `saplingOn`, `grow`. NEVER write
   a list of the woods' blocks by hand on the page: use `woodBlocks('planks')`, `woodBlocks('leaves', isTreeWood)`,
@@ -161,6 +161,416 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   `hudHidden` hides `selBox` and the wand lines (36-splitscreen.js).
 - **0.84763.** Furnace food spoils: `_tickFurnaceSpoil` (44-spoil.js, beside `_tickChestSpoil`; both drain through `_spoilSlots`), the furnace's
   `spoilT` saved as furnace row field 8. The smelt resets when the input's id changes or it empties (`f.inId`, updateFurnaces).
+- **0.848, clams, fish in hand, otters.** `B.CLAM` 243 (a retired look's id): a page-drawn block like the termite hill (`pageModel`;
+  chunks/stream.js `pageModelSeen` dispatches by id), `waterlog`, variant byte `CLAM_BITS` (BLOCK_CORE, blocks/torch-blocks.js; page
+  `BLOCKS.CLAM_BITS`): facing, OPEN, HAS (none/sand/pearl/item), PLACED. blocks/clam.js: instanced bottom + lid from the box model
+  (box-models.js reads uv past 16 as 8-px units), `CLAM_ITEMS` (saved `clams`, spoil `_tickClamSpoil`), holds `updateClamHold`,
+  `clamTick` (simTick: sand and pearls, wild only). biomeRev 38 `REV38`: clams on warm sea floors (desert-and-shore-plants.js).
+  player/fish-hold.js: `player._heldFish` (a fish taken out of the world; `hotbarLocked`, `mainHandBusy`/`offHandBusy`, `FISH_ARM`),
+  saved as a fish row at the holder (`heldFishCreature`, entities/save.js `_entSaveRow`). entities/otter.js: body 'otter'
+  (`updateOtter`), taming by E with a held fish (`otterGiveFish`), `player._wornOtter` = the otter ENTITY taken out of ENTITIES
+  (saved as a row with `wn`, put back on by `otterWorldTick`), `otterScarfCold` in `_resSum`. New creature-table fields: `passive`,
+  `fleeTogether` (`_entBolt`, entities/combat.js), `spared`, `prompt`, `subText`, `sounds` (`mobSound`, mobs.js). Fish live by water kind
+  (`FISH_WATERS`, entities/fish.js) and flop toward water on land. Items `ITEM.PEARL` 428, `ITEM.FUR` 429.
+- **0.8481.** Box models are SCRIPTS: `js/models/*.js`, `defineBoxModel(name, {...})` made from the user's JSON by
+  `node toolsrc\json-to-model.js` (a model JSON in textures/ is only how one is handed over: convert it, never fetch it);
+  `boxModel(name, png)` and 41-backpack.js read `BOX_MODEL_DATA`. Clam sand fills in steps (`CLAM_BITS.SAND_SHIFT`, bits 6-7) and
+  full sand can be taken (a sand farm, wild clams only); the item node's lid sits at its hinge (`_clamHingeOff`). biomeRev 39 `REV39`:
+  clams `CLAM_APART` 5 (a hashed rank). Fish: `FISH_DRY_GRACE` 35 s of air (held ones too, `dry` in player/fish-hold.js), fright
+  `_fishScare` (a player's `_splashAt`, otters) and `_fleeFrom`. PROPS `frontBack` [front, back] tiles on a rot:'side' cube
+  (chunks/mesher-cubes.js; the seashell block, T 445). Otter scarf cold 10% + 0.2% a level + 5% x effectiveness.
+- **0.84811.** ui/animals.js: `PET_TAGS` (a tamed animal's name as a plate through the world, `updatePetTags` once a frame,
+  `petTagsFor(p, cam)` per view from renderAllViews: only its owner's, by `houndOwner`; no owner on record = everyone) and
+  `syncTamingMarks` (per seat: a screen mark over each animal this player is taming, `e.taming`). finishTaming now records the
+  horse's `ownerId`. Held fish free in 45/36/30/27 s; otter `sounds` say/hurt at rate 0.6, eat 'chew', no step (block footsteps).
+- **0.8482.** ui/waypoints.js: `player._waypoints` [{ name, x, y, z }] (`WAYPOINTS_MAX` 1, a list for the maps), U opens
+  `openWaypointDialog` (17-input.js), marks per seat `syncWaypointMarks` (tickPlayer), saved as player record `waypoints`
+  (16-worlds.js, `_serializeSlot`; restored in player/tick.js and applyExtraPlayerRestore). `textDialogOpen()` (the
+  waypoint's or the naming dialog): pointerlockchange no longer pauses for them. Hotbar: `HOTBAR_MAX` 12 (every hotbar
+  array), `HOTBAR_BELT_MAX` 10 = survival's most; `hotbarLen()` is 12 in creative; keys `HOTBAR_KEY_CODES` /
+  `HOTBAR_KEY_LABELS` (player/inventory.js); `migrateStash` keeps hotbars of 8, 10 and 12 in place. Creature `sounds` entries
+  take `gain` and `vary` (mobSound). `MONSTER_SPAWN_MUL` 1.04, `ZOMBIE_SPAWN_MIN_DIST` 40 (brought in for a sim range under 3).
+- **0.84821.** biomeRev 40 `REV40` (worldgen/gen-setup.js): `ORE_HIGH` (worldgen/underground.js) raises coal (best 100-120, top 180),
+  iron (82-98, 156), copper (65-75, 120), tin (47-53, 90); a raised ore's best band peaks in its middle (mean of two hashes),
+  and a try that starts out of the rock restarts in the top `HIGH_DROP` 12 blocks of the rock under it. Measured over
+  3 seeds x 64 chunks against rev 39: coal x1.10-1.14, iron x1.03-1.07, copper x1.01-1.08, tin x0.95-1.01.
+- **0.84822.** Night monsters fill in slowly (entities/spawning.js): `_nightCap()` grows from `NIGHT_RAMP_FROM` 0.25 to the whole
+  over `NIGHT_RAMP_S` 180 s of the night (`_nightT`), one spawn anywhere at most every `NIGHT_SPAWN_GAP` 6 s (`_nightGapT`, half
+  under a blood moon), and the dusk sweep only pops chunks while a spawn is allowed (it waits for room).
+- **0.84823-0.84824.** First-person shield: `OFF_REST` / `OFF_RAISE` (40-shield.js) are the ONE pose for both hands (the main hand
+  mirrors them in updateHands); the shield turns `PI + angle` (outer edge near, inner edge away) and rests low, under the crosshair.
+  F = `swapOffhand()` (40-shield.js): the selected hotbar slot and the offhand change places when the offhand accepts it.
+- **0.84825.** Chests: `CHEST_ROWS` 2, `CHEST_ROWS_METAL` 4 (doubles 2+1+2, 4+1+4; blocks/chest.js; fitChestSlots moves or drops
+  what no longer fits on the next open). `#chestPanel` as tall as its chest, `max-height` = `#equipPanel`'s 614px; no scroller
+  (ui/chest-panel.js). 0.84826: the leather belt has no `beltSlots` (its row of empty quick slots is gone until belt gear
+  exists), only `hotbarSlots` 2; the tooltip's "worn" line reads `hotbarSlots`.
+- **0.84827.** Screen marks kept by in-world code (`_syncDeathMark` from updateVitals, `syncWaypointMarks` / `syncTamingMarks` from
+  tickPlayer) are hidden whole by `setHudVisible` (16-worlds.js: the title screen and the start of loadWorld) and shown again by
+  their own sync (the waypoint and taming boxes set their own display). loadWorld empties `_waypoints` and `_deathMarks` before
+  its awaits; `clearPetTags()` (ui/animals.js, from quitToMenu and loadWorld) takes the name-tag sprites down, and `petTagsFor`
+  hides them outside a running world. Taming mark text: name, sex, level, taming, distance. The user counts the death mark
+  as a waypoint.
+- **0.84828.** Weather sound underground (32-sound.js `_wxMuffle`): under a roof `WX_ROOF_MUFFLE` x (1 - ground over the eye /
+  `WX_DEPTH_SILENT` 24; the column's topmost opaque block, scanned twice a second), and x a fade to 0 at `WX_SILENT_Y` 50
+  (`WX_SILENT_FADE` 8 above it). Not `mainGen.heightAt` on the page: it can cost milliseconds.
+- **0.84829.** Helmets but the cloth cap: `HELMET_OPEN_FACE` (player/armor-model.js: the front a brow `HELM_BROW` 0.375 showing the
+  picture's lowest rows, no underside). Off hand: only a shield uses `OFF_REST`/`OFF_RAISE`; a torch or a bare hand `OFF_HOLD`
+  (40-shield.js). Otter: the use button with an `OTTER_FOOD` fish item = `_otterFeed` (from tryOtterInteract, tame or wild; `_eatT`,
+  `_eatFish`, chewing in otterPose and updateOtter); E stays the pat (the user's choice). `LOOT.bearFur` through
+  `first` (Butcher). Repair/dismantle drop zones live on the BODY (player/repair.js): inside `#invWrap`, whose transform makes
+  it the containing block of fixed children, they were placed off the screen.
+- **0.8483, meerkats and tumbleweeds.** Creature table field `step` (e, dt, tp, i): a kind's own step, taken in updateEntities
+  after the shared bookkeeping (no new body line needed); `xp: 0` = a kill pays nothing (combat.js). entities/tumbleweed.js
+  (`TUMBLE`, `unsaved`, `updateTumbleweeds` from the main loop puts them round players on dry land in wind, `weatherAt`;
+  `rollTumbleweed` the loot, also searched by meerkats; fire: `igniteAt` where it rolls, gone after `TUMBLE.burnS`). Art: the
+  billboard textures/Billboards/Plants/Warm/tumbleweed.png on five crossed planes. entities/meerkat.js (`MEERKAT`): model
+  js/models/meerkat.js (upright; on all fours = body bone tipped `MK_TIP` with head/arms/legs turned back, meerkatPose),
+  taming `meerkatGiveChitin` (tickPlayer, crouched E with `ITEM.CHITIN_PLATE`; `_mkTamingTick` the scare: tamer not
+  sneaking within `scareR`), shoulder `player._wornMeerkat` (one worn creature: otterPutOn / meerkatPutOn take the other
+  off; saved as a creature row with `wn`), `wornReachMul(p)` read by `dropPickupR` (15-drops.js) and findBushPickup. Wild
+  stash `MEERKAT_STASH` "x,y,z" -> item under a sand layer, saved as `meerkatStash`, released by `meerkatStashChanged`
+  (setBlock hook when a sand / red sand cell changes). Drops: `DROP_LOOK` 1.2 (drawn only), `_fxDropMotes` (49-particles.js).
+  OTTER.huntRest 5 s.
+- **0.848301.** `meerkatReachBonus(p)` = `MEERKAT.reachBase` 0.10 + `reachLvl` 0.003 x level + `reachEff` 0.05 x effectiveness
+  (wornReachMul = 1 + it). Stats rows 'item pickup range' / 'foraging reach' (ui/equip-panel.js, tips in STAT_TIPS). A worn otter /
+  meerkat is a line of `activeEffects()` (player/effects.js) saying what it gives; not on the effect bar.
+- **0.8485, carrots.** `B.CARROT` 244 (a retired look's id; T 446-452 `CARROT_S0..6`, art Billboards/Plants/Carrot), a crop like
+  wheat: variant 0 ripe, 1-6 stages. `CROP_BLOCKS` / `cropGrow` / `cropRegrow(x, y, z, id)` / `updateCropGrow` (seasons/growth.js,
+  were wheat's); SEASON_PLANTS; the variant bar loop over both crops (blocks/variants.js); picking in foraging.js (one carrot,
+  `LOOT.carrot` [[1, 1]], Lucky Hands' extra); blockDrop gives nothing for a growing one. `ITEM.CARROT` 432 (food.js;
+  FOOD_NUTRITION veg + `vegFull`: eatNutrition now reads `<bar>Full` for every bar). Horse feed carrot 60, apple 40, sugar 20
+  (TAMEABLE, entities/taming.js). biomeRev 41 `REV41`: wild patches (worldgen/ground-plants.js, after the wheat). GAME_VERSION 0.8485.
+- **0.84851.** Eating: `entEatStart(e, id)` / `entEatStep(e, dt, mouth, at, rate)` (entities/entities.js). A horse fed (tryTameInteract,
+  the golden apple too) or a hellhound eating (`houndEat`) stands `ENT_EAT_S` with the food built as a drop in its mouth (`m.muzzle`
+  `HORSE_EAT_AT`, `m.snout` `HOUND_EAT_AT`, shrinking), the jaw part working (`HORSE_MUZZLE_Y`, `HOUND_SNOUT_Y`), chew.ogg every
+  `ENT_EAT_CHEW`, crumbs `fxMouthCrumbs` (49). The player chews every `EAT_CHEW_S` (player/eating.js; not a drink); the meerkat
+  keeps its own eat sound (`meerkatEat`). Sapling clocks are saved (`saplings`: `serializeSaplings` / `restoreSaplings`, woods/saplings.js) and
+  wait while the 3x3 chunks round one are not in. `SKILL_REMIND` 60.
+- **0.8486, pressure plates.** A chisel shape: `SHAPE_PLATE` 0xC0 (shapes/shapes.js; low bit `PLATE_PRESSED` = drawn sunk, `PLATE_BOX`),
+  family 'plate' (boxes.js: no collision; chimney-mixed.js `solidVal` false), `SHAPE_BLOCKS.plate` (planks, stone, cobble, the rocks,
+  sandstones, the metal blocks, obsidian), hammer Advanced page (chisel.js), placed on a whole top (`plateFloorAt`, place-block.js).
+  blocks/pressure-plates.js: `platePressedBy` (planks 'all', metals and obsidian 'players', the rest 'bodies'), `updatePressurePlates`
+  (simTick: players, ENTITIES, DROPS), `PLATE_HOLD_S` 1, `PLATE_TARGETS` by name { test, on, off } for the 4 cells beside and the one
+  under (TNT `armTNT`; an unlocked door `toggleDoor`, held and shut on release unless another plate holds it or its double's half),
+  `plateChanged` (setBlock hook: a plate down broken lets go; no floor, it comes off), saved as `plates`.
+- **0.8487, signs.** A chisel shape: `SHAPE_SIGN` 0xD0 | facing (bits 0-1) | mount << 2 (`SIGN_STAND` / `SIGN_WALL` / `SIGN_HANG`;
+  shapes/shapes.js, `SIGN_FRONT` / `SIGN_MID_Y`), `SIGN_BOX[mount][facing]` (boxes.js, authored +Z and turned), no collision, `solidVal`
+  false; `SHAPE_BLOCKS.sign` (planks, stone, cobble, the rocks, iron block); placing.js picks the mount from the clicked face.
+  blocks/signs.js: `SIGN_TEXTS` (saved `signs`), `updateSigns` (a CanvasTexture plane over each written board), `signSupported` /
+  `signChanged` (setBlock hook), the editor `openSignEditor` (on placing; use on a sign, sneak places), `signLineFits` (4 lines, each
+  measured in `signFont` against the board), `signDialogOpen` in `textDialogOpen` (ui/waypoints.js).
+- **0.84872, the processor meter** (plans/CpuPlan.md P0, with the measured scenes). F3's first line: the page's and each
+  worker's share of a core (ui/cpu-meter.js: `cpuNoteFrame` from _perfFrameEnd, `cpuNotePart` from perfLap, `cpuNoteMsg` /
+  `cpuNoteWorker` from the onmessage handlers in 10-workers.js, 08-light-glow.js and fluids/fluids.js). Each worker counts its
+  own time in `handle` and puts the running totals `bz` (all) and `bzk` (by job kind) on every message it sends
+  (chunks/worker.js: `self.postMessage` is wrapped there). `cpuMeterSnapshot()` / `cpuMeterDiff(a, b)` measure from the console.
+  Found: lava settling relights 64-chunk boxes and the light answer re-meshes all of them (CpuPlan.md section L).
+- **0.84873, saves by chunk** (CpuPlan.md E). setBlock adds the chunk to `SAVE_DIRTY` (16-worlds.js); the save worker keeps the
+  last save's edits (`held` in SAVE_WORKER_SRC) and takes only the changed chunks (`all` false, an empty chunk = none left);
+  `_saveWorkerHas` = the world it holds whole (null after loadWorld, a failed save or a save written on the page: the next one
+  sends all). Anything new that writes `editStore` other than setBlock must add to SAVE_DIRTY or set `_saveWorkerHas = null`.
+  `_captureThumb` encodes a 640x360 copy. Castle sites: `lairCells` saved (`serializeLairCells` / `restoreLairCells`,
+  entities/boss-lair.js), one probe out at a time (`LAIR_PROBE_WAIT_MS`).
+- **0.84874, light boxes** (CpuPlan.md L). `_fluidWrite` relights only where lava came or went or a cell turned opaque (not a
+  lava level change). With the light thread, `relight` / `updatePlayerLight` send the change + `LIGHT_REACH` as the box and the
+  sources in it AND in the ring of cells round it (`_lightBoxNear`, 08: a source beside the box gives its own level, its cell's
+  light one less); the thread lets the light round the box flow in (`lightEdgeSeeds`, chunks/worker.js), writes back only cells
+  that changed and names only their chunks (+ the one across a border cell, `touchCell`); `_lightThreadAnswer` marks only
+  `m.touched`. The box must stay >= the brightest level round the change (LIGHT_REACH = the brightest PROPS light). The path
+  without the thread is unchanged. Check light by numbers: every open cell = the most any neighbour gives (a source its level,
+  a lit open cell its light - lightDim - 1 when that leaves >= 2).
+- **0.84875, frame caps** (CpuPlan.md A). `fpsLimit` starts at 60 when `vg_fps` was never saved (00-config.js). `frameCap()`
+  (22-main-loop.js) = the limit, lowered: title `MENU_FPS` 60, pause menu `PAUSED_FPS` 30 (still drawn: land streams in), every
+  seat in its inventory `INV_FPS` 60, window without focus (`_winFocused`, focus/blur events) `UNFOCUSED_FPS` 30. `_frameTurn`
+  deals frames from a running clock `_frameDue` (a cap that does not divide the screen's rate still averages right); F3 shows
+  `_frameCapNow`. To measure without the caps from the console: `frameCap = () => fpsLimit` (put the function back after).
+- **0.84876, less per frame** (CpuPlan.md B1-B3). The SCENE IS STILL (`scene.matrixAutoUpdate` false, 06-renderer.js) and its
+  `updateMatrixWorld` skips hidden top-level models and frozen ones: `freezeModel(root)` (every part off auto) for a model
+  that stays put. A frozen model is moved BY HAND: change its root, then `root.updateMatrix()`; an inner part (a chest's
+  lid): `part.updateMatrix()` and `root.matrixWorldNeedsUpdate = true`. Frozen: door groups, chest groups, beds, sign
+  boards. A new model added to the scene with auto matrices just works; never read a hidden model's matrixWorld (use
+  getWorldPosition, which works it out). Lists: `LIST_PASS_S` 0.25 (00-config.js): doors (`_doorSwing`, woken by
+  registerDoor from setBlock), chests (`_chestLids`, `_chestPass`), beds (`_bedPass` / `_bedSleep`), pet tags (`_petWant`),
+  bench tags' nearness. Per-frame DOM writes are guarded (written only when they change): a new one must be too;
+  `showTooltip` (ui/tooltips.js) rebuilds and measures only when its html changes.
+- **0.84877, B4-B7 and C** (CpuPlan.md). A chest is ONE material on `chestAtlas(look, half)` (blocks/chest.js: the six face
+  pictures CHEST_PARTS on a 3 x 2 atlas with padded tiles, `chestAtlasUV(i, u, v)`, the inside's shade CHEST_INNER_SHADE on
+  the vertex colour): 2 draw calls; a door box 2 groups (doorPanelGeom). Three draws a call per geometry GROUP, not per
+  material: a new model keeps its groups few. Shadow quality `SHADOW_Q` low/normal/high (07-sky.js, `shadowQ`, `vg_shadowq`,
+  Options `shadowQSel`). Waves step at SIM_DT (`_waveStep`, `_waveUpload`) and the shader moves crests between (`aVel`,
+  `uSince`); wet ground steps at SIM_DT. `FxDecals.live`; the lens sizes from `st.view`. `CellClocks` (chunks/chunks.js):
+  cropGrow, berryGrow, shroomGrow, caneGrow, snowMelt, litterRot (Map calls + `forEachInSim`). updateSaplings(dt) once a
+  second. `PLATE_CELLS` / `_plateCount` (blocks/pressure-plates.js: plates counted by chunk from editStore and setBlock's
+  hook; a plate made any other way than setBlock must count itself). `_fluidWantsStep` (fluids/fluids.js). Measuring in
+  the pane: `eval(await (await fetch('/toolsrc/browser-helpers.js')).text())` gives `__drive`, `__scene`, `__newWorld`,
+  `__domAudit` (toolsrc is not in git; the 8408 page may have no profile: `createProfile('Tester')`).
+- **0.84878, split screen fixes.** The pointer lock is SEAT ONE's: toggleInventory lets it go and takes it back only for
+  seat 0 (another seat's did, and the lock handler paused the game). Pad A presses the button under the cursor before a
+  slot merely near (`.invTab` included: the Skill tree tab); a pad cursor over a tab gets a tooltip (`padSouthLabel`,
+  ui/hud.js). Lines (stats, effects, the XP bar) and the vitals rows (`vitalRects`, type 'vital') count `LINE_BIAS` further
+  in nearestElement and their magnet only pulls onto the nearest edge, gently (ui/inventory-cursor.js, inventory-open.js);
+  the vitals tooltip comes before a near slot's. The feed is per pane (`feedEl` in SWAP_KEYS, 'feed' in HUD_PANE_IDS,
+  rows per feed `_FEED_HOSTS`): a message goes to the installed seat, world messages to seat one. Respawn: the bed first
+  (`bedRespawnSpot`, blocks/bed.js), then findValidSpawn.
+- **0.84879, D and F** (CpuPlan.md). `poolWorkers` (10-workers.js) = the workers handed jobs, by `threadsSetting` (Options
+  "Background threads", `applyThreads`): the stream (`_bestWorker`, `_genThrottle`, `pump`) and `postScanJob` use it, never
+  `workers` (that is the whole pool, for init and options messages). `_genThrottle` caps the edge rings at
+  `EDGE_WALK_MAX` while `streamSpeed()` < `STREAM_FAST_BPS` (`_streamSpeedTick` from runChunkStream). Clouds
+  `cloudsSetting` / `applyClouds` (52-clouds.js: `CLOUD_STEPS_N` / `CLOUD_HITS_N` defines, `CLOUD_Q`). `applyPowerSaver`
+  (23-boot.js) sets the form and calls applySettings. In a world the render distance is at least 8 (00-config clamps it);
+  the title's 5 is the backdrop's own.
+- **0.848791.** The see-through pass (4: ice, glass) blends with no depth write, so faces draw in BUFFER ORDER: the cube
+  sweeps write -Y, the sides, +Y last (`SWEEP_ORDER`, chunks/mesher-cubes.js) and `emitBoxFaces` its top last
+  (mesher-models.js). Tops first laid a frozen sea's bottoms over its tops inside a chunk, but not across a border (the
+  farther chunk is drawn first): a pale band on every chunk border. Never put a pass-4 top before its bottom again.
+- **0.848792.** `PLATE_REACH` (blocks/pressure-plates.js) also holds [0, -2, 0]: TNT or a door under the block a plate
+  lies on is set off. PROPS `placeSound` (a sound key, read by playBlockSound when kind is 'place'): TNT 'wool'.
+  `armTNT` plays TNT's own sound for every way of lighting it.
+- **0.848793, a plate in another block's cell** (for the pyramid boss's traps). `PLATE_OVER` "cx,cz" -> Map(cell index ->
+  plate value) (blocks/pressure-plates.js; header there): on a bottom slab, upright stairs' lower step, a layer 1-7, or among
+  a plant (model 'cross', not solid; needs `plateFloorAt` under it). Where it lies: `plateOverBoxes(g, x, y, z, host, plate)`
+  (shapes/boxes.js, BLOCK_CORE: page `BLOCKS.plateOverBoxes`, mesher). The mesh job carries the chunk's map (`plates`, the
+  last arg of meshChunk; drawn at the end of mesher-models.js, not at lod 2). `plateOverAt` / `setPlateOver` (never write the
+  map by hand: the count `_plateOverN`, PLATE_CELLS and the re-mesh ride on it). The ray returns `over: true`, `bi`
+  `PLATE_OVER_BI` (player/movement.js); selection, mining (tick.js, `overV`) and creative break (breaking.js) take the plate
+  alone (`breakPlateOver`); a blast takes it (tnt.js). Placing: `tryPlateOver` first in _doPlace; a cell holding one takes no
+  other placing (place-block.js `overHit` and the target check). Its holder changed (plateChanged): `_plateOverHeld`, else
+  `_plateOverOff` (an emptied cell over a floor: it becomes an ordinary plate; else it drops). Saved `plateOver` (16-worlds.js);
+  prefabs `plates` (captureStructure, `applyStructurePlates`). Pressing reads its box and height (`_platesUnder`); one on a
+  slab, step or layer reaches `PLATE_REACH_ON` (beside, and under its holder). A new place for an overlay is a branch of
+  plateOverBoxes.
+- **0.848794.** `PLATE_BURIED` (variant bit 1 of a plate, shapes/shapes.js; page global from CORE): an overlay plate under a
+  walk-through layer stack (`layerStack`) laid on a plate standing alone (`tryBuryPlate`, before the carpet stack in
+  _doPlace; more such layers pile on it). On the floor (plateOverBoxes), not drawn (mesher-models.js), not aimed at (the ray
+  skips it), pressed as feet sink through; `_plateOverOff` clears the bit when it stands alone again. The press through
+  the block under a plate ([0, -2, 0]) needs that block to fill its cell's whole bottom (`_plateThrough`: no top or vertical
+  slab gap). Sneaking with a block in hand on a door places (`sneakBlock`, place-block.js).
+- **0.8488, the pyramid.** Prefabs live in `structures/warm/`, `cold/`, `temperate/` (the climate they are built for;
+  dungeons and the supply crate in temperate/); the manifest lists them by that path, a new prefab goes in one of them.
+  `warm/pyramid.json` (the user's build; spawn in Desert, Desert Hills, Red Sand, Red Sand Hills, not the deep deserts).
+  A lone prefab's `spawn.replace` { biome base name: { id: id } } swaps blocks where it is laid (`_spawnSwap`; its pillar
+  and its plates too: `_pillarOpts`, applyStructurePlates' `swap`). One wider than 14 is `_spawnWide` (34-structures.js):
+  queued with `site`, its ground read when its whole footprint is in, its chunks marked in `_structPlaced` (`claimed`,
+  taken back if its anchor chunk goes first). Buried plates make no click (`_plateClick`). `TNT_LIT_GAIN` 0.425.
+  `CHEST_UNSEAL_REACH` 2.5 (feet to the chest's cell) for every key and lock pick on a chest, at the start too
+  (`_chestKeyFar`, useChest): the pyramid's ring of plates cannot be reached over.
+- **0.84881.** Every light a structure lays (any prefab, through stampStructureSlice) gets `BURN_NEVER` there, saved with
+  BURNS (the castle's own loop went). The pyramid only in Desert and Red Sand (no hills).
+- **0.84882.** `_swapFor(replace, x, z, full)` (34-structures.js) reads a lone prefab's `spawn.replace` AND a group's
+  `replace`: one map for everywhere, or maps by biome (values are objects), the FULL name first ("Cold Plains") then its
+  base (biomeBase: "Deep Spruce Forest" -> "Spruce Forest"). A swap's `"wood"` re-woods chests, beds and crafting
+  benches in their variant bits (`_swapWood`; the bench has no spruce art: `STRUCT_BENCH_WOOD` spruce -> dark). The village
+  group: biomes Plains, Forest, Spruce Forest (base names: Deep Forest, the warm and cold plains, the hills included),
+  spruce on the Cold Plains and in spruce forests (manifest).
+- **0.84883, the Dead Pharaoh (the summer boss, model only so far).** entities/pharaoh.js (header there): coloured boxes
+  like the king's; `PH`; two moods on ONE model (`setPharaohMood`: each `_phMat` keeps `calm` / `rage` colours in
+  userData, the eyes and their `halos`), enraged for good at `PH.ENRAGE` 0.5 of its health. Stands, turns to the nearest
+  player, takes hits, dies; no attacks, no walking, no boost, no loot yet. Debug: F3 + Shift+F8 (`pharaohDebugSummon`).
+  A second boss rides the king's hooks through `BOSS_OWN[e.boss]` { update, hit } (entities/frozen-king.js: updateBoss and
+  bossTakeHit hand over first); `BOSS_NAMES.pharaoh`; the boss bar hides the shield row for a boss without `shield`.
+  Mummies: a zombie risen in a desert (`MUMMY_BIOMES`, full names) wears `_newMummyMat` (entities/rig.js;
+  textures/Entity/Zombie/mummy.png, 128x128, drawn by toolsrc/mummy-tex.js), `e.mummy`; a zombie in all else.
+  The middle button: `pickBlock(copy)` (player/inventory.js, from 17-input.js): the aimed block's slot picked, else
+  creative a stack into an empty / the held slot, survival the carried stack moved there; Ctrl only for a block already in
+  the hotbar, and copies its look (variant bar: `_variantPicks`, needs the chisel in survival) and chisel shape
+  (`player.chiselShape`, needs the hammer). TNT_RADIUS 5.2 (explodeAt loops over Math.ceil(R)). Fire: `FIRE_ETERNAL`
+  variant bit (53-storms.js): a fire on hay lit in creative or laid by a structure (`fireStamped`, from
+  stampStructureSlice) never spreads, burns or dies (water and the hay gone end it), kept in the edits and found again
+  on load; every hay fire smokes (`HAY_SMOKE_PER_S`). The structure block's outline has orange middle loops (x and z halved).
+- **0.84884.** biomeRev 42 `RDFLAT` (biomes/fields.js): the Deep Red Desert Flat, `rdf` in terrainInfo (a noise at RDF_F
+  between RDF_LO and RDF_HI, times ddRed): the Deep Desert's tables, cracks, ridges and rough skin AND the rev-14 hills,
+  crags and cliffs eased by (1 - rdf); biomeAt names it over 0.5; biomeBase keeps the name; no hoodoos or bones in it
+  (gen-deep-desert.js); hellhounds, mummies and tumbleweeds take it; BIOME_COUNT 41. Measured headless over 6 x 6 km and 3
+  seeds: 25-33% of the Deep Red Desert, patches about 130-200 blocks across, the flattest 60 x 60 square inside one 2-7
+  blocks from top to bottom. The summer boss's great pyramid (the user's 60 x 40 x 60 build) goes there: its placement is
+  not written yet. Prefabs keep sign text (`signs`: structureSignsIn / applyStructureSigns, blocks/signs.js). Leaving the
+  page: `worldUnsaved()` (16-worlds.js, WORLD_UNSAVED_MS after `worldSavedAt`) makes the beforeunload handler (23-boot.js)
+  ask, after it has written the closing-time copy.
+- **0.84885, covers in another block's cell** (like Applied Energistics' facades; header of blocks/covers.js). `COVER_OVER`
+  "cx,cz" -> Map(cell index -> [six cover values, 0 where none]): up to one a side (bottom, top, -X, +X, -Z, +Z = the cover's
+  rotation) in a cell whose block is not whole. `coverOverBoxes(g, x, y, z, host, covers)` (shapes/boxes.js, BLOCK_CORE;
+  page `BLOCKS.*`, the mesher) = boxes per side: `coverHostBoxes` (what may hold them and what they keep clear of; null =
+  no host: whole blocks, fluids, fire, doors, beds, logs), each side COVER_T thick, thinned to COVER_THIN by a box that
+  near (a chest), cut round a nearer one (`_coverSide`, `_coverFree`), the cell's covers clear of each other in side
+  order; under COVER_MIN_AREA of its face left = no room. `setCoverOver` (never write the map by hand), `coversAt`,
+  `coverAt`. Ray: `over`, bi `COVER_OVER_BI` + side; `overValAt` / `overBoxesAt` / `breakOverAt(x, y, z, bi, ...)` answer
+  for plates too (tick.js, breaking.js, pickBlock). Placing `tryCoverOver` (place-block.js, after the plate's). setBlock's
+  hook `coverChanged` runs LAST in setBlock (it may setBlock again): emptied, the first cover becomes the cell's block;
+  no room any more, a cover drops; fences, walls, stairs beside re-checked. A cell takes a plate or covers, not both.
+  Mesh job `covers` (meshChunk's last arg). Saved `coverOver`; prefabs `covers` (structureCoversIn,
+  applyStructureCovers). chestCovered: a top cover in the chest's cell shuts it; it and `stationCovered`
+  (blocks/crafting-bench.js, the furnace's chimney too) ignore a torch on top.
+- **0.84886, the doorway trap** (header above `DOOR_FILL` in blocks/doors.js). A door's top half opening (`doorFillChanged`,
+  setBlock's hook, after coverChanged) wakes the cell over it; a WHOLE falling block (`_fallsWhole`: opaque, not a layer
+  stack: sand, red sand, gravel, hay) treats an open door's cell with no fill and no body in it as open (`_fallOpenFor`,
+  `doorTakesFall`; every fall check in blocks/falling.js goes through it) and lands there as `DOOR_FILL` "cx,cz" -> Map(cell
+  index -> value), whole, not a pile. Drawn in the room the panel leaves (`doorFillBoxes`, shapes/boxes.js; mesh job
+  `fills`, meshChunk's last arg), collides as FULL_BOX (blockBoxes), ray bi `DOOR_FILL_BI` 16 (overValAt / overBoxesAt /
+  breakOverAt in blocks/covers.js), `breakDoorFill` (the fill over it drops in, what is over the door falls again). Jammed:
+  `useDoor` refuses (`doorJammed`, a double's partner too); a plate still toggles it (the panel swings through the fill).
+  The door gone, the fill becomes its cell's block. Saved `doorFill`. A door shape held or in a slot is the door itself:
+  CHISEL_ICON_VAR.door = SHAPE_DOOR, renderBlockIcon's door branch, buildDropGeom -> `doorItemNode` (blocks/doors.js).
+  Planned, not built: a -100% mining effect in the pyramid boss area (no digging back out).
+  0.848861: a plate lying half a block up (a stair's lower step, a slab: `onStep` in _platePress) reaches
+  `PLATE_REACH_STEP` = PLATE_REACH_ON + the four cells beside one level up (the user's red sandstone stairs up to a door).
+  0.848864: you open a door standing IN its cell (the shut panel lies along one side): the fall comes at once and
+  `doorFillLand` (blocks/doors.js, from _landBlocks) shoves whoever is in the landing cell out through the doorway to
+  their side (a wait for them to step out read as broken to the user). Sand put on a door already open falls in
+  (doorFillChanged); a FULL pile of sand or gravel (8 layers of one block, `_fullPile`) falls in as its block whole
+  (`_asWhole`, processFalling); a queued block whose door shut again stays whole (never made a pile). Tested in the pane
+  (8408), the game running: sand, red sand, gravel, hay, from in front and from inside the cell, sand on an open door, a
+  full pile, the stairs with half plates up to a double door, breaking the bottom fill.
+- **0.84887, the fire pole** (structures/temperate/fire_pole.json, in the manifest): a lone surface prefab 3 x 5 x 3, three oak planks
+  fence posts, a hay bale cased in four cobblestone covers (15; base covers in the cells beside it, against it, and one
+  under it in the top post's cell), an eternal fire
+  on the hay (variant 1; fireStamped makes any structure fire on hay eternal anyway). Wherever there are trees: spawn
+  biomes are BASE names (Plains, Forest, Birch Forest, Spruce Forest, Snow Forest, Coldest Deep Snow Forest, Mountains,
+  Savanna, Beach = the Deep Beach too, Oasis), `spawn.replace` swaps oak planks (5) for that biome's planks (spruce on the
+  Cold Plains and in spruce and snow forests, birch, rime, acacia, palm on beaches and oases). Chance 0.006, apart 160.
+  Saved structure fires: tested in the pane (0.848865) — captured with the eternal bit, stamped through the queue as
+  eternal, alive with the hay after 10 game minutes.
+- **0.84888, the great pyramid's file** (structures/warm/big_pyramid.json, the user's build, 60 x 20 x 60, in the manifest,
+  spawn chance 0: it is not a lone prefab). Built with stand-ins put right when it is laid, like the castle's markers, so
+  the user can keep saving it from a structure block: `pharaohPyramidPrefab()` (entities/pharaoh.js, `PH_PYRAMID`) gives
+  { prefab, boss }: gravel -> sand (layers kept), every grass plant -> one layer of red sand (a tall grass's top dropped),
+  bedrock -> air, its cell the Dead Pharaoh's spot (`boss`, [30, 10, 30] today).
+- **0.849, the Dead Pharaoh's fight and its pyramid** (built as "0.8489"; the backup ref keeps that name, `before-0.8489`) (headers of entities/pharaoh.js and entities/boss-lair.js).
+  Lairs are ONE machinery for every kind: `LAIR_KINDS` [LAIR (the castle), PYRAMID_LAIR], each { CELL, APART, STEP, MARGIN,
+  SLOPE, PROBES, RING, SALT, BIOME, BOSS, PATH, PRE (key prefix: the castle's '' keeps old saves), REV (biomeRev it needs),
+  open(g, x, z), prefab(), blend, done(lair, cp), spawn(lair) }; cells carry `K`; `_lairKindOf(lair)` by its boss kind;
+  saved lairCells rows get a 4th field PRE for a kind not the castle. The pyramid: Deep Red Desert Flat, biomeRev 42,
+  `rdfOpenAt` (biomes/queries.js, on the generator: the flat by fields alone, as rimeOpenAt), embedded on red sand / red
+  sandstone, the pharaoh at its bedrock. Effects may be in STACKS: an entry's `stacks` multiplies its def's numbers in
+  `_effectSum`; def `stackFade` (one stack lost each time its clock runs out, tickPlayerEffects), `stackDesc(n)`; the bar
+  shows xN. New effect fields: `damageReduction` (armorDamageMultiplier, player/equipment.js; may go under 0, and
+  hazards.js applies a multiplier over 1 too), `noTnt` (place-block.js), `sandBlind` (fog `st.curse` / CURSE_FOG_FAR in
+  52-clouds.js applyMist; grains `fxCurseSand` from 49-particles.js). `summerCurse` (pulse `_phCursePulse` every
+  PH.CURSE_EVERY within PH.CURSE_R, while simulated), `pharaohCurse` (BLIND_S from the rage). Abilities (`_pharaohAct`,
+  PH.W_*): scroll (`_phScrolls`), dash (`e.dash` wind/go, then `e.back` walks home at RETURN_SPEED), mummies (`summon('zombie')`
+  + `_zombieMummify`, `sunProof` read by _zombieBurnTick, `pharaohOf`, `dmg` x RAGE_DMG), wand (enraged; orbit + spin, hit by
+  distance to its segment). The rage (`e.rageT`, `_phRageTick`): lift, colours lerped calm -> rage, the curse and the shove
+  on landing. BOSS_FX entries may bring their own `tick` (updateBossFx, frozen-king.js). Death: lair `defeated`, boss boost,
+  mummies to dust, curses lifted. No loot yet.
+  0.8491: quest 'Defeat the Dead Pharaoh' before the king's (`added: 4`, QUEST_SAVE_GEN 4, fixedXp 7500). The boss quests'
+  marker (ui/boss-hud.js) reads the quest's `boss` req: the nearest live boss of that kind, else `_nearestLair(p, K)`
+  (entities/boss-lair.js, K from `lairKindOfBoss`; text K.HOME). `bossLairsInWorld(boss)` false (biomeRev under K.REV, or
+  structures off): updateQuests passes the quest by itself and pays its XP. Boss boost shown as stacks (+20% each, additive).
+- **0.85, the Jungle** (biomeRev 43 `JUNGLE`, biomes/fields.js). `fJungle` in terrainInfo (`_jungleF`, biomes/terrain.js: a
+  slow wet field at JUNGLE_F, on the levels from JUNGLE_LVL, faded out before the temperature JUNGLE_HOT, so never in the red
+  sand or the Deep Deserts) scales fPlains, fDesert, fRedL, fSav and fDry down: hills and mountains come back. biomeAt
+  'Jungle' / 'Deep Jungle' (deepF) / 'Jungle Hills' (biomeBase -> 'Jungle'); dryAt 0 there, climAt eased to JUNGLE_CLIM;
+  BIOME_COUNT 44. Jungle wood: B 245-248, 250-251 (log, stripped, planks, leaves, sapling, hollow; retired looks' ids), T
+  453-459, leaves grey art tinted `JUNGLE_LEAF_TINT` (03), woods/jungle.js. Its TREES are ONE function for the generator
+  and the page: `jungleTree(kind, put, rnd, o)` (woods/jungle-trees.js, a top-level VOXEL_CORE part: `CORE.jungleTree`,
+  `JUNGLE_TREE`, `jungleKindOf`); generator `jungleCell` (woods/gen-jungle.js, from the tree loop), sapling `_growJungle`
+  (woods/saplings.js). Every write stays within 8 of the trunk (the tree loop's margin) and every leaf within
+  isLeavesConnected's reach (headless test checks both). A 2x2 trunk is four QUARTERS: log width index `LOG_W_QUAD` 60 + q
+  (blocks/basic.js, `isQuadW`; logWidthPx 64 = a full cell, collision full), drawn as one log scaled x2 by `emitQuadLog`
+  (chunks/mesher-logs.js: uv from the big log, faces between quarters left out, the outer corner notched).
+  0.8501: a quarter's width index is `quadW(q, level)` (60-63 level 0, each level the four below, down to 44: `quadOf`,
+  `quadLevel`, `quadExtent` = QUAD_WIDTHS[level] / 128 of its cell out from the big log's middle line; logCutBox and
+  emitQuadLog follow it). `_chopQuad` (woods/felling.js): a hatchet strips the four quarters at that height together, then
+  takes them a level in a swing, held at the last until cutSwingsFor, then fellTreeFrom. The fire pole's prefab has a
+  `covers` entry: a cover under its hay, in the top post's cell.
+  0.8502: `_chopQuad` takes QUAD_FELL_SWINGS 50 after the strip; the swings are kept IN THE CELLS, bits 25-30
+  (`LOG_CUT_SHIFT`, `logCutOf`, blocks/basic.js: nothing else uses those bits), and the mesher draws `quadReach(val)` (128
+  units less QUAD_CUT_UNITS a swing), so every swing shows; the width index's level (collision) follows every
+  QUAD_LEVEL_SWINGS, never narrower than drawn. A value rebuilt from id and variant drops the cut (fine: only these quarters
+  carry one). Bark: `_barkDrops(x, y, z, units)` (woods/felling.js) rolls LOOT.bark (units / BARK_UNITS 56)^2 times. Cocoa: pods only COCOA_MIN_UP 7 over the ground (generator JUNGLE_COCOA_UP, woods/jungle-trees.js);
+  PROPS `pageSeen` (a new flag: the worker lists the block with the emitters, EMITTER_ID too, finishChunkGen's
+  pageModelSeen hands it on: `cocoaSeen` registers every pod, so one with no trunk breaks in updateCocoa); felling calls
+  `cocoaOffFelled(logs)` (all pods off, ripe ones drop); `cocoaShake` takes only ripe ones. Cocoa: `B.COCOA` 252 (blocks/plants.js, `COCOA_BITS`: FACE bits 0-1 = the side its
+  trunk is on, STAGE bits 2-3, RIPE 3; T 460-463, green built in 03 `COCOA_YOUNG_TINT`), `noInv`, `hangs`. woods/cocoa.js:
+  straight trunks only (`_cocoaTrunk`: grown 1-wide upright jungle logs, COCOA_TRUNK_MIN), budding, growth, overripe
+  break, `cocoaLostHold` (setBlock), `cocoaShake` (skillShakeTree), `cocoaPrompt` (ui/hud.js). Drops `LOOT.cocoaBeans` /
+  `cocoaFat` (blockDrop). `ITEM.COCOA_BEANS` 433, `COCOA_POWDER` 434 (mortar, 5 beans, 4.5 s). GAME_VERSION 0.85.
+- **0.8503.** Hay or thatch broken (player/tick.js) with a fire on any side (`onFireAt`, `BURNT_NO_DROP`, 53-storms.js) gives
+  nothing. `GRAVEL_FLINT_CHANCE` 0.1 (50-loottable.js; 0.8504) for a gravel block and a gravel layer (_dropLayer). A monster the sun kills
+  (`_zombieBurnTick`, entities/night-mobs.js) drops nothing. Fire pole covers are cobblestone.
+- **0.8505.** `BED_WOODS` (blocks/bed.js) oak, birch, spruce, acacia: the bed's two wood bits are FULL (a fifth wood needs a
+  high bit, as the chest's `CHEST_WOOD_HIGH`). ICON_MESH_ART (05-icons.js, loads before bed.js) lists the planks by hand.
+  biomeRev 44 `REV44` (worldgen/gen-setup.js): sugar cane's seed chance x `CANE_HOT_MUL` 2.5 on a shore with the Jungle, a
+  desert (DES or RED) or the Savanna within 2 columns; genChunk's new grid `JNG` (worldgen/terrain-columns.js).
+- **0.851, fences, walls, gates, the wrench** (headers of shapes/shapes.js, blocks/rails.js, blocks/gates.js, player/wrench.js).
+  joinBoxesAt (shapes/boxes.js) takes `rl` (a lookup of the fences/walls lying in other cells) and `joinsAs` (gates join as
+  their fence or wall); `FENCE_POST_TALL` under a fence/wall/gate. Steps: `joinSlopesAt` -> [d, dy] (never gates, never a
+  stack), drawn slanted by `emitSlantBox`/`emitSlopes` (chunks/mesher-models.js; `quad` takes any corners), collide as a
+  straight arm. Walls: low nibble 0 the old middle, 1 the pose, `WALL_BACK | facing` moved `WALL_BACK_PX` (`_wallBack`).
+  Gate `SHAPE_GATE` 0xE0 (`GATE_AXIS_Z`, `GATE_OPEN`, `GATE_SWING_POS`, `GATE_WALL`; `gateBoxes`; SHAPE_BLOCKS.gate = fence +
+  wall blocks); `tryUseGate`/`makeGate`/`toggleGate`, PLATE_TARGETS.gate. Cell bits 25-29: `JOIN_MANUAL` + arms
+  (`JOIN_ARMS_SHIFT`) on fences/walls, `STAIR_FORCE_SHIFT` (stairBoxesAt) on stairs; prefabs keep bits 25-30 as a block's 7th
+  number. RAIL_OVER (blocks/rails.js, bi `RAIL_OVER_BI` 17): a fence on a bottom slab / upright stairs (`RAIL_LIFT` 0.5), a wall
+  in upright stairs (`railHostOk`, `railOverBoxes`); mesh job `rails` = this chunk's and the ring round it (`railsForMesh`,
+  key (x+1)+(z+1)*18+y*324); blockBoxes adds them (`_blockBoxes` is the cell's own); saved `railOver`, prefabs `rails`,
+  hook `railChanged`. `ITEM.WRENCH` 435 (`useWrench`, first in _doPlace; creative only). Planks take walls.
+  0.8511: gates are drawn on the page like doors (GATES, `updateGates`, `gateChanged` from setBlock, `registerGate` from the
+  edits on load; the mesher skips them; panels from `_gatePanel` in pivots, the world shader through `_dropMat` and a light
+  hook). Joins: `joinTakes` / `autoJoins` (a JOIN_MANUAL neighbour joins only by its own arm back, so the wrench's join holds
+  both ways; a refused side looks for a step), steps from the post's middle (spec.slope 8..16), a wall a step runs through
+  has no post. `WALL_BACK_PX` 2 (no faces lying on a stair's). Wrench: a wall's top anywhere
+  turns it; stairs' top/bottom flips, a side turns.
+  0.8512: `joinLinks(family, g, x, y, z, v, rl, lift)` -> { j, steps } is THE join rule (joinBoxesAt and joinSlopesAt ask it):
+  heights by `_joinCell` (a rail's `railLift(host, rail)`), a level neighbour standing higher/lower = a half step, a step pair
+  decided the same from both ends (the cell over/under is the other's level: joinTakes with JOIN_BACK). Rails: a fence in
+  any slab (a top or vertical one from the floor, lift 0, boxes kept RAIL_EPS inside, collision no higher than the cell),
+  walls in stairs at RAIL_LIFT like fences.
+  0.8513: `joinsAs` ignores the block (any fence joins any fence, any wall any wall; `gateFamily`); corner joins are drawn
+  as 45-degree rails (`joinDiagsAt`, `DIAG_RAILS`, `emitDiagRails`/`emitDiags` in chunks/mesher-models.js; joinBoxesAt keeps
+  only their collision boxes, so the crosshair passes them); a wall loses its post only where steps go opposite ways;
+  `wrenchPrompt` (player/wrench.js, from _interactText in ui/hud.js).
+  0.8514: gates stay level (no tilt); a step toward a gate is drawn whole by the fence/wall (`whole`: dy x2 in joinLinks).
+  A corner join is left out only when `_cornerOut`: a cell between joined by BOTH ends (asked the same from both, so
+  both draw it or neither). A wall placed on or against a wall takes its low nibble (_shapeVariantFor).
+  0.85141: `_cornerOut` also leaves a corner out when a WHOLE block (`_wholeBlock`: model 'cube', solid or leaves, unshaped)
+  stands in either cell between. Steps and corners have crosshair boxes: `joinPickBoxes` (shapes/boxes.js: `_stepBoxes`
+  PICK_STEPS along a slope, reaching under/over the cell; `_diagBoxes`), added by rayBoxesAt (`joinPickAt`,
+  chunks/block-access.js) and railBoxesAt when not coll. raycastVoxel takes a fence/wall/rail cell's boxes only inside the
+  cell (`tOut`) and asks the cells over and under for what reaches in (`_joinReachHit`, player/movement.js). joinBoxesAt's
+  collision adds `_stepBoxes` too. `wallShift(family, v)` (emitDiags uses it). Fences: stone, cobble, rocks, sandstones.
+  0.85142: joinLinks' step loop skips a step when `_wholeBlock` stands in a cell between (over the lower one or under the
+  higher one; the same two cells from both ends). Natural ground counts too: a fence up a grass hill does not slope.
+- **0.8515, more looks** (blocks/looks.js, T 464-469): adobe 3 circle, terracotta (B.BRICKS) 4 soot brick, bone block 2 carved,
+  sulfur block 2 carved, and looks on the thatch id (a VARIANT_BLOCKS id, like the snow brick's): 1 carved, 2 brick, on hay's bar.
+  `toolsrc\check-textures.ps1` is gone from toolsrc (not recreated).
+  0.8516: every planks look 1 brick (T 470-476, art `<wood>_plank_bricks.png` in its Woods folder; defined after `_ALL_PLANKS`
+  in looks.js, which a part must not use before it is declared); the bar gets it from `woodBlocks('planks')` (variants.js).
+  0.8517: bone block look 3 polished (T 477, Decorations/bone/polished_bone_block.png, no axis).
+- **0.852, vines and what a pick takes.** `B.VINE` 253 (a retired look's id; T 478, `vine_cut` 479 built in 03 by `halfCut`), a
+  'wall' plate like the glow vine (blocks/glow-and-storage.js), look 1 = half cut (the 'wall'/'carpet' mesher branch now reads
+  `facesOfVal`). woods/vines.js: held by what is behind it (solid, log, leaves) or a vine over it, else it falls as a vine
+  (`vineChanged`, setBlock's hook; the generic glow-vine rule skips it); tips (`VINE_TIPS`, found by column looks and the hook) grow
+  a cell down every `VINE_GROW_DAYS` to a block over the ground, `VINE_MAX` long, from updateSeasonGrowth; `tryCutVine` (shears,
+  _doPlace) cuts and drops the strand under it; `vinePrompt`. Generator: giants only, `o.vines` in jungleTree (`_jVines`: trunk
+  sides and canopy edges, a strand stops where `put` returns false: gen-trees.js' `put` and the sapling's now answer true when
+  written), biomeRev 45 `VINES` (worldgen/gen-setup.js); a grown giant sapling gets them. Variant costs (header WHAT A PICK
+  TAKES in blocks/variants.js): option `need`, `VARIANT_DEFAULT_NEED` (with the chisel off too), `heldNeedOf`; _doPlace refuses
+  without it and sets `_placeNeed`, spendHeld('placed') takes it (player/breaking.js); a cell that paid carries `NEED_PAID` (bit
+  31; main path, the bed, and since 0.8521 plates, covers and rails in another block's cell: `paidMat` in _doPlace, kept by
+  tryPlateOver / coverValOf / tryRailOver; a slab's second half still takes it and gives nothing back), `paidNeedOf`
+  read by blockDrop (50-loottable.js, now a wrapper of `_blockDropOwn`). Rebuilding a value from id + variant byte drops bit 31:
+  tryPairChest / unpairChestNeighbour and the furnace's fire keep `& ~0xFFFF` now. Bar: `.vNeed` icons under the slots
+  (css). Metal chest recipe: chest + 3 of iron/copper/gold ingots (any mix).
+  0.8525: mossy looks (T 480-484): adobe 4, terracotta (B.BRICKS) 5 mossy roof, cobblestone 2 mossy brick, sandstone 4 mossy
+  brick (the plain sandstone only), dirt 1 (its first look and bar; grass-spread.js takes only a bare `B.DIRT` value, so
+  grass never covers it). Each takes a vine through the /mossy/ name rule in variants.js.
+  0.8526 (T 485-497): dirt 2 coarse, 3 frozen (looks only); mossy brick: sulfur 3, thatch 3 (on hay's bar), red and pink
+  sandstone 4, every planks 2 (`MOSSY_<WOOD>_PLANK_BRICKS`). paidNeedOf searches the bar of `_VARIANT_BASE[id]` when the
+  cell's id has none (thatch's looks sit on hay's bar), so a mossy thatch gives its vine back.
+  0.8527 (T 498-505): cracked looks, no need: adobe 5, obsidian 3, each sandstone 5 cracked and 6 cracked brick (their bars
+  full). `cracked_slate.png` waits for a slate block; stone's look 3 'cracked brick' stays off the bar (no art of its own).
+- **0.8484.** `ITEM.LOCK_PICK` 430 (useables.js; blocks/chest.js: useChest starts `player._unseal` with `pick`, updateChestUnseal
+  takes `PICK_TIME_MUL` x as long, `_pickDone` rolls `PICK_OPEN` and `PICK_BREAK_WOOD` / `PICK_BREAK_METAL`; a seal picked is
+  removed, a player's lock stays). `ITEM.JAM_SANDWICH` 431 (food.js; FOOD_NUTRITION fruit + `stamina`, now one of
+  NUTRITION_KEYS and the tooltip's rows). Recipes appended to RECIPES_ADVANCED (the sandwich `basic: true` after the stew),
+  `V_BERRIES`. `MEERKAT_FOOD` (use on a tamed one, tryMeerkatInteract). GAME_VERSION 0.8484.
+- **0.848303.** Sealed metal chests (`_spawnSealedChest`, blocks/supply-chests.js) only in caves: under the column's first opaque
+  block, `WORLD_CHEST_Y_LO`..`HI` (1..200), the 3x3 at its height and the cell over it air; columns kept a block inside the chunk;
+  `WORLD_CHEST_TRIES` 24.
+- **0.848302.** Creature table `hungerMul` (update.js's drain and a ridden horse's): 0.5 for horse, hellhound, otter, meerkat.
+- **Version numbers (the user's rule).** Small changes, fixes and QoL go as sub-steps of the version being worked on (0.8482 ->
+  0.84821, 0.84822...). A new step (0.8483) is for a new feature; a message naming one for a small fix is a slip: use the next
+  sub-step and say so in the report. A big feature may take a whole step: the summer boss is 0.849 (asked as "0.839", a
+  typo), its tweaks 0.8491, 0.8492... A number one digit off a step above the current one means that step.
 - **Land first** (0.8455, the list is in chunks/stream.js above `streamLandWaiting`). `streamBehind` = land is
   missing near a player (a chunk within 6 not made yet, or made and never drawn; finished chunks piling up).
   The chunk stream runs FIRST in the frame (`runChunkStream`, 22, before simTick) and takes a bigger slice
@@ -389,7 +799,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   drawn from the material's art (`_doorArt`; its art loaded via MESH_TEXTURES in 03), `DOOR_LOCKS` + key slot meta `lock`.
 - **Chests (0.843, blocks/chest.js):** art is 4 sheets (`CHEST_SHEET`: chest_wood/_metal single, *_double halves). `B.METAL_CHEST`
   229 (bits 4-5 metal, `CHEST_METALS`; 64 `CHEST_SEALED`); use `isChestId(id)`, never `B.CHEST` alone; a chest's look is
-  `chestLookOf(val)` (0-3 wood, 4+ metal). Locks share `DOOR_LOCKS` (chest cells as keys, both halves); `chestLocked` =
+  `chestLookOf(val)` (0-7 wood, `CHEST_METAL_LOOK` 8+ metal: at 4 the acacia chest drew as iron, 0.848841). Locks share `DOOR_LOCKS` (chest cells as keys, both halves); `chestLocked` =
   sealed or keyed: broken gives nothing. Sealed chests: `trySpawnWorldChest` (from 34's per-chunk roll), loot
   `DEFAULT_LOOT.<metal>_chest`; keys from mobs `_mobDropKey` (entities/night-mobs.js). 0.8442: one spacing for every supply chest
   (`SUPPLY_CELL` 175, `supplySiteOf`): wood = the `supply_crate` prefab (no lone roll any more), else a sealed metal one.
@@ -639,7 +1049,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   (player/leveling.js, saved with the feats): `bossXpMul` in addXP. Effects `frozenCurse`/`iceDaze`/`bossBoost` are added to EFFECT_DEFS
   from 60; effects may now carry `jumpStrength` and `coldResist` too (54). Last quest: a `{ boss, need }` requirement and
   `fixedXp` (47). A new boss: a kind, a builder, an `updateBoss` branch, its quest.
-  0.8393 the snow castle (structures/snow_castle.json, in the manifest, spawn chance 0 so it never spawns as a lone prefab):
+  0.8393 the snow castle (structures/cold/snow_castle.json, in the manifest, spawn chance 0 so it never spawns as a lone prefab):
   `LAIR` in entities/boss-lair.js. Sites from the seed per 4096 cell: `rimeOpenAt` (biomes/queries.js, exposed by makeGen; the open Coldest Deep Snow's
   fields only, ~1 us) finds candidates, a worker job `probe` (biomeAt/heightAt, ~14 ms each - never on the main thread)
   checks them, `_lairSite` keeps one per 4000 blocks. Placed through the placement queue (`onDone` on a job, 34), saved as
@@ -718,7 +1128,7 @@ Every file's first comment says what it holds; search inside the file for the na
 | `physics.js`, `combat.js`, `loot.js`, `held-items.js` | boxes (`entR` / `entH`), blocking, hazards, fall damage, bodies apart; `damageEntity` / `damageEntityByMob`; `_entDropLoot` and `_entBurnDeath` (how a kind's `loot` is dropped); what a mob holds |
 | `spawning.js`, `save.js`, `rig.js` | per-chunk rolls (`trySpawnEntitiesInChunk`, `CHUNK_ROLL_FIRST`, `_rollHerd`, night mobs), `serializeEntities` / `restoreEntities` (the row's layout is in its header), the humanoid rig and `_lightAt` |
 | `taming.js`, `boss-lair.js` | `TAMEABLE`, horse stances, petting, milking, mounting and the taming ride; the snow castle (`LAIR`) |
-| `termite.js`, `box-models.js` | the termites (`TERMITE`, `updateTermite`); box models read from JSON (also the termite hill's, `blocks/termite-hill.js`) |
+| `termite.js`, `box-models.js` | the termites (`TERMITE`, `updateTermite`); box models by name (`boxModel`, `BOX_MODEL_DATA`), their data in `js/models/*.js` |
 | **`items/`** | the item table: `items.js` (`ITEM`, `ITEM_PROPS`, `defineItems`, what an entry holds), one file per group (`materials.js`, `tools.js`, `weapons.js`, `equipment.js`, `food.js`, `containers.js`, `useables.js`), `finish.js` (the passes, last); `recipes.js` (`RECIPES_BASIC`, `RECIPES_ADVANCED`: add at the end only) |
 | **`blocks/`** | |
 | core parts: `ids.js`, `tiles.js`, `basic.js`, `glow-and-storage.js`, `gem-clusters.js`, `ladder-mortar.js`, `mushrooms.js`, `dry-plants.js`, `torch-blocks.js`, `plants.js`, `looks.js`, then `blocks.js` | BLOCK_CORE: ids `B`, tiles `T`, `PROPS`, variant bits `V`, model boxes, `VARIANT_BLOCKS`; `blocks.js` builds it and holds its return (see also `shapes/` and `woods/` parts) |

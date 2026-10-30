@@ -215,9 +215,10 @@
   #equipStats .stRow.none span { color:#6b7789; font-style:italic; }
 
   /* ---- chest storage (right of the inventory) ----
-     A single chest is 5 rows x 7 cols; a double stacks a second grid above it for 10 x 7, which
-     still fits on screen, so there is no scroller. */
-  #chestPanel { display:none; flex-direction:column; gap:6px;
+     A wooden chest is 2 rows x 7 cols, a metal one 4; a double stacks a second grid above the first (5 rows, metal 9).
+     As tall as its chest: a wooden chest's 2 rows the least, never taller than #equipPanel (its min-height, as
+     max-height here); the largest chest, a metal double, fits in that, so there is no scroller. */
+  #chestPanel { display:none; flex-direction:column; gap:6px; max-height:614px;
                 background:rgba(16,18,30,.94); border:1px solid rgba(255,255,255,.15);
                 border-radius:10px; padding:12px; }
   #chestPanel .ctitle { color:#9ab; font-size:12px; text-align:center; }
@@ -225,10 +226,6 @@
   #chestPanel .grid + .grid { margin-bottom:4px; }
   #chestPanel .row { display:flex; gap:4px; }
   #chestPanel .slot { pointer-events:auto; }
-  /* a large metal chest's 13 rows (0.843): seven shown (46px slots + 4px gaps, and the gap between its two grids),
-     the rest scroll with the wheel or the right stick; a thin bar so it reads as more */
-  #chestPanel .chestScroll { max-height:350px; overflow-y:auto; overflow-x:hidden; pointer-events:auto;
-                             scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.28) transparent; padding-right:4px; }
 
   /* structure block editor — sits in the same right-hand column as the chest/furnace GUIs */
   #structPanel { display:none; flex-direction:column; gap:8px; width:220px;
@@ -321,6 +318,13 @@
   #hotbar .variantBar .slot { width:34px; height:34px; }
   #hotbar .variantBar .slot img { width:30px; height:30px; }
   #hotbar .variantBar .vEmpty { opacity:.3; }
+  /* what a pick takes beside itself, under its slot (blocks/variants.js): the bar grows a row down for them; dim when the
+     bags hold none */
+  #hotbar .variantBar.needs { padding-bottom:22px; }
+  #hotbar .variantBar .slot { position:relative; }
+  #hotbar .variantBar .slot img.vNeed { position:absolute; left:50%; top:calc(100% + 3px); width:18px; height:18px; margin-left:-9px;
+                                        background:rgba(10,10,16,.6); border-radius:3px; }
+  #hotbar .variantBar .slot img.vNeed.lack { opacity:.35; filter:grayscale(1); outline:1px solid rgba(255,90,90,.8); }
   /* ---- effect bar (0.797): running effects right of the hotbar, half-size slots (23px, a slot is 46),
      after the chisel's slot when that is out. Icon on top, seconds left under it. ---- */
   #hotbar .effBar { position:absolute; left:calc(100% + 9px); bottom:2px; display:flex; gap:4px; align-items:flex-end; }
@@ -558,6 +562,8 @@
   #overlay .opts label { display:flex; flex-direction:column; gap:4px; align-items:center; }
   #overlay .opts select, #overlay .opts input { background:#0b0d16; color:#dfe; border:1px solid #445;
                    border-radius:6px; padding:5px 8px; font-size:13px; width:92px; text-align:center; }
+  /* a button among them (Power saver): the size of a select */
+  #overlay .opts button { padding:5px 8px; font-size:13px; width:92px; }
   #hzNote { font-size:11px; color:#789; margin:-6px 0 12px; }
   /* Item feed (0.751) — replaces the old single-line #toast. Newest row on top, so your eye stays
      in one place while the list grows downward under it. */

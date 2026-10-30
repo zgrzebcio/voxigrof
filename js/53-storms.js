@@ -365,6 +365,9 @@ _BURN.set(B.GRASS, [2.5, 0.04]);             // burns only from above: the blade
 const FIRE_CELLS = new Map();                // "x,y,z" -> { x, y, z, age, idle, ash }
 const _FIRE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 const _isPlant = (v) => PROPS[v & 255]?.model === 'cross' && (v & 255) !== B.FIRE;
+// a block a fire touches on any of its six sides; hay broken while one burns on it gives nothing (player/tick.js)
+const onFireAt = (x, y, z) => _FIRE_DIRS.some(([dx, dy, dz]) => (getBlock(x + dx, y + dy, z + dz) & 255) === B.FIRE);
+const BURNT_NO_DROP = new Set([B.HAY, B.THATCH]);
 function _fireSound(key, x, y, z) {
   if (typeof playSound === 'function') playSound(key, { gain: key === 'fire' ? 0.5 : 0.8, pos: { x, y, z } });
 }
@@ -373,16 +376,30 @@ function _fireSound(key, x, y, z) {
    burns to death in it is that player's kill by fire (fireKillBy, entities/hellhound.js). `keep`: seconds it burns on with
    nothing to burn (a placed fire, FIRE_ITEM_S), on top of FIRE_IDLE_S. */
 const FIRE_ITEM_S = 10;
+/* A HAY FIRE: fire on a hay bale sends up a column of smoke (HAY_SMOKE_PER_S), wherever it was lit. One lit in creative or
+   laid by a structure is ETERNAL (FIRE_ETERNAL in its variant, so the edits keep it and a world loaded finds it again):
+   it burns on and on, never spreads, never burns the hay; water still puts it out, and so does the hay taken away. A
+   survival one is an ordinary fire: it spreads and the hay burns away. */
+const FIRE_ETERNAL = 1, HAY_SMOKE_PER_S = 7;
+const _onHay = (x, y, z) => (getBlock(x, y - 1, z) & 255) === B.HAY;
+const _fireEternalVal = (v) => (v & 255) === B.FIRE && ((v >> 8) & FIRE_ETERNAL) !== 0;
 function igniteAt(x, y, z, by = null, keep = 0) {
   if (FIRE_CELLS.size >= FIRE_MAX) return false;
   const v = getBlock(x, y, z);
   if (v !== B.AIR && !_isPlant(v)) return false;
   const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
   if (!c || !c.data) return false;                           // never into a chunk that is not there
-  setBlock(x, y, z, B.FIRE);
-  FIRE_CELLS.set(x + ',' + y + ',' + z, { x, y, z, age: 0, idle: -keep, ash: false, by });
+  const eternal = !!(by && by.canFly) && _onHay(x, y, z);    // a creative player's fire on hay
+  setBlock(x, y, z, eternal ? (B.FIRE | (FIRE_ETERNAL << 8)) : B.FIRE);
+  FIRE_CELLS.set(x + ',' + y + ',' + z, { x, y, z, age: 0, idle: -keep, ash: false, by, eternal, hay: _onHay(x, y, z) });
   _fireSound('fireIgnite', x + 0.5, y + 0.5, z + 0.5);
   return true;
+}
+// a fire a structure laid (stampStructureSlice, 34-structures.js): on hay for good, else an ordinary fire
+function fireStamped(x, y, z) {
+  const hay = _onHay(x, y, z);
+  if (hay) setBlock(x, y, z, B.FIRE | (FIRE_ETERNAL << 8));
+  FIRE_CELLS.set(x + ',' + y + ',' + z, { x, y, z, age: 0, idle: 0, ash: false, by: null, eternal: hay, hay });
 }
 // ash from a log burnt away: it settles on whatever is below, 1 or 2 layers
 function _dropAsh(x, y, z) {
@@ -412,9 +429,13 @@ function _updateFires(dt) {
     if (typeof editStore !== 'undefined')
       for (const [ck, edits] of editStore) {
         const [cx, cz] = ck.split(',').map(Number);
-        for (const [i, v] of edits) if ((v & 255) === B.FIRE)
+        for (const [i, v] of edits) if ((v & 255) === B.FIRE) {
+          // ...but an eternal one (a hay fire from creative or a structure) burns on, as it did
+          const eternal = _fireEternalVal(v);
           FIRE_CELLS.set((cx * 16 + (i & 15)) + ',' + (i >> 8) + ',' + (cz * 16 + ((i >> 4) & 15)),
-                         { x: cx * 16 + (i & 15), y: i >> 8, z: cz * 16 + ((i >> 4) & 15), age: FIRE_LIFE_MAX - 1, idle: FIRE_IDLE_S, ash: false });
+                         { x: cx * 16 + (i & 15), y: i >> 8, z: cz * 16 + ((i >> 4) & 15), age: eternal ? 0 : FIRE_LIFE_MAX - 1,
+                           idle: eternal ? 0 : FIRE_IDLE_S, ash: false, eternal, hay: eternal });
+        }
       }
   }
   if (!FIRE_CELLS.size) return;
@@ -422,6 +443,9 @@ function _updateFires(dt) {
   let near = null, nd = 20;
   for (const f of FIRE_CELLS.values()) {
     fxOnFire(f.x + 0.5, f.y, f.z + 0.5, 0.9, dt);
+    // a hay fire's column of smoke, pale and thick
+    if (f.hay && typeof _fxSmoke === 'function' && Math.random() < dt * HAY_SMOKE_PER_S)
+      _fxSmoke(f.x + 0.5 + (Math.random() - 0.5) * 0.4, f.y + 0.8, f.z + 0.5 + (Math.random() - 0.5) * 0.4, 0.62, 1, 1.4);
     for (const p of PLAYERS) if (p.spawned) {
       const d = Math.hypot(p.pos.x - f.x - 0.5, p.pos.y - f.y, p.pos.z - f.z - 0.5);
       if (d < nd) { nd = d; near = f; }
@@ -436,6 +460,9 @@ function _updateFires(dt) {
     if ((getBlock(f.x, f.y, f.z) & 255) !== B.FIRE) { FIRE_CELLS.delete(k); continue; }
     // water beside it puts it out
     if (_FIRE_DIRS.some(([dx, dy, dz]) => (getBlock(f.x + dx, f.y + dy, f.z + dz) & 255) === B.WATER)) { _putOut(f, k, true); continue; }
+    f.hay = _onHay(f.x, f.y, f.z);
+    // an eternal fire: nothing burns, nothing catches; it goes only with the hay under it
+    if (f.eternal) { if (!f.hay) _putOut(f, k, false); continue; }
     f.age += FIRE_TICK;
     const w = weatherAt(f.x, f.z), wet = ((w.mix.rainy || 0) + (w.mix.storm || 0)) > 0.5 && getSkyWorld(f.x, f.y, f.z) >= 15;
     let fuel = 0;

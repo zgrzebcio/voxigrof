@@ -90,11 +90,14 @@ function buildDropGeom(id, variant) {
   if (variant == null) variant = id === B.COCONUT ? PROPS[id].ripeStage | PROPS[id].resting : 0;
   if (id >= 256) return buildItemDropGeom(id);
   if (id === B.DOOR) return buildItemDropGeom(id, 'oak_door');   // no chunk-mesh model — sprite drop
+  // a door shape of its material (held with the hammer's Door picked): the door itself (blocks/doors.js)
+  if (BLOCKS.isDoorVal((id | (variant << 8)) >>> 0)) return [{ node: doorItemNode(matKey((id | (variant << 8)) >>> 0)) }];
   if (id === B.BED)  return [{ node: bedItemNode(bedWoodOf(variant)) }];   // real mesh, not a flat sprite; in its wood
   // Chest has no chunk-mesh model, but unlike the door and bed it IS a full 3D shape — a flat
   // chest_front sprite in the hand looked like a painting. Hand it the real lid-and-body mesh
   // (the same one 05-icons.js renders) as a node the caller adds directly.
   if (isChestId(id)) return [{ node: chestItemNode(chestLookOf(id | (variant << 8))) }];   // in its wood or metal
+  if (id === B.CLAM) return [{ node: clamItemNode() }];   // its own model, shut (blocks/clam.js)
   // as an item a log is a full 64-unit block, not whatever width it happened to grow at
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;
@@ -165,7 +168,11 @@ function _dropLightHook(_r, _s, _c, _g, material) {
 
 const DROPS = [];
 const DROP_SCALE = 0.28, DROP_HALF = DROP_SCALE / 2;
+// a drop is DRAWN this much bigger than DROP_SCALE, its body (DROP_HALF: resting, collisions) as it was
+const DROP_LOOK = 1.2;
 const DROP_GRAVITY = 20, DROP_PICKUP_R = 1.6, DROP_LIFETIME = 300;
+// how near a player a drop is taken: further with a meerkat on the shoulder (wornReachMul, entities/meerkat.js)
+const dropPickupR = (pl) => DROP_PICKUP_R * (typeof wornReachMul === 'function' ? wornReachMul(pl) : 1);
 /* How long a drop lies before it goes, counted ONLY while its chunk is simulated: 5 minutes for
    anything mined or knocked loose, 10 for what you threw down yourself, 20 for what you dropped by dying. */
 const DROP_LIFE_THROWN = 600, DROP_LIFE_DEATH = 1200;
@@ -225,7 +232,7 @@ function spawnDrop(id, x, y, z, vel, pickupDelay = DEFAULT_PICKUP_DELAY, dur = n
   if (!passes.length) return null;
   const group = new THREE.Group();
   _dropFill(group, passes, _dropCopies(count));
-  group.scale.setScalar(DROP_SCALE);
+  group.scale.setScalar(DROP_SCALE * DROP_LOOK);
   group.userData.glow = id < 256 && !!PROPS[id]?.light;
   // Spawn CENTRE the drop above the cell's midpoint so it can't start already inside a block.
   group.position.set(x + 0.5, y + 0.5, z + 0.5);
@@ -583,12 +590,12 @@ function updateDrops(dt) {
        player's hotbar and inventory, so the grab runs inside that player's context — otherwise a
        split-screen pickup would land in whichever player happened to be mid-tick. */
     if (d.age > d.pickupDelay) {                    // a corpse doesn't vacuum its own death drops
-      let taker = null, bestD2 = DROP_PICKUP_R * DROP_PICKUP_R;
+      let taker = null, bestD2 = Infinity;
       for (const pl of PLAYERS) {
         if (pl.dead || !pl.spawned) continue;
         const dx = p.x - pl.pos.x, dyv = p.y - (pl.pos.y + pl.H * 0.5), dz = p.z - pl.pos.z;
-        const d2 = dx*dx + dyv*dyv + dz*dz;
-        if (d2 < bestD2) { bestD2 = d2; taker = pl; }
+        const d2 = dx*dx + dyv*dyv + dz*dz, r = dropPickupR(pl);
+        if (d2 < r * r && d2 < bestD2) { bestD2 = d2; taker = pl; }
       }
       if (taker) {                                  // as much of the stack as fits
         const got = withPlayer(taker, () => tryPickupMany(d.id, d.count, d.dur ?? null, 'picked up', d.meta ?? null));

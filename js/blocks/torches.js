@@ -6,7 +6,8 @@
    A placed fire torch burns 5-10 minutes, a crystal torch 15-30, a glow dust or glowcrystal block 30-60. Then the torch
    is an unlit torch and the block its spent, grey self (02). The time runs on the world's clock, so a night slept
    through burns them too. It is drawn at random when the light is placed (the setBlock hook, chunks/block-access.js) or when it is first
-   seen (the emitter scan of a loading chunk, 11): a torch from an older save or in a structure starts its time then.
+   seen (the emitter scan of a loading chunk, 11): a torch from an older save starts its time then. A structure's lights
+   never burn out (BURN_NEVER, set as it is stamped: stampStructureSlice, 34-structures.js).
    BURNS keeps every due time and is saved with the world, so breaking and placing a light again never resets it — a
    lit torch broken comes back unlit anyway (blockDrop, 50).
 

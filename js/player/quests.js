@@ -70,9 +70,13 @@ const QUESTS = [
   { name: 'Get a backpack',         hint: 'Leather, leather strips, cloth and bronze nuggets, at the bench. Worn on the back', reqs: [_req(ITEM.BACKPACK)], xp: 4200, added: 3 },
   { name: 'Every gem',              hint: 'Gem clusters grow in caves. You need a bronze pickaxe',
     reqs: [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ].map(id => _req(id)), xp: 5500 },
-  /* The last: the first boss. Done once its kind is in your feats (entities/frozen-king.js), so beating it before you got
-     here counts too. A marker over the nearest Frozen King shows the way while it is the quest you are on. Its 2000
-     XP is paid as written (`fixedXp`), and after the kill's boss boost has landed, so the boost already counts. */
+  /* The last two: the bosses, the summer one first (`added: 4`). Each is done once its kind is in your feats
+     (entities/frozen-king.js), so beating it before you got here counts too. A marker shows the way to the nearest of
+     that boss or its lair while it is the quest you are on (ui/boss-hud.js). Their XP is paid as written (`fixedXp`), and
+     after the kill's boss boost has landed, so the boost already counts. In a world that can hold none of its lairs
+     (made before them, or with structures off: bossLairsInWorld) the quest passes by itself and still pays. */
+  { name: 'Defeat the Dead Pharaoh', hint: 'Follow the crown marker to his pyramid in the Deep Red Desert Flat. Do not stay near him long: his curse grows',
+    reqs: [{ boss: 'pharaoh', need: 1 }], xp: 7500, fixedXp: true, added: 4 },
   { name: 'Defeat the Frozen King', hint: 'Follow the crown marker. Keep moving: close to him you cannot mine',
     reqs: [{ boss: 'frozen_king', need: 1 }], xp: 10000, fixedXp: true },
 ];
@@ -113,7 +117,10 @@ function updateQuests(dt) {
   // progress is summed over the requirements, each capped at its own need
   const need = q.reqs.reduce((n, r) => n + r.need, 0);
   const have = q.reqs.reduce((n, r) => n + Math.min(r.need, _questCount(r)), 0);
-  if (have >= need) {
+  // a boss with no lair in this world, not beaten: the quest passes by itself, its XP paid
+  const noLair = have < need && q.reqs.find(r => r.boss && typeof bossLairsInWorld === 'function' && !bossLairsInWorld(r.boss));
+  if (have >= need || noLair) {
+    if (noLair && typeof feedInfo === 'function') feedInfo(`No ${lairKindOfBoss(noLair.boss).HOME} in this world: quest passed`);
     player.questIdx = questIndex() + 1;
     if (typeof addXP === 'function') addXP(q.xp);
     // a gold row like a level-up, and the feed's own chime cooldown keeps it to one ring
@@ -158,7 +165,7 @@ function _questReqName(r) {
 /* a second round (the bottle of water, `added: 2`). The save's mark now counts the rounds: a place saved in
    round 1 (`added: true`) is counted along the quests of round 1 and before, so the round-2 quests ahead of
    it are skipped the same way. A later round: its quests get `added: 3` and QUEST_SAVE_GEN goes to 3. */
-const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 3;   // round 3: the backpack after the bronze pickaxe
+const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 4;   // round 3: the backpack after the bronze pickaxe; round 4: the Dead Pharaoh
 const serializeQuests = (p) => ((p && p.questIdx) | 0) + QUEST_SAVE_MARK * QUEST_SAVE_GEN;
 const _questGen = (q) => q.added === true ? 1 : (q.added | 0);
 function restoreQuests(v) {

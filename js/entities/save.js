@@ -22,18 +22,30 @@ function serializeEntities() {
     if (def.night) continue;          // night spawns: dawn is their despawn, never persisted
     if (def.unsaved) continue;        // a kind something else keeps (a termite hill its termites)
     if (e.boss) continue;             // a boss is placed by its castle, never saved
-    const cols = def.cols ? def.cols(e) : null;
-    out.push([
-      +e.x.toFixed(2), +e.y.toFixed(2), +e.z.toFixed(2),
-      +e.yaw.toFixed(3), Math.max(0, +e.hp.toFixed(1)),
-      e.name, e.inventory.map(s => [s.id, s.count]),
-      +e.hx.toFixed(1), +e.hz.toFixed(1),
-      e.kind, cols ? cols[0] : 0, cols ? cols[1] : 0,
-      def.save ? def.save(e) : 0,
-      5,                                        // health and hunger out of 100 (restoreEntities)
-    ]);
+    out.push(_entSaveRow(e));
+  }
+  /* What players carry is out of the world but saved as creatures where they stand: a live fish in hand
+     (player/fish-hold.js, a fish on the ground when the world is joined again), an otter round the neck (entities/otter.js,
+     its save marks it worn and it goes back on), a meerkat on the shoulder (entities/meerkat.js, the same). */
+  for (const p of PLAYERS) {
+    if (p._wornOtter) out.push(_entSaveRow(p._wornOtter, p.pos));
+    if (p._wornMeerkat) out.push(_entSaveRow(p._wornMeerkat, p.pos));
+    if (p._heldFish && typeof heldFishCreature === 'function') out.push(_entSaveRow(heldFishCreature(p), p.pos));
   }
   return out;
+}
+// one creature's row; `at`: where it is saved instead of its own place (one carried by a player)
+function _entSaveRow(e, at = null) {
+  const def = mobOf(e), cols = def.cols ? def.cols(e) : null, w = at || e;
+  return [
+    +w.x.toFixed(2), +w.y.toFixed(2), +w.z.toFixed(2),
+    +e.yaw.toFixed(3), Math.max(0, +e.hp.toFixed(1)),
+    e.name, e.inventory.map(s => [s.id, s.count]),
+    +(at ? at.x : e.hx).toFixed(1), +(at ? at.z : e.hz).toFixed(1),
+    e.kind, cols ? cols[0] : 0, cols ? cols[1] : 0,
+    def.save ? def.save(e) : 0,
+    5,                                        // health and hunger out of 100 (restoreEntities)
+  ];
 }
 function restoreEntities(list) {
   if (!Array.isArray(list)) return;

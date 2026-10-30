@@ -27,8 +27,10 @@ const V_SLOG   = woodLogs('spruce');
 const V_RLOG   = woodLogs('rime');
 const V_PLOG   = woodLogs('palm');
 const V_ALOG   = woodLogs('acacia');
+const V_JLOG   = woodLogs('jungle');
 const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE, B.DOLOMITE];   // dolomite 0.809          // anything that takes cobble takes stone too
 const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
+const V_BERRIES = [ITEM.BERRIES, ITEM.BLUE_BERRIES, ITEM.BLACKBERRIES, ITEM.YELLOW_BERRIES, ITEM.WHITE_BERRIES];   // any berry, mixed
 const V_BONE   = [ITEM.BONE, ITEM.SEASHELL];   // a seashell is bone enough: the mortar grinds it to bone ash, ten press into a bone block
 
 // leather gear is riveted, not forged: any soft-metal nugget does the job
@@ -82,11 +84,12 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.FIBER, 20]],                                                  out: [ITEM.CLOTH, 1], timeToCraft: 4, xpToGive: 20 },
   { in: [[V_PLANKS, 10], [ITEM.IRON_INGOT, 1], [ITEM.FIBER, 10]],            out: [B.CHEST, 1], timeToCraft: 6, xpToGive: 40 },
   { in: [[B.WOOL, 4], [V_PLANKS, 4], [ITEM.CLOTH, 5], [ITEM.FIBER, 10]],     out: [B.BED, 1], timeToCraft: 12, xpToGive: 100 },
-  { in: [[ITEM.BRONZE_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_SWORD, 1],   timeToCraft: 5.5, xpToGive: 350 },
-  { in: [[ITEM.BRONZE_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_SHOVEL, 1],  timeToCraft: 5, xpToGive: 350 },
-  { in: [[ITEM.BRONZE_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_PICKAXE, 1], timeToCraft: 6.5, xpToGive: 350 },
-  { in: [[ITEM.BRONZE_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HATCHET, 1], timeToCraft: 6,   xpToGive: 350 },
-  { in: [[ITEM.BRONZE_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 5.5, xpToGive: 350 },
+  // bronze tools: a termite's chitin plate each besides the bronze
+  { in: [[ITEM.BRONZE_INGOT, 6],  [ITEM.STICK, 2], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_SWORD, 1],   timeToCraft: 5.5, xpToGive: 350 },
+  { in: [[ITEM.BRONZE_INGOT, 2],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_SHOVEL, 1],  timeToCraft: 5, xpToGive: 350 },
+  { in: [[ITEM.BRONZE_INGOT, 10], [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_PICKAXE, 1], timeToCraft: 6.5, xpToGive: 350 },
+  { in: [[ITEM.BRONZE_INGOT, 8],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_HATCHET, 1], timeToCraft: 6,   xpToGive: 350 },
+  { in: [[ITEM.BRONZE_INGOT, 4],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 5.5, xpToGive: 350 },
   { in: [[ITEM.GOLD_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SWORD, 1], timeToCraft: 3, xpToGive: 120 },
   { in: [[ITEM.GOLD_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SHOVEL, 1], timeToCraft: 3, xpToGive: 120 },
   { in: [[ITEM.GOLD_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_PICKAXE, 1], timeToCraft: 4, xpToGive: 120 },
@@ -202,12 +205,13 @@ RECIPES_ADVANCED.push(
   // acacia planks, appended for the saved indices like the palm's, listed after them
   { in: [[V_ALOG, 1]],        out: [B.ACACIA_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.PALM_PLANKS },
   /* bronze armor, at the bench: bronze, leather, the termites' chitin and cloth by the piece's size, feathers for the
-     helmet's crest. XP as written is x CRAFT_XP_MUL below: 600 the gauntlets .. 1100 the chestplate */
-  { in: [[ITEM.BRONZE_INGOT, 15], [ITEM.LEATHER, 2],  [ITEM.CHITIN_PLATE, 1], [ITEM.CLOTH, 3]],  out: [ITEM.BRONZE_GLOVES, 1],     timeToCraft: 14, xpToGive: 400 },
-  { in: [[ITEM.BRONZE_INGOT, 18], [ITEM.LEATHER, 4],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 6]],  out: [ITEM.BRONZE_BOOTS, 1],      timeToCraft: 15, xpToGive: 467 },
-  { in: [[ITEM.BRONZE_INGOT, 21], [ITEM.LEATHER, 5],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 8], [ITEM.FEATHER, 5]], out: [ITEM.BRONZE_HELMET, 1], timeToCraft: 16, xpToGive: 533 },
-  { in: [[ITEM.BRONZE_INGOT, 26], [ITEM.LEATHER, 8],  [ITEM.CHITIN_PLATE, 3], [ITEM.CLOTH, 12]], out: [ITEM.BRONZE_LEGGINGS, 1],   timeToCraft: 17, xpToGive: 633 },
-  { in: [[ITEM.BRONZE_INGOT, 30], [ITEM.LEATHER, 10], [ITEM.CHITIN_PLATE, 4], [ITEM.CLOTH, 15]], out: [ITEM.BRONZE_CHESTPLATE, 1], timeToCraft: 18, xpToGive: 733 },
+     helmet's crest, fur (otters, polar bears) lining every piece but the helmet. XP as written is x CRAFT_XP_MUL below:
+     600 the gauntlets .. 1100 the chestplate */
+  { in: [[ITEM.BRONZE_INGOT, 30], [ITEM.LEATHER, 2],  [ITEM.CHITIN_PLATE, 1], [ITEM.CLOTH, 3],  [ITEM.FUR, 1]], out: [ITEM.BRONZE_GLOVES, 1],     timeToCraft: 14, xpToGive: 400 },
+  { in: [[ITEM.BRONZE_INGOT, 36], [ITEM.LEATHER, 4],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 6],  [ITEM.FUR, 1]], out: [ITEM.BRONZE_BOOTS, 1],      timeToCraft: 15, xpToGive: 467 },
+  { in: [[ITEM.BRONZE_INGOT, 42], [ITEM.LEATHER, 5],  [ITEM.CHITIN_PLATE, 2], [ITEM.CLOTH, 8], [ITEM.FEATHER, 5]], out: [ITEM.BRONZE_HELMET, 1], timeToCraft: 16, xpToGive: 533 },
+  { in: [[ITEM.BRONZE_INGOT, 52], [ITEM.LEATHER, 8],  [ITEM.CHITIN_PLATE, 3], [ITEM.CLOTH, 12], [ITEM.FUR, 2]], out: [ITEM.BRONZE_LEGGINGS, 1],   timeToCraft: 17, xpToGive: 633 },
+  { in: [[ITEM.BRONZE_INGOT, 60], [ITEM.LEATHER, 10], [ITEM.CHITIN_PLATE, 4], [ITEM.CLOTH, 15], [ITEM.FUR, 2]], out: [ITEM.BRONZE_CHESTPLATE, 1], timeToCraft: 18, xpToGive: 733 },
   // leather cut into strips, and the leather belt made of them (appended: recipe indices are saved)
   { in: [[ITEM.LEATHER, 1]],      out: [ITEM.LEATHER_STRIP, 3], timeToCraft: 2, xpToGive: 3 },
   { in: [[ITEM.LEATHER_STRIP, 15], [ITEM.IRON_NUGGET, 6], [ITEM.ASHES, 4]], out: [ITEM.BELT, 1], timeToCraft: 10, xpToGive: 200 },
@@ -215,14 +219,20 @@ RECIPES_ADVANCED.push(
   // packed ice: ground back into five ice at the mortar, and five ice pressed into one at the bench
   { in: [[B.PACKED_ICE, 1]],      out: [B.ICE, 5],         station: 'mortar', timeToCraft: 3, xpToGive: 3 },
   { in: [[B.ICE, 5]],             out: [B.PACKED_ICE, 1],  timeToCraft: 3, xpToGive: 3 },
-  /* a metal chest: a chest bound in a metal block (iron, gold or copper) and five iron ingots. Its look is picked on the
-     variant bar like a wooden chest's wood (blocks/variants.js); one crafted is never sealed */
-  { in: [[B.CHEST, 1], [[B.IRON_BLOCK, B.GOLD_BLOCK, B.COPPER_BLOCK], 1], [ITEM.IRON_INGOT, 5]], out: [B.METAL_CHEST, 1], timeToCraft: 8, xpToGive: 60 },
+  /* a metal chest: a chest and three ingots, iron, copper or gold (any mix). Its metal is picked on the variant bar like a
+     wooden chest's wood, and placing it takes a block of that metal (blocks/variants.js); one crafted is never sealed */
+  { in: [[B.CHEST, 1], [[ITEM.IRON_INGOT, ITEM.COPPER_INGOT, ITEM.GOLD_INGOT], 3]], out: [B.METAL_CHEST, 1], timeToCraft: 8, xpToGive: 60 },
   // at the mortar: gravel sifted for its flint, a cactus crushed into fiber
   { in: [[B.GRAVEL, 3]],          out: [ITEM.FLINT, 1],    station: 'mortar', timeToCraft: 2.5, xpToGive: 2 },
   { in: [[B.CACTUS, 1]],          out: [ITEM.FIBER, 5],    station: 'mortar', timeToCraft: 2, xpToGive: 2 },
   // the bone ash block: five bone ash pressed into one, and back
   { in: [[ITEM.BONE_ASH, 10]],     out: [B.BONE_ASH_BLOCK, 1], timeToCraft: 2, xpToGive: 1 },
+  // the lock pick, at the bench (blocks/chest.js); jam sandwiches, five berries of any kind and a bread make two, in the pocket list
+  { in: [[ITEM.SEASHELL, 2], [ITEM.IRON_INGOT, 6], [ITEM.LEATHER, 1], [ITEM.CHARCOAL, 1]], out: [ITEM.LOCK_PICK, 1], timeToCraft: 4.2, xpToGive: 40 },
+  { in: [[V_BERRIES, 5], [ITEM.BREAD, 1]], out: [ITEM.JAM_SANDWICH, 2], timeToCraft: 2, xpToGive: 6, basic: true, after: ITEM.MUSHROOM_STEW },
+  // jungle planks, after the acacia's in the pocket list; five cocoa beans ground into cocoa powder at the mortar
+  { in: [[V_JLOG, 1]],            out: [B.JUNGLE_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.ACACIA_PLANKS },
+  { in: [[ITEM.COCOA_BEANS, 5]],  out: [ITEM.COCOA_POWDER, 1], station: 'mortar', timeToCraft: 4.5, xpToGive: 5 },
 );
 // every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
 const CRAFT_XP_MUL = 1.5;

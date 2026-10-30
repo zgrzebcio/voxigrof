@@ -14,20 +14,20 @@
    array — the UI renders them as two stacked regions ('chest' and 'chest2') so the existing
    drag/drop machinery works unchanged. */
 
-/* a single chest is 3 rows (5 before); a double is 7, its first half (chestPairOrdered) having a bonus
-   fourth row. A cell's slots are sized to what it shows when the chest opens (fitChestSlots below). */
-const CHEST_COLS = 7, CHEST_ROWS = 3, CHEST_ROWS_BONUS = 1;
-const CHEST_SLOTS = CHEST_COLS * CHEST_ROWS;          // 21 per cell; a double is 21 + 28 = 7 x 7
+/* a single wooden chest is 2 rows; a double is 5, its first half (chestPairOrdered) having a bonus third row. A cell's
+   slots are sized to what it shows when the chest opens (fitChestSlots below: what no longer fits moves or falls out). */
+const CHEST_COLS = 7, CHEST_ROWS = 2, CHEST_ROWS_BONUS = 1;
+const CHEST_SLOTS = CHEST_COLS * CHEST_ROWS;          // 14 per cell; a double is 21 + 14 = 7 x 5
 const CHEST_SAVE_MAX = 128;                           // the most slots a saved chest is read back with (64 before 0.843)
 
 /* METAL CHESTS: B.METAL_CHEST, the chest in iron, copper or gold (variant bits 4-5, where a wooden chest keeps
-   its wood), 6 rows, a double 6 + 1 + 6. Its body is the metal block's own art with the wooden chest's fittings over
+   its wood), 4 rows, a double 4 + 1 + 4. Its body is the metal block's own art with the wooden chest's fittings over
    it. They lie about the world SEALED (bit 6), at any height on any block (trySpawnWorldChest), and a key of their
    metal opens one, staying in its lock; then it is a chest like any other, and a pickaxe takes it home. One is also made at
    the bench (a chest, a metal block, five iron: items/recipes.js), never sealed.
    Keys come from monsters (entities/entities.js). Any chest can be locked with a key like a door (useChest below; the codes
    live in DOOR_LOCKS with the doors', blocks/doors.js), and a locked chest broken takes its contents and itself with it. */
-const CHEST_ROWS_METAL = 6;
+const CHEST_ROWS_METAL = 4;
 const CHEST_SEALED = 64;
 const CHEST_METALS = [
   { name: 'iron',   block: B.IRON_BLOCK,   key: ITEM.IRON_KEY,   keyText: 'an iron key',   loot: 'iron_chest' },
@@ -36,8 +36,9 @@ const CHEST_METALS = [
 ];
 const isChestId = (id) => id === B.CHEST || id === B.METAL_CHEST;
 const chestMetalOf = (va) => { const m = (va >> 4) & 3; return m < CHEST_METALS.length ? m : 0; };
-// a chest's look, one number: 0-3 its wood, CHEST_METAL_LOOK + the metal for a metal chest
-const CHEST_METAL_LOOK = 4;
+/* a chest's look, one number: its wood (0-7, the three wood bits; CHEST_WOODS), CHEST_METAL_LOOK + the metal for a
+   metal chest. It must stay past every wood: at 4 the acacia chest (wood 4) was drawn as an iron one. */
+const CHEST_METAL_LOOK = 8;
 const chestLookOf = (val) => (val & 255) === B.METAL_CHEST ? CHEST_METAL_LOOK + chestMetalOf((val >> 8) & 255) : chestWoodOf((val >> 8) & 255);
 const chestRowsOf = (val) => (val & 255) === B.METAL_CHEST ? CHEST_ROWS_METAL : CHEST_ROWS;
 /* a WOODEN chest can be sealed too (the same bit): the supply crate's. A blank wooden key opens it and stays in
@@ -166,8 +167,53 @@ function chestInnerTexture(look) {
   if (!t.image && img) { t.image = img; t.needsUpdate = true; }
   return t;
 }
-// k: how bright it draws against the light at the chest (the inside is in its own shade)
-const chestMat = (tex, k = 1) => { const m = new THREE.MeshBasicMaterial({ map: tex }); m.userData.k = k; m.color.setScalar(k); return m; };
+/* ONE PICTURE A CHEST. Its six faces' pictures (front, back, side, top, bottom, inside: CHEST_PARTS) laid out 3 x 2 on one
+   canvas, each inside a border of its own edge pixels copied outward (CHEST_ATLAS_PAD of a face), so the smaller copies
+   the card makes for far away (mipmaps) do not bleed one face into the next. One material then draws a chest's body in
+   one call and its lid in another; with a material per face it was a call per face, about nineteen a chest. The inside's
+   shade rides on the vertex colour (CHEST_INNER_SHADE). Never cached blank, as chestTexture: built once every face is in,
+   and asked again by the chests' pass until then (_chestPass). */
+const CHEST_PARTS = 6, CHEST_ATLAS_PAD = 0.125;
+const _CA_T = 1 + 2 * CHEST_ATLAS_PAD;                 // a face's tile on the atlas, in faces
+const CHEST_INNER_SHADE = new THREE.Color().setScalar(0.6).convertSRGBToLinear().r;   // as bright as the old inside material (0.6)
+// where a face's (u, v) lands on the atlas: tile i at column i % 3, row i / 3 (rows counted from the top, the picture's flipY)
+const chestAtlasUV = (i, u, v) => [((i % 3) + (CHEST_ATLAS_PAD + u) / _CA_T) / 3,
+                                    1 - (Math.floor(i / 3) + (CHEST_ATLAS_PAD + 1 - v) / _CA_T) / 2];
+const _chestAtlas = {};
+function chestAtlas(look, half = null) {
+  const key = look + ':' + (half || '');
+  let t = _chestAtlas[key];
+  if (!t) {
+    t = _chestAtlas[key] = new THREE.Texture();
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
+  }
+  if (t.image) return t;
+  const other = half === 'left' ? 'right' : 'left';
+  const parts = [chestTexture(look, 'front', half),
+                 half ? chestTexture(look, 'front', other, false) : chestTexture(look, 'side'),
+                 chestTexture(look, 'side'), chestTexture(look, 'top', half), chestTexture(look, 'bottom', half, false),
+                 chestInnerTexture(look)];
+  if (!parts.every(p => p.image && p.image.width)) return t;
+  const S = Math.max(...parts.map(p => p.image.width)), P = Math.round(S * CHEST_ATLAS_PAD), T = S + 2 * P;
+  const c = document.createElement('canvas');
+  c.width = 3 * T; c.height = 2 * T;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  parts.forEach((p, i) => {
+    const img = p.image, w = img.width, h = img.height, x = (i % 3) * T + P, y = Math.floor(i / 3) * T + P;
+    g.drawImage(img, 0, 0, w, h, x, y, S, S);
+    // the border: each edge row and column stretched outward, then the four corner pixels
+    g.drawImage(img, 0, 0, w, 1, x, y - P, S, P); g.drawImage(img, 0, h - 1, w, 1, x, y + S, S, P);
+    g.drawImage(img, 0, 0, 1, h, x - P, y, P, S); g.drawImage(img, w - 1, 0, 1, h, x + S, y, P, S);
+    g.drawImage(img, 0, 0, 1, 1, x - P, y - P, P, P); g.drawImage(img, w - 1, 0, 1, 1, x + S, y - P, P, P);
+    g.drawImage(img, 0, h - 1, 1, 1, x - P, y + S, P, P); g.drawImage(img, w - 1, h - 1, 1, 1, x + S, y + S, P, P);
+  });
+  t.image = c;
+  t.needsUpdate = true;
+  return t;
+}
 
 /* One face of an axis box, with its normal `dir` pointing out of the box: 'px' 'nx' 'py' 'ny' 'pz' 'nz'.
    UVs read the picture the right way round from the side the face is seen from; a side face maps its
@@ -187,17 +233,17 @@ function _chestFace(A, dir, b, mat, v0 = 0, v1 = 1, ref = b) {
     case 'py': P = [[x0,y1,z1, U(x0),1-W(z1)], [x1,y1,z1, U(x1),1-W(z1)], [x1,y1,z0, U(x1),1-W(z0)], [x0,y1,z0, U(x0),1-W(z0)]]; break;
     case 'ny': P = [[x0,y0,z0, U(x0),W(z0)], [x1,y0,z0, U(x1),W(z0)], [x1,y0,z1, U(x1),W(z1)], [x0,y0,z1, U(x0),W(z1)]]; break;
   }
-  const base = A.pos.length / 3;
-  for (const p of P) { A.pos.push(p[0], p[1], p[2]); A.uv.push(p[3], p[4]); }
+  const base = A.pos.length / 3, shade = mat === CHEST_PARTS - 1 ? CHEST_INNER_SHADE : 1;   // the inside in its own shade
+  for (const p of P) { A.pos.push(p[0], p[1], p[2]); A.uv.push(...chestAtlasUV(mat, p[3], p[4])); A.col.push(shade, shade, shade); }
   A.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-  A.groups.push({ start: A.idx.length - 6, count: 6, mat });
 }
+// one geometry, one material: the face pictures are tiles of the chest's atlas (chestAtlas)
 function _chestGeo(A) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(A.pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(A.uv, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(A.col, 3));
   geo.setIndex(A.idx);
-  for (const g of A.groups) geo.addGroup(g.start, g.count, g.mat);
   return geo;
 }
 
@@ -207,21 +253,17 @@ function _chestGeo(A) {
    double chest's own sheets, so the pair reads as one wide chest with one cavity. */
 // `look`: chestLookOf (the wood before)
 function buildChestMesh(look = 0, half = null) {
-  const L = half === 'left', R = half === 'right', other = L ? 'right' : 'left';
-  const tex = { front: chestTexture(look, 'front', half),
-                back:  half ? chestTexture(look, 'front', other, false) : chestTexture(look, 'side'),
-                top:   chestTexture(look, 'top', half),
-                bottom: chestTexture(look, 'bottom', half, false) };
-  const mats = [chestMat(tex.front), chestMat(tex.back), chestMat(chestTexture(look, 'side')),
-                chestMat(tex.top), chestMat(tex.bottom), chestMat(chestInnerTexture(look), 0.6)];
-  const [FRONT, BACK, SIDE, TOP, BOTTOM, INNER] = [0, 1, 2, 3, 4, 5];
+  const L = half === 'left', R = half === 'right';
+  // one material for body and lid: the tint by the light (updateChests) goes on its colour, the inside's shade on the vertices
+  const mats = [new THREE.MeshBasicMaterial({ map: chestAtlas(look, half), vertexColors: true })];
+  const [FRONT, BACK, SIDE, TOP, BOTTOM, INNER] = [0, 1, 2, 3, 4, 5];   // the tiles of the atlas, CHEST_PARTS of them
   const BODY_V = 1 - CHEST_LID_H;                       // body art = lower rows, lid art = the top 5
 
   // the body: outer walls, a rim, and the cavity inside
   const x0 = R ? 0 : CHEST_INSET, x1 = L ? 1 : 1 - CHEST_INSET, z0 = CHEST_INSET, z1 = 1 - CHEST_INSET, H = CHEST_BASE_H;
   const Wl = R ? 0 : CHEST_WALL, Wr = L ? 0 : CHEST_WALL;   // no wall on the shared edge
   const ix0 = x0 + Wl, ix1 = x1 - Wr, iz0 = z0 + CHEST_WALL, iz1 = z1 - CHEST_WALL, iy0 = CHEST_WALL;
-  const A = { pos: [], uv: [], idx: [], groups: [] };
+  const A = { pos: [], uv: [], col: [], idx: [] };
   const body = [x0, 0, z0, x1, H, z1];
   _chestFace(A, 'pz', body, FRONT, 0, BODY_V);
   _chestFace(A, 'nz', body, BACK, 0, BODY_V);
@@ -239,20 +281,20 @@ function buildChestMesh(look = 0, half = null) {
   _chestFace(A, 'pz', [ix0, iy0, iz0, ix1, H, iz0], INNER, iy0 / H * BODY_V, BODY_V);
   if (Wl) _chestFace(A, 'px', [ix0, iy0, iz0, ix0, H, iz1], INNER, iy0 / H * BODY_V, BODY_V);
   if (Wr) _chestFace(A, 'nx', [ix1, iy0, iz0, ix1, H, iz1], INNER, iy0 / H * BODY_V, BODY_V);
-  const base = new THREE.Mesh(_chestGeo(A), mats);
+  const base = new THREE.Mesh(_chestGeo(A), mats[0]);
 
   // lid pivots on its BACK edge so it swings up and away from the player
   const lidPivot = new THREE.Group();
   lidPivot.position.set(0, H, z0);
   const lid = [x0, 0, 0, x1, CHEST_LID_H, z1 - z0];
-  const B2 = { pos: [], uv: [], idx: [], groups: [] };
+  const B2 = { pos: [], uv: [], col: [], idx: [] };
   _chestFace(B2, 'pz', lid, FRONT, BODY_V, 1);
   _chestFace(B2, 'nz', lid, BACK, BODY_V, 1);
   if (!R) _chestFace(B2, 'nx', lid, SIDE, BODY_V, 1);
   if (!L) _chestFace(B2, 'px', lid, SIDE, BODY_V, 1);
   _chestFace(B2, 'py', lid, TOP);
   _chestFace(B2, 'ny', lid, INNER);                     // its underside, seen when it is open
-  lidPivot.add(new THREE.Mesh(_chestGeo(B2), mats));
+  lidPivot.add(new THREE.Mesh(_chestGeo(B2), mats[0]));
 
   const group = new THREE.Group();
   group.add(base, lidPivot);
@@ -302,7 +344,7 @@ function registerChest(x, y, z, facing, val = null) {
   const off = [[0, 0], [1, 1], [0, 1], [1, 0]][facing & 3];
   m.group.position.x += off[0];
   m.group.position.z += off[1];
-  scene.add(m.group);
+  scene.add(freezeModel(m.group));                    // still; the lid moves by hand (updateChests)
   Object.assign(rec, { group: m.group, lidPivot: m.lidPivot, mats: m.mats,
                        x, y, z, facing, lid: 0, lastB: -1, look, half, checked: false });
   return rec;
@@ -371,8 +413,9 @@ function tryPairChest(x, y, z, facing) {
     const wood = (va & 255) & (3 << CHEST_WOOD_SHIFT | CHEST_WOOD_HIGH);   // its wood (or metal), kept through the pairing
     const mine  = facing | CHEST_PAIRED | (i === 1 ? CHEST_PAIR_NEG : 0) | wood;
     const their = facing | CHEST_PAIRED | (i === 1 ? 0 : CHEST_PAIR_NEG) | wood;
-    setBlock(x, y, z, id | (mine << 8));
-    setBlock(x + dx, y, z + dz, id | (their << 8));
+    // the high bits kept: standing in water, what it took to place (NEED_PAID, blocks/variants.js)
+    setBlock(x, y, z, ((getBlock(x, y, z) & ~0xFFFF) | id | (mine << 8)) >>> 0);
+    setBlock(x + dx, y, z + dz, ((nv & ~0xFFFF) | id | (their << 8)) >>> 0);
     rebuildChestMesh(x + dx, y, z + dz);                  // the neighbour turns into its half
     return true;
   }
@@ -388,7 +431,7 @@ function unpairChestNeighbour(x, y, z, oldVal) {
   const nv = getBlock(x + dx, y, z + dz);
   if ((nv & 255) !== id) return;
   const keep = ((nv >> 8) & 3) | ((nv >> 8) & (3 << CHEST_WOOD_SHIFT | CHEST_WOOD_HIGH));   // facing and wood (or metal)
-  setBlock(x + dx, y, z + dz, id | (keep << 8));
+  setBlock(x + dx, y, z + dz, ((nv & ~0xFFFF) | id | (keep << 8)) >>> 0);   // its high bits kept (water, NEED_PAID)
   rebuildChestMesh(x + dx, y, z + dz);                    // a whole chest again
 }
 // deterministic ordering so both halves agree which cell is "first"
@@ -429,7 +472,7 @@ function openChest(x, y, z) {
   if (b) registerChest(b.x, b.y, b.z, (getBlock(b.x, b.y, b.z) >> 8) & 3);
   activeChest = chestKey(a.x, a.y, a.z);
   activeChest2 = b ? chestKey(b.x, b.y, b.z) : null;
-  // each half to its size: the first half of a double has the bonus row; a metal chest has 6 rows
+  // each half to its size: the first half of a double has the bonus row; a metal chest has 4 rows
   const rows = chestRowsOf(getBlock(a.x, a.y, a.z));
   const fit = [[CHESTS.get(activeChest), CHEST_COLS * (rows + (b ? CHEST_ROWS_BONUS : 0))]];
   if (b) fit.push([CHESTS.get(activeChest2), CHEST_COLS * rows]);
@@ -465,6 +508,14 @@ function useChest(x, y, z) {
   const covered = cells.every(c => chestCovered(c.x, c.y, c.z));
   // sealed: this cell, or the half a chest was put beside (the other half is no way round the seal)
   const sealedAt = cells.find(c => chestSealed(getBlock(c.x, c.y, c.z)));
+  // a key or a lock pick works only up close (CHEST_UNSEAL_REACH)
+  if ((isKey || held?.id === ITEM.LOCK_PICK) && _chestKeyFar(x, y, z)) { deny('Too far: step up to the lock'); return; }
+  // a lock pick on a locked chest, sealed or a player's: worked like a key, twice as long, and it may slip or break
+  if (held?.id === ITEM.LOCK_PICK && (sealedAt || cells.some(c => DOOR_LOCKS.has(chestKey(c.x, c.y, c.z))))) {
+    if (covered) { deny(CHEST_COVERED_MSG); return; }
+    if (!player._unseal) player._unseal = { x, y, z, sel: hotbarSel, key: ITEM.LOCK_PICK, t: 0, pick: true };
+    return;
+  }
   if (sealedAt) {
     const m = chestSealOf(getBlock(sealedAt.x, sealedAt.y, sealedAt.z));
     if (held?.id !== m.key) { deny(`Locked: it takes ${m.keyText}`); return; }
@@ -501,19 +552,32 @@ function useChest(x, y, z) {
 /* A sealed chest opens with its key held in it a moment: the right button down CHEST_UNSEAL_S with the key in hand,
    standing by it (started by useChest). Let go, change hands or walk off and it stays sealed. Once a frame per seat
    (tickPlayer, player/tick.js); returns how far it is, 0..1, for the progress ring (interactProgress, ui/hud.js). */
-const CHEST_UNSEAL_S = 0.8, CHEST_UNSEAL_REACH = 6;
+/* CHEST_UNSEAL_REACH: how near (feet to the chest's cell, blocks) a key or a lock pick works, starting and held: up close,
+   so a trap laid round a locked chest (a ring of buried plates in the pyramid) cannot be reached over */
+const CHEST_UNSEAL_S = 0.8, CHEST_UNSEAL_REACH = 2.5;
+const _chestKeyFar = (x, y, z) => Math.hypot(player.pos.x - x - 0.5, player.pos.y - y, player.pos.z - z - 0.5) > CHEST_UNSEAL_REACH;
+/* THE LOCK PICK (ITEM.LOCK_PICK): the same hold on any locked chest, a sealed one or one a player locked, PICK_TIME_MUL
+   as long. Then it opens or not (PICK_OPEN), and the pick may break either way: PICK_BREAK_WOOD on a wooden chest,
+   PICK_BREAK_METAL on a metal one. A sealed chest it opens is open for good, as with its key; a player's lock it only
+   gets past this once (the lock stays). */
+const PICK_TIME_MUL = 2, PICK_OPEN = 0.5, PICK_BREAK_WOOD = 0.10, PICK_BREAK_METAL = 0.30;
+function _chestLockedHere(x, y, z) {
+  const [a, b] = chestPairOrdered(x, y, z);
+  return (b ? [a, b] : [a]).some(c => chestSealed(getBlock(c.x, c.y, c.z)) || DOOR_LOCKS.has(chestKey(c.x, c.y, c.z)));
+}
 function updateChestUnseal(dt, held) {
   const u = player._unseal;
   if (!u) return 0;
-  const slot = HOTBAR[hotbarSel];
+  const slot = HOTBAR[hotbarSel], need = CHEST_UNSEAL_S * (u.pick ? PICK_TIME_MUL : 1);
   const ok = held && playing && !invOpen && !player.dead && hotbarSel === u.sel && slot && slot.id === u.key
-    && chestSealed(getBlock(u.x, u.y, u.z))
+    && (u.pick ? _chestLockedHere(u.x, u.y, u.z) : chestSealed(getBlock(u.x, u.y, u.z)))
     && Math.hypot(player.pos.x - u.x - 0.5, player.pos.y - u.y, player.pos.z - u.z - 0.5) <= CHEST_UNSEAL_REACH;
   if (!ok) { player._unseal = null; return 0; }
   player._milkLatch = true;                          // the held button is the key's, not a block placed (tickPlayer)
   u.t += dt;
-  if (u.t < CHEST_UNSEAL_S) return u.t / CHEST_UNSEAL_S;
+  if (u.t < need) return u.t / need;
   player._unseal = null;
+  if (u.pick) { _pickDone(u, slot); return 0; }
   const [a, b] = chestPairOrdered(u.x, u.y, u.z), m = chestSealOf(getBlock(u.x, u.y, u.z));
   if ((slot.count | 0) > 1) slot.count--; else HOTBAR[hotbarSel] = null;   // the key stays in its lock
   saveHotbar(); buildHotbar();
@@ -525,9 +589,36 @@ function updateChestUnseal(dt, held) {
   openChest(u.x, u.y, u.z);
   return 0;
 }
+// the lock pick worked through: open or not, broken or not (see PICK_OPEN above)
+function _pickDone(u, slot) {
+  const metal = (getBlock(u.x, u.y, u.z) & 255) === B.METAL_CHEST, pos = { x: u.x + 0.5, y: u.y + 0.5, z: u.z + 0.5 };
+  const opened = Math.random() < PICK_OPEN, broke = Math.random() < (metal ? PICK_BREAK_METAL : PICK_BREAK_WOOD);
+  if (broke) {
+    if ((slot.count | 0) > 1) slot.count--; else HOTBAR[hotbarSel] = null;
+    saveHotbar(); buildHotbar();
+    playSound('toolBreak', { gain: 0.7, pos });
+  }
+  if (!opened) {
+    playSound('chestClose', { gain: 0.35, rate: 1.6, pitch: true, pos });
+    feedWarn(broke ? 'The lock pick snapped, and the lock held' : 'The lock pick slipped: try again');
+    return;
+  }
+  const [a, b] = chestPairOrdered(u.x, u.y, u.z);
+  for (const c of b ? [a, b] : [a]) {
+    const cv = getBlock(c.x, c.y, c.z);
+    if (chestSealed(cv)) setBlock(c.x, c.y, c.z, (cv & ~(CHEST_SEALED << 8)) >>> 0);   // a seal picked is open for good
+  }
+  feedInfo(broke ? 'Picked open, but the lock pick snapped' : 'Picked open');
+  openChest(u.x, u.y, u.z);
+}
 // something on top of the chest that is not another chest, nor water (a chest under water opens: fluids/waterlog.js)
 const CHEST_COVERED_MSG = 'Clear the top of the chest first';
-const chestCovered = (x, y, z) => { const up = getBlock(x, y + 1, z) & 255; return up !== B.AIR && up !== B.WATER && !isChestId(up); };
+/* a block on top shuts it (a torch stood there does not), and so does a cover lying over its lid in its own cell
+   (blocks/covers.js); a cover in front of it only keeps it shut from that side: the crosshair is on the cover there */
+const chestCovered = (x, y, z) => {
+  const up = getBlock(x, y + 1, z) & 255;
+  return (up !== B.AIR && up !== B.WATER && !isChestId(up) && !PROPS[up]?.torch) || !!coverAt(x, y, z, 1);
+};
 // the chest tab's name: "Chest", "Large Chest", "Iron Chest", "Large Gold Chest"
 function chestTabName() {
   const p = activeChest ? activeChest.split(',').map(Number) : null;
@@ -536,8 +627,8 @@ function chestTabName() {
   return (activeChest2 ? 'Large ' : '') + (kind ? kind[0].toUpperCase() + kind.slice(1) + ' Chest' : 'Chest');
 }
 
-/* Size each cell's slots to what it shows, list = [[record, slots], ...]. Whatever sits past the end — a
-   5-row chest from before 0.829, or a first half that lost its partner and its bonus row — moves into a free slot,
+/* Size each cell's slots to what it shows, list = [[record, slots], ...]. Whatever sits past the end — a chest
+   from when chests were bigger, or a first half that lost its partner and its bonus row — moves into a free slot,
    and what finds none falls out at the chest (creative, where nothing drops, keeps it in an extra row). */
 function fitChestSlots(list, x, y, z) {
   const spill = [];
@@ -572,8 +663,28 @@ function chestClosedSound() {
 }
 
 /* ---------------------------------- per-frame ---------------------------------- */
+/* Once a frame only the lids that move: the chest open in the inventory (both halves of a double) and any lid not yet
+   shut (`_chestLids`). Every LIST_PASS_S each chest is looked over: hidden while its chunk is out, gone when its cell is
+   no chest, rebuilt when the model is not what the cell says, its light. */
 const CHEST_OPEN_ANGLE = -1.15;
+const _chestLids = new Set();
+let _chestPassT = 0;
 function updateChests(dt) {
+  if ((_chestPassT -= dt) <= 0) { _chestPassT = LIST_PASS_S; _chestPass(); }
+  if (invOpen) { if (activeChest) _chestLids.add(activeChest); if (activeChest2) _chestLids.add(activeChest2); }
+  for (const k of _chestLids) {
+    const c = CHESTS.get(k);
+    if (!c || !c.group) { _chestLids.delete(k); continue; }
+    // lid eases toward open/closed; a double chest opens both halves together
+    const target = invOpen && (activeChest === k || activeChest2 === k) ? 1 : 0;
+    if (Math.abs(target - c.lid) > 0.001) c.lid += (target - c.lid) * Math.min(1, dt * 7);
+    else { c.lid = target; if (!target) _chestLids.delete(k); }
+    c.lidPivot.rotation.x = c.lid * CHEST_OPEN_ANGLE;
+    c.lidPivot.updateMatrix();                          // a still model (freezeModel): its lid moved by hand...
+    c.group.matrixWorldNeedsUpdate = true;              // ...and the walk told to work it out
+  }
+}
+function _chestPass() {
   for (const [k, c] of CHESTS) {
     if (!c.group) continue;
     const ch = getChunk(Math.floor(c.x / 16), Math.floor(c.z / 16));
@@ -589,14 +700,7 @@ function updateChests(dt) {
       if (chestLookOf(cv) !== c.look || half !== c.half || (va & 3) !== c.facing) { rebuildChestMesh(c.x, c.y, c.z); continue; }
     }
     c.group.visible = true;
-    // lid eases toward open/closed; a double chest opens both halves together
-    const wantOpen = invOpen && (activeChest === k || activeChest2 === k);
-    const target = wantOpen ? 1 : 0;
-    if (Math.abs(target - c.lid) > 0.001) {
-      const step = Math.min(1, dt * 7);
-      c.lid += (target - c.lid) * step;
-    } else c.lid = target;
-    c.lidPivot.rotation.x = c.lid * CHEST_OPEN_ANGLE;
+    if (!c.mats[0].map.image) chestAtlas(c.look, c.half);   // its art came late: the atlas fills in place
     // tint by world light at the chest cell (same approximation the doors use)
     const bl = getLightWorld(c.x, c.y, c.z) / 15;
     const sky = getSkyWorld(c.x, c.y, c.z) / 15;

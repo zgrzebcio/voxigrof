@@ -50,6 +50,8 @@ function tickPlayer(dt, now, slot) {
   const lying = !!player.sleepingAt;
   const grounded = onGround();
   const inWater = isWaterVal(getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z)));   // a block standing in water too
+  // landing in the water (a jump or a fall in, not a wade): the fish near take fright (_fishScare, entities/fish.js)
+  if (inWater && !player._inWater && player.vy < -3 && player.spawned && !player.flying) player._splashAt = performance.now();
   player._inWater = inWater;               // exposed for fall damage + hand animation
   // loose ground with nothing under it gives way as you step on it (_fallUnderFeet)
   if (grounded && !player.flying && player.spawned && !player.dead && !menuScene && !joining) _fallUnderFeet();
@@ -248,6 +250,7 @@ function tickPlayer(dt, now, slot) {
         player.aliveT = +pr.aliveT || 0; player.dead = !!pr.dead; player._dmgCause = pr.cause || null;
         player._deathDay = typeof pr.deathDay === 'number' ? pr.deathDay : null;
         player._deathMarks = restoreDeathMark(pr.deathMark);   // 0.827; a list since 0.8442
+        player._waypoints = restoreWaypoints(pr.waypoints);     // their base (ui/waypoints.js)
         player._restacked = false;                            // stacks fitted once the inventory is back
         player._feats = restoreFeats(pr.feats);               // 0.8283
         player.craftQueue = restoreCraftQueue(pr.craftQueue);   // 0.76
@@ -305,7 +308,9 @@ function tickPlayer(dt, now, slot) {
   /* ---- break / place (mouse + gamepad share repeat timing) ---- */
   // in bed you can look around and nothing else — no swinging, no placing, no eating
   const climbing = !!player._climbAnim;      // both hands on the wall or the ladder
-  const wantBreak = !lying && !joining && !benching && !climbing && ((mouseBreak && pointerLocked) || act.padBreak);
+  // a live fish in both hands (player/fish-hold.js): no swing, and the right button only lets it go
+  const fishInHands = !!player._heldFish;
+  const wantBreak = !lying && !joining && !benching && !climbing && !fishInHands && ((mouseBreak && pointerLocked) || act.padBreak);
   // ...nor while the button that just milked a cow is still down (_milkLatch in entities/taming.js)
   const wantPlace = !lying && !joining && !benching && !climbing && !player._milkLatch && ((mousePlace && pointerLocked) || act.padPlace);
   // selection highlight
@@ -328,7 +333,8 @@ function tickPlayer(dt, now, slot) {
   const wantMine = wantBreak && !_entPriority && !_swordOff;
   selBox.visible = !!hit && !_swordOff;
   if (hit) {
-    const boxes = rayBoxesAt(hit.x, hit.y, hit.z);
+    // a plate or a cover lying in another block's cell is outlined alone (blocks/pressure-plates.js, blocks/covers.js)
+    const boxes = hit.over ? overBoxesAt(hit.x, hit.y, hit.z, hit.bi) : rayBoxesAt(hit.x, hit.y, hit.z);
     if (boxes && boxes.length) {
       let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
       for (const b of boxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
@@ -357,23 +363,31 @@ function tickPlayer(dt, now, slot) {
   if (typeof updateMilking === 'function') updateMilking(dt, _rmbRaw);
   // a sealed chest's key being turned (blocks/chest.js)
   player._unsealProg = typeof updateChestUnseal === 'function' ? updateChestUnseal(dt, _rmbRaw) : 0;
+  // a clam held open, its pearl held to take (blocks/clam.js); a fish held to take in hand, and one in hand wriggling (player/fish-hold.js)
+  player._clamProg = typeof updateClamHold === 'function' ? updateClamHold(dt, _rmbRaw) : 0;
+  player._grabProg = typeof updateFishGrab === 'function' ? updateFishGrab(dt, _rmbRaw) : 0;
+  if (typeof updateHeldFish === 'function') updateHeldFish(dt);
   // a glass bottle held on water fills (player/stats.js)
-  player._fillProg = typeof updateBottleFill === 'function' ? updateBottleFill(dt, wantPlace) : 0;
+  player._fillProg = typeof updateBottleFill === 'function' ? updateBottleFill(dt, wantPlace && !fishInHands) : 0;
+  // E with a live fish in hand on an otter gives it the fish (entities/otter.js): E is the otter's then
+  const _otterFed = fishInHands && typeof otterGiveFish === 'function' && otterGiveFish(_eHeld && !player._benchAim);
+  // ...and crouched with a chitin plate on a wild meerkat, E gives it the plate (entities/meerkat.js)
+  const _meerkatFed = !fishInHands && typeof meerkatGiveChitin === 'function' && meerkatGiveChitin(_eHeld && !player._benchAim);
   // drinking: crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs
-  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim);
+  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim && !fishInHands);
   // E on an animal you tamed pets it (entities/taming.js); while you look at one, E is its and not the bushes'
-  const _petting = typeof updatePetting === 'function' && updatePetting(dt, _eHeld && !player._benchAim);
+  const _petting = typeof updatePetting === 'function' && updatePetting(dt, _eHeld && !player._benchAim && !_otterFed && !_meerkatFed);
   // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
-  // ...and not while eating or drawing a bow: both take two hands, and foraging needs them free
-  updateBushPickup(dt, _eHeld && !_petting && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
+  // ...and not while eating or drawing a bow: both take two hands, and foraging needs them free (a fish in them too)
+  updateBushPickup(dt, _eHeld && !_petting && !_meerkatFed && !fishInHands && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
 
   // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
-  const _didThrow = (wantPlace && !act.place) ? tryThrow() : false;
+  const _didThrow = (wantPlace && !act.place && !fishInHands) ? tryThrow() : false;
 
   // Creative: instant break with 240ms repeat. Survival: progressive mining vs. hardness.
   const survivalMining = !player.canFly;
   if (survivalMining) {
-    if (wantMine && hit && PROPS[hit.id].hardness === 0 && PROPS[hit.id].raycast) {
+    if (wantMine && hit && !hit.over && PROPS[hit.id].hardness === 0 && PROPS[hit.id].raycast) {
       resetMining();
       if (!act.break || now - act.lastBreak > 240) {
         if (isTNTFuseActive(hit.x, hit.y, hit.z)) { act.lastBreak = now; }
@@ -400,7 +414,7 @@ function tickPlayer(dt, now, slot) {
         }
       }
     } else if (wantMine && hit && Number.isFinite(PROPS[hit.id].hardness) && PROPS[hit.id].hardness > 0
-               && (isToolItem(slotId(HOTBAR[hotbarSel])) || handBreakable(getBlock(hit.x, hit.y, hit.z)))) {
+               && (isToolItem(slotId(HOTBAR[hotbarSel])) || handBreakable(hit.over ? overValAt(hit.x, hit.y, hit.z, hit.bi) : getBlock(hit.x, hit.y, hit.z)))) {
       // no tool, no crack — bare hands only take foliage; see handBreakable
       if (isTNTFuseActive(hit.x, hit.y, hit.z)) { resetMining(); }
       else
@@ -415,7 +429,7 @@ function tickPlayer(dt, now, slot) {
         // right tool in hand (shovel/pickaxe/axe) divides the time further (1.5 = 50% faster).
         // wood and ground dig 1.5x slower than they used to, stone unchanged (player/mining.js)
         // one layer comes off quickly: a quarter of the block for a drift, half for a solid layer
-        const hv = getBlock(hit.x, hit.y, hit.z);
+        const hv = hit.over ? overValAt(hit.x, hit.y, hit.z, hit.bi) : getBlock(hit.x, hit.y, hit.z);   // a plate or cover in another's cell: itself
         /* By hand: sand, gravel, snow and glass come away at half a flint tool's speed, and a whole sand,
            gravel or snow block only a layer at a time — each dig is timed as one layer of it. */
         const hand = !isToolItem(heldUseId()) && HAND_SLOW_BLOCKS.has(hit.id & 255);
@@ -434,10 +448,10 @@ function tickPlayer(dt, now, slot) {
         drawCrack(progress);
         if (stage & 1) playBlockSound(hit.id, 'hit', hit.x, hit.y, hit.z);   // every other stage
         // chips off the face being hit, on every stage (0.8)
-        if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
+        if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, hit.over ? overValAt(hit.x, hit.y, hit.z, hit.bi) : getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
       }
-      let cboxes = rayBoxesAt(hit.x, hit.y, hit.z);
-      if (cboxes && CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) cboxes = [cboxes[hit.bi || 0]];   // only the half being dug
+      let cboxes = hit.over ? overBoxesAt(hit.x, hit.y, hit.z, hit.bi) : rayBoxesAt(hit.x, hit.y, hit.z);
+      if (cboxes && !hit.over && CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) cboxes = [cboxes[hit.bi || 0]];   // only the half being dug
       if (cboxes && cboxes.length) {
         let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
         for (const b of cboxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
@@ -450,15 +464,17 @@ function tickPlayer(dt, now, slot) {
       }
       crackMesh.visible = true;
       if (mining.elapsed >= mining.needed) {
-        const mval = getBlock(mining.x, mining.y, mining.z);
         const mx = mining.x, my = mining.y, mz = mining.z, mbi = mining.bi || 0;
+        // a pressure plate or a cover lying in another block's cell: it is what breaks, the block holding it stays
+        const overV = overValAt(mx, my, mz, mbi);
+        const mval = overV || getBlock(mx, my, mz);
         // a mixed slab: it is the half you were aiming at that breaks, and that block that counts
-        const mix = slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] & 255 : mval & 255;
+        const mix = overV ? null : slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] & 255 : mval & 255;
         resetMining();
         // axe on a log: strip it, or fell the tree if it is already stripped. It performs its own
         // block edit and drops, so the ordinary break path is skipped when it claims the hit.
         // NOT an early return — the rest of frame() still has to stream chunks and render.
-        const chopped = tryChopLog(mx, my, mz);
+        const chopped = !overV && tryChopLog(mx, my, mz);
         if (!chopped) playBlockSound(minedId, 'break', mx, my, mz);
         // the block bursts into bits of itself; a log the axe only notched sheds a few chips (0.8)
         if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
@@ -466,19 +482,22 @@ function tickPlayer(dt, now, slot) {
         const wrongTool = isWrongTool(heldUseId(), mix ? minedId : mval);
         // tier gate: wrong/too-weak tool still breaks the block but yields no drops
         const dropsOk = mineDropAllowed(heldUseId(), minedId);
-        let inf = chopped ? null : layerBreakInfo(mx, my, mz, mval);     // a layer stack: only its top layer
+        let inf = chopped || overV ? null : layerBreakInfo(mx, my, mz, mval);     // a layer stack: only its top layer
         // a whole sand, gravel or snow block dug by hand loses one layer, and stands on as a drift
-        if (!chopped && !inf && !isToolItem(heldUseId()) && DIG_BY_LAYER.has(minedId) && !CORE.shapeOfVal(mval))
+        if (!chopped && !inf && !overV && !isToolItem(heldUseId()) && DIG_BY_LAYER.has(minedId) && !CORE.shapeOfVal(mval))
           inf = { layerId: minedId, apply: () => setLayerStack(mx, my, mz, new Array(LAYER_MAX - 1).fill(minedId)) };
         // natural blocks only; your own placements pay 0 — and a single layer pays nothing
         // no drop, no experience: a flint pickaxe on ore gets nothing
-        if (!wrongTool && dropsOk && !CORE.layerCount(mval) && !inf) awardBlockXP(mx, my, mz, minedId);
+        // (a plate in another block's cell was put there by a player: nothing, whatever that cell's own block was)
+        if (!wrongTool && dropsOk && !CORE.layerCount(mval) && !inf && !overV) awardBlockXP(mx, my, mz, minedId);
         // ...except salt crust, nearly always a single layer on the beach: each salt layer pays
         else if (!wrongTool && dropsOk && inf && inf.layerId === B.SALT_CRUST) awardBlockXP(mx, my, mz, B.SALT_CRUST);
         // ...and a shovel takes a whole stack at once, every layer with its own drop
         const stack = inf && !chopped && ITEM_PROPS[heldUseId()]?.tool === 'shovel' ? layerIdsAt(mx, my, mz, mval) : null;
         if (chopped) {
           /* felling already did everything */
+        } else if (overV) {
+          breakOverAt(mx, my, mz, mbi, dropsOk, true);       // its sound and bits were made above
         } else if (mix) {
           breakSlabMixHalf(mx, my, mz, mbi ? 1 : 0, mval);   // the other half stays as a slab of its own
           if (dropsOk) for (const drop of blockDrop(stackVal(mix[mbi ? 1 : 0]), false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
@@ -490,13 +509,15 @@ function tickPlayer(dt, now, slot) {
           if (dropsOk) _dropLayer(inf.layerId, mx, my, mz);
         } else {
           const lockedChest = isChestId(minedId) && chestLocked(mx, my, mz, mval);
+          // a hay bale with a fire on it is burning: it gives nothing (asked before setBlock, which may put the fire out)
+          const burning = BURNT_NO_DROP.has(minedId) && onFireAt(mx, my, mz);
           // broken ice leaves its water behind — only ice that froze from water; creative just clears it
           setBlock(mx, my, mz, minedId === B.ICE && !player.canFly && ((mval >> 8) & 255) === ICE_FROM_WATER ? B.WATER : B.AIR);
           queueWaterAround(mx, my, mz);
           queueLavaAround(mx, my, mz);
           if (_isLog(minedId)) scheduleLeavesCheck(mx, my, mz);
           // a locked or sealed chest broken gives nothing back, itself included (asked before setBlock let go of its lock)
-          if (dropsOk && !lockedChest) {
+          if (dropsOk && !lockedChest && !burning) {
             // a door gives back the blocks it was made of (three, as the block a look belongs to)
             const drops = BLOCKS.isDoorVal(mval) ? doorDropOf(mval) : blockDrop(mval, false);   // a look: its block
             if (drops.length && !BLOCKS.isDoorVal(mval) && !lookOf(mval)) drops[0].count += skillOreBonus(minedId);   // Prospector
@@ -568,12 +589,12 @@ function tickPlayer(dt, now, slot) {
 
   /* ---- eating ---- */
   // a drink lifts the arm the same way: walking pace, no sprint, and the body shows it
-  const eatProg = Math.max(updateEating(dt, wantPlace), player._drinkProg || 0);
+  const eatProg = Math.max(updateEating(dt, wantPlace && !fishInHands), player._drinkProg || 0);
   // the third-person body mirrors it next frame, so everyone else sees this player eating
   player._eatProg = eatProg;
 
   /* ---- ranged: the same right button draws a bow (38-ranged.js) ---- */
-  const drawProg = updateRanged(dt, wantPlace);
+  const drawProg = updateRanged(dt, wantPlace && !fishInHands);
   player._drawProg = drawProg;              // read by the third-person body, same as _eatProg
 
   /* ---- taming: the ride fills the bar, and finishing it opens the naming panel ---- */
@@ -591,6 +612,8 @@ function tickPlayer(dt, now, slot) {
   if (!menuScene && typeof syncEffectBar === 'function') syncEffectBar();     // running effects beside the hotbar
   if (typeof updateQuests === 'function') updateQuests(dt);                   // the starter quest, top right
   if (typeof syncBossHud === 'function') syncBossHud();                       // a boss's bar, the last quest's marker
+  if (typeof syncTamingMarks === 'function') syncTamingMarks();               // the mark over an animal this player is taming (ui/animals.js)
+  if (typeof syncWaypointMarks === 'function') syncWaypointMarks();           // this player's waypoint (ui/waypoints.js)
   /* stacks made to fit, once as this seat's world is joined (15-drops.js): on loaded ground, alive and in
      survival, so what does not fit can fall at their feet; `_restacked` is cleared when a world or a record loads */
   if (!player._restacked && !menuScene && !joining && player.spawned && !player.dead && !player.canFly && _hereC && _hereC.data) {
@@ -605,7 +628,7 @@ function tickPlayer(dt, now, slot) {
   if (typeof updateProgressRing === 'function') updateProgressRing();   // the ring round the crosshair (ui/hud.js)
   updateCraftQueue(dt);                     // this player's crafting queue, and its HUD strip
   updateHands(dt, wantBreak, wantPlace, eatProg, drawProg);
-  updateShield(dt, wantPlace);              // offhand arm + blocking state (40-shield.js)
+  updateShield(dt, wantPlace && !fishInHands);   // offhand arm + blocking state (40-shield.js)
 
   /* Selection outline and crack overlay are single scene MESHES shared by every viewport, so each
      player records the transform it wants and the render pass re-applies it per view. The crack

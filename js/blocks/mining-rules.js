@@ -72,7 +72,7 @@ const TOOL_BLOCKS = {
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
                    B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE,   // pink 0.822
-                   B.METAL_CHEST, B.SEASHELL_BLOCK]),                               // 0.843
+                   B.METAL_CHEST, B.SEASHELL_BLOCK, B.CLAM]),                       // 0.843
   // every wood's log, stripped log and planks come from the woods table (woods/woods.js); hollow logs join below
   hatchet: new Set([...woodBlocks('log'), ...woodBlocks('stripped'), ...woodBlocks('planks'),
                     B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.CACTUS, B.CHEST, B.BED,
@@ -80,13 +80,13 @@ const TOOL_BLOCKS = {
   hoe:    new Set([...woodBlocks('leaves'), B.HAY]),          // every wood's leaves, the dry bush's too
   // shears are the wool tool; they also snip plant matter cleanly
   shears: new Set([B.WOOL, ...woodBlocks('leaves'), B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
-                   B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH]),
+                   B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH, B.VINE]),
   // a blade cuts soft, fibrous things fast — plants, leaves, saplings, melons, cane and webbing-like props
   sword:  new Set([B.COBWEB, ...woodBlocks('leaves'), ...woodBlocks('sapling'), B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
                    B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM,
                    B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
                    B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH,
-                   B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS]),
+                   B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS, B.VINE]),
 };
 // a look in the cell's bits IS its block; the looks that are still ids mine exactly like the block each plays like
 for (const [id, like] of CORE.VARIANT_BLOCKS) {
@@ -174,7 +174,7 @@ function handMineFactor(id) {
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
    player/leveling.js), so hand-breaking them is housekeeping and never a grind. */
 const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.THATCH, B.FIBER_BLOCK, B.LADDER,   // + fiber block, ladder
-                                   B.MORTAR]);                                                         // + mortar
+                                   B.MORTAR, B.CLAM]);                                                 // + mortar; the clam
 // takes a VALUE since 0.785: a stack of snow, leaves or sand comes away by hand, a stone layer does not
 function handBreakable(id) {
   const p = PROPS[id & 255];

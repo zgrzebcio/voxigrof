@@ -39,8 +39,11 @@ function fluidThreadStart() {
   _fluidW = new Worker(workerURL);
   _fluidW.onmessage = (e) => {
     const m = e.data;
+    if (_perfOn) cpuNoteWorker('fluid', m.bz, m.bzk);     // the processor meter (ui/cpu-meter.js)
     if (m.type === 'error') { console.error('[fluid worker]', m.message); _fluidBusy = false; return; }
+    const t0 = _perfOn ? performance.now() : 0;
     if (m.type === 'fdone') { _fluidBusy = false; _fluidTook(m); }
+    if (t0) cpuNoteMsg(performance.now() - t0);
   };
   _fluidW.postMessage({ type: 'freset' });
 }
@@ -54,6 +57,7 @@ const _fluidMainSim = () => _fluidSim || (_fluidSim = CORE.makeFluidSim(_fluidGe
 // a chunk finished (11 finishChunkGen): the simulation may read it now, and looks it over for loose fluid
 function fluidRegister(c) {
   if (!FLUID_FLOW || menuScene || !c || !c.data) return;
+  _fluidWake = FLUID_WAKE_STEPS;                        // it may hold loose fluid: steps follow (_fluidWantsStep)
   if (_fluidW) { if (c.data.buffer instanceof SharedArrayBuffer) _fluidW.postMessage({ type: 'freg', cx: c.cx, cz: c.cz, data: c.data }); }
   else _fluidScanQ.push([c.cx, c.cz, 0]);
 }
@@ -71,6 +75,7 @@ function fluidForgetMany(list) {
 // a world swap (21 resetWorld): everything let go; an answer still on its way is dropped (_fluidGen)
 function fluidReset() {
   _fluidGen++;
+  _fluidQueued = 1; _fluidWake = FLUID_WAKE_STEPS; _fluidRangeKey = '';
   if (_fluidW) _fluidW.postMessage({ type: 'freset' });
   if (_fluidSim) _fluidSim.clear();
   _fluidBusy = false; _fluidBatch = null; _fluidAt = 0; _fluidTouch = []; _fluidScanQ.length = 0; _fluidClock = 0;
@@ -93,6 +98,20 @@ function queueLavaAround(x, y, z) { _fluidTouchAt(x, y, z, 1); }
 function dryWaterFrom(x, y, z) { _fluidTouchAt(x, y, z, 2); }
 function dryLavaFrom(x, y, z) { _fluidTouchAt(x, y, z, 2); }
 
+/* A STEP ONLY WHEN IT CAN DO SOMETHING: the game touched a cell since the last, the last answer still had cells queued
+   (`_fluidQueued`), or the land in reach changed (a player into another chunk, the sim range, a chunk registered or let
+   go: parked cells may wake). The simulation looks over its parked chunks every 8th step, so a change is followed by
+   FLUID_WAKE_STEPS steps (`_fluidWake`). With nothing flowing near anyone, nothing is sent and the thread sleeps. */
+const FLUID_WAKE_STEPS = 8;
+let _fluidQueued = 1, _fluidWake = FLUID_WAKE_STEPS, _fluidRangeKey = '';
+function _fluidWantsStep() {
+  let rk = simDist() + ':';
+  for (const p of PLAYER_CHUNKS) rk += p[0] + ',' + p[1] + ';';
+  if (rk !== _fluidRangeKey) { _fluidRangeKey = rk; _fluidWake = FLUID_WAKE_STEPS; }
+  if (!_fluidTouch.length && !_fluidQueued && _fluidWake <= 0 && !_fluidScanQ.length) return false;   // (the scan: no thread)
+  if (_fluidWake > 0) _fluidWake--;
+  return true;
+}
 // once a sim tick (simTick, 22; perfLap 't:fluids' times it there)
 function updateFluids(dt) {
   if (!FLUID_FLOW || menuScene || !currentWorld) return;
@@ -101,7 +120,7 @@ function updateFluids(dt) {
   // land waiting near a player: the simulation steps every other tick, so its thread leaves the chunk workers room
   // (its clock runs on: what was due is done at the next step)
   const giveWay = typeof streamBehind !== 'undefined' && streamBehind && (++_fluidTickN & 1) === 1;
-  if (!_fluidBatch && !_fluidBusy && !giveWay) {
+  if (!_fluidBatch && !_fluidBusy && !giveWay && _fluidWantsStep()) {
     const touch = new Int32Array(_fluidTouch);
     _fluidTouch = []; _ftY = -1;
     if (_fluidW) {
@@ -136,6 +155,7 @@ function _fluidTook(m) {
   const st = _fluidStat;
   st.cells += m.cells; st.stepMs += m.ms; st.steps++;
   st.queued = m.queued; st.parked = m.parked;
+  _fluidQueued = m.queued || 0;                         // nothing queued: no step until something changes (_fluidWantsStep)
   if (m.changes && m.changes.length) { _fluidBatch = m.changes; _fluidAt = 0; }
 }
 /* What a fluid takes when it runs into a cell (open() in fluids/rules.js): a plant goes with its drops (_breakBillboard), and
@@ -200,8 +220,10 @@ function _fluidWrite() {
       if (nid === B.LAVA && wid !== B.LAVA) tntHeatAround(x, y, z);   // lava come beside TNT lights it
       if (typeof placedWaterChanged === 'function') placedWaterChanged(x, y, z, was, now);   // a bucket's water running on (player/drinking.js)
       _fluidStat.written++;
-      // light to redo: lava's own where it came or went, sky where a cell turned to rock (water and air change none)
-      const glow = wid === B.LAVA || nid === B.LAVA, sky = CORE.opaqueVal(was) !== CORE.opaqueVal(now);
+      /* light to redo: lava's own where it came or went, sky where a cell turned to rock (water and air change none). Lava
+         only changing its level changes no light (it shines 15 at every level), and relighting for it was most of the
+         light thread's work beside a settling lava pool */
+      const glow = (wid === B.LAVA) !== (nid === B.LAVA), sky = CORE.opaqueVal(was) !== CORE.opaqueVal(now);
       if (glow || sky) {
         const k = (x >> 4) + ',' + (z >> 4);
         let a = areas.get(k);

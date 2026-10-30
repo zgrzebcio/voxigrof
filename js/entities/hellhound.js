@@ -73,7 +73,7 @@ const HOUND_FOOD = { [B.LAVA_MUSHROOM]: 50, [ITEM.FIRE]: 80, [ITEM.COAL]: 20, [I
 const HOUND_FIRE_FROM = { [B.LAVA_MUSHROOM]: 25, [ITEM.FIRE]: 50 };
 const HOUND_MODES = ['passive', 'defense', 'aggressive', 'attack'];
 const HOUND_STANCES = ['follow', 'sit', 'lie', 'wait'];
-const HOUND_BIOMES = { 'Deep Desert': 1, 'Deep Red Desert': 1 };
+const HOUND_BIOMES = { 'Deep Desert': 1, 'Deep Red Desert': 1, 'Deep Red Desert Flat': 1 };
 const houndDmg = (e) => (e.stats && e.stats.dmg) || HOUND.dmg;
 // its fire is not out: the bite still sets alight. Only one of somebody's can run out (a wild one feeds itself)
 const houndLit = (e) => !(e.tame || e.taming) || entThirst(e) > 0;
@@ -118,8 +118,10 @@ function buildHellhound() {
   const legBL = _houndLeg(mat); legBL.position.set(-2 * PX, 9 * PX, -5 * PX);
   const legBR = _houndLeg(mat); legBR.position.set( 2 * PX, 9 * PX, -5 * PX);
   root.add(trunk, legFL, legFR, legBL, legBR);
-  return { root, trunk, head, body, tail, legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
+  return { root, trunk, head, snout, body, tail, legs: [legFL, legFR, legBL, legBR], mat, mats: [mat] };
 }
+const HOUND_SNOUT_Y = -0.5;                       // the snout's place on the head (16ths): chewing works it up and down from here
+const HOUND_EAT_AT = [0, -0.8, 2.2];              // what it eats, held in the tip of the snout (16ths, the snout's own)
 /* Posed once a step, after it has moved. `e._rest` ('sit' / 'lie', from houndThink) eases the two rest poses in:
    sitting, the trunk tips back onto the haunches and the hind legs fold forward under it; lying, the trunk comes
    down on its belly with all four legs stretched forward. */
@@ -128,11 +130,17 @@ function houndPose(e, m, dt, swing) {
   e.sitK = (e.sitK || 0) + ((e._rest === 'sit' ? 1 : 0) - (e.sitK || 0)) * k;
   e.lieK = (e.lieK || 0) + ((e._rest === 'lie' ? 1 : 0) - (e.lieK || 0)) * k;
   const s = e.sitK, l = e.lieK, up = 1 - Math.max(s, l);
-  // the head: up on the hunt, down to sniff when idle, a lunge down and forward with each bite
-  const dipTo = e.atkAnimT > 0 ? 0.7 : e._hunt ? -0.12 : e._sleep ? 0.55 : e._rest === 'lie' ? 0.3 : e._rest === 'sit' ? -0.3
+  // eating (houndEat): the food in its mouth, chewing aloud (entEatStep, entities/entities.js)
+  const eating = entEatStep(e, dt, m.snout, HOUND_EAT_AT, 0.85);
+  // the head: up on the hunt, down to sniff when idle, a lunge down and forward with each bite, down to its food
+  const dipTo = e.atkAnimT > 0 ? 0.7 : eating ? 0.45 : e._hunt ? -0.12 : e._sleep ? 0.55 : e._rest === 'lie' ? 0.3 : e._rest === 'sit' ? -0.3
               : e.state === 'idle' ? 0.25 : 0.05;
   e.headDip = (e.headDip || 0) + (dipTo - (e.headDip || 0)) * Math.min(1, dt * (e.atkAnimT > 0 ? 14 : 4));
   animateQuadruped(m, e.walk, swing * up, e.headDip);
+  // chewing: the snout (its jaw) works up and down and the head nods with it
+  const now = performance.now() / 1000;
+  if (eating) m.head.rotation.x += Math.sin(now * 13) * 0.06;
+  if (m.snout) m.snout.position.y = (HOUND_SNOUT_Y + (eating ? Math.sin(now * 13) * 0.45 - 0.25 : 0)) * PX;
   /* its head to the side, toward a player it minds (_entHeadTurn in entities/entities.js): whoever just petted it; its owner
      when it is somebody's and not on the hunt; the one whose mushroom keeps a wild one standing (`_watch`) */
   const lookP = e._lookT > 0 && e._lookAt ? e._lookAt
@@ -486,6 +494,7 @@ function houndEat(e, id) {
     if (typeof fxHearts === 'function') fxHearts(e.x, e.y + 1.0, e.z, true, 3);
   }
   playSound('chew', { gain: 0.8, rate: 0.85, pos: { x: e.x, y: e.y + 0.8, z: e.z } });
+  entEatStart(e, id);                                // it stands a moment chewing it (houndPose)
 }
 
 /* ---------------------------------- kills by fire ----------------------------------
@@ -716,13 +725,14 @@ function houndRestore(s) {
    which this file reads directly. No `fleeTime`: a hound does not bolt when it is hit. `flee` is never used (its
    heading and speed come from houndThink); it is there because every grazer has one. */
 defineMob('hellhound', {
-  name: 'Hellhound', group: 'monster', body: 'grazer',
+  name: 'Hellhound', group: 'monster', body: 'grazer', hungerMul: 0.5,
   maxHp: (e) => (e.stats && e.stats.maxHp) || HOUND.hp,   // raised by its taming
   box: [0.4, 1.05], sized: true,
   walk: HOUND.walk, flee: HOUND.run,
   make: makeHellhound, gendered: true, build: () => buildHellhound(),
   roll: rollHellhounds,                                // its own rule: packs in the Deep Desert, far apart
   save: houndSave, load: houndRestore,
+  spared: true, prompt: houndPrompt, subText: houndSubText,   // its owner's swing passes it; its lines on screen
   butcher: true,                                       // the Butcher skill adds to its drop, though it is no animal
   loot: (e, pop, first) => first(ITEM.FIRE, LOOT.houndFire),   // the fire it was made of
 });

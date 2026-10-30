@@ -1,20 +1,23 @@
 {
- "comment": "Object form of the manifest. \"files\" lists every prefab; \"groups\" declares settlements. A prefab joins a group with a top-level \"group\": \"<name>\". Grouped prefabs never spawn on their own.",
+ "comment": "Object form of the manifest. \"files\" lists every prefab, by its path under structures/: in warm/, cold/ or temperate/ by the climate it is built for (dungeons and the supply crate, anywhere, in temperate/). \"groups\" declares settlements. A prefab joins a group with a top-level \"group\": \"<name>\". Grouped prefabs never spawn on their own.",
  "files": [
-  "supply_crate.json",
-  "village_house.json",
-  "village_house2.json",
-  "village_big_house.json",
-  "village_well.json",
-  "desert_village_house1.json",
-  "desert_village_big_house.json",
-  "desert_village_well.json",
-  "dungeon_room.json",
-  "dungeon_cell.json",
-  "igloo.json",
-  "snow_castle.json",
-  "desert_ruins.json",
-  "desert_obelisk.json"
+  "temperate/supply_crate.json",
+  "temperate/village_house.json",
+  "temperate/village_house2.json",
+  "temperate/village_big_house.json",
+  "temperate/village_well.json",
+  "warm/desert_village_house1.json",
+  "warm/desert_village_big_house.json",
+  "warm/desert_village_well.json",
+  "temperate/dungeon_room.json",
+  "temperate/dungeon_cell.json",
+  "cold/igloo.json",
+  "cold/snow_castle.json",
+  "warm/desert_ruins.json",
+  "warm/desert_obelisk.json",
+  "warm/pyramid.json",
+  "warm/big_pyramid.json",
+  "temperate/fire_pole.json"
  ],
  "groups": {
   "village": {
@@ -22,7 +25,8 @@
    "chance": 0.0015,
    "biomes": [
     "Plains",
-    "Forest"
+    "Forest",
+    "Spruce Forest"
    ],
    "minY": 100,
    "maxY": 140,
@@ -37,8 +41,24 @@
     2,
     3
    ],
-   "_doc": "count = houses per village (at least 4; members with a door or a doorway are houses), plus a well for every 4 houses (members without one; the first in the middle), radius = how far they scatter from the centre, spacing = minimum gap between footprints, path = the block paths are paved with, pathWidth = [min, max] path width 1-3, apart = no other village (of any group) closer than this many blocks.",
-   "apart": 640
+   "_doc": "count = houses per village (at least 4; members with a door or a doorway are houses), plus a well for every 4 houses (members without one; the first in the middle), radius = how far they scatter from the centre, spacing = minimum gap between footprints, path = the block paths are paved with, pathWidth = [min, max] path width 1-3, apart = no other village (of any group) closer than this many blocks. biomes are base names: Plains takes the Warm and Cold Plains and Plains Hills, Forest the Deep Forest and Forest Hills, Spruce Forest the Deep Spruce Forest and its hills. replace by biome (the full name first, then its base): on the Cold Plains and in any spruce forest it is built of spruce (log, planks, stripped and hollow log; \"wood\" sets chests, beds and the crafting bench: spruce, the bench dark as it has no spruce).",
+   "apart": 640,
+   "replace": {
+    "Cold Plains": {
+     "4": 73,
+     "5": 75,
+     "69": 74,
+     "125": 127,
+     "wood": "spruce"
+    },
+    "Spruce Forest": {
+     "4": 73,
+     "5": 75,
+     "69": 74,
+     "125": 127,
+     "wood": "spruce"
+    }
+   }
   },
   "catacomb": {
    "type": "dungeon",

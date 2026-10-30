@@ -11,6 +11,16 @@ function spendHeld(reason = 'used') {
   const slot = HOTBAR[hotbarSel];
   if (!slot) return;
   if (typeof feedItem === 'function') feedItem(slot.id, -1, reason);
+  // the thing a placed pick takes beside itself (a mossy look's vine, a chest's planks: _placeNeed, set by _doPlace in
+  // player/place-block.js), once a placement
+  if (reason === 'placed' && _placeNeed != null) {
+    const need = _placeNeed;
+    _placeNeed = null;
+    if (_takeIngredients({ in: [[need, 1]], out: [need, 1] })) {
+      if (typeof feedItem === 'function') feedItem(need, -1, 'used');
+      saveAll();
+    }
+  }
   slot.count--;
   if (slot.count <= 0) HOTBAR[hotbarSel] = null;
   saveHotbar(); updateHotbar(); buildHotbar();
@@ -98,6 +108,8 @@ function doBreak() {
   const hit = currentRay();
   if (!hit) return;
   if (isTNTFuseActive(hit.x, hit.y, hit.z)) return;             // armed TNT is unbreakable
+  // a pressure plate or a cover lying in another block's cell goes alone; the block holding it stays (blocks/covers.js)
+  if (hit.over) { breakOverAt(hit.x, hit.y, hit.z, hit.bi, false); return; }
   // a plant can only be the target in creative, and it comes out whole — a lone floating
   // TALL_UPPER left standing over the half you broke is not a thing anyone wants to see
   if (isNoTargetPlant(hit.id)) {

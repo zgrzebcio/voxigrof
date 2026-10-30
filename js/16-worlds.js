@@ -135,9 +135,12 @@ const idbDel = (id) => { if (idb) try { idb.transaction('worlds', 'readwrite').o
    used to happen in one go on the game's thread: every chunk's edits turned into [cell, value] pairs, then all of it
    copied into IndexedDB. Now the edits leave as one flat Uint32Array per chunk (cell, value, cell, value...), handed
    over without copying, and this worker turns them back into exactly the shape the save always had and writes it.
-   A world being opened waits for its save still on the way (_saveWaits), so it never reads the one before. */
+   A world being opened waits for its save still on the way (_saveWaits), so it never reads the one before.
+   The worker KEEPS the edits of the last save it wrote (`held`, one world's), so a save after the first sends only the
+   chunks whose edits changed since (`all` false; a chunk sent empty has none left); the first save of a world opened,
+   or after one that failed, sends them all (`all` true; _saveWorkerHas on the page). */
 const SAVE_WORKER_SRC = `'use strict';
-let db = null;
+let db = null, held = { id: null, edits: null };
 const open = () => db ? Promise.resolve(db) : new Promise((res, rej) => {
   const rq = indexedDB.open(${JSON.stringify(IDB_NAME)}, 1);
   rq.onupgradeneeded = () => rq.result.createObjectStore('worlds');
@@ -145,11 +148,14 @@ const open = () => db ? Promise.resolve(db) : new Promise((res, rej) => {
   rq.onerror = () => rej(rq.error);
 });
 self.onmessage = async (e) => {
-  const { seq, id, data, editKeys, editBufs } = e.data;
+  const { seq, id, data, editKeys, editBufs, all } = e.data;
   try {
-    const edits = {};
+    if (!all && held.id !== id) { self.postMessage({ seq, ok: false, resync: true }); return; }   // not this world's: the page sends all
+    if (all) held = { id, edits: {} };
+    const edits = held.edits;
     editKeys.forEach((k, n) => {
       const a = new Uint32Array(editBufs[n]), out = new Array(a.length >> 1);
+      if (!out.length) { delete edits[k]; return; }
       for (let i = 0; i < out.length; i++) out[i] = [a[2 * i], a[2 * i + 1]];
       edits[k] = out;
     });
@@ -175,22 +181,32 @@ function _saveWorkerOf() {
 }
 // a world's save still on the way, waited for before it is read again
 const _saveSettled = (id) => _saveWaits.get(id) || Promise.resolve();
+/* The chunks whose edits changed since the last save the worker took (setBlock adds to it, chunks/block-access.js), and the
+   world whose edits the worker holds whole (null: the next save sends them all). */
+const SAVE_DIRTY = new Set();
+let _saveWorkerHas = null;
 // the save through the worker; resolves { ok } once it is written (or failed)
 function _saveViaWorker(id, data) {
   const w = _saveWorkerOf();
   if (!w) return null;
+  const all = _saveWorkerHas !== id;
   const editKeys = [], editBufs = [];
-  for (const [k, m] of editStore) {
-    if (!m.size) continue;
-    const a = new Uint32Array(m.size * 2);
+  for (const k of all ? editStore.keys() : SAVE_DIRTY) {
+    const m = editStore.get(k);
+    if (all && (!m || !m.size)) continue;
+    const a = new Uint32Array(m ? m.size * 2 : 0);
     let j = 0;
-    for (const [i, v] of m) { a[j++] = i; a[j++] = v; }
+    if (m) for (const [i, v] of m) { a[j++] = i; a[j++] = v; }
     editKeys.push(k); editBufs.push(a.buffer);
   }
   const seq = ++_saveSeq;
   const p = new Promise((res) => _saveDone.set(seq, res));
-  try { w.postMessage({ seq, id, data, editKeys, editBufs }, editBufs); }
+  try { w.postMessage({ seq, id, data, editKeys, editBufs, all }, editBufs); }
   catch (err) { _saveDone.delete(seq); return null; }      // something in the save that cannot be handed over: the old way
+  SAVE_DIRTY.clear();
+  _saveWorkerHas = id;
+  // the worker could not write it (or did not hold this world): the next save sends everything again
+  p.then((r) => { if (!r || !r.ok) _saveWorkerHas = null; });
   const settled = p.then(() => {});
   _saveWaits.set(id, settled);
   settled.then(() => { if (_saveWaits.get(id) === settled) _saveWaits.delete(id); });
@@ -275,6 +291,15 @@ function saveWorld(syncToLS = false) {
     savedAt: Date.now(),
     cells: 4,                             // looks in a cell's bits 16-23 (blocks/looks.js), berry bushes in seven stages: nothing to convert on load
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
+    clams: serializeClams(),              // what players put in clams, by place (blocks/clam.js)
+    meerkatStash: serializeMeerkatStash(),   // what wild meerkats buried under sand, by place (entities/meerkat.js)
+    saplings: serializeSaplings(),        // each planted sapling's growing clock (woods/saplings.js)
+    plates: serializePlates(),            // the pressure plates held down, and what they hold (blocks/pressure-plates.js)
+    plateOver: serializePlateOver(),      // the pressure plates lying in other blocks' cells: on slabs, steps, carpets, among plants
+    coverOver: serializeCoverOver(),      // ...and the covers, up to six a cell (blocks/covers.js)
+    doorFill: serializeDoorFill(),        // ...and the blocks fallen into doorways (blocks/doors.js)
+    railOver: serializeRailOver(),        // ...and the fences and walls on slabs and stairs (blocks/rails.js)
+    signs: serializeSigns(),              // what is written on the signs, by place (blocks/signs.js)
     burns: serializeBurns(),              // when each torch and glow block goes out (blocks/torches.js)
     placedWater: serializePlacedWater(),  // water a bucket put down: not to drink or bottle (player/drinking.js)
     doorLocks: serializeDoorLocks(),      // which doors are locked, by which key's code (blocks/doors.js)
@@ -285,6 +310,7 @@ function saveWorld(syncToLS = false) {
     structPlaced: serializeStructPlaced(), structLoot: serializePendingLoot(),
     structBlocks: serializeStructBlocks(),
     bossLairs: typeof serializeBossLairs === 'function' ? serializeBossLairs() : [],   // the snow castles and their kings
+    lairCells: typeof serializeLairCells === 'function' ? serializeLairCells() : [],  // where castles can stand, worked out (entities/boss-lair.js)
     time: worldTime, worldDay, curMode: currentInvMode,
     bloodLast: bloodMoonLast,               // the night of the last blood moon (53-storms.js)
     survHot: survStash.hot, survInv: survStash.inv, survInv2: survStash.inv2,
@@ -301,6 +327,7 @@ function saveWorld(syncToLS = false) {
               aliveT: +(player.aliveT || 0).toFixed(1), dead: !!player.dead,
               cause: player._dmgCause || null, deathDay: player._deathDay ?? null,
               deathMark: serializeDeathMark(player),                       // where they last died
+              waypoints: serializeWaypoints(player),                       // their named spots (ui/waypoints.js)
               feats: serializeFeats(player),                               // biomes found, the top and bottom
               craftQueue: serializeCraftQueue(player),                     // 0.76
               skills: serializeSkills(player),                             // 0.79
@@ -316,6 +343,7 @@ function saveWorld(syncToLS = false) {
   }
   // the old way when the worker cannot take it: `edits` built here after all
   const direct = () => {
+    _saveWorkerHas = null;                                 // written here, not by the worker: it no longer holds the latest
     if (viaWorker) { data.edits = {}; for (const [k, m] of editStore) if (m.size) data.edits[k] = [...m]; }
     idbPut(id, data)
       .then(() => { if (!syncToLS) localStorage.removeItem('vg_world_' + id); })
@@ -334,10 +362,20 @@ function saveWorld(syncToLS = false) {
   currentWorld.lastPlayed = Date.now();
   currentWorld.savedDay = worldDay;    // in-game day at the moment of the save, shown in the list
   persistWorlds();
+  worldSavedAt = performance.now();
 }
+/* When the open world was last saved (saveWorld), and whether it has changed since as far as leaving goes: anything played
+   for WORLD_UNSAVED_MS after a save counts (a world is never still: the player, the creatures, the clock). Closing or
+   reloading the page then asks first (the beforeunload handler, 23-boot.js). */
+let worldSavedAt = 0;
+const WORLD_UNSAVED_MS = 2000;
+const worldUnsaved = () => !!currentWorld && !menuScene && performance.now() - worldSavedAt > WORLD_UNSAVED_MS;
 
 async function loadWorld(w) {
   if (currentWorld && currentWorld !== w) saveWorld();   // switching worlds: save the old one first
+  if (typeof clearPetTags === 'function') clearPetTags();   // no name tag of the last world's animals while this one loads
+  // ...nor its waypoints and death marks (the joined world's own are read back when the player is placed)
+  player._waypoints = []; player._deathMarks = [];
   currentWorld = w;
   menuScene = false;
   terrainCacheIndex(w.id);                   // which of its chunks the terrain cache holds (chunks/stream.js)
@@ -366,10 +404,11 @@ async function loadWorld(w) {
   setPlayerCount(1);                  // the roster is per world; the previous one's players leave
   player.chiselShape = null;          // the chisel's shape is not kept between worlds
   player._variantPick = null;         // ...nor the picked variants
-  player._deathMarks = [];            // ...nor where they died in another world (the last five since 0.8442)
   player._restacked = false;          // its stacks are fitted again as this world is joined (15-drops.js)
   player._feats = null; player._night = null;   // ...nor what they found there
   player._chiselRad = null;
+  // ...nor a fish in their hands or an otter round their neck: those are the world's, saved with its creatures (entities/save.js)
+  player._heldFish = null; player._fishGrab = null; player._wornOtter = null; player._wornMeerkat = null; player._clamHold = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
   /* a save without the stamp 3 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
@@ -407,6 +446,7 @@ async function loadWorld(w) {
       }
       if (m.size) editStore.set(k, m);
     }
+  SAVE_DIRTY.clear(); _saveWorkerHas = null;   // a world just opened: its first save sends all its edits to the save worker
   FURNACES.clear();                          // restore per-block furnace state
   activeFurnace = null;
   if (data && Array.isArray(data.furnaces))
@@ -429,10 +469,21 @@ async function loadWorld(w) {
     }
   glowClear();                               // re-derive glowstone lights from the saved edits
   clearDoors();                              // + rebuild door meshes from saved bottom halves
+  clearGates();                              // ...and the gates' (blocks/gates.js)
   restoreDoorLocks(data && data.doorLocks);  // and their locks
   clearBeds();                               // and bed meshes from saved FOOT cells
   clearChests();
   clearTermiteHills();                       // the hills are found again as their chunks come in (blocks/termite-hill.js)
+  clearClams();                              // ...and the clams; what was put in them comes back by place (blocks/clam.js)
+  restoreClams(data && data.clams);
+  restoreMeerkatStash(data && data.meerkatStash);
+  restoreSaplings(data && data.saplings);    // their clocks are in the world clock's days, saved beside it
+  restorePlates(data && data.plates);        // pressure plates held down come up when nothing is on them
+  restorePlateOver(data && data.plateOver);  // ...and the plates lying in other blocks' cells (their chunks mesh them as they come)
+  restoreCoverOver(data && data.coverOver);  // ...and the covers
+  restoreDoorFill(data && data.doorFill);    // ...and the blocks fallen into doorways
+  restoreRailOver(data && data.railOver);    // ...and the fences and walls on slabs and stairs
+  restoreSigns(data && data.signs);          // the words on the signs (their boards come up as their land does)
   if (data && Array.isArray(data.chests)) restoreChests(data.chests);   // contents before meshes
   restoreSeasons(data && data.seasons);                                // what autumn took, for spring
   restoreBurns(data && data.burns);                                    // lights burning out
@@ -446,6 +497,7 @@ async function loadWorld(w) {
   restorePendingLoot(data && data.structLoot);
   restoreStructBlocks(data && data.structBlocks);
   if (typeof restoreBossLairs === 'function') restoreBossLairs(data && data.bossLairs);   // 0.8393
+  if (typeof restoreLairCells === 'function') restoreLairCells(data && data.lairCells);   // ...and the sites already worked out
   for (const [k, m] of editStore) {
     const cxz = k.split(','), gx = cxz[0] * 16, gz = cxz[1] * 16;
     for (const [i, v] of m) {
@@ -453,6 +505,8 @@ async function loadWorld(w) {
         glowAdd(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15));
       if (BLOCKS.isDoorVal(v) && !((v >> 8) & 8))     // a door of any material (old oak doors converted above)
         registerDoor(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), v);
+      if (CORE.shapeOfVal(v) === 'gate')              // a gate: built as its land comes in (blocks/gates.js)
+        registerGate(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15));
       if ((v & 255) === B.BED && !((v >> 8) & 8))     // only the foot half owns a mesh
         registerBed(gx + (i & 15), i >> 8, gz + ((i >> 4) & 15), (v >> 8) & 3, bedWoodOf((v >> 8) & 255));   // wood 0.8342
       if (isChestId(v & 255))                         // wooden or metal
@@ -533,10 +587,18 @@ function deleteWorld(w) {
   refreshMenu();
 }
 
+/* The world list's picture of a world: the middle of the view at THUMB_W x THUMB_H, drawn into a small canvas first.
+   Encoding the whole canvas (2-4 million pixels) held the page 10-20 ms at every save. */
+const THUMB_W = 640, THUMB_H = 360;
+let _thumbCanvas = null;
 function _captureThumb(id) {
   try {
-    const url = renderer.domElement.toDataURL('image/jpeg', 0.4);
-    idbPut('thumb:' + id, url).catch(() => {});
+    const src = renderer.domElement, sw = src.width, sh = src.height;
+    if (!sw || !sh) return;
+    if (!_thumbCanvas) { _thumbCanvas = document.createElement('canvas'); _thumbCanvas.width = THUMB_W; _thumbCanvas.height = THUMB_H; }
+    const k = Math.min(sw / THUMB_W, sh / THUMB_H);
+    _thumbCanvas.getContext('2d').drawImage(src, (sw - THUMB_W * k) / 2, (sh - THUMB_H * k) / 2, THUMB_W * k, THUMB_H * k, 0, 0, THUMB_W, THUMB_H);
+    idbPut('thumb:' + id, _thumbCanvas.toDataURL('image/jpeg', 0.6)).catch(() => {});
   } catch (e) {}
 }
 
@@ -666,6 +728,9 @@ function setHudVisible(v) {
     // ...the stamina and oxygen under the crosshair and the wrong-tool hint too (ui/vitals-hud.js, ui/hud.js)
     if (!v) for (const sel of ['#vitals', '#vitalsNear', '#wrongTool', '#xpBar', '#xpPops'])
       { const el = pane.querySelector(sel); if (el) el.style.display = 'none'; }
+    /* ...and every mark placed in the world (the death marks, a waypoint, an animal being tamed), hidden on the title
+       screen and while a world loads: each is kept by something that only runs in a world, and showing is theirs again */
+    for (const el of [pane.querySelector('#deathMark'), pane._wpMarks, pane._tameMarks]) if (el) el.style.display = 'none';
   }
   if (!v) {
     // those cache their last shown state and only touch the DOM on a change, so the
@@ -697,6 +762,7 @@ function startMenuBackdrop() {
   canvas.style.opacity = '0';
   overlay.classList.add('veiled');          // menu waits for the panorama, then eases in with it
   clearDoors();
+  clearGates();
   clearBeds();
   clearChests();
   clearTermiteHills();

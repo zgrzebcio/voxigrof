@@ -101,6 +101,7 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
   set(B.SHORT_GRASS, 0); set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
   for (const id of woodBlocks('leaves')) set(id, 0);                   // every wood's leaves (the woods table, woods/woods.js)
   set(B.DRY_GRASS, 0); set(B.DRY_TALL_LOWER, 0); set(B.DRY_TALL_UPPER, 0); set(B.DRY_BUSH, 0);
+  set(B.VINE, 0);                                                       // a vine grows back: no grinding it
   // a log that pays its own XP: a wood's `xp.log` in the woods table (rime 3, palm 2; the rest pay what any block pays)
   for (const w of woodList()) if (w.log != null && w.xp && w.xp.log != null) set(w.log, w.xp.log);
   /* Built things never grow in the wild, only in villages and by your hand (COBBLESTONE was misspelt and
@@ -150,7 +151,7 @@ const XP_SHEAR = 500, XP_MILK = 500, XP_REPAIR_PER_TIER = 2, XP_BIOME = 10, XP_W
 /* A biome found: the more you have found already, the more the next one pays — XP_BIOME for the first, rising
    by the same factor each time to XP_BIOME_LAST for the last of BIOME_COUNT (biomes/biomes.js biomeAt names them: 9 kinds of
    water and shore, 18 of land). 10, 12, 15... about 100 half way, 1000 for the last. */
-const XP_BIOME_LAST = 100000, BIOME_COUNT = 40;   // 10000 for the last since 0.8446 (1000): 10, 12, 14... about 316 half way   // 40 the Savanna   // 39 the Dryland   // 38 the Deep Red Desert   // 37 the Deep Desert and the Oasis   // 35 the Coldest Deep Snow Forest   // 500 in 0.8324; 28 with the Ice Spikes, 29 the Snowy Hills; 33 the plains' and forests' Hills; 34 the Coldest Deep Snow
+const XP_BIOME_LAST = 100000, BIOME_COUNT = 44;   // 10000 for the last since 0.8446 (1000): 10, 12, 14... about 316 half way   // 44 the Jungle, Deep Jungle and Jungle Hills   // 41 the Deep Red Desert Flat   // 40 the Savanna   // 39 the Dryland   // 38 the Deep Red Desert   // 37 the Deep Desert and the Oasis   // 35 the Coldest Deep Snow Forest   // 500 in 0.8324; 28 with the Ice Spikes, 29 the Snowy Hills; 33 the plains' and forests' Hills; 34 the Coldest Deep Snow
 const biomeXP = (found) => Math.round(XP_BIOME * Math.pow(XP_BIOME_LAST / XP_BIOME, Math.min(1, found / (BIOME_COUNT - 1))));
 // sapling id -> XP when it grows: each wood's `xp.sapling` in the woods table (oak 30, birch 40, spruce 50, palm 100)
 const XP_SAPLING = {};

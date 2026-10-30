@@ -119,12 +119,33 @@ function nearestElement(x, y) {
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2, dist = Math.hypot(x - cx, y - cy);
       if (dist < bd) { bd = dist; best = { el: d.el, cx, cy, dist, type: 'skill', tip: d.tip }; }
     }
+  /* A line is measured to its edge, so it was nearer than the middle of any slot beside it: the XP bar over the hotbar won
+     every time the cursor came near, and the pad's magnet took the cursor to its middle. A line now counts LINE_BIAS
+     further off (a slot beside it wins unless the cursor is on the line), and the magnet only pulls the cursor onto its
+     nearest edge (`rect`, updateInvCursorVisual). The same for the rows of the vitals strip (type 'vital'). */
+  const lineAt = (r) => Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom)) + LINE_BIAS;
   for (const d of getInfoElements()) {
-    const r = d.el.getBoundingClientRect();
-    const dist = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
-    if (dist < bd) { bd = dist; best = { el: d.el, cx: r.left + r.width / 2, cy: r.top + r.height / 2, dist, type: 'info', tip: d.tip }; }
+    const r = d.el.getBoundingClientRect(), dist = lineAt(r);
+    if (dist < bd) { bd = dist; best = { el: d.el, cx: r.left + r.width / 2, cy: r.top + r.height / 2, dist, type: 'info', tip: d.tip, rect: r }; }
+  }
+  for (const r of vitalRects()) {
+    const dist = lineAt(r);
+    if (dist < bd) { bd = dist; best = { el: null, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, dist, type: 'vital', rect: r }; }
   }
   return best;
+}
+const LINE_BIAS = 14;
+// the vitals strip's rows and the temperature dial in screen pixels, while their tooltips can show (vitalsTipAt)
+function vitalRects() {
+  if (typeof vitalsEl === 'undefined' || !vitalsEl || !vitalsEl._hits || !invOpen || !vitalsShown) return [];
+  const r = vitalsEl.getBoundingClientRect();
+  if (!r.width || !r.height) return [];
+  const kx = r.width / VIT_W, ky = r.height / VIT_H, out = [];
+  for (const h of vitalsEl._hits) {
+    const left = r.left + (h.x + VIT_W / 2) * kx, top = r.top + h.y * ky;
+    out.push({ left, top, right: left + h.w * kx, bottom: top + h.h * ky });
+  }
+  return out;
 }
 // the hoverable lines of the equipment panel's Stats and Effects lists, each with its tooltip builder, and the XP bar
 function getInfoElements() {

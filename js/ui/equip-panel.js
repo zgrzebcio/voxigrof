@@ -56,6 +56,8 @@ function buildEquipPanel() {
   const regen = typeof playerRegenMul === 'function' ? playerRegenMul() : 1;
   const spoil = typeof playerSpoilMul === 'function' ? playerSpoilMul() : 1;
   const effT = typeof playerEffectTimeMul === 'function' ? playerEffectTimeMul() : 1;
+  // how far items come to you and plants are foraged: a meerkat on the shoulder (wornReachMul, entities/meerkat.js)
+  const reach = typeof wornReachMul === 'function' ? wornReachMul(player) : 1;
   let stats =
     row('defense', f1(pts)) +
     row('damage reduced', pct(red)) +
@@ -68,6 +70,8 @@ function buildEquipPanel() {
     row('jump strength', pct(jmp), tone(jmp, 1)) +
     row('crafting speed', pct(cft), tone(cft, 1)) +
     row('mining speed', pct(mine), tone(mine, 1)) +                          // 0.8323
+    row('item pickup range', pct(reach), tone(reach, 1)) +
+    row('foraging reach', pct(reach), tone(reach, 1)) +
     row('stats depletion', pct(dep), tone(dep, 1, false)) +                  // hunger and oxygen depletion until 0.828
     row('regen', pct(regen), tone(regen, 1)) +                               // 0.832
     row('hazard reduction', pct(hazard), tone(hazard, 0)) +                   // 0.7911

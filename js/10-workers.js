@@ -26,18 +26,35 @@ for (let i = 0; i < WORKER_COUNT; i++) {
   const w = new Worker(workerURL);
   w.busy = 0;                               // jobs it holds
   w.genOut = 0;                             // ...and how many of them are chunks to make, the long ones (the edit lane, chunks/stream.js)
+  w.cpuLabel = 'w' + (i + 1);               // its name on the processor meter (ui/cpu-meter.js)
   w.onmessage = (e) => {
+    const t0 = _perfOn ? performance.now() : 0;
     w.busy--;
     const d = e.data, made = d.type === 'gen' || (d.type === 'error' && (d.job === 'gen' || d.job === 'prep'));   // a chunk to make, done or failed
     if (made && w.genOut > 0) w.genOut--;
     onWorkerMessage(d); pump();
+    if (t0) { cpuNoteMsg(performance.now() - t0); cpuNoteWorker(w.cpuLabel, d.bz, d.bzk); }
   };
   workers.push(w);
 }
+/* BACKGROUND THREADS (Options > Video, saved as `vg_threads`): 'auto' (all WORKER_COUNT of them) or at most 4 or 2. The
+   pool is made whole at the start and the setting only says how many of it are handed jobs (`poolWorkers`, read by the
+   stream, chunks/stream.js): an idle worker costs nothing, so the setting takes effect at once, both ways. Fewer threads
+   bring new land in slower with fewer cores busy, a cooler and quieter machine. The light and fluid threads are apart. */
+const THREAD_CHOICES = ['auto', '4', '2'];
+let threadsSetting = (() => { try { const v = localStorage.getItem('vg_threads'); return THREAD_CHOICES.includes(v) ? v : 'auto'; } catch { return 'auto'; } })();
+const _poolOf = (v) => v === 'auto' ? workers : workers.slice(0, Math.min(workers.length, +v));
+let poolWorkers = _poolOf(threadsSetting);
+function applyThreads(v) {
+  if (!THREAD_CHOICES.includes(v) || v === threadsSetting) return;
+  threadsSetting = v;
+  try { localStorage.setItem('vg_threads', v); } catch {}
+  poolWorkers = _poolOf(v);
+}
 // a side job (a chunk's season scan) to the least busy worker, counted like a gen or mesh job
 function postScanJob(msg, transfer) {
-  let best = workers[0];
-  for (const w of workers) if (w.busy < best.busy) best = w;
+  let best = poolWorkers[0];
+  for (const w of poolWorkers) if (w.busy < best.busy) best = w;
   best.busy++;
   best.postMessage(msg, transfer);
 }

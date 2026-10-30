@@ -115,7 +115,15 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               BRONZE_HELMET: 419, BRONZE_CHESTPLATE: 420, BRONZE_LEGGINGS: 421, BRONZE_BOOTS: 422, BRONZE_GLOVES: 423,
               LEATHER_STRIP: 424,
               SEASHELL: 425,
-              COCONUT: 426, HALF_COCONUT: 427 };   // off a palm (woods/coconuts.js): opened by hand into two halves to drink                     // picked up on a sea beach (blocks/plants.js)                // cut from leather at the bench: belts and backpacks   // 0.827   // 0.824                                   // 0.821                                                      // 0.8097                                             // 0.7947                            // 0.769   // PUMPKIN_PIE (286) is the raw pie since 0.761
+              COCONUT: 426, HALF_COCONUT: 427,     // off a palm (woods/coconuts.js): opened by hand into two halves to drink
+              PEARL: 428,                          // grown in a wild clam (blocks/clam.js)
+              FUR: 429,                            // off an otter or a polar bear
+              LOCK_PICK: 430,                      // opens a locked chest, sometimes (blocks/chest.js)
+              JAM_SANDWICH: 431,                   // berries and bread
+              CARROT: 432,                         // off a ripe carrot plant (B.CARROT): vegetables, and a horse's best food
+              COCOA_BEANS: 433,                    // out of a ripe cocoa pod on a jungle trunk (woods/cocoa.js)
+              COCOA_POWDER: 434,                   // five cocoa beans ground at the mortar
+              WRENCH: 435 };                       // creative's debug stick: joins, turns, forces shapes (player/wrench.js)
 
 const ITEM_PROPS = {};
 // a group file's items into the table; each entry remembers its group

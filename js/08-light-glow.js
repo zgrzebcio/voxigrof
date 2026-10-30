@@ -44,9 +44,10 @@ const FURNACE_GLOW = 5;
 const EMITTER_ID = new Uint8Array(256);
 for (let id = 0; id < 256; id++) if (PROPS[id] && (PROPS[id].light > 0 || PROPS[id].lightByVar)) EMITTER_ID[id] = 1;
 EMITTER_ID[B.FURNACE] = 1;
-/* ...and the blocks the page draws itself (`pageModel`: the termite hill), which give no light: the worker lists them
-   with the emitters, and finishChunkGen (chunks/stream.js) hands them to their own file from the same pass */
-for (let id = 0; id < 256; id++) if (PROPS[id] && PROPS[id].pageModel) EMITTER_ID[id] = 1;
+/* ...and the blocks the page draws itself (`pageModel`: the termite hill, the clam) or keeps an eye on (`pageSeen`: the cocoa
+   pod), which give no light: the worker lists them with the emitters, and finishChunkGen (chunks/stream.js) hands them to
+   their own file from the same pass */
+for (let id = 0; id < 256; id++) if (PROPS[id] && (PROPS[id].pageModel || PROPS[id].pageSeen)) EMITTER_ID[id] = 1;
 
 function blockLightOf(val) {
   const id = val & 255;
@@ -147,6 +148,23 @@ function _clearLightBox(x0, y0, z0, x1, y1, z1) {
     }
 }
 
+/* THE LIGHT THREAD'S BOX: the change and LIGHT_REACH round it, the furthest any light that passed through the change can
+   have gone, and the sources inside it (placed lights and held ones, in the simulation range). The thread clears the box,
+   floods these into it, and lets the light already round its edge flow in (lightEdgeSeeds, chunks/worker.js). Sources
+   further off need not be sent, nor the box grown to their reach: their light cannot reach the change. Growing it to each
+   source's reach made a box of some 64 chunks beside a lava pool. A source in the ring of cells right round the box IS
+   sent: it gives the cells beside it its own level, and its cell's light (what the edge passes in) is one less, or none
+   at all for an opaque one (glowstone). Returns [sources, box] for _lightPost. */
+function _lightBoxNear(x0, y0, z0, x1, y1, z1) {
+  y0 = Math.max(0, y0); y1 = Math.min(WORLD_TOP, y1);
+  const inBox = (gx, gy, gz) => gx >= x0 - 1 && gx <= x1 + 1 && gy >= y0 - 1 && gy <= y1 + 1 && gz >= z0 - 1 && gz <= z1 + 1;
+  const near = [];
+  forEachGlowNear((x0 + x1) >> 1, (z0 + z1) >> 1, Math.max(x1 - x0, z1 - z0) / 2 + 2, (gx, gy, gz) => {
+    if (inBox(gx, gy, gz) && _lightSrcActive(gx, gz)) near.push(glowSrcAt(gx, gy, gz));
+  });
+  for (const g of _plyGlows) if (g && inBox(g[0], g[1], g[2])) near.push(g);
+  return [near, { x0, y0, z0, x1, y1, z1 }];
+}
 // recompute block light in a bounded box around a change, then re-mesh the chunks it touches.
 // x2, y2, z2: the far corner of a whole area of changes, relit once for all of them
 function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
@@ -154,6 +172,7 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   const near = [];
   const bx0 = Math.min(x, x2), bx1 = Math.max(x, x2), by0 = Math.min(y, y2), by1 = Math.max(y, y2), bz0 = Math.min(z, z2), bz1 = Math.max(z, z2);
   const cxm = (bx0 + bx1) >> 1, czm = (bz0 + bz1) >> 1, ext = Math.max(bx1 - bx0, bz1 - bz0);
+  if (_lightW) { _lightPost('lbox', ..._lightBoxNear(bx0 - R, by0 - R, bz0 - R, bx1 + R, by1 + R, bz1 + R)); return; }   // the light thread
   forEachGlowNear(cxm, czm, 2 * R + ext, (gx, gy, gz) => {
     if (gx < bx0 - 2 * R || gx > bx1 + 2 * R || gy < by0 - 2 * R || gy > by1 + 2 * R || gz < bz0 - 2 * R || gz > bz1 + 2 * R) return;
     if (!_lightSrcActive(gx, gz)) return;
@@ -166,7 +185,6 @@ function relight(x, y, z, x2 = x, y2 = y, z2 = z) {
   let x0 = bx0 - R, x1 = bx1 + R, y0 = by0 - R, y1 = by1 + R, z0 = bz0 - R, z1 = bz1 + R;
   for (const g of near) { x0 = Math.min(x0, g[0]-R); x1 = Math.max(x1, g[0]+R); y0 = Math.min(y0, g[1]-R); y1 = Math.max(y1, g[1]+R); z0 = Math.min(z0, g[2]-R); z1 = Math.max(z1, g[2]+R); }
   y0 = Math.max(0, y0); y1 = Math.min(WORLD_TOP, y1);
-  if (_lightW) { _lightPost('lbox', near, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(near);                // all of them in one flood
   for (let ccz = Math.floor(z0/16); ccz <= Math.floor(z1/16); ccz++)
@@ -189,6 +207,13 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   const skipOld = old && (Math.abs(old[0]-nx) > 2*R || Math.abs(old[1]-ny) > 2*R || Math.abs(old[2]-nz) > 2*R);
 
   const cx = now ? nx : old[0], cy = now ? ny : old[1], cz = now ? nz : old[2];
+  // the light thread: the new place and the old one, each with its reach (_lightBoxNear above)
+  if (_lightW) {
+    let x0 = cx - R, x1 = cx + R, y0 = cy - R, y1 = cy + R, z0 = cz - R, z1 = cz + R;
+    if (!skipOld && old) { x0 = Math.min(x0, old[0] - R); x1 = Math.max(x1, old[0] + R); y0 = Math.min(y0, old[1] - R); y1 = Math.max(y1, old[1] + R); z0 = Math.min(z0, old[2] - R); z1 = Math.max(z1, old[2] + R); }
+    _lightPost('lbox', ..._lightBoxNear(x0, y0, z0, x1, y1, z1));
+    return;
+  }
   // sources to re-propagate: placed glowLights + EVERY player's light (this one's old position is
   // not a source — it is what the clear below is for, but another player standing there is).
   const sources = [];
@@ -204,7 +229,6 @@ function updatePlayerLight(slot, nx, ny, nz, level, cold = false) {
   if (!skipOld && old) { x0=Math.min(x0,old[0]-R); x1=Math.max(x1,old[0]+R); y0=Math.min(y0,old[1]-R); y1=Math.max(y1,old[1]+R); z0=Math.min(z0,old[2]-R); z1=Math.max(z1,old[2]+R); }
   for (const g of sources) { x0=Math.min(x0,g[0]-R); x1=Math.max(x1,g[0]+R); y0=Math.min(y0,g[1]-R); y1=Math.max(y1,g[1]+R); z0=Math.min(z0,g[2]-R); z1=Math.max(z1,g[2]+R); }
   y0=Math.max(0,y0); y1=Math.min(WORLD_TOP,y1);
-  if (_lightW) { _lightPost('lbox', sources, { x0, y0, z0, x1, y1, z1 }); return; }   // the light thread
   _clearLightBox(x0, y0, z0, x1, y1, z1);
   propagateLightMany(sources);             // 0.8196
   for (let ccz=Math.floor(z0/16);ccz<=Math.floor(z1/16);ccz++)
@@ -250,7 +274,11 @@ const _lightJobs = new Map();               // job id -> its box (the chunks to 
 function lightThreadStart() {
   if (_lightW || !SHARED_OK || !LIGHT_THREAD || typeof workerURL === 'undefined') return;
   _lightW = new Worker(workerURL);
-  _lightW.onmessage = (e) => _lightThreadAnswer(e.data);
+  _lightW.onmessage = (e) => {
+    const t0 = _perfOn ? performance.now() : 0;
+    _lightThreadAnswer(e.data);
+    if (t0) { cpuNoteMsg(performance.now() - t0); cpuNoteWorker('light', e.data.bz, e.data.bzk); }   // the processor meter (ui/cpu-meter.js)
+  };
   _lightW.postMessage({ type: 'lreset', top: WORLD_TOP,
                         pack: { mask: LIGHT_LEVEL_MASK, cold: LIGHT_COLD_BIT, sky: typeof SKY_LEVEL !== 'undefined' ? SKY_LEVEL : 15 } });
 }
@@ -272,17 +300,14 @@ function _lightPost(type, srcs, box) {
 function _lightThreadAnswer(m) {
   if (m.type === 'error') { console.error('[light worker]', m.message); return; }
   if (m.type !== 'lit') return;
-  const box = _lightJobs.get(m.id);
   _lightJobs.delete(m.id);
   for (const a of m.made) {                 // a light array made there for a chunk that had none
     const c = chunks.get(a.key);
     if (c && c._lid === a.lid && !c.light) c.light = a.light;
   }
-  const dirty = new Set(m.touched);
-  if (box)
-    for (let cz = Math.floor(box.z0 / 16); cz <= Math.floor(box.z1 / 16); cz++)
-      for (let cx = Math.floor(box.x0 / 16); cx <= Math.floor(box.x1 / 16); cx++) dirty.add(cx + ',' + cz);
-  for (const k of dirty) { const c = chunks.get(k); if (c && c.data) markDirty(c); }
+  /* the chunks whose light really changed, and those across a border from a change (chunks/worker.js names them): a
+     whole box marked here made a settling lava pool re-mesh some 64 chunks for every relight */
+  for (const k of m.touched) { const c = chunks.get(k); if (c && c.data) markDirty(c); }
 }
 
 // Dev test — run _dbgHeldLight() in browser console while holding a light block

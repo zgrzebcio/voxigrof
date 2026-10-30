@@ -3,7 +3,7 @@
 
 /* voxiGrof — the item feed
 
-   One list at the top middle of the screen saying what just entered or left your hands, and how it
+   One list at the top middle of each player's view saying what just entered or left your hands, and how it
    happened: picked up, crafted, smelted, placed, used, eaten, dropped, broken. An item event
    carries that item's own icon — the same 3D render the inventory slots use — and anything that is
    not about an item (a warning, "world saved", a bind prompt) carries an info badge instead.
@@ -22,18 +22,28 @@ const FEED_LIFE = 3400;          // ms a row lives once nothing has added to it
 const FEED_LIFE_WARN = 7000;     // ms a WARNING row lives: starving, drowning, no room
 const FEED_OUT = 320;            // ms the leaving animation takes — must match the CSS transition
 
-let _feedEl = null;
-const FEED_ROWS = new Map();     // key -> { el, amt, timer, info }
+/* ONE FEED A SEAT. Each split-screen pane has its own #feed (36-splitscreen.js: HUD_PANE_IDS, `feedEl` among the swapped
+   globals), and a message lands in the feed of the seat installed when it is made: what a player picks up, crafts, learns
+   or is warned of is made in that player's own turn. What is about the game (saved, a setting, a bind) is made by page
+   events and the world's own code, which run as seat one, so it lands on player one's. Each feed keeps its own rows. */
+var feedEl = null;
+const _FEED_HOSTS = new Map();   // a feed element -> its rows: key -> { el, amt, timer, info }
 
 function _feedHost() {
-  if (_feedEl && _feedEl.isConnected) return _feedEl;
-  _feedEl = document.getElementById('feed');
-  if (!_feedEl) {                                  // built here if the page did not ship one
-    _feedEl = document.createElement('div');
-    _feedEl.id = 'feed';
-    document.body.appendChild(_feedEl);
+  if (feedEl && feedEl.isConnected) return feedEl;
+  let el = document.getElementById('feed');        // before the panes are made: the page's own, seat one's after
+  if (!el) {                                       // built here if the page did not ship one
+    el = document.createElement('div');
+    el.id = 'feed';
+    document.body.appendChild(el);
   }
-  return _feedEl;
+  return el;
+}
+// the rows of a feed (this seat's when not given)
+function _feedRows(host = _feedHost()) {
+  let rows = _FEED_HOSTS.get(host);
+  if (!rows) _FEED_HOSTS.set(host, rows = new Map());
+  return rows;
 }
 const _feedName = (id) => (id >= 256 ? ITEM_PROPS[id]?.name : PROPS[id]?.name) || 'Item';
 const _feedEsc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -47,17 +57,17 @@ const FEED_INFO_SVG =
 
 /* Retire a row: play the leaving animation, then take it out of the DOM. `.out` collapses the
    row's height as well as fading it, so the rows below slide up into the gap instead of jumping. */
-function _feedRetire(key) {
-  const row = FEED_ROWS.get(key);
+function _feedRetire(key, rows = _feedRows()) {
+  const row = rows.get(key);
   if (!row) return;
-  FEED_ROWS.delete(key);
+  rows.delete(key);
   clearTimeout(row.timer);
   row.el.classList.add('out');
   setTimeout(() => row.el.remove(), FEED_OUT);
 }
 // oldest first, so trimming to FEED_MAX drops the one you are least likely to still be reading
-function _feedTrim() {
-  while (FEED_ROWS.size > FEED_MAX) _feedRetire(FEED_ROWS.keys().next().value);
+function _feedTrim(rows) {
+  while (rows.size > FEED_MAX) _feedRetire(rows.keys().next().value, rows);
 }
 /* Replay the pulse on a row that just grew. The class has to come off and the layout be flushed
    before it goes back on, or the browser sees no change and the animation never restarts. */
@@ -97,13 +107,13 @@ const _feedMuted = () => typeof player !== 'undefined' && !!player && !!player.d
 
 function _feedPush(key, cls, html) {
   if (_feedMuted()) return null;
-  const host = _feedHost();
-  let row = FEED_ROWS.get(key);
+  const host = _feedHost(), rows = _feedRows(host);
+  let row = rows.get(key);
   if (row && row.el.isConnected && !row.el.classList.contains('out')) {
     clearTimeout(row.timer);
     // re-inserting keeps a row that is still being added to at the top, where you are looking
     if (host.firstChild !== row.el) host.insertBefore(row.el, host.firstChild);
-    FEED_ROWS.delete(key);                         // ...and re-key it so it is now the NEWEST
+    rows.delete(key);                              // ...and re-key it so it is now the NEWEST
     row.fresh = false;
   } else {
     const el = document.createElement('div');
@@ -118,10 +128,10 @@ function _feedPush(key, cls, html) {
     el.classList.remove('in');
     row = { el, amt: 0, fresh: true, info: cls === 'info' || cls === 'warn' || cls === 'crit' };
   }
-  FEED_ROWS.set(key, row);
+  rows.set(key, row);
   // critical rows stay up twice as long, so a warning cannot scroll past unread
-  row.timer = setTimeout(() => _feedRetire(key), cls === 'warn' || cls === 'crit' ? FEED_LIFE_WARN : FEED_LIFE);
-  _feedTrim();
+  row.timer = setTimeout(() => _feedRetire(key, rows), cls === 'warn' || cls === 'crit' ? FEED_LIFE_WARN : FEED_LIFE);
+  _feedTrim(rows);
   _feedChime(key, cls);
   return row;
 }
@@ -279,12 +289,11 @@ function feedXP(n, why) {
    info row; the single-line #toast element it used to write into is gone. */
 function toast(msg) { feedInfo(msg); }
 
-// leaving a world should not carry the last world's messages into the menu
+// leaving a world should not carry the last world's messages into the menu: every seat's feed emptied
 function clearFeed() {
-  for (const key of [...FEED_ROWS.keys()]) {
-    const row = FEED_ROWS.get(key);
-    clearTimeout(row.timer);
-    row.el.remove();
-    FEED_ROWS.delete(key);
+  for (const [host, rows] of _FEED_HOSTS) {
+    for (const row of rows.values()) { clearTimeout(row.timer); row.el.remove(); }
+    rows.clear();
+    if (!host.isConnected) _FEED_HOSTS.delete(host);   // a pane that left
   }
 }

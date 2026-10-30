@@ -4,11 +4,11 @@
 
    THE BLOCK is B.TERMITE_HILL (blocks/torch-blocks.js: its variant says which cell of which hill), made by the world
    (biomes/gen-savanna.js). The mesher draws nothing of it: here each hill is one copy of its model, small or big
-   (textures/Blocks/Models/termite_hill/*.json, read by entities/box-models.js), drawn as instances of one mesh per
-   kind, lit by the light over it.
+   (js/models/termite-hills.js, read by entities/box-models.js; sheets in textures/Blocks/Models/termite_hill), drawn as
+   instances of one mesh per kind, lit by the light over it.
 
    FINDING THEM. The worker lists a hill's cells with the light sources (`pageModel`), so finishChunkGen
-   (chunks/stream.js) hands its foot cell to termiteHillSeen as the chunk comes in; setBlock's hook
+   (chunks/stream.js, pageModelSeen) hands its foot cell to termiteHillSeen as the chunk comes in; setBlock's hook
    (chunks/block-access.js) calls termiteHillChanged when a cell of one is broken or put down. A hill whose chunk is
    let go is forgotten, its termites with it, and found again when the chunk comes back.
 
@@ -17,8 +17,8 @@
    at once, angry, and its own go angry too: a hit termite angers its hill (`angryT`), and its soldiers come for
    the player. What a broken hill gives is its block drop (50-loottable.js), once for the whole hill. */
 const HILL_MODELS = {
-  small: { json: 'textures/Blocks/Models/termite_hill/termite_hill_small.json', png: 'textures/Blocks/Models/termite_hill/termite_hill_small.png', top: 1 },
-  big:   { json: 'textures/Blocks/Models/termite_hill/termite_hill.json',       png: 'textures/Blocks/Models/termite_hill/termite_hill.png',       top: 3 },
+  small: { json: 'termite_hill_small', png: 'textures/Blocks/Models/termite_hill/termite_hill_small.png', top: 1 },   // json: its model's name
+  big:   { json: 'termite_hill',       png: 'textures/Blocks/Models/termite_hill/termite_hill.png',       top: 3 },
 };
 const HILL_KEEP = { small: 2, big: 4 };        // termites a hill keeps about it
 const HILL_BURST = { small: [1, 3], big: [3, 6] };   // how many come out when it is broken

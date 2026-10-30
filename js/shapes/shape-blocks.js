@@ -7,7 +7,7 @@ corePart('blocks', function () {
   /* A look (brick, polished, carved... blocks/looks.js) is its base block in the cell, so it takes its base's shapes:
      only real ids are listed here. The four rocks take slabs, stairs, panes, covers and walls; the three sandstones
      panes too; glowstone and the glowcrystal block slabs and panes; obsidian slabs, stairs, panes and walls; wool slabs
-     and stairs; stone and the tin block walls. Adobe and terracotta lost the cover, the iron and gold blocks the
+     and stairs; stone, the tin block and every planks walls. Adobe and terracotta lost the cover, the iron and gold blocks the
      carpet, the iron block the fence. */
   const _ROCKS = [B.GRANITE, B.MARBLE, B.LIMESTONE, B.DOLOMITE];
   const _SANDSTONES = [B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE];
@@ -28,8 +28,8 @@ corePart('blocks', function () {
     pane:   [B.WOOL, B.GLASS, ..._ALL_PLANKS, B.STONE, B.COBBLE, B.BRICKS,
              ..._ROCKS, ..._SANDSTONES, ..._GLOWS, B.OBSIDIAN, B.SULFUR_BLOCK,
              ..._METALS],
-    fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK],
-    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,
+    fence:  [..._ALL_PLANKS, B.BRICKS, B.COPPER_BLOCK, B.STONE, B.COBBLE, ..._ROCKS, ..._SANDSTONES],
+    layer:  [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.JUNGLE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL,
              B.FIBER_BLOCK, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK,
              B.WOOL, ..._ALL_PLANKS, B.STONE, B.COBBLE,
              B.HAY, B.ICE],
@@ -39,9 +39,15 @@ corePart('blocks', function () {
     wall:   [B.COBBLE, B.BRICKS, B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK,
              ..._ROCKS, B.WOOL, ..._SANDSTONES, B.ADOBE,
              B.STONE, B.TIN_BLOCK, B.SULFUR_BLOCK,
-             B.OBSIDIAN, B.SNOW, B.ICE],
+             B.OBSIDIAN, B.SNOW, B.ICE, ..._ALL_PLANKS],
+    // the pressure plate: what presses each is in blocks/pressure-plates.js (PLATE_PRESSED_BY)
+    plate:  [..._ALL_PLANKS, B.STONE, B.COBBLE, ..._ROCKS, ..._SANDSTONES, ..._METALS, B.OBSIDIAN],
+    // the sign: its words are blocks/signs.js'
+    sign:   [..._ALL_PLANKS, B.STONE, B.COBBLE, ..._ROCKS, B.IRON_BLOCK],
   };
-  const LAYER_STACKING = [B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK];   // salt 0.8097, ash 0.8191
+  // a gate is made in the world from a fence or a wall (blocks/gates.js), so every block with either takes it
+  SHAPE_BLOCKS.gate = [...new Set([...SHAPE_BLOCKS.fence, ...SHAPE_BLOCKS.wall])];
+  const LAYER_STACKING =[B.SNOW, B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.RIME_LEAVES, B.PALM_LEAVES, B.ACACIA_LEAVES, B.JUNGLE_LEAVES, B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL, B.FIBER_BLOCK, B.SALT_CRUST, B.ASH, B.BONE_ASH_BLOCK];   // salt 0.8097, ash 0.8191
   for (const fam in SHAPE_BLOCKS)
     for (const b of SHAPE_BLOCKS[fam]) (PROPS[b].shapes || (PROPS[b].shapes = {}))[fam] = true;
   /* THE LOOKS THAT ARE STILL IDS TAKE THEIR DEFAULT'S SHAPES. One list per block, its default first, then those looks

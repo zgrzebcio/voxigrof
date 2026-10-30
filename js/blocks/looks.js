@@ -64,7 +64,10 @@ corePart('blocks', function () {
     defineLook(base, 6 + o, 'carved', nm + ' (carved)', T['CARVED_' + K],                     { was: was[5] });
   });
   defineLook(B.COBBLE, 1, 'mossy', 'Cobblestone (mossy)', T.MOSSY_COBBLE, { was: 130 });
+  defineLook(B.COBBLE, 2, 'mossy brick', 'Cobblestone (mossy brick)', T.MOSSY_COBBLE_BRICKS);
   defineLook(B.SULFUR_BLOCK, 1, 'brick', 'Sulfur block (brick)', T.SULFUR_BRICKS, { was: 131 });
+  defineLook(B.SULFUR_BLOCK, 2, 'carved', 'Sulfur block (carved)', T.CARVED_SULFUR);
+  defineLook(B.SULFUR_BLOCK, 3, 'mossy brick', 'Sulfur block (mossy brick)', T.MOSSY_SULFUR_BRICKS);
   // the mortar's bowl carved from another rock: only the bowl material changes, powder and pestle stay
   [[B.GRANITE, 'granite', 135], [B.MARBLE, 'marble', 136], [B.LIMESTONE, 'limestone', 137], [B.DOLOMITE, 'dolomite', 195]].forEach(([rock, nm, was], i) =>
     defineLook(B.MORTAR, i + 1, nm, `Mortar and pestle (${nm})`, PROPS[rock].faces[0],
@@ -77,9 +80,14 @@ corePart('blocks', function () {
   // adobe, terracotta (B.BRICKS, the old clay bricks block)
   defineLook(B.ADOBE, 1, 'brick',  'Adobe (brick)',  T.ADOBE_BRICK,  { was: 156 });
   defineLook(B.ADOBE, 2, 'carved', 'Adobe (carved)', T.CARVED_ADOBE, { was: 246 });
+  defineLook(B.ADOBE, 3, 'circle', 'Adobe (circle)', T.ADOBE_CIRCLE);
+  defineLook(B.ADOBE, 4, 'mossy',  'Adobe (mossy)',  T.MOSSY_ADOBE);
+  defineLook(B.ADOBE, 5, 'cracked', 'Adobe (cracked)', T.CRACKED_ADOBE);
   defineLook(B.BRICKS, 1, 'brick',  'Terracotta (brick)',  T.TERRACOTTA_BRICKS, { was: 166 });
   defineLook(B.BRICKS, 2, 'carved', 'Terracotta (carved)', T.CARVED_TERRACOTTA, { was: 247 });
   defineLook(B.BRICKS, 3, 'roof',   'Terracotta (roof)',   T.TERRACOTTA_ROOF,   { was: 248 });
+  defineLook(B.BRICKS, 4, 'soot brick', 'Terracotta (soot brick)', T.TERRACOTTA_SOOT_BRICKS);
+  defineLook(B.BRICKS, 5, 'mossy roof', 'Terracotta (mossy roof)', T.MOSSY_TERRACOTTA_ROOF);
   // the three sandstones: brick, polished, carved
   [['', 'Sandstone', [189, 190, 243]], ['RED_', 'Red sandstone', [191, 192, 244]], ['PINK_', 'Pink sandstone', [193, 194, 245]]]
     .forEach(([K, nm, was]) => {
@@ -88,10 +96,26 @@ corePart('blocks', function () {
       defineLook(base, 2, 'polished', nm + ' (polished)', T['POLISHED_' + K + 'SANDSTONE'], { was: was[1] });
       defineLook(base, 3, 'carved',   nm + ' (carved)',   T['CARVED_' + K + 'SANDSTONE'],   { was: was[2] });
     });
-  // the bone block's brick has no axis
+  // each sandstone: mossy brick, cracked, cracked brick
+  [['', 'Sandstone'], ['RED_', 'Red sandstone'], ['PINK_', 'Pink sandstone']].forEach(([K, nm]) => {
+    const base = B[K + 'SANDSTONE'];
+    defineLook(base, 4, 'mossy brick',   nm + ' (mossy brick)',   T['MOSSY_' + K + 'SANDSTONE_BRICKS']);
+    defineLook(base, 5, 'cracked',       nm + ' (cracked)',       T['CRACKED_' + K + 'SANDSTONE']);
+    defineLook(base, 6, 'cracked brick', nm + ' (cracked brick)', T['CRACKED_' + K + 'SANDSTONE_BRICKS']);
+  });
+  // dirt: mossy, coarse, frozen. Grass never spreads onto any of them (grass-spread.js takes plain dirt only)
+  defineLook(B.DIRT, 1, 'mossy',  'Dirt (mossy)',  T.MOSSY_DIRT);
+  defineLook(B.DIRT, 2, 'coarse', 'Dirt (coarse)', T.COARSE_DIRT);
+  defineLook(B.DIRT, 3, 'frozen', 'Dirt (frozen)', T.FROZEN_DIRT);
+  // the bone block's brick, carved and polished have no axis
   defineLook(B.BONE_BLOCK, 1, 'brick', 'Bone block (brick)', T.BONE_BRICKS, { was: 208, pillar: false });
+  defineLook(B.BONE_BLOCK, 2, 'carved', 'Bone block (carved)', T.CARVED_BONE, { pillar: false });
+  defineLook(B.BONE_BLOCK, 3, 'polished', 'Bone block (polished)', T.POLISHED_BONE_BLOCK, { pillar: false });
+  // the vine cut with shears: its lower half gone, it never grows again (woods/vines.js); not on the variant bar
+  defineLook(B.VINE, 1, 'half cut', 'Vine (half cut)', T.VINE_CUT);
   defineLook(B.OBSIDIAN, 1, 'carved', 'Obsidian (carved)', T.CARVED_OBSIDIAN, { was: 252 });
   defineLook(B.OBSIDIAN, 2, 'brick',  'Obsidian (brick)',  T.OBSIDIAN_BRICKS, { was: 253 });
+  defineLook(B.OBSIDIAN, 3, 'cracked', 'Obsidian (cracked)', T.CRACKED_OBSIDIAN);
   // glassy sand fused from red and pink sand: the same block, its own colour
   defineLook(B.GLASSY_SAND, 1, 'red',  'Glassy red sand',  T.GLASSY_RED_SAND,  { was: 199 });
   defineLook(B.GLASSY_SAND, 2, 'pink', 'Glassy pink sand', T.GLASSY_PINK_SAND, { was: 200 });
@@ -114,6 +138,10 @@ corePart('blocks', function () {
   defineLook(B.SNOW_BRICKS, 1, 'snow-ice brick', 'Snow-ice bricks', T.SNOW_ICE_BRICKS, { was: 206 });
   defineLook(B.SNOW_BRICKS, 2, 'carved',         'Snow (carved)',   T.CARVED_SNOW,     { was: 250 });
   defineLook(B.ICE_BRICKS,  1, 'carved',         'Ice (carved)',    T.CARVED_ICE,      { was: 251 });
+  // thatch (hay's look of its own, below) carries the other worked straw: carved and brick, staying where put like it
+  defineLook(B.THATCH, 1, 'carved',       'Hay bale (carved thatch)', T.CARVED_THATCH);
+  defineLook(B.THATCH, 2, 'brick',  'Hay bale (thatch brick)',  T.THATCH_BRICKS);
+  defineLook(B.THATCH, 3, 'mossy brick', 'Hay bale (mossy thatch brick)', T.MOSSY_THATCH_BRICKS);
   /* the gem clusters on a plain stone bed (0.7947) are the cluster with bed 1 (stone) in its variant bits now; a
      placed one's direction and layout are kept */
   [[139, B.DIAMOND_ORE], [140, B.EMERALD_ORE], [141, B.RUBY_ORE], [142, B.SAPPHIRE_ORE], [143, B.TOPAZ_ORE]]
@@ -136,5 +164,13 @@ corePart('blocks', function () {
   PROPS[B.LADDER].noInv = true;
   // the old oak door: a door is a hammer shape of its material now; this id stays only so old saves convert (02)
   PROPS[B.DOOR].noInv = true;
-  const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS, B.ACACIA_PLANKS];   // rime 0.836; palm 0.84
+  const _ALL_PLANKS = [B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS, B.ACACIA_PLANKS, B.JUNGLE_PLANKS];   // rime 0.836; palm 0.84
+  // every planks: brick, mossy brick
+  [[B.PLANKS, 'Oak planks', 'OAK'], [B.BIRCH_PLANKS, 'Birch planks', 'BIRCH'], [B.SPRUCE_PLANKS, 'Spruce planks', 'SPRUCE'],
+   [B.RIME_PLANKS, 'Rime planks', 'RIME'], [B.PALM_PLANKS, 'Palm planks', 'PALM'], [B.ACACIA_PLANKS, 'Acacia planks', 'ACACIA'],
+   [B.JUNGLE_PLANKS, 'Jungle planks', 'JUNGLE']]
+    .forEach(([planks, nm, K]) => {
+      defineLook(planks, 1, 'brick',       nm + ' (brick)',       T[K + '_PLANK_BRICKS']);
+      defineLook(planks, 2, 'mossy brick', nm + ' (mossy brick)', T['MOSSY_' + K + '_PLANK_BRICKS']);
+    });
 });

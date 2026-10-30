@@ -31,6 +31,7 @@ function tryThrow() {
 /* ---- eating ---- */
 var _eatTimer = 0;
 const EAT_TIME = 1.32;  // default eat duration; override per-item via eatTime in ITEM_PROPS (every one 20% longer in 0.821)
+const EAT_CHEW_S = 0.4; // eating, a chew aloud this often (chew.ogg); a drink makes none
 function updateEating(dt, wantPlace) {
   if (!playing || player.canFly || invOpen || menuScene) { _eatTimer = 0; return 0; }
   const slot = HOTBAR[hotbarSel];
@@ -56,6 +57,13 @@ function updateEating(dt, wantPlace) {
   if (wantPlace && isFood) {
     _eatTimer = Math.min(eatDur, _eatTimer + dt);
     if (typeof fxEat === 'function') fxEat(player, id, dt);   // crumbs, or milk splashing
+    if (!ITEM_PROPS[id]?.drink) {
+      player._chewT = (player._chewT || 0) - dt;
+      if (player._chewT <= 0) {
+        player._chewT = EAT_CHEW_S;
+        playSound('chew', { gain: 0.5, rate: 0.95 + Math.random() * 0.12, pos: { x: player.pos.x, y: player.pos.y + player.EYE - 0.2, z: player.pos.z } });
+      }
+    }
     if (_eatTimer >= eatDur) {
       _eatTimer = 0;
       const foodAmt = fp.food || 0;
@@ -116,6 +124,7 @@ function updateEating(dt, wantPlace) {
     }
   } else {
     _eatTimer = 0;
+    player._chewT = 0;                     // the next bite chews at once
   }
   return isFood ? _eatTimer / eatDur : 0;
 }

@@ -39,6 +39,11 @@ const CAP_STRIP = 0.25, CAP_BACK = 0.42, CAP_CLOTH_ROWS = 0.32, CAP_TOP_V = 0.95
 const _capStrip = [CAP_STRIP, CAP_TOP_V, CAP_TOP_V - CAP_STRIP];
 const ARMOR_CAP = { cloth: { px: _capStrip, nx: _capStrip, pz: _capStrip,
                              nz: [CAP_BACK, CAP_BACK, 0], py: [1, CAP_TOP_V, CAP_CLOTH_ROWS], ny: null } };
+/* Every other helmet (leather cap, iron, bronze, steel, gold) leaves the face open: on the front only a brow of
+   HELM_BROW of the face, showing the picture's lowest rows (its rim, the rivets' band), so the face shows under it; the
+   top, the sides and the back whole; nothing under the chin. */
+const HELM_BROW = 0.375;
+const HELMET_OPEN_FACE = { pz: [HELM_BROW, HELM_BROW, 0], ny: null };
 /* What is laid on the torso that is not armor (an item's `wear`, <wear>_torso_overlay in WORN_TEXTURES). Both
    pictures are drawn for the FRONT of the torso, so they are cut like a cap:
      a backpack's straps  the front only
@@ -142,8 +147,8 @@ function syncArmorOnModel(m, slots) {
   };
   const limbY = -6 * PX, endY = -(12 - 5 / 2) * PX;   // a 12-long limb pivots at its top; its last five pixels
   const helm = texFor(0, 'head');
-  // the cloth bandana is a cap: a strip at the hairline on the face, nothing under the chin
-  if (helm) add(m.head, _armorPiece(helm, 8, 8, 8, G2, ARMOR_CAP[ITEM_PROPS[worn[0]]?.armorMat] || null));
+  // the cloth bandana is a cap: a strip at the hairline on the face, nothing under the chin; any other helmet a brow
+  if (helm) add(m.head, _armorPiece(helm, 8, 8, 8, G2, ARMOR_CAP[ITEM_PROPS[worn[0]]?.armorMat] || HELMET_OPEN_FACE));
   const chest = texFor(1, 'torso'), sleeve = texFor(1, 'arm');
   if (chest) add(m.body, _armorPiece(chest, 8, 12, 4, G1));
   if (sleeve) for (const arm of [m.armR, m.armL]) add(arm, _armorPiece(sleeve, 4, 12, 4, G1), limbY);

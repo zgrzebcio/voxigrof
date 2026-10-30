@@ -168,7 +168,7 @@ function skillHoldEnd(src) {
 const _skNodeEl = (id) => { const sp = invPanel('skillPanel'); return sp ? sp.querySelector('.skNode[data-sk="' + id + '"]') : null; };
 /* Per seat, per frame (22-main-loop.js): fills the held skill's bar, and learns it when full. A pad's hold
    lets go the moment its cursor leaves the skill. */
-const SKILL_REMIND = 10;                  // seconds between "points to spend" reminders
+const SKILL_REMIND = 60;                  // seconds between "points to spend" reminders
 function updateSkillHold(dt) {
   // unspent points nag gently on the feed, every SKILL_REMIND seconds, in gold
   // ...but not while the tree is open: the reminder on screen goes, and the count starts again when it closes
@@ -230,14 +230,18 @@ function skillTipHTML(id) {
 function getSkillElements() {
   if (typeof invOpen === 'undefined' || !invOpen) return [];
   const out = [];
+  // a tab under a pad's cursor says which buttons work it (a mouse just clicks it)
+  const tabTip = (el) => invCursor.mode !== 'pad' ? null : () =>
+    `<div class="tipName">${_tipEsc(el.textContent)}</div><div class="tipDesc">${padSouthLabel()} to open &middot; D-pad left / right: the tabs in turn</div>`;
   // the inventory's tabs on whichever right-hand panel is up (they replaced the Skill tree button)
   for (const id of ['equipPanel', 'furnacePanel', 'chestPanel', 'structPanel']) {
     const p = invPanel(id);
-    if (p && p.style.display !== 'none') for (const el of p.querySelectorAll('.invTab')) out.push({ el, type: 'skill', tip: null });
+    if (p && p.style.display !== 'none') for (const el of p.querySelectorAll('.invTab')) out.push({ el, type: 'skill', tip: tabTip(el) });
   }
   const sp = invPanel('skillPanel');
   if (sp && sp.style.display !== 'none') {
-    for (const el of sp.querySelectorAll('.invTab, .skTab')) out.push({ el, type: 'skill', tip: null });
+    for (const el of sp.querySelectorAll('.invTab')) out.push({ el, type: 'skill', tip: tabTip(el) });
+    for (const el of sp.querySelectorAll('.skTab')) out.push({ el, type: 'skill', tip: null });
     for (const el of sp.querySelectorAll('.skNode')) out.push({ el, type: 'skill', tip: () => skillTipHTML(el.dataset.sk) });
   }
   return out;

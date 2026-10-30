@@ -141,6 +141,49 @@ function _entHeadTurn(e, p, dt, bodyYaw) {
   e.headYaw = (e.headYaw || 0) + (want - (e.headYaw || 0)) * Math.min(1, dt * 5);
   return e.headYaw;
 }
+
+/* ---- eating: the horse and the hellhound, fed from the hand or eating off the ground ----
+   entEatStart: it stands ENT_EAT_S seconds chewing what it took (`id`), which it holds in its mouth, smaller and smaller.
+   entEatStep, once a step from its pose (_updateGrazer for the horse, houndPose): the clock, a chew aloud every
+   ENT_EAT_CHEW with crumbs of the food's colour, the food in its mouth. The pose itself bends the head down to the
+   food and works the jaw; _updateGrazer keeps it standing while it eats. */
+const ENT_EAT_S = 1.8, ENT_EAT_CHEW = 0.45, ENT_EAT_SIZE = 0.18;   // ...the food's size at the first bite, under the model's scale
+function entEatStart(e, id) {
+  e._eatT = ENT_EAT_S; e._eatId = id; e._chewT = ENT_EAT_CHEW; e.state = 'idle';
+}
+/* `mouth`: the part of its model the food sits in front of (it moves with the jaw), `at`: where, in that part's 16ths;
+   `rate`: the pitch of its chew. True while it eats. */
+function entEatStep(e, dt, mouth, at, rate) {
+  const eating = e._eatT > 0;
+  if (eating) {
+    e._eatT -= dt; e._chewT -= dt;
+    if (e._chewT <= 0) {
+      e._chewT = ENT_EAT_CHEW;
+      playSound('chew', { gain: 0.55, rate: rate * (0.94 + Math.random() * 0.12), pos: { x: e.x, y: e.y + 0.8, z: e.z } });
+      if (typeof fxMouthCrumbs === 'function' && e.model.root.visible) fxMouthCrumbs(mouth, e._eatId);
+    }
+  }
+  const m = e.model, want = e._eatT > 0 ? e._eatId : null;
+  if (m._eatFor !== want) {
+    if (m._eatNode && m._eatNode.parent) m._eatNode.parent.remove(m._eatNode);
+    m._eatNode = null; m._eatFor = want;
+    if (want != null && mouth) {
+      // built as a drop is (buildDropGeom, 15-drops.js), lit by its own place as a drop is
+      const g = new THREE.Group();
+      for (const { p, geo, mat, node } of buildDropGeom(want)) {
+        const o = node || new THREE.Mesh(geo, mat || _dropMat(p));
+        if (!node && !mat) o.onBeforeRender = _dropLightHook;
+        g.add(o);
+      }
+      g.position.set(at[0] * PX, at[1] * PX, at[2] * PX);
+      g.rotation.y = Math.PI / 2;                    // across the mouth, seen whole from the side
+      mouth.add(g);
+      m._eatNode = g;
+    }
+  }
+  if (m._eatNode) m._eatNode.scale.setScalar(ENT_EAT_SIZE * (0.35 + 0.65 * Math.max(0, e._eatT) / ENT_EAT_S));
+  return eating;
+}
 /* A tinted animal cannot use shadeHumanoid: that bakes plain brightness into the material, which
    would wash every coat back to white. Same lighting, multiplied by the coat instead. */
 // `sy`: how far above its feet it is lit from — a fish at its own body, not the air over the water

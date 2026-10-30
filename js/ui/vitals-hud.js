@@ -160,7 +160,8 @@ function _paintNearVitals(rows) {
   if (el.width !== W || el.height !== H) { el.width = W; el.height = H; }
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, W, H);
-  el.style.display = rows.length ? 'block' : 'none';
+  const disp = rows.length ? 'block' : 'none';
+  if (el.style.display !== disp) el.style.display = disp;
   if (!rows.length) return;
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = 'high';

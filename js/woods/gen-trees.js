@@ -4,10 +4,12 @@
    gen-dry-bush.js, and gen-tree-loop.js, which chooses and places them. */
 
 corePart('gen.chunk', function () {
-      // trees — evaluated over the margin so neighbours get the overlapping leaves
+      // trees — evaluated over the margin so neighbours get the overlapping leaves; true when the cell was written
       const put = (x, y, z, id, force) => {
-        if (x < 0 || x > 15 || z < 0 || z > 15 || y < 2 || y > CY - 1) return;
+        if (x < 0 || x > 15 || z < 0 || z > 15 || y < 2 || y > CY - 1) return false;
         const i = idx(x, y, z);
-        if (force || data[i] === B.AIR) data[i] = id;
+        if (!force && data[i] !== B.AIR) return false;
+        data[i] = id;
+        return true;
       };
 });

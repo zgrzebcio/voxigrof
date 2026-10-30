@@ -102,9 +102,10 @@ function _cfAddFlake(f, w, h, bliz) {
 function updateCameraFilter(dt) {
   if (typeof PSTATE === 'undefined') return;
   const title = typeof menuScene !== 'undefined' && !!menuScene;
-  for (const st of PSTATE) if (st && st.pane && st.player) _cfStep(_cfState(st), st.player, st.pane, title ? -1 : dt);
+  for (const st of PSTATE) if (st && st.pane && st.player) _cfStep(_cfState(st), st.player, st.view, title ? -1 : dt);
 }
-function _cfStep(f, p, pane, dt) {
+// `view`: the seat's rectangle on the screen (relayoutSplitScreen keeps it): its pane's size without asking the page for a layout
+function _cfStep(f, p, view, dt) {
   const g = f.g;
   if (dt < 0 || !p.spawned || p.dead || p.canFly || (typeof _fxScale === 'number' && _fxScale <= 0)) {
     // the title, a dead seat, creative or the particles off: nothing on the lens
@@ -112,7 +113,7 @@ function _cfStep(f, p, pane, dt) {
     f.drops.length = 0; f.flakes.length = 0; f.wet = f.frost = f.flash = f.fire = f.cold = f.under = f.web = 0;
     return;
   }
-  const w = Math.max(1, Math.round(pane.clientWidth * CF_RES)), h = Math.max(1, Math.round(pane.clientHeight * CF_RES));
+  const w = Math.max(1, Math.round(view.w * CF_RES)), h = Math.max(1, Math.round(view.h * CF_RES));
   if (f.c.width !== w || f.c.height !== h) { f.c.width = w; f.c.height = h; }
   f.t += dt;
   const under = !!p._eyeUnder, ey = p.pos.y + (p.EYE || 1.62);

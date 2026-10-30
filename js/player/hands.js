@@ -69,6 +69,9 @@ const HELD_POSE = {
 const _shE = new THREE.Euler(), _shQ = new THREE.Quaternion(), _pivInv = new THREE.Quaternion();   // main-hand shield pose scratch
 const H_X  =  0.82, H_Y  = -1.04, H_Z  = -2.10;
 const H_RX =  0.92, H_RY =  0.48;
+// both arms holding a live fish across the view (player/fish-hold.js): the right arm's root and pivot turn; the left arm
+// takes the same, mirrored (40-shield.js)
+const FISH_ARM = { pos: [0.42, -1.0, -1.9], arm: [H_RX + 0.2, H_RY + 0.5] };
 
 /* ─── one whole arm rig per player ─── */
 const HAND_RIGS = [];
@@ -200,15 +203,17 @@ function _rebuildNock(id) {
     nockGroup.add(node || new THREE.Mesh(geo, mo || MATERIALS[p]));
 }
 
-/* Both hands at work: climbing a wall or a ladder, drinking from the water, drawing a bow (the left hand holds it).
-   Whatever the hands hold is put away meanwhile: in first person here and in 40-shield.js (_poseOffhandArm), on the body in
-   player/body.js. The main hand only while climbing (drinking wants it empty, and it is the one with the bow). */
-const mainHandBusy = (p) => !!p._climbAnim;
-const offHandBusy = (p) => !!p._climbAnim || p._drinkProg > 0 || p._drawProg > 0;
+/* Both hands at work: climbing a wall or a ladder, drinking from the water, drawing a bow (the left hand holds it), a live
+   fish held (player/fish-hold.js). Whatever the hands hold is put away meanwhile: in first person here and in 40-shield.js
+   (_poseOffhandArm), on the body in player/body.js. The main hand only while climbing or holding a fish (drinking wants it
+   empty, and it is the one with the bow). */
+const mainHandBusy = (p) => !!p._climbAnim || !!p._heldFish;
+const offHandBusy = (p) => !!p._climbAnim || p._drinkProg > 0 || p._drawProg > 0 || !!p._heldFish;
 
 function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   if (!playing || menuScene || invOpen) {
     if (nockGroup) nockGroup.visible = false;
+    if (handRoot.userData.fishHold) handRoot.userData.fishHold.root.visible = false;   // a fish in hand (player/fish-hold.js)
     handRoot.visible = true;
     const k = 1 - Math.exp(-dt * 24);
     handRoot.position.y += (-2.4 - handRoot.position.y) * k;
@@ -233,7 +238,9 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   const acting = wantBreak || (mousePlace && pointerLocked) || act.padBreak || act.padPlace;
   _prevYaw = player.yaw; _prevPitch = player.pitch;
   if (moving || looked || acting || eatProg > 0) _inactive = 0; else _inactive += dt;   // an empty hand drinking stays up
-  const inactive = !hasItem && _inactive > 0.8;
+  // a live fish in both hands: the fish across the view, the arms brought in to it (player/fish-hold.js)
+  const fishHold = typeof heldFishFirstPerson === 'function' && heldFishFirstPerson();
+  const inactive = !hasItem && !fishHold && _inactive > 0.8;
   // a torch is put away while your head is under water (torchDoused in 22-main-loop.js)
   const torchAway = curBlk === B.TORCH && typeof torchDoused === 'function' && torchDoused(player);
   handRoot.visible = true;
@@ -295,6 +302,15 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
 
   if (!player.flying && player.vy > 1.5 && !player._climbAnim)   // jump: hand lifts
     ty += 0.06 * Math.min(1, (player.vy - 1.5) / 7);
+
+  /* holding a live fish: the arm comes in toward the middle and up to it, shaken as it bucks (the left one the same way,
+     40-shield.js: FISH_ARM) */
+  if (fishHold) {
+    const f = player._heldFish, shake = 0.04 * f.jolt * Math.sin(f.anim * 4);
+    tx = FISH_ARM.pos[0]; ty = FISH_ARM.pos[1] + shake; tz = FISH_ARM.pos[2];
+    trx = FISH_ARM.arm[0] + shake; try_ = FISH_ARM.arm[1];
+    _bobT = 0; _swimT = 0;
+  }
 
   /* swing: forward-back arc — fixed visual period regardless of block hardness */
   const SWING_PERIOD = 0.32;

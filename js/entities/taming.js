@@ -34,7 +34,7 @@ const TAMEABLE = {
                      ` · thirst ${Math.round(entThirst(e))}/${ENT_THIRST_MAX}`,   // 0.823
     /* What a TAMED one eats from your hand, and how much each refills. The golden apple
        is on the list too — it tames a wild horse, and it is also the best meal you can give. */
-    feed: { [ITEM.APPLE]: 20, [ITEM.WHEAT]: 15, [ITEM.SUGAR]: 10, [ITEM.GOLDEN_APPLE]: 60, [B.HAY]: 80 },   // x5
+    feed: { [ITEM.CARROT]: 60, [ITEM.APPLE]: 40, [ITEM.WHEAT]: 15, [ITEM.SUGAR]: 20, [ITEM.GOLDEN_APPLE]: 60, [B.HAY]: 80 },
   },
 };
 const tameProps = (e) => (e && TAMEABLE[e.kind]) || null;
@@ -108,7 +108,8 @@ function updatePetting(dt, held) {
     p._petCd = PET_CD;
     ent._lookAt = p; ent._lookT = PET_LOOK_S; ent._petT = 1.5;
     if (typeof fxTamed === 'function') fxTamed(ent.x, ent.y + entH(ent) * 0.9, ent.z, 3);
-    playSound('wool', { gain: 0.45, rate: 1.35, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
+    // its own voice when it has one (the creature table's `sounds`: the otter), else the soft pat
+    if (!mobSound(ent, 'say', 0.6)) playSound('wool', { gain: 0.45, rate: 1.35, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
     if (typeof handPlaceSwing !== 'undefined') handPlaceSwing = true;
     feedInfo(`You pet ${ent.name}`);
   }
@@ -209,6 +210,7 @@ function tryTameInteract() {
       saveHotbar(); buildHotbar(); updateHotbar();
     }
     playSound('chew', { gain: 0.8, rate: 1.0, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
+    entEatStart(ent, held);                      // it stands a moment chewing it (entities/entities.js)
     toast(`${ent.name} ate — hunger ${Math.round(ent.hunger)}/${ENT_HUNGER_MAX}`);
     return true;
   }
@@ -243,6 +245,7 @@ function tryTameInteract() {
       ent.fleeT = 0;
       if (typeof fxTamed === 'function') fxTamed(ent.x, ent.y + 1.2, ent.z, 3);   // a few hearts: it likes you
       playSound('chew', { gain: 0.8, rate: 1.0, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
+      entEatStart(ent, held);                    // and eats the apple there and then
       toast(`the ${tp.label} lets you close — use it again to climb on`);
       return true;
     }
@@ -284,6 +287,7 @@ function mountRider(p, e) {
   if (e.rider && e.rider !== p) { toast(`someone is already riding ${e.name}`); return false; }
   const tp = tameProps(e);
   p.riding = e; e.rider = p;
+  e._eatT = 0;                                   // climbed on mid-meal: it is done eating
   p.flying = false; p.vy = 0; p.sneaking = false;
   p._rideFwd = 0; p._rideJump = false;
   e.fleeT = 0; e.state = 'idle'; e.bolt = 0;
@@ -340,6 +344,7 @@ function finishTaming(e, tp) {
   e.tame = true;
   e.loved = false;
   e.tameProg = 1;
+  e.owner = player; e.ownerId = player.profileId || null;   // the rider who tamed it: its name shows to them from far (ui/animals.js)
   /* The reward, once per animal. Every dismount along the way has already been counted, and each
      one shaves a quarter off what is granted here — a horse you rode out in one go is measurably
      better than one you kept falling off. */

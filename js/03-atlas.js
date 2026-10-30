@@ -25,6 +25,8 @@ const DRY_LEAF_TINT = 'rgb(196,186,128)';          // the Dryland's bushes: the 
 const PALM_LEAF_TINT = 'rgb(112,170,58)';          // the palm's fronds, grey art too now: a brighter, yellower green
 const ACACIA_LEAF_TINT = 'rgb(126,156,58)';        // the acacia's crown, grey art: an olive, sun-dried green
 const COCONUT_YOUNG_TINT = 'rgb(104,168,52)';      // a coconut still growing: its art in this green
+const JUNGLE_LEAF_TINT = 'rgb(66,142,38)';         // the jungle's crowns, grey art: a deep, wet green
+const COCOA_YOUNG_TINT = 'rgb(122,170,60)';        // a cocoa pod still growing: its art in this green
 const RIME_SAPLING_TINT = 'rgb(122,172,232)';      // the rime sapling: the cherry sapling's art in this frosty blue
 const SAVANNA_GRASS_RGB = [196, 168, 74];          // the Savanna's golden grass, what GRASS_RGB is mixed toward there
 /* ================================================================================================ */
@@ -214,7 +216,33 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'cobweb_tangled', 'cobweb_corner'                                         // T 436-437
                      ,'bone_ash_block'                                                          // T 438, built below
                      ,'rime_sapling'                                                            // T 439, built below from the cherry sapling
-                     ,...BERRY_COLORS.map(c => `berry_${c}_stage6`)];                         // T 440-444, every berry bush's ripe stage
+                     ,...BERRY_COLORS.map(c => `berry_${c}_stage6`)                           // T 440-444, every berry bush's ripe stage
+                     ,'seashell_block_front'                                                    // T 445, the seashell block's front and back
+                     ,...[0, 1, 2, 3, 4, 5, 6].map(s => 'carrot_stage' + s)                   // T 446-452, the carrot's growth stages
+                     // jungle wood and its sapling (T 453-459); the cocoa pod, ripe, and green while it grows (T 460-463, built below)
+                     ,'jungle_log', 'jungle_log_top', 'stripped_jungle_log', 'stripped_jungle_log_top', 'jungle_planks', 'jungle_leaves'
+                     ,'jungle_sapling'
+                     ,'cocoa_side', 'cocoa_top', 'cocoa_young_side', 'cocoa_young_top'
+                     // more looks (T 464-469): adobe's circle, terracotta's soot brick, carved bone and sulfur, thatch's carved and brick
+                     ,'adobe_circle', 'terracotta_soot_bricks', 'carved_bone', 'carved_sulfur', 'carved_thatch', 'thatch_bricks'
+                     // every planks' brick (T 470-476), in the woods' order
+                     ,'oak_plank_bricks', 'birch_plank_bricks', 'spruce_plank_bricks', 'rime_plank_bricks', 'palm_plank_bricks'
+                     ,'acacia_plank_bricks', 'jungle_plank_bricks'
+                     // the bone block's polished (T 477)
+                     ,'polished_bone_block'
+                     // the jungle's vine and its half-cut look (T 478-479)
+                     ,'vine', 'vine_cut'
+                     // more mossy looks (T 480-484): adobe, terracotta's roof, cobblestone's brick, sandstone's brick, dirt
+                     ,'mossy_adobe', 'mossy_terracotta_roof', 'mossy_cobblestone_bricks', 'mossy_sandstone_bricks', 'mossy_dirt'
+                     // dirt's coarse and frozen, mossy sulfur, thatch, red and pink sandstone brick (T 485-490); every planks'
+                     // mossy brick (T 491-497), in the woods' order
+                     ,'coarse_dirt', 'frozen_dirt', 'mossy_sulfur_bricks', 'mossy_thatch_bricks', 'mossy_red_sandstone_bricks'
+                     ,'mossy_pink_sandstone_bricks'
+                     ,'mossy_oak_plank_bricks', 'mossy_birch_plank_bricks', 'mossy_spruce_plank_bricks', 'mossy_rime_plank_bricks'
+                     ,'mossy_palm_plank_bricks', 'mossy_acacia_plank_bricks', 'mossy_jungle_plank_bricks'
+                     // cracked looks (T 498-505): adobe, obsidian, each sandstone, each sandstone's brick
+                     ,'cracked_adobe', 'cracked_obsidian', 'cracked_sandstone', 'cracked_red_sandstone', 'cracked_pink_sandstone'
+                     ,'cracked_sandstone_bricks', 'cracked_red_sandstone_bricks', 'cracked_pink_sandstone_bricks'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -437,7 +465,7 @@ function _checkTileOrder() {
 /* every billboard plant, found from PROPS rather than listed — anything drawn as crossed quads except
    the torch, cobwebs, sulfur tips and the box-model mushrooms. Sugar cane stacks, so it drifts whole (2) and
    its segments stay joined; the upper half of tall grass carries on from the lower (3). */
-const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2, acacia_leaves: 2 };   // rime leaves are frozen stiff; palm 0.84; dry 0.8411
+const SWAY_TILES = { oak_leaves: 2, birch_leaves: 2, spruce_leaves: 2, palm_leaves: 2, dry_leaves: 2, acacia_leaves: 2, jungle_leaves: 2 };   // rime leaves are frozen stiff; palm 0.84; dry 0.8411
 for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
@@ -655,6 +683,9 @@ async function buildAtlas() {
   };
   IMAGES.coconut_young_side = recolored(IMAGES.coconut_side, COCONUT_YOUNG_TINT);
   IMAGES.coconut_young_top = recolored(IMAGES.coconut_top, COCONUT_YOUNG_TINT);
+  // the cocoa pod the same way: green until it is ripe (woods/cocoa.js)
+  IMAGES.cocoa_young_side = recolored(IMAGES.cocoa_side, COCOA_YOUNG_TINT);
+  IMAGES.cocoa_young_top = recolored(IMAGES.cocoa_top, COCOA_YOUNG_TINT);
   // the rime sapling: no art of its own, the cherry sapling's in a frosty blue
   IMAGES.rime_sapling = recolored(IMAGES.cherry_sapling, RIME_SAPLING_TINT);
   IMAGES.glowcrystal_spent = greyed(IMAGES.glowcrystal);
@@ -674,6 +705,18 @@ async function buildAtlas() {
     return c;
   };
   IMAGES.bone_ash_block = whitened(IMAGES.ash_block);
+  // the half-cut vine: the vine's art with its lower half gone, the cut a little ragged (woods/vines.js)
+  const halfCut = (src) => {
+    if (!src) return src;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g2 = c.getContext('2d');
+    g2.imageSmoothingEnabled = false;
+    g2.drawImage(src, 0, 0);
+    const px = src.width / 16;                               // one model pixel
+    for (let i = 0; i < 16; i++) g2.clearRect(i * px, (8 + ((i * 5) % 3)) * px, px, src.height);
+    return c;
+  };
+  IMAGES.vine_cut = halfCut(IMAGES.vine);
 
   /* The grass plants ship grey (the tall grass and the short), so they would read as white in the world. Each
      is tinted on the source image, where one multiply and one alpha restore do it: the grass colour, and its
@@ -686,7 +729,7 @@ async function buildAtlas() {
                              ['short_grass', tint], ['short_grass_warm', warmTint], ['short_grass_cold', coldTint],
                              ['birch_leaves', BIRCH_LEAF_TINT], ['dry_leaves', DRY_LEAF_TINT],     // dry 0.8411
                              ['palm_leaves', PALM_LEAF_TINT],                                     // palm 0.8445
-                             ['acacia_leaves', ACACIA_LEAF_TINT]]) {
+                             ['acacia_leaves', ACACIA_LEAF_TINT], ['jungle_leaves', JUNGLE_LEAF_TINT]]) {
     const src = IMAGES[name];
     if (!src) continue;
     const c = document.createElement('canvas');

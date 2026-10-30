@@ -77,6 +77,21 @@ corePart('biomes.make', function () {
        genChunk (worldgen/gen-chunk.js) also hollows all high land with halls, tunnels out to the slopes and deep shafts, lays gold at any
        height under the red sand, and digs small mine shafts into the desert hills, mostly the red ones. */
     const DESERT3 = biomeRev >= 22;
+    /* The Deep Red Desert Flat (biomeRev 42): wide open plains inside the Deep Red Desert, by a slow noise of their own (`rdf`
+       in terrainInfo, biomes/terrain.js): its tables, cracks, ridges and rough skin eased away over a wide edge, so it is red
+       sand from side to side with only the desert's low roll; no hoodoos or bones in it (biomes/gen-deep-desert.js). The noise
+       at RDF_F between RDF_LO and RDF_HI: patches about 150-250 blocks across, about a quarter of the Deep Red Desert.
+       The ground for the great pyramid, the summer boss's. */
+    const RDFLAT = biomeRev >= 42, RDF_F = 0.0042, RDF_LO = 0.12, RDF_HI = 0.3;
+    /* The Jungle (biomeRev 43): hot land where a slow wet field of its own runs high (`fJungle` in terrainInfo,
+       biomes/terrain.js, from _jungleF): from the warm plains' hot side (JUNGLE_LVL of a level) through the desert, fading
+       out before the red sand's heat (the temperature field JUNGLE_HOT), so never in the red sand or the Deep Deserts. The
+       warm plains' flats, the Dryland, the Savanna and the desert give way to it there: green grass, hills and mountains
+       back, and the jungle's trees (woods/gen-jungle.js, woods/jungle-trees.js). Its Deep Jungle (the deep forests'
+       patches, `deepF`) grows more giants. The wet field at JUNGLE_F between JUNGLE_LO and JUNGLE_HI. Its grass and water
+       take the climate colour JUNGLE_CLIM (climAt, biomes/queries.js), never the dry colour (dryAt). */
+    const JUNGLE = biomeRev >= 43, JUNGLE_F = 0.0011, JUNGLE_LO = 0.04, JUNGLE_HI = 0.14, JUNGLE_LVL = 1.05, JUNGLE_HOT = 0.47;
+    const JUNGLE_CLIM = -0.1;
     /* The Dryland (biomeRev 23): the hot side of the warm plains, beside the desert (from DRY_FROM of a level, with
        a wobble of its own so it is not a ring), `fDry`. Pale dry grass, many dry plants and half the green ones, big dry
        bushes, no trees, and now and then bones (genChunk, worldgen/gen-chunk.js). */

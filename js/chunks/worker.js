@@ -10,8 +10,9 @@ function WORKER_MAIN() {
      or the furnace. Found here as a chunk is made, so the main thread's finish pass (finishChunkGen, chunks/stream.js) checks only
      these instead of walking all of the chunk's cells. Same test as EMITTER_ID (08). */
   const EMIT = new Uint8Array(256);
-  // ...and a block the page draws itself (`pageModel`: the termite hill), listed with them so the page finds it the same way
-  for (let id = 0; id < 256; id++) { const p = CORE.PROPS[id]; if (p && (p.light > 0 || p.lightByVar || p.pageModel)) EMIT[id] = 1; }
+  /* ...and a block the page draws itself (`pageModel`: the termite hill) or keeps an eye on (`pageSeen`: the cocoa pod),
+     listed with them so the page finds it the same way */
+  for (let id = 0; id < 256; id++) { const p = CORE.PROPS[id]; if (p && (p.light > 0 || p.lightByVar || p.pageModel || p.pageSeen)) EMIT[id] = 1; }
   EMIT[CORE.B.FURNACE] = 1;
   const emittersOf = (d) => {
     let n = 0;
@@ -116,7 +117,7 @@ function WORKER_MAIN() {
     }
     return CORE.meshChunk(data.buffer, sx[0].buffer, sx[1].buffer, sx[2].buffer, sx[3].buffer,
                           light.buffer, lx[0].buffer, lx[1].buffer, lx[2].buffer, lx[3].buffer, m.layers, m.lod | 0,
-                          m.cx * 16, m.cz * 16);   // lod 0.8092; world origin for per-place sizes
+                          m.cx * 16, m.cz * 16, m.plates || null, m.covers || null, m.fills || null, m.rails || null);   // lod 0.8092; world origin for per-place sizes; plates, covers, doorway fills and rails in other cells
   };
 
   /* ---- the light thread (LIGHT_THREAD with shared memory) ----
@@ -131,6 +132,38 @@ function WORKER_MAIN() {
   const LREG = new Map();                    // "cx,cz" -> { data, light, lid }
   let LTOP = 249;
   const LDX = [1, -1, 0, 0, 0, 0], LDY = [0, 0, 1, -1, 0, 0], LDZ = [0, 0, 0, 0, 1, -1];
+  /* WHAT TO MESH AGAIN: a chunk whose light changed, and the chunk beside it when the change is in a cell on their shared
+     border (its faces there read this cell's light). Nothing else: an answer used to name every chunk a box covered. */
+  const touchCell = (touched, cx, cz, lx, lz) => {
+    touched.add(cx + ',' + cz);
+    if (lx === 0) touched.add((cx - 1) + ',' + cz); else if (lx === 15) touched.add((cx + 1) + ',' + cz);
+    if (lz === 0) touched.add(cx + ',' + (cz - 1)); else if (lz === 15) touched.add(cx + ',' + (cz + 1));
+  };
+  /* THE LIGHT ROUND A BOX, as it is, as sources flowing into it (`lbox`): the box is cleared and worked out again, and the
+     light that reaches it from outside (sources further off, already lit) comes in from its edge. A cell on the edge with
+     level L passes L - 1 (less what its shape holds back) to the box. Sent by the page as the change and its reach
+     (relight, 08-light-glow.js), so nothing that passed through the change can come from or go past the edge. */
+  const lightEdgeSeeds = (b, out) => {
+    const M = PK.mask, C = PK.cold || 0;
+    const seed = (x, y, z) => {
+      if (y < 0 || y > LTOP) return;
+      const ent = LREG.get(Math.floor(x / 16) + ',' + Math.floor(z / 16));
+      if (!ent || !ent.light) return;
+      const i = (x & 15) + ((z & 15) << 4) + (y << 8), L = ent.light[i] & M;
+      if (L < 2) return;                                 // a 1 passes nothing on
+      const v = ent.data[i];
+      if (CORE.opaqueVal(v)) return;
+      const lv = L - CORE.lightDim(v);                   // what leaves it; a source's level is what its neighbours get
+      if (lv >= 2) out.push([x, y, z, lv - 1, ent.light[i] & C]);
+    };
+    for (let x = b.x0 - 1; x <= b.x1 + 1; x++)
+      for (let z = b.z0 - 1; z <= b.z1 + 1; z++) { seed(x, b.y0 - 1, z); seed(x, b.y1 + 1, z); }
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0 - 1; x <= b.x1 + 1; x++) { seed(x, y, b.z0 - 1); seed(x, y, b.z1 + 1); }
+      for (let z = b.z0; z <= b.z1; z++) { seed(b.x0 - 1, y, z); seed(b.x1 + 1, y, z); }
+    }
+    return out;
+  };
   const lightFlood = (srcs, box, scratch, made, touched) => {
     const M = PK.mask, Bk = [];
     let top = 0;
@@ -163,7 +196,7 @@ function WORKER_MAIN() {
           else {
             if (!ent.light) { ent.light = new Uint8Array(new SharedArrayBuffer(ent.data.length)); made.push(ent); }
             ent.light[i] = nl | cb;
-            touched.add(ccx + ',' + ccz);
+            touchCell(touched, ccx, ccz, nx & 15, nz & 15);
           }
           const out = nl - CORE.lightDim(v);
           if (out >= 2) (Bk[out] || (Bk[out] = [])).push(nx, ny, nz, cb);
@@ -172,7 +205,8 @@ function WORKER_MAIN() {
       Bk[lv] = null;
     }
   };
-  // a worked-out box back into the chunks' light (only chunks that have light, or now get some)
+  // a worked-out box back into the chunks' light (only chunks that have light, or now get some), cell by cell: only a
+  // cell whose light is not what it was is written, and only its chunk (and the one across a border) is named to mesh again
   const lightBoxBack = (box, scratch, made, touched) => {
     const W = box.x1 - box.x0 + 1, WD = W * (box.z1 - box.z0 + 1);
     for (let cz = Math.floor(box.z0 / 16); cz <= Math.floor(box.z1 / 16); cz++)
@@ -194,19 +228,33 @@ function WORKER_MAIN() {
           made.push(ent);
         }
         const L = ent.light;
+        let changed = false, west = false, east = false, north = false, south = false;
         for (let y = box.y0; y <= box.y1; y++)
           for (let lz = lz0; lz <= lz1; lz++) {
-            const si = sx0 + (cz * 16 + lz - box.z0) * W + (y - box.y0) * WD;
-            L.set(scratch.subarray(si, si + len), lx0 + (lz << 4) + (y << 8));
+            const si = sx0 + (cz * 16 + lz - box.z0) * W + (y - box.y0) * WD, base = lx0 + (lz << 4) + (y << 8);
+            for (let k = 0; k < len; k++) {
+              const nv = scratch[si + k];
+              if (L[base + k] === nv) continue;
+              L[base + k] = nv;
+              changed = true;
+              const lx = lx0 + k;
+              if (lx === 0) west = true; else if (lx === 15) east = true;
+              if (lz === 0) north = true; else if (lz === 15) south = true;
+            }
           }
+        if (!changed) continue;
         touched.add(cx + ',' + cz);
+        if (west) touched.add((cx - 1) + ',' + cz);
+        if (east) touched.add((cx + 1) + ',' + cz);
+        if (north) touched.add(cx + ',' + (cz - 1));
+        if (south) touched.add(cx + ',' + (cz + 1));
       }
   };
   const lightJob = (m) => {
     const made = [], touched = new Set();
     if (m.type === 'lbox') {
       const b = m.box, scratch = new Uint8Array((b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1) * (b.z1 - b.z0 + 1));
-      lightFlood(m.srcs, b, scratch, made, touched);
+      lightFlood(lightEdgeSeeds(b, m.srcs.slice()), b, scratch, made, touched);   // its own sources and the light at its edge
       lightBoxBack(b, scratch, made, touched);
     } else lightFlood(m.srcs, null, null, made, touched);
     self.postMessage({ type: 'lit', id: m.id, touched: [...touched],
@@ -262,6 +310,17 @@ function WORKER_MAIN() {
      LAND FIRST. After a player's edit, the order is: a mesh (a chunk that is made and only waits to be seen), then
      a chunk to make (gen, prep), and last the jobs that can wait: a season's scan, a castle site's probe. Within
      each kind, first come first served (the page sends them nearest first). */
+  /* BUSY TIME, for the page's processor meter (ui/cpu-meter.js): every message this worker sends carries `bz`, the
+     milliseconds it has spent working since it started, the job it is in so far included. Nothing is sent for it alone,
+     so an idle worker costs nothing. */
+  // `bzk`: the same by kind of job (gen, mesh, scan, lbox, fstep...), finished jobs only
+  let _bz = 0, _bzAt = 0;
+  const _bzK = {};
+  const _postOut = self.postMessage.bind(self);
+  self.postMessage = (msg, tr) => {
+    if (msg && typeof msg === 'object') { msg.bz = _bz + (_bzAt ? performance.now() - _bzAt : 0); msg.bzk = _bzK; }
+    _postOut(msg, tr);
+  };
   const JOBS = { gen: 1, prep: 1, scan: 1, mesh: 1, probe: 1 };
   const jobQ = [];
   let jobKick = null, jobBusy = false;
@@ -288,6 +347,7 @@ function WORKER_MAIN() {
     if (!jobBusy) { jobBusy = true; jobKick(); }
   };
   const handle = (m) => {
+    _bzAt = performance.now();
     try {
       if (m.type === 'init') {
         gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1, m.cols || null);   // biome sizes by world; the shared column cache
@@ -336,6 +396,11 @@ function WORKER_MAIN() {
     } catch (err) {
       // which job failed, so the page can give back what that job held (onWorkerMessage, chunks/stream.js)
       self.postMessage({ type: 'error', message: String(err && err.stack || err), job: m && m.type, cx: m && m.cx, cz: m && m.cz });
+    } finally {
+      const ms = performance.now() - _bzAt;
+      _bz += ms;
+      if (m && m.type) _bzK[m.type] = (_bzK[m.type] || 0) + ms;
+      _bzAt = 0;
     }
   };
 }

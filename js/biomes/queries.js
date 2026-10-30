@@ -71,7 +71,7 @@ corePart('biomes.make', function () {
         }
       }
       // the hot heart of the deserts, in two halves since 0.841 (rev 22)
-      if ((ti.fDeepD || 0) > 0.5) return DESERT3 && ti.ddRed > 0.5 ? 'Deep Red Desert' : 'Deep Desert';
+      if ((ti.fDeepD || 0) > 0.5) return DESERT3 && ti.ddRed > 0.5 ? ((ti.rdf || 0) > 0.5 ? 'Deep Red Desert Flat' : 'Deep Red Desert') : 'Deep Desert';
       if (fRed > 0.5) return rdh > 0.35 ? 'Red Sand Hills' : 'Red Sand';
       if (fDesert > 0.5) return dh > 0.35 ? 'Desert Hills' : 'Desert';
       /* rev 18: Mountains from 150, and only where the ridges make the height rather than the hills; raised land
@@ -81,6 +81,8 @@ corePart('biomes.make', function () {
       const mtH = DRY4 && DIVIDE && Math.abs(h - 150) <= 8 ? _meanH(x, z, h) : h;
       const mountain = DIVIDE ? mtH > 150 && (ti.mt || 0) >= (ti.hlv || 0) : h > 132;
       const hilly = DIVIDE && !mountain && ((ti.hlv || 0) > 7 || h > 132);
+      // the Jungle (rev 43): its hills and mountains are its own; the Deep Jungle in the deep forests' patches
+      if ((ti.fJungle || 0) > 0.5) return mountain || hilly ? 'Jungle Hills' : deepF > 0.5 ? 'Deep Jungle' : 'Jungle';
       if (fSnow > 0.5) {
         if (mountain) return 'Snowy Mountains';
         // no ice spikes or hills of its own name in it; its Forest half since 0.837 (rev 20)
@@ -119,6 +121,17 @@ corePart('biomes.make', function () {
       if (smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow <= 0.5) return false;
       return smooth01(fbm(x * 0.0018 + 5511.3, z * 0.0018 - 3307.1, 2), -0.06, 0.06) <= 0.5;
     }
+    /* The Deep Red Desert Flat by its fields alone (the great pyramid's sites, entities/boss-lair.js), as rimeOpenAt is the
+       castle's: terrainInfo's fDeepD, ddRed and rdf from their own few noises. A site it finds is checked with biomeAt and
+       heightAt on a worker after. */
+    function rdfOpenAt(x, z) {
+      if (!RDFLAT || !LADDER) return false;
+      const temp = _temp(x, z), fDesert = smooth01(climateLevel(temp), DESERT_LVL - 0.1, DESERT_LVL + 0.1);
+      if (smooth01(temp, DD_FROM, DD_TO) * fDesert <= 0.5) return false;
+      const ddRed = smooth01(fbm(x * 0.0017 + 8813.1, z * 0.0017 - 6611.3, 2), -0.06, 0.06);
+      if (ddRed <= 0.5) return false;
+      return smooth01(fbm(x * RDF_F + 3907.3, z * RDF_F - 7121.9, 2), RDF_LO, RDF_HI) * ddRed > 0.5;
+    }
     /* The grass's colour by dryness here, for the mesher to ask at every column corner like climAt: 0 the usual green,
        DRY_PALE (biomes/biomes.js) the Dryland's pale grass, 1 the Savanna's golden grass beyond it. From terrainInfo's
        own fields alone (`fDry`, `fSav`). The grass fades from green to pale over the Dryland's whole edge, tens of
@@ -127,20 +140,23 @@ corePart('biomes.make', function () {
        reads the same scale. */
     function dryAt(x, z) {
       if (!DRYLAND || !LADDER) return 0;
-      const lvl = climateLevel(_temp(x, z)), wob = _dryBand(x, z, lvl)[0], shift = _dryOut[1];   // biomes/terrain.js
+      const temp = _temp(x, z), lvl = climateLevel(temp), wob = _dryBand(x, z, lvl)[0], shift = _dryOut[1];   // biomes/terrain.js
       const d = smooth01(wob, DRY_LO - shift, DRY_HI - shift);
       if (d <= 0) return 0;
       const s = SAVANNA ? smooth01(wob, SAV_LO, SAV_HI) : 0;
-      return (d * DRY_PALE + s * (1 - DRY_PALE)) * (1 - smooth01(lvl, DESERT_LVL - 0.1, DESERT_LVL + 0.1));   // not where the desert has begun (fDesert)
+      const jungle = JUNGLE ? _jungleF(x, z, temp, lvl) : 0;                     // the Jungle's grass is never dry
+      return (d * DRY_PALE + s * (1 - DRY_PALE)) * (1 - smooth01(lvl, DESERT_LVL - 0.1, DESERT_LVL + 0.1)) * (1 - jungle);   // not where the desert has begun (fDesert)
     }
     function climAt(x, z) {
       const temp = _temp(x, z);
       // on the ladder: half way at warm or cold plains, full in the desert and the snow
-      const c = (LADDER ? climateLevel(temp) / 2 : smooth01(_warm(temp), 0.0, 0.3) - smooth01(_cold(temp), 0.0, 0.3))
+      let c = (LADDER ? climateLevel(temp) / 2 : smooth01(_warm(temp), 0.0, 0.3) - smooth01(_cold(temp), 0.0, 0.3))
               + fbm(x * 0.006 + 517.9, z * 0.006 - 331.3, 2) * 0.2;
+      // the Jungle (rev 43): not the warm land's pale grass, a lush green a touch deeper than the usual (JUNGLE_CLIM)
+      if (JUNGLE && LADDER) { const j = _jungleF(x, z, temp, climateLevel(temp)); if (j > 0) c += (JUNGLE_CLIM - c) * j; }
       return c < -1 ? -1 : c > 1 ? 1 : c;
     }
 
-    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2,
-             DBEACH, DB_SAND, DB_BAND };
+    return { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, dryAt, rimeOpenAt, rdfOpenAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2,
+             DBEACH, DB_SAND, DB_BAND, JUNGLE };
 });

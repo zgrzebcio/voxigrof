@@ -119,7 +119,7 @@ function buildHorse(coat = 'chestnut') {
   saddle.position.set(0, 20.6 * PX, 1.5 * PX);
   saddle.visible = false;
   root.add(body, neck, tail, legFL, legFR, legBL, legBR, saddle);
-  return { root, head: neck, body, tail, saddle, satMat,
+  return { root, head: neck, muzzle, body, tail, saddle, satMat,
            legs: [legFL, legFR, legBL, legBR],
            mat, mats: [mat],
            // linearised: with ColorManagement off, a raw hex renders ~50% too bright
@@ -130,6 +130,9 @@ function buildHorse(coat = 'chestnut') {
    why every walking or running horse stared at the sky. */
 const HORSE_NECK_REST = 0.45;            // carried forward, muzzle a little below level
 const HORSE_NECK_GRAZE = 1.85;           // ...and swung right down to the grass
+const HORSE_MUZZLE_Y = 7.4;              // the muzzle's place on the neck (16ths): chewing works it up and down from here
+const HORSE_EAT_DIP = 0.4;               // eating from the hand: the neck this far toward grazing, down to the food
+const HORSE_EAT_AT = [0, -0.6, 2.0];     // ...held in the tip of the muzzle, under its lip (16ths, the muzzle's own)
 const HORSE_LIE_DROP = 10.5;             // how far its body comes down to lie: the 12 of its legs, less their thickness
 
 /* What one horse is made of: its model and what only a horse has. summon('horse', x, y, z, opts) writes the rest
@@ -176,7 +179,7 @@ function makeHorse(opts) {
 /* Its entry in the creature table (entities/mobs.js says what each line is for). `walk` and `flee` are for a
    speed stat of 1.0: _updateGrazer multiplies them by the horse's own (horseSpeedStat). */
 defineMob('horse', {
-  name: 'Horse', group: 'animal', body: 'grazer',
+  name: 'Horse', group: 'animal', body: 'grazer', hungerMul: 0.5,
   maxHp: (e) => (e.stats && e.stats.maxHp) || HORSE_HP_MAX,   // rolled per horse, raised by taming
   box: [0.45, 2.28], sized: true, foot: 'hoof', fallSafe: HORSE_FALL_SAFE,
   walk: HORSE_WALK_SPEED, flee: HORSE_FLEE_SPEED, fleeTime: HORSE_FLEE_TIME,

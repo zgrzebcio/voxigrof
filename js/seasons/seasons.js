@@ -55,7 +55,7 @@ const SEASON_LEAVES = new Set(woodBlocks('leaves', w => w.seasonal));    // the 
 // mushrooms left this list in 0.821: they have their own year now (mushroom growth, below)
 const SEASON_PLANTS = new Set([B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
-  B.WHEAT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
+  B.WHEAT, B.CARROT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
 // "cx,cz" -> Map(cell index -> the value that stood there): what autumn took and spring may give back. Saved.
 const SEASON_MEM = new Map();
 const SEASON_CHUNK_EVERY_H = 1;              // a chunk looks at the season again every in-game hour
@@ -125,8 +125,8 @@ function _seasonChunk(c) {
         _seasonOps++;
         mem.delete(i);
         if (isLeaf) { if ((getBlock(x, y, z) & 255) === B.AIR) setBlock(x, y, z, v); continue; }
-        // wheat comes back as a sprout and grows; the rest as they were
-        const back = id === B.WHEAT ? (B.WHEAT | (1 << 8)) : v;
+        // a crop (wheat, a carrot) comes back as a sprout and grows; the rest as they were
+        const back = CROP_BLOCKS.has(id) ? (id | (1 << 8)) : v;
         // the year in the roll: a new 50% each spring (this call sat inside the comment until 0.819, so none came back)
         if (sHash(x, y, z, 5 + d.year * 16) < 0.5 && _plantFits(x, y, z)) _placePlant(x, y, z, back);
         if (sHash(x, y, z, 6 + d.year * 16) < 0.001) {                          // ...and a rare seed beside it, come back or not
@@ -153,10 +153,12 @@ function updateSeasons(dt) {
 function updateSeasonGrowth(dt, ground = true) {
   if (typeof menuScene !== 'undefined' && menuScene) return;
   if (typeof currentWorld !== 'undefined' && !currentWorld) return;
-  updateWheatGrow(dt);
+  updateCropGrow(dt);
   updateShroomGrow(dt);
   updateCaneGrow(dt);
   if (typeof updateCoconuts === 'function') updateCoconuts(dt);   // coconuts on the palms (woods/coconuts.js)
+  if (typeof updateCocoa === 'function') updateCocoa(dt);         // cocoa pods on the jungle's trunks (woods/cocoa.js)
+  if (typeof updateVines === 'function') updateVines(dt);         // vines growing down (woods/vines.js)
   if (ground) updateWeatherGround(dt);                           // rain washes, snow lays, salt grows
   updateIceMelt(dt);                                             // ice by heat
   if (typeof updateBurns === 'function') updateBurns(dt);        // torches and glow blocks burning out (blocks/torches.js)
@@ -243,4 +245,4 @@ function restoreSeasons(list) {
   }
 }
 
-function clearSeasonState() { SEASON_MEM.clear(); wheatGrow.clear(); shroomGrow.clear(); caneGrow.clear(); _regionKind.clear(); _regionCold.clear(); iceMelt.clear(); _iceHeld.clear(); _iceKinds.clear(); _seasonKeys = []; }
+function clearSeasonState() { SEASON_MEM.clear(); cropGrow.clear(); shroomGrow.clear(); caneGrow.clear(); _regionKind.clear(); _regionCold.clear(); iceMelt.clear(); _iceHeld.clear(); _iceKinds.clear(); _seasonKeys = []; }

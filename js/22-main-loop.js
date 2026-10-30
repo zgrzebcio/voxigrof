@@ -7,16 +7,18 @@ function perfLap(name, t0) {
   if (!_perfOn) return 0;
   const now = performance.now();
   _perfAcc.set(name, (_perfAcc.get(name) || 0) + now - t0);
+  cpuNotePart(name, now - t0);              // ...and summed for the processor meter (ui/cpu-meter.js)
   return now;
 }
 function _perfFrameStart(now) {
   let on = false;
   for (let i = 0; i < PSTATE.length && !on; i++) on = !debugHudHidden(i);
-  if (on !== _perfOn) { _perfOn = on; _perfAcc.clear(); _perfFrames = 0; _perfMax = 0; _perfWinT = now; _perfLine = ''; }
+  if (on !== _perfOn) { _perfOn = on; _perfAcc.clear(); _perfFrames = 0; _perfMax = 0; _perfWinT = now; _perfLine = ''; CPU_METER.last = null; }
   if (!on || now - _perfWinT < 1000 || !_perfFrames) return;
   const f = _perfFrames, total = (_perfAcc.get('frame') || 0) / f;
   const parts = [..._perfAcc].filter(([k]) => k !== 'frame').sort((a, b) => b[1] - a[1]).slice(0, 8);
-  _perfLine = `cpu ${total.toFixed(1)} ms/frame &middot; worst ${_perfMax.toFixed(0)} ms<br>` +
+  const cpu = cpuMeterRoll();               // the page's and the workers' share of a core (ui/cpu-meter.js)
+  _perfLine = (cpu ? cpu + '<br>' : '') + `cpu ${total.toFixed(1)} ms/frame &middot; worst ${_perfMax.toFixed(0)} ms<br>` +
     parts.map(([k, v]) => `${k} ${(v / f).toFixed(2)}`).join(' &middot; ');
   _perfAcc.clear(); _perfFrames = 0; _perfMax = 0; _perfWinT = now;
 }
@@ -24,13 +26,51 @@ function _perfFrameEnd(t0) {
   if (!_perfOn) return;
   const ms = performance.now() - t0;
   _perfAcc.set('frame', (_perfAcc.get('frame') || 0) + ms);
+  cpuNoteFrame(ms);
   if (ms > _perfMax) _perfMax = ms;
   _perfFrames++;
 }
 
+/* THE FRAME CAP. The player's own limit (Options, `fpsLimit`; 0 = as fast as the screen), and lower where more frames
+   show nothing new: the title screen and an open inventory at most 60 (MENU_FPS, INV_FPS), the pause menu and a window
+   without focus at most 30 (PAUSED_FPS, UNFOCUSED_FPS). The pause menu still draws, only slower: the land streams in
+   behind it. Frames are dealt from a running clock (`_frameDue`), so a cap that does not divide the screen's rate still
+   comes out right on average: 60 on a 144 Hz screen is frames 2 and 3 refreshes apart (every 3rd gave 48). */
+const MENU_FPS = 60, INV_FPS = 60, PAUSED_FPS = 30, UNFOCUSED_FPS = 30;
+let _frameDue = 0, _frameCapNow = 0, _winFocused = document.hasFocus();
+window.addEventListener('focus', () => { _winFocused = true; });
+window.addEventListener('blur', () => { _winFocused = false; });
+// every seat in its inventory: one seat still playing keeps the player's own limit
+function _allInvOpen() {
+  if (!PSTATE.length) return false;
+  for (let i = 0; i < PSTATE.length; i++) if (!(i === activeSlot ? invOpen : PSTATE[i].g.invOpen)) return false;
+  return true;
+}
+// the frames a second allowed now, 0 = no cap
+function frameCap() {
+  let cap = fpsLimit > 0 ? fpsLimit : 0;
+  const atMost = (c) => { cap = cap > 0 ? Math.min(cap, c) : c; };
+  if (menuScene) atMost(MENU_FPS);
+  else if (worldPaused()) atMost(PAUSED_FPS);
+  else if (currentWorld && _allInvOpen()) atMost(INV_FPS);
+  if (!_winFocused) atMost(UNFOCUSED_FPS);
+  return cap;
+}
+// true when this screen refresh gets a frame
+function _frameTurn(now) {
+  const cap = frameCap();
+  if (cap !== _frameCapNow) { _frameCapNow = cap; _frameDue = now; }   // a new cap starts its clock at once
+  if (!cap) return true;
+  if (now < _frameDue - 1) return false;    // a millisecond early is on time (the screen's own jitter)
+  const step = 1000 / cap;
+  // a frame more than a step late (a slow frame, a hidden tab) starts the clock again from itself
+  _frameDue = now - _frameDue > step ? now + step : _frameDue + step;
+  return true;
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
-  if (fpsLimit > 0 && now - lastT < 1000 / fpsLimit - 2) return;   // fps cap: skip whole tick
+  if (!_frameTurn(now)) return;             // the frame cap (above): skip this refresh whole
   _perfFrameStart(now);                     // F3 timings
   const tFrame = perfNow();
   const realDt = Math.max(0, (now - lastT) / 1000);
@@ -161,7 +201,9 @@ function simTick(dt) {
   updateFluids(dt);
   tp = perfLap('t:fluids', tp);
   updateTNTs(dt);
-  updateSaplings();
+  updateSaplings(dt);                       // once a second (woods/saplings.js)
+  clamTick(dt);                             // wild clams take in sand and grow pearls (blocks/clam.js)
+  updatePressurePlates(dt);                 // what stands on a pressure plate presses it (blocks/pressure-plates.js)
   if (bg) {
     processGrassSpread(dt);
     processHollowMushrooms(dt);             // lying hollow logs full of dirt grow mushrooms
@@ -212,6 +254,7 @@ function runChunkStream(dt) {
   let tp = perfNow();                       // F3 timings
   /* ---- chunk streaming, centred on the union of every player's position ---- */
   syncPlayerChunks();
+  _streamSpeedTick(dt);                     // how fast the quickest player goes: the edge of the land is paced by it (_genThrottle)
   _rqWalkSome(RQ_WALK_PER_FRAME);           // a chunk border's walk over the chunks, a share a frame (rebuildQueues)
   /* Finish arrived chunks before uploading meshes — a chunk must be lit before it is meshed.
      Generous while the loading screen is up (nothing is on screen to stutter), tight in play.
@@ -392,17 +435,24 @@ function runWorldTick(dt, now) {
     tp = perfLap('creatures+drops draw', tp);
     if (!SIM_FIXED) {
       updateTNTs(dt);
-      updateSaplings();
+      updateSaplings(dt);
+      clamTick(dt);
+      updatePressurePlates(dt);
       processGrassSpread(dt);
       processHollowMushrooms(dt);           // lying hollow logs full of dirt grow mushrooms
       updateFurnaces(dt);
     }
     updateDoors(dt);
+    updateGates(dt);                       // gates swing as doors do (blocks/gates.js)
     updateBed(dt);
     updateChests(dt);
     updateTermiteHills(dt);                 // the Savanna's hills: their models and their termites (blocks/termite-hill.js)
+    updateClams(dt);                        // the clams: their models, their lids, what lies in an open one (blocks/clam.js)
+    updateSigns(dt);                        // the words on the signs (blocks/signs.js)
+    updatePetTags(dt);                      // tamed animals' names over them, for their owners (ui/animals.js)
     updateNightMobs(dt);                    // the loaded land's monsters as night falls, and a few later (entities/spawning.js)
-    updateBenchDisplays();                  // the order floating over each busy crafting bench
+    updateTumbleweeds(dt);                  // tumbleweeds blown in over the dry land round the players (entities/tumbleweed.js)
+    updateBenchDisplays(dt);                // the order floating over each busy crafting bench
     tp = perfLap('doors+chests', tp);
     if (typeof updateWaves === 'function') updateWaves(dt);           // the sea's waves (seasons/waves.js), before their foam is drawn
     if (typeof updateWetness === 'function') updateWetness(dt);       // wet ground: the rain, the waves' wash, drips (seasons/wetness.js)
@@ -541,8 +591,8 @@ function paintDebugHud() {
   const mins = ((worldTime * 24 + 6) % 24) * 60;          // clock: sunrise = 06:00
   const clock = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(Math.floor(mins % 60)).padStart(2, '0')}`;
   const cx = Math.floor(p.x / 16), cz = Math.floor(p.z / 16);
-  hudEl.innerHTML =
-    `FPS ${fps} / ${fpsLimit ? Math.min(fpsLimit, rafHz) : rafHz}${SIM_FIXED ? ` &middot; sim ${SIM_HZ} Hz x${_simTicksLast}` : ''} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
+  const html =
+    `FPS ${fps} / ${_frameCapNow ? Math.min(_frameCapNow, rafHz) : rafHz}${SIM_FIXED ? ` &middot; sim ${SIM_HZ} Hz x${_simTicksLast}` : ''} &middot; ${player.flying ? 'flying' : (player._inWater ? 'swim' : 'walking')}${player.fast ? ' &middot; fast' : player.sneaking ? ' &middot; slow' : ''}${player.canFly ? '' : ' &middot; survival'}<br>` +
     `facing ${cdir} ${heading.toFixed(0)}&deg; &middot; ${clock}<br>` +
     // the date, the weather and the wind where you stand (0.81, seasons/seasons.js)
     `${_dbgDate()}<br>` +
@@ -555,4 +605,5 @@ function paintDebugHud() {
     `draws ${info.calls} &middot; tris ${(info.triangles / 1000).toFixed(0)}k &middot; creatures ${ENTITIES.length} &middot; drops ${DROPS.length}` +
     (_perfLine ? `<br>${_perfLine}` : '') +     // where the time goes
     (typeof fluidDebugLine === 'function' && fluidDebugLine() ? `<br>${fluidDebugLine()}` : '');   // the fluids' work (fluids/fluids.js)
+  if (hudEl._html !== html) { hudEl.innerHTML = html; hudEl._html = html; }   // rebuilt only when a figure changed
 }

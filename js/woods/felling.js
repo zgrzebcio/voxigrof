@@ -96,7 +96,7 @@ function spawnFallingLeaf(id, x, y, z) {
    Fallen leaves are not permanent scenery: each carpet is queued when it lands and rots away
    after a while. Deliberately NOT gated on nearby logs the way canopy decay is — litter lying at
    the foot of a living tree should still rot, otherwise every forest floor silts up forever. */
-const litterRot = new Map();        // "x,y,z" -> seconds until this cell drops its next leaf layer
+const litterRot = new CellClocks(); // "x,y,z" -> seconds until this cell drops its next leaf layer (chunks/chunks.js)
 const LITTER_LIFE = 40, LITTER_LIFE_JITTER = 40;                 // freshly felled debris: quick
 const LITTER_ROT_TICK = 1.0;
 /* Litter that was never queued — everything the world generator laid down, and every cell loaded
@@ -142,22 +142,20 @@ function updateLitterRot(dt) {
   if (_litterTimer < LITTER_ROT_TICK) return;
   const step = _litterTimer * (typeof tickFactor === 'function' ? tickFactor() : 1);
   _litterTimer = 0;
-  for (const [k, t] of litterRot) {
-    const [x, y, z] = k.split(',').map(Number);
-    /* Out of the simulation radius the countdown is PAUSED, not merely un-applied: `t` is left
-       exactly as it was, so a forest floor does not silently rot away while you are on the other
-       side of the world and then pop bare the moment you walk back into view. */
-    if (!inSimRange(x, z)) continue;
+  /* Out of the simulation radius the countdown is PAUSED, not merely un-applied: `t` is left
+     exactly as it was, so a forest floor does not silently rot away while you are on the other
+     side of the world and then pop bare the moment you walk back into view. */
+  litterRot.forEachInSim((k, t, x, y, z) => {
     const left = t - step;
     const li = litterLayerTopAt(x, y, z);
-    if (li < 0) { litterRot.delete(k); continue; }                // mined, replaced, or all snow
-    if (left > 0) { litterRot.set(k, left); continue; }
+    if (li < 0) { litterRot.delete(k); return; }                  // mined, replaced, or all snow
+    if (left > 0) { litterRot.set(k, left); return; }
     /* Take that one leaf layer out and let whatever sat on top of it settle down a slot, so a
        snow cap over rotting leaves sinks instead of hanging in the air. */
     removeLayerAt(x, y, z, li);
     if (litterLayerTopAt(x, y, z) < 0) litterRot.delete(k);
     else litterRot.set(k, (LITTER_LIFE_NATURAL * 0.5 + Math.random() * LITTER_LIFE_NATURAL_JITTER * 0.5) * _dayLen());
-  }
+  });
 }
 function clearLitterRot() { litterRot.clear(); _litterSweep = 0; }
 
@@ -168,7 +166,7 @@ function clearLitterRot() { litterRot.clear(); _litterSweep = 0; }
    so a drift thins unevenly instead of vanishing in one frame. Cold biomes are left alone.
    0.83: cold snow melts too, ten times slower (MELT_COLD_MUL), and not while snow is falling on it — layers only:
    a whole snow block in the cold, and the snowline's cover, keep. Rain washes layers off (seasons/weather-ground.js, updateWeatherGround). */
-const snowMelt = new Map();         // "x,y,z" -> seconds until this cell loses its next snow layer
+const snowMelt = new CellClocks();  // "x,y,z" -> seconds until this cell loses its next snow layer (chunks/chunks.js)
 const MELT_LIFE = 0.35, MELT_LIFE_JITTER = 0.5;                   // in-game days per layer
 const MELT_COLD_MUL = 0.1;                                        // 0.83
 const MELT_COLD_CAP = 400;          // a snow biome is all snow: track at most this many cells at once (each tick tests their heat)
@@ -261,23 +259,21 @@ function updateSnowMelt(dt) {
   const step = _meltTimer * (typeof tickFactor === 'function' ? tickFactor() : 1);
   _meltTimer = 0;
   _meltSnowing.clear();
-  for (const [k, t] of snowMelt) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;             // melt clock pauses outside the sim radius
+  snowMelt.forEachInSim((k, t, x, y, z) => {    // melt clock pauses outside the sim radius
     const si = snowLayerTopAt(x, y, z);
-    if (si < 0) { snowMelt.delete(k); continue; }                 // mined, replaced, or already gone
+    if (si < 0) { snowMelt.delete(k); return; }                   // mined, replaced, or already gone
     const heat = snowHeat(x, y, z), warm = _snowMelts(x, y, z);
-    if (!warm && heat === 1 && _meltKeeps(x, y, z)) { snowMelt.delete(k); continue; }  // heat removed, or cold again
-    if (!warm && heat === 1 && _snowingAt(x, z)) continue;         // cold snow waits while more falls
+    if (!warm && heat === 1 && _meltKeeps(x, y, z)) { snowMelt.delete(k); return; }   // heat removed, or cold again
+    if (!warm && heat === 1 && _snowingAt(x, z)) return;           // cold snow waits while more falls
     const left = t - step * (heat > 1 ? heat : warm ? 1 : MELT_COLD_MUL);   // cold layers: slowly
-    if (left > 0) { snowMelt.set(k, left); continue; }
+    if (left > 0) { snowMelt.set(k, left); return; }
     // a whole block melts down into a drift of 7, a drift a layer at a time
     if (getBlock(x, y, z) === B.SNOW) setLayerStack(x, y, z, new Array(LAYER_MAX - 1).fill(B.SNOW));
     else removeLayerAt(x, y, z, si);
     if (typeof fxSnowMelt === 'function') fxSnowMelt(x, y, z);   // flakes and drips (0.8)
     if (snowLayerTopAt(x, y, z) < 0) snowMelt.delete(k);
     else snowMelt.set(k, (MELT_LIFE + Math.random() * MELT_LIFE_JITTER) * _dayLen());
-  }
+  });
 }
 function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _meltAir.clear(); _meltSnowing.clear(); }
 
@@ -286,7 +282,7 @@ function clearSnowMelt() { snowMelt.clear(); _meltSweep = 0; _warmCol.clear(); _
    blocks/plants.js; a picked one drops back to empty), each stage on its own jittered countdown. Same adoption sweep as litter rot and snow melt: bushes the generator
    placed (or a save restored) are picked up the first time the sweep sees them, and a bush you
    just picked is queued immediately so its clock starts on the pick rather than on a later sweep. */
-const berryGrow = new Map();        // "x,y,z" -> seconds until this bush advances one stage
+const berryGrow = new CellClocks(); // "x,y,z" -> seconds until this bush advances one stage (chunks/chunks.js)
 const BERRY_STAGE_LIFE = 0.8, BERRY_STAGE_JITTER = 0.9;           // in-game days per stage
 const BERRY_TICK = 1.0, BERRY_SWEEP_TICK = 5.0, BERRY_SWEEP_TRIES = 20;
 let _berryTimer = 0, _berrySweep = 0;
@@ -318,19 +314,17 @@ function updateBerryGrow(dt) {
   if (_berryTimer < BERRY_TICK) return;
   const step = _berryTimer * (typeof tickFactor === 'function' ? tickFactor() : 1) * seasonGrowth();   // by season
   _berryTimer = 0;
-  for (const [k, t] of berryGrow) {
-    const [x, y, z] = k.split(',').map(Number);
-    if (!inSimRange(x, z)) continue;             // regrow clock pauses outside the sim radius
+  berryGrow.forEachInSim((k, t, x, y, z) => {  // regrow clock pauses outside the sim radius
     const cur = getBlock(x, y, z);
     const stage = berryStageAt(cur);
-    if (stage < 0) { berryGrow.delete(k); continue; }             // picked clean, mined, or ripe
+    if (stage < 0) { berryGrow.delete(k); return; }               // picked clean, mined, or ripe
     const left = t - step;
-    if (left > 0) { berryGrow.set(k, left); continue; }
+    if (left > 0) { berryGrow.set(k, left); return; }
     const next = stage + 1;                                       // stage numbers ARE the order
     setBlock(x, y, z, (cur & 255) | (next << 8));                 // keeps whichever bush it is
     if (next >= BERRY_STAGE.GROWN) berryGrow.delete(k);           // ripe: nothing further to do
     else berryGrow.set(k, _berryLife());
-  }
+  });
 }
 function clearBerryGrow() { berryGrow.clear(); _berrySweep = 0; }
 
@@ -537,15 +531,13 @@ function tryChopLog(x, y, z) {
   const above = _floodLogs(x, y, z, 64).length - 1;
   if (above <= 0 && !isLeaf(getBlock(x, y + 1, z) & 255)) return false;
   const variant = (val >> 8) & 255;
+  if (CORE.isQuadW(logWidthOf(variant))) return _chopQuad(x, y, z, val);   // a quarter of a 2x2 trunk: all four together
 
   // first swing: take the bark off. Same width — nothing has been cut away yet.
   if (isLiveLog(id)) {
     setBlock(x, y, z, STRIPPED_OF[id] | (variant << 8));
     playBlockSound(id, 'break', x, y, z);
-    if (!player.canFly) {
-      const n = rollLoot(LOOT.bark);            // 50-loottable.js
-      for (let i = 0; i < n; i++) spawnDrop(ITEM.BARK, x, y, z);
-    }
+    _barkDrops(x, y, z, CORE.logWidthPx(logWidthOf(variant)));
     return true;
   }
 
@@ -561,12 +553,70 @@ function tryChopLog(x, y, z) {
   return true;
 }
 
+/* Bark off a log `units` across (logWidthPx): rolled by its size, as the square of its width over BARK_UNITS (a common
+   trunk once, a thin branch now and then, a stump flaring past its cell nearly twice, a jungle giant's 2x2 trunk five
+   times), and dropped as one stack. Nothing in creative. */
+const BARK_UNITS = 56;
+function _barkDrops(x, y, z, units) {
+  if (player.canFly) return;
+  const k = (units / BARK_UNITS) ** 2, whole = Math.floor(k);
+  let n = 0;
+  for (let i = 0; i < whole; i++) n += rollLoot(LOOT.bark);   // 50-loottable.js
+  if (Math.random() < k - whole) n += rollLoot(LOOT.bark);
+  if (n > 0) spawnDrop(ITEM.BARK, x, y, z, null, undefined, null, null, 0, n);
+}
+
+/* A 2x2 trunk (a jungle giant's, CORE.quadW in blocks/basic.js) is cut as the one log it is: its four quarters at the
+   height of the swing go together. The first swing takes the bark off all four (bark for the whole big log); after that
+   it takes QUAD_FELL_SWINGS swings to bring the giant down, and every one of them narrows the big log (the swings are kept
+   in the four cells, CORE.logCutOf, so they last through a reload): its width index a level in every QUAD_LEVEL_SWINGS
+   (QUAD_WIDTHS, what it collides with), what is drawn QUAD_CUT_UNITS a swing (quadReach, the mesher). */
+const QUAD_FELL_SWINGS = 50, QUAD_LEVEL_SWINGS = QUAD_FELL_SWINGS / CORE.QUAD_LEVELS;
+function _chopQuad(x, y, z, val) {
+  const id = val & 255, vb = (val >> 8) & 255, axis = vb & 3, w = logWidthOf(vb), q = CORE.quadOf(w), cut = CORE.logCutOf(val);
+  const Pa = axis === 1 ? 1 : 0, Qa = axis === 2 ? 1 : 2;
+  const base = [x, y, z];
+  base[Pa] -= q & 1; base[Qa] -= q >> 1;
+  // the four quarters of the big log at this height that are there, cut in as far as this one
+  const parts = [];
+  for (let k = 0; k < 4; k++) {
+    const c = base.slice();
+    c[Pa] += k & 1; c[Qa] += k >> 1;
+    const v = getBlock(c[0], c[1], c[2]), nb = (v >> 8) & 255, nw = logWidthOf(nb);
+    if (isAnyLog(v & 255) && (nb & 3) === axis && CORE.isQuadW(nw) && CORE.quadOf(nw) === k && CORE.logCutOf(v) === cut) parts.push([c, v]);
+  }
+  // first swing: the bark off every quarter that still has it, the bark of the whole big log for it
+  if (parts.some(([, v]) => isLiveLog(v & 255))) {
+    let live = 0;
+    for (const [c, v] of parts) {
+      if (!isLiveLog(v & 255)) continue;
+      live++;
+      setBlock(c[0], c[1], c[2], (STRIPPED_OF[v & 255] | (((v >> 8) & 255) << 8)) >>> 0);
+    }
+    _barkDrops(x, y, z, CORE.QUAD_WIDTHS[0] * Math.sqrt(live / 4));   // its share of the big log's bark, if some were bare already
+    playBlockSound(id, 'break', x, y, z);
+    return true;
+  }
+  // swings so far: kept in the cells, never fewer than the level the log already shows (a trunk cut before they were kept)
+  const swings = Math.max(cut, CORE.quadLevel(w) * QUAD_LEVEL_SWINGS) + 1;
+  if (swings >= QUAD_FELL_SWINGS) { fellTreeFrom(x, y, z); return true; }
+  const lvl = Math.min(CORE.QUAD_LEVELS - 1, Math.floor(swings / QUAD_LEVEL_SWINGS));
+  for (const [c, v] of parts) {
+    const k = CORE.quadOf(logWidthOf((v >> 8) & 255));
+    setBlock(c[0], c[1], c[2], ((v & 255) | ((axis | (CORE.quadW(k, lvl) << 2)) << 8) | (swings << CORE.LOG_CUT_SHIFT)) >>> 0);
+  }
+  playBlockSound(id, 'hit', x, y, z);
+  if (typeof skillShakeTree === 'function') skillShakeTree(x, y, z);   // Timber Shaker
+  return true;
+}
+
 /* Collect every log connected to (x,y,z) at or above the cut, drop them together, and bring the
    surrounding leaves down as falling litter. */
 function fellTreeFrom(x, y, z) {
   const logs = _floodLogs(x, y, z);
   if (!logs.length) return;
   if (typeof coconutsOffFelled === 'function') coconutsOffFelled(logs);   // a palm's coconuts: now and then one whole (woods/coconuts.js)
+  if (typeof cocoaOffFelled === 'function') cocoaOffFelled(logs);         // its cocoa pods all come off: ripe ones give their beans (woods/cocoa.js)
 
   /* Canopy, gathered while the logs are still standing so reach is measured from wood.
 

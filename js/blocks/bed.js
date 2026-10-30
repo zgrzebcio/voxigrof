@@ -40,7 +40,7 @@ const BED_PILLOW_OUT = { side: [0, 192], head: [64, 192], top: [192, 192] };
 const BED_TEX_H = 320;
 const BED_LEG_H = 18 / BED_PX, BED_LEG_W = 16 / BED_PX;
 const BED_PARTS = ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow'];
-const BED_WOODS = ['oak', 'birch', 'spruce'];             // the variant bar's woods (blocks/variants.js), as the chest's
+const BED_WOODS = ['oak', 'birch', 'spruce', 'acacia'];   // the variant bar's woods (blocks/variants.js); two bits hold four, all taken
 const BED_WOOD_SHIFT = 4;
 const bedWoodOf = (va) => { const w = (va >> BED_WOOD_SHIFT) & 3; return w < BED_WOODS.length ? w : 0; };
 /* The bedding's colours, sRGB hex. Every bed takes this set until colours come in (a later dye update): the whole
@@ -299,7 +299,7 @@ function registerBed(x, y, z, facing, wood = null) {
   const off = [[0, 0], [1, 1], [0, 1], [1, 0]][facing & 3];
   group.position.x += off[0];
   group.position.z += off[1];
-  scene.add(group);
+  scene.add(freezeModel(group));                     // a bed never moves (06-renderer.js)
   BEDS.set(k, { group, x, y, z, facing, wood, colors, mats: m.mats, lastB: -1 });
 }
 // a bed's wood or bedding changed: the same material takes the other texture (colours: the dye update's hook)
@@ -360,8 +360,9 @@ function bedBroken(x, y, z, oldVal) {
 /* ---------------------------------- placement ---------------------------------- */
 // Called from doPlace. Needs two free cells on solid ground; lays the foot under the player
 // and the head one cell further along the facing.
-// bits: the variant bar's pick, the frame's wood (BED_WOOD_SHIFT)
-function tryPlaceBed(px, py, pz, bits = 0) {
+// bits: the variant bar's pick, the frame's wood (BED_WOOD_SHIFT); paid: NEED_PAID when it took its planks (both halves
+// carry it: whichever is broken gives them back, the other goes with nothing)
+function tryPlaceBed(px, py, pz, bits = 0, paid = 0) {
   /* Facing points foot -> head. the head, the pillow's end, lies AWAY from you: the foot goes in the cell you
      aimed at and the head one cell beyond it, the way a bed is set down in front of you. (It was the other way round:
      the pillow on the player's side, the bed reaching back toward your feet.) */
@@ -376,8 +377,8 @@ function tryPlaceBed(px, py, pz, bits = 0) {
   clearPlantAt(px, py, pz);
   clearPlantAt(hx, py, hz);
   const wood = bedWoodOf(bits), wb = wood << BED_WOOD_SHIFT;
-  setBlock(px, py, pz, B.BED | ((facing | wb) << 8));
-  setBlock(hx, py, hz, B.BED | ((facing | 8 | wb) << 8));
+  setBlock(px, py, pz, (B.BED | ((facing | wb) << 8) | paid) >>> 0);
+  setBlock(hx, py, hz, (B.BED | ((facing | 8 | wb) << 8) | paid) >>> 0);
   registerBed(px, py, pz, facing, wood);
   return true;
 }
@@ -505,6 +506,27 @@ function trySleep(x, y, z) {
   return true;
 }
 
+/* Where a player comes back after a death when a bed is their respawn point (respawnPlayer, player/death.js): a cell
+   beside the bed with room for a body and a floor under it (beside the foot, beside the head, then past either end), or
+   on the mattress when it is walled in. Its land not loaded yet: on the mattress too, to land on when it comes in. A bed
+   no longer there gives the point up (as breaking it does, releaseBedSpawns). Null when there is no bed to go to. */
+function bedRespawnSpot(p) {
+  const key = p.spawnBedKey;
+  if (!key) return null;
+  const [x, y, z] = key.split(',').map(Number);
+  const c = getChunk(Math.floor(x / 16), Math.floor(z / 16));
+  if (!c || !c.data) return { x: x + 0.5, y: y + 1, z: z + 0.5 };
+  const foot = (getBlock(x, y, z) & 255) === B.BED ? bedFootOf(x, y, z) : null;
+  if (!foot) { releaseBedSpawns(key); return null; }
+  const d = BED_DIR[foot.facing & 3], side = [-d[1], d[0]], head = [foot.x + d[0], foot.z + d[1]];
+  const tries = [[foot.x + side[0], foot.z + side[1]], [foot.x - side[0], foot.z - side[1]],
+                 [head[0] + side[0], head[1] + side[1]], [head[0] - side[0], head[1] - side[1]],
+                 [foot.x - d[0], foot.z - d[1]], [head[0] + d[0], head[1] + d[1]]];
+  for (const [tx, tz] of tries)
+    if (!isSolid(tx, foot.y, tz) && !isSolid(tx, foot.y + 1, tz) && isSolid(tx, foot.y - 1, tz)) return { x: tx + 0.5, y: foot.y, z: tz + 0.5 };
+  return { x: foot.x + 0.5, y: foot.y + 1, z: foot.z + 0.5 };
+}
+
 /* Anyone whose respawn point was THIS bed goes back to their original spawn. Called
    before the mesh goes, from bedBroken — so breaking a bed you slept in tells you so rather than
    silently respawning you at a gap in the floor later. */
@@ -542,8 +564,13 @@ function leaveBed(p = player) {
   p.vy = 0;
 }
 
-// fade to black, jump the clock, fade back in
+// fade to black, jump the clock, fade back in; the beds themselves are looked over every LIST_PASS_S (they never move)
+let _bedPassT = 0;
 function updateBed(dt) {
+  if ((_bedPassT -= dt) <= 0) { _bedPassT = LIST_PASS_S; _bedPass(); }
+  _bedSleep(dt);
+}
+function _bedPass() {
   for (const [k, b] of BEDS) {
     const c = getChunk(Math.floor(b.x / 16), Math.floor(b.z / 16));
     if (!c || !c.data) { b.group.visible = false; continue; }
@@ -565,7 +592,9 @@ function updateBed(dt) {
       for (const mt of b.mats) mt.color.setScalar(br).convertSRGBToLinear();
     }
   }
-
+}
+// once a frame: who lies in bed, and the night run on while everyone does
+function _bedSleep(dt) {
   /* Somebody has to still be in bed for the sleepers' beds to hold them: a bed broken out from
      under a sleeper leaves them lying in mid-air otherwise. */
   for (const p of PLAYERS) {

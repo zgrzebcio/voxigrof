@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.8242**.
+Current build: **alpha 0.8527**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -9,7 +9,112 @@ the create screen for a world without villages and dungeons.
 A village (0.8242) has at least three houses of three kinds and a well for every four houses, the first in its
 square. Every door opens onto a gravel path 2-3 wide that winds round the buildings to the square, crossing water
 on a plank bridge where it must. Deserts have their own villages (0.82422): sandstone houses, mostly the big
-ones, grass paths, and no loose sand drifted over the yards.
+ones, grass paths, and no loose sand drifted over the yards. Villages stand on the plains and in forests, deep ones too,
+and since 0.84882 in spruce forests (deep ones too) and on the cold plains, where they are built of spruce: logs, planks,
+doors, chests and beds (the crafting bench is the dark one).
+
+**0.8485.** **Carrots** grow wild in small patches on the mild plains and the flowery meadows (not the warm or the cold
+ones; new worlds). Like wheat they grow through stages; hold E on a ripe one for a carrot (Lucky Hands: one more, 20% of
+the time) and its top stays to grow again. Eaten: 5 food and 25 vegetables (5 when your vegetables are full), in 1.1 s;
+a carrot keeps 3 hours. A horse's food: carrot 60, apple 40, sugar 20. A jam sandwich keeps 4 hours. Creative has the
+carrot plant at any stage on the variant bar.
+
+**0.8484.** The **lock pick** (at the bench: 2 seashells, 6 iron ingots, a leather, a charcoal): hold the right button on
+any locked chest, a sealed one or one a player locked, twice as long as a key. Half the time it opens (a seal picked stays
+open; a player's lock stays locked); else try again. It breaks 10% of the time on a wooden chest, 30% on a metal one.
+**Jam sandwich** (in the pocket list: 5 berries of any kind, black and white too, and a bread make 2): 25 food (10
+over-food when full), 10 fruit, 5 stamina. A tamed meerkat eats from your hand (use): chitin fills 80 of its hunger, any
+meat raw or cooked 50; no fish.
+
+**0.848303.** Sealed metal chests now lie in caves only, between height 1 and 200, where the 3x3 round them is open
+(newly explored land; the ones already placed stay).
+
+**0.848302.** Horses, hellhounds, otters and meerkats get hungry half as fast (riding a horse too).
+
+**0.848301.** The Stats list shows **item pickup range** and **foraging reach**. A worn otter or meerkat is listed among
+your effects with what it gives. A meerkat on the shoulder gives 10% more reach, 0.3% more a level and up to 5% more
+by its taming (30% at the most).
+
+**Meerkats and tumbleweeds (0.8483).** **Meerkats** live in bands of 2-4 on the edge of the desert, where the sand meets
+other land. They stand up on their hind legs keeping watch, forage, eat termites, and run from players (a crouching one
+only up close) and from monsters. Now and then one fetches something lying near its burrow (or what a tumbleweed caught)
+and buries it under a layer of sand: break that sand to get it back. **Taming**: crouch with a chitin plate in hand and
+press **E** on one: 1 plate at low level, up to 5 at level 50 (4 with Gentle Hand), one every 20 s. After each it runs
+off and comes back to the same spot 10-15 s later: stay crouched where you are. Standing up while it is within 12 blocks
+scares it and costs 3-10% effectiveness (more the nearer you stood). Tamed: use for its stance (follow, stay standing up,
+lie down, find items: it fetches what lies around its spot and brings it there), sneak + use to sit it on your shoulder
+(items and foraging reach 10-30% further, by its level and taming; one pet worn at a time, so an otter round your neck comes down for it), E pets
+it. **Tumbleweeds** roll over the deserts, the Savanna and the Dryland with the wind; hit one to see what it caught
+(usually nothing; chitin, string, sticks, fiber, a feather, a leather strip, very rarely fur). Fire burns one up at
+once, and it sets fire to where it rolls. Dropped items look 20% bigger and breathe a faint white mote, easy to spot in
+tall grass. An otter rests 5 s between catches.
+
+**0.84829.** Helmets (leather cap, iron, bronze, steel, gold) leave the face open: a brow over it. Only a shield rests
+low in the off hand; a torch is carried where it was. Use a raw fish on an otter (right button, as before; E still pets): it
+eats it (cod 30, pike 50, salmon 70, catfish 90 of its hunger), sitting up chewing. Bronze tools and armor take twice the bronze; bronze
+tools also a chitin plate, bronze armor but the helmet 1-2 fur. Polar bears drop fur (90% one, 30% a second; Butcher
+adds). Bronze armor lasts 520, steel 900. The Mender's and Dismantle's drop zones show again while you carry gear.
+
+**0.84828.** Rain (and snow) sounds die away underground: quieter the more ground is over you, silent under 24 blocks
+of it, and never heard below height 50.
+
+**0.84827.** The marks of a world you left (death marks, your waypoint, an animal being tamed, your animals' name
+tags) no longer hang over the title screen or the next world while it loads; each world shows only its own. The mark
+over an animal being tamed gives its sex and level.
+
+**0.84826.** The chest's window is as tall as its chest (never taller than the equipment's). The leather belt gives 2
+hotbar slots only: its row of five empty belt slots is gone until there is gear for them.
+
+**0.84825.** Smaller chests: a wooden chest holds 2 rows (a double 5), a metal one 4 (a double 9). What no longer fits
+moves to a free slot or falls out at the chest when it is next opened. The chest's window no longer scrolls.
+
+**0.84824.** **F** swaps what your hand holds with the off hand, as in Minecraft (the off hand takes a shield or a
+torch; an empty hand takes back what is there). A resting shield sits lower still.
+
+**0.84823.** A shield in either hand rests lower, in the bottom corner, turned the other way, out of the middle of the
+view.
+
+**0.84822.** No horde at nightfall: monsters come up one at a time, at most one every 6 seconds anywhere (3 under a blood
+moon), and how many may be out grows from a quarter to the whole over the first 3 minutes of the night.
+
+**0.84821.** New worlds: ores higher up. Coal mostly at 100-120 (most of all 110, up to 180), iron mostly around 90
+(up to 156), copper around 70 (up to 120), tin around 50 (up to 90). Where the land is lower, they lie in the top of its
+rock instead. Gold stays deep (20-30).
+
+**0.8482.** **U** sets a waypoint: name the spot you stand on (your base), and a mark shows it on your screen with its
+distance, as the death mark does; U again moves or removes it. One each, per player and world. Creative's hotbar has 12
+slots (keys `-` and `=` for the last two). Monsters: 20% fewer, and they come up at least 40 blocks from every player.
+Otters are rarer still, and they eat with a softer, higher sound.
+
+**0.84811.** A fish held in your hands takes 50% longer to wriggle free. While you tame a hellhound or an otter, a
+mark on your screen shows where it is, how far the taming is and how far away. Your tamed animals' names hang over them
+like a player's, seen through walls and from far, on your screen only, so a lost one can be found. The otter's voice is
+lower; it eats and walks with the usual sounds. 40% fewer otters in new land.
+
+**0.8481.** A shut wild clam fills with sand a step at a time; full, hold the right button to take the sand (it fills
+again): a sand farm. New worlds: clams at least 5 blocks apart. A fish out of water has 35 s of air, then slowly
+suffocates (in your hands too: one that dies there is its raw fish). Fish dart away from a player jumping into the
+water near them, from otters, and as soon as they are back in the water after being stranded. An otter worn round the
+neck gives 10% cold resistance, 0.2% more a level and up to 5% more by its taming. The seashell block has a front and a
+back.
+
+**Clams and otters (0.848).** **Clams** lie on warm sea floors (height 93 and under, new worlds). Hold the right button
+on one to open it: a fifth hold sand, where a **pearl** slowly grows while the clam is shut (an empty wild clam takes in
+sand while shut); hold the button again to take a pearl out. Broken, a clam drops itself and loses what was in it. Put
+down again it opens at a touch and grows nothing, but keeps one thing for you: right click puts in one of what you
+hold, right click again takes it back, sneak + right click shuts it; food in it spoils as in a chest.
+Hold the right button half a second on a **fish** to take it alive in both hands (the hotbar stays put while you hold
+it); it wriggles until it gets free, the prompt says how much is left, and right click lets it go. On land a fish lies
+on its side and flops toward the nearest water.
+**Otters** live in twos and threes in the water by deep beaches and on big lakes and rivers; they are very fast
+swimmers and all flee together when one is hit (an otter drops **fur**). Tame one by giving it live fish with **E**:
+an otter up to level 25 takes fish levels worth 50 (one fish of level 50), above that 100; a catfish counts half
+again, Gentle Hand a fifth more, and a fish of a lower level than the otter costs effectiveness. Tamed, right click
+picks its stance (follow, stay, lie down, catch fish, find pearls: worked from where it stands when the stance takes
+hold, bringing fish or the pearls of wild clams back there); raw fish feeds it; E pets it; sneak + right click puts it
+round your neck as a warm scarf (cold resistance), and sneak + right click with an empty hand sets it down.
+Fish: 20% more schools, bigger, each species in its own water (pike and cod in lakes and rivers, cod and salmon in the
+sea, mostly salmon in the deep sea), schools of different fish apart.
 
 **0.84777.** Sugar cane can be placed on sugar cane. A coconut put on top of a block sits on it and stays; hung under one it hangs.
 
@@ -218,7 +323,7 @@ dry grass and dry bushes** grow in deserts and now and then on the warm plains: 
 a dry bush 1 stick 70% and another 20%. Desert sand is 5 deep over 5 layers of sandstone. Two ruins stand in deserts to
 look at: a broken colonnade and an obelisk. Desert villages are half as common, and never in the Deep Desert. A **bone
 block** now breaks into bones (1, then 60% and 30% for more) and **bone ash** (90%, 50%, 10%); a bone ground at the
-mortar makes 2 bone ash. Coming in 0.849: a great pyramid in the Deep Desert with the summer boss, a pharaoh.
+mortar makes 2 bone ash. Coming: a great pyramid on the Deep Red Desert Flat with the summer boss, a pharaoh.
 0.841, red desert and mountains (new worlds): the Deep Desert's heart is split into two halves side by side, the **Deep
 Desert** (yellow sand, sandstone) and the **Deep Red Desert** (red sand, red sandstone), both with the broken mesas,
 hoodoos and skeletons. Under the red sand gold ore lies at any height, up into the hills. All high land (mountains,
@@ -236,9 +341,9 @@ the feed say so), and breaking it gives the 3 blocks back. Old oak doors in your
 **Keys**: a wooden key (bench: 4 planks and any metal nugget) right-clicked on an unlocked door locks it: from then on
 only someone holding that key opens it, and sneak + right-click with it unlocks it again. One key, one door. A locked
 door can always be broken; then its key is blank again. Iron, golden and copper keys exist but cannot be made yet.
-0.843: **metal chests** (iron, copper, gold) lie about the world, sealed, at any height and on any block: on the plains,
-on peaks, on cave floors. Copper is the commonest, gold the rarest and richest. A key of its metal opens one and stays
-in its lock; then it is an ordinary chest of 6 rows (two side by side: 13) that a pickaxe takes home, and its look is
+0.843: **metal chests** (iron, copper, gold) lie about the world, sealed, in caves between height 1 and 200 where there
+is room round them (since 0.848303; any height and anywhere before). Copper is the commonest, gold the rarest and richest. A key of its metal opens one and stays
+in its lock; then it is an ordinary chest of 4 rows (two side by side: 9) that a pickaxe takes home, and its look is
 picked on the variant bar. They cannot be crafted. Zombies and skeletons you kill sometimes drop a copper, iron or golden
 key. Any chest now locks with a key like a door (both halves of a double, one key). Breaking a locked or sealed chest
 gives nothing back: neither its contents nor the chest.
@@ -324,7 +429,9 @@ one into nothing. Glowcrystal blocks and glow vines light blue too.
 | Work a bench or mortar | Hold `E` (tap to take) | Hold Y (tap to take) |
 | Inventory | `Tab` | B (tap) |
 | Skill tree | `K` | Back / Share (tap), or its tab on the right-hand panel |
-| Hotbar | `1`–`8` or mouse wheel | LB / RB |
+| Hotbar | `1`–`8` (`9` `0` with a belt; creative has 12: `1`–`0`, `-`, `=`) or mouse wheel | LB / RB |
+| Waypoint: name the spot you stand on (your base), or remove it; it shows on your screen with its distance | `U` | — |
+| Swap the held item with the off hand (shield, torch) | `F` | — |
 | Drop one / drop stack | `Y` / `Shift+Y` | D-pad Down / X + D-pad Down |
 | Shape wheel (hammer worn) | Hold `Q`, aim with the mouse, let go | Hold B, aim with the right stick, let go |
 | Pick a variant (chisel in Neck) | Hold `R` + mouse wheel; tap `R` twice for the plain block | Hold D-pad Right + LB / RB; tap D-pad Right twice for the plain block |
@@ -339,6 +446,14 @@ one into nothing. Glowcrystal blocks and glow vines light blue too.
 In the inventory: `Shift+click` quick-moves a stack, `Shift+right click` wears gear, middle click (R3 on a pad)
 sorts (in creative it puts the palette back as new and empties the hotbar), and clicking outside the panels throws what you are carrying. On a pad the sticks move a
 cursor: A picks up and puts down, Y quick-moves, D-pad Down drops, and LB/RB flip the recipe tabs.
+
+**Frame rate (0.84875).** Options > Video "Frame rate limit" starts at 60 for a new player (off = as fast as the
+screen). Whatever it is set to, the title screen and an open inventory draw at most 60 frames a second, the pause menu
+and a game window without focus at most 30: less heat and fan noise. Options > Video "Shadow quality" (0.84877): low
+redraws the shadows a quarter as often as the sun moves (lighter on the processor), normal as before, high twice as sharp.
+0.84879: "Clouds" fancy / fast / off; "Background threads" auto / 4 / 2 (fewer: new land comes slower, the machine stays
+cooler and quieter); "Power saver" sets 30 fps, render 8 and simulation 3 (only lower), fewer particles, no shadows, fast
+clouds and 2 threads at once, each changeable after.
 
 ## Your first steps
 
@@ -700,7 +815,7 @@ The wheel has two pages — turn them with the mouse wheel or a bumper:
 
 - **Simple:** block, slab, vertical slab, stairs, pane, fence, carpet, wall. Slope and bars are
   named but still in development.
-- **Advanced:** cover, with nine slots waiting.
+- **Advanced:** cover, door, pressure plate, sign, with six slots waiting.
 
 | Shape | Blocks that take it |
 |---|---|
@@ -710,6 +825,153 @@ The wheel has two pages — turn them with the mouse wheel or a bumper:
 | Carpet (a layer 1/8 thick) | Wool, all planks, stone, cobblestone, hay bale — plus the stacking set below |
 | Cover (a 1/8 plate you walk straight through) | Dirt, grass, stone, cobblestone, all planks, stone brick, granite, marble, limestone, dolomite, the sandstones (not adobe or terracotta) |
 | Wall (solid, thin, a full block tall) | Stone, cobblestone, stone brick, terracotta, iron, copper, gold and tin block, granite, marble, limestone, wool, the sandstones, sulfur block, obsidian, snow block |
+| Pressure plate (a thin plate on a block's top, walked over) | All planks (pressed by players, creatures and dropped items), stone, cobblestone, granite, marble, limestone, dolomite, the sandstones (players and creatures), the iron, gold, copper and tin blocks and obsidian (players only) |
+
+| Sign (a board you write on, walked through) | All planks, stone, cobblestone, granite, marble, limestone, dolomite, the iron block |
+
+**Signs (0.8487).** Put on a floor, a sign stands on a post; on a wall it lies flat against it; on a ceiling it hangs
+from two short sticks. Floor and ceiling signs turn to face you. The writing box opens when you put one up, and using
+a sign opens it again (sneak to place against a sign instead): four lines, each as long as fits the board, shown at
+the board's own size. A sign comes down when the block it is on is broken.
+
+**Pressure plates (0.8486).** Stepped on, a plate goes down and sets off what is beside it, right under it, or under
+the block it lies on (0.848792): TNT is lit, and a door opens (not a locked one). A second after the last thing steps
+off it comes up, and the doors it opened shut again. Breaking the block under a plate knocks the plate off. TNT sounds
+of cloth when put down, and makes its own sound when it is lit. Since 0.848793 a plate also goes down on a bottom slab,
+on the lower step of stairs (a half plate, or a quarter by an inner corner), on a carpet or a snow or leaf layer, and
+among grass, flowers and other plants, which stay. It is still a block of what it is made of (who presses it, the tool,
+the drop), aimed at and broken by itself, and nothing else can be put into its cell while it lies there. The structure
+block saves these plates with a prefab. Since 0.848794 a carpet of sand, snow, leaves, gravel or another layer you walk
+through, put on a plate, buries it: hidden under the layer (more can be piled on), it is still pressed by feet sinking
+through, and silent. Dig the layers away and it is a plate again. A plate's press goes through the block it lies on only
+when that block fills its cell down to the one under it (not a top slab or a vertical slab). Sneaking with a block in
+hand, the right button places it against a door instead of opening the door. Lit TNT is half as loud (0.8488).
+
+**The pyramid (0.8488).** A sandstone pyramid stands now and then in the Desert and the Red Sand (not their hills, nor
+the Deep Desert, which gets a bigger one of its own later); on red sand it is built of red sand and red sandstone.
+Since 0.84881 the torches and glow blocks of every structure (villages, dungeons, the igloo, the pyramid) never burn out. In it a sealed golden chest waits
+on a pedestal, ringed by pressure plates buried in the sand over TNT. A key or a lock pick works on a chest only from up
+close (2.5 blocks), any chest.
+
+**Fire poles (0.84887).** Now and then, wherever trees grow, a fire pole stands: a fence pole with a burning hay bale on
+top, the bale cased in cobblestone covers, the pole of the wood of the trees around it (oak, birch, spruce, rime, acacia, palm). Its
+fire never spreads and never goes out. A fire on hay saved in a prefab with the structure block is the same: it burns for
+good where the prefab is built.
+
+**The Jungle (0.85, new worlds).** Wet patches of the hot land, from the warm plains' hot side through the desert (never
+the red sand or the Deep Deserts), are **Jungle**: green and hilly, thick with jungle trees and bushes; its **Deep Jungle**
+has more giants, its hills and mountains are **Jungle Hills**. The **jungle trees**: **giants** on a 2x2 trunk (the four
+logs drawn as one log twice the size) 18-29 tall, with buttress roots, long limbs and a wide crown; **tall** straight
+ones; **small** ones; and low **bent** ones whose trunk turns hard into a limb, the crown out to the side. A jungle
+sapling grows any of them, a giant where it has room (the three cells toward +X and +Z free over solid ground). A
+hatchet cuts a giant's trunk as the one big log it is (0.8501): the first swing strips all four logs at that height,
+then it takes 50 swings to bring the giant down, the big log narrowing with every swing (0.8502). Stripping gives bark
+by the log's size: a thin branch now and then, a common trunk once, a giant's trunk about five times as much. Jungle wood has
+planks, a stripped and a hollow log. Fire poles have a cover under their hay too (0.8501).
+**Cocoa pods** hang high on the straight tall trees' trunks, 7 blocks over the ground or more (not the giants, not the
+bent ones): green while they grow, ripe in about a day and a half. Break a ripe one for **cocoa beans** (1, half the
+time 2) and a quarter of the time **fat**; a green one gives nothing. A ripe one left too long breaks off by itself; a
+pod with no trunk beside it breaks; felling its tree brings every pod on it down (ripe ones give their beans). With
+Timber Shaker every swing into its tree may shake a ripe pod off; green ones stay. Not plantable yet. Five beans grind
+into **cocoa powder** at the mortar (4.5 s).
+
+**0.8503.** A hay bale broken while a fire burns on it gives nothing. Fire poles are cased in cobblestone covers (new
+ones; the posts keep the trees' wood). Gravel gives flint 10% of the time, a block or a layer (0.8504). A monster the sun burns to death
+leaves nothing.
+
+**0.8505.** Beds come in acacia too (the variant bar). New worlds grow two and a half times the sugar cane on shores by
+the Jungle, the deserts and the Savanna.
+
+**Fences, walls and gates (0.851).**
+- **Steps:** a fence or a wall joins one a step up or down beside it with a slanted rail, and you cannot slip through.
+- **Stacking:** stacked fences have no gap between them.
+- **Walls:** they stand toward the far side of their cell (as you place them) and can be turned. Every kind of planks
+  makes walls now.
+- **Railings:** put a fence on a bottom slab or on stairs and it stands on them, in their cell; put a wall on stairs and
+  it runs along their side. Stairs in a row with one in each make a railing.
+- **Gates:** sneak + right-click a fence or a wall with nothing in your hand to make it a gate of the same block.
+  Right-click opens and shuts it. Alone it opens from the middle; two side by side open together like double doors. A
+  pressure plate opens it too. Break it to have your fence back.
+- **Wrench** (creative): right-click a side of a fence or a wall to join or part it there, even to another block; its
+  top to turn a wall. It turns stairs, torches, single chests, furnaces, logs, slabs, panes, signs and gates. Sneak +
+  right-click: a fence or a wall joins by itself again, and stairs take their next corner shape, kept for good.
+
+**0.8511.** Gates swing open and shut like doors. Walls stand a sixteenth off the cell's edge (in stairs they no longer
+flicker). A wall or fence on a step is one smooth slope from post to post. A join you set or take off with the wrench
+holds on both sides: the fence beside it follows, and one that loses a join looks for a step up or down instead. The
+wrench turns a wall from anywhere on its top, and stairs upside down from their top or bottom (round from a side).
+
+**0.8512.** A fence on a slab joins the fence beside it on the floor or a block up with a half step. A step between two
+fences is drawn by both, however they were placed. A wall on stairs stands on the step, as a fence does. A fence goes
+into a top slab (posts under it) or a vertical slab (a half block with a fence on its face) too.
+
+**0.8513.** Fences of any planks join each other, and walls of any stone; corner to corner they join with rails turned
+45°. A wall at the top of slopes keeps its post. Holding the
+wrench, the line under the crosshair says how the block you aim at is set (its facing, side, corner shape or joins, with
+their numbers), so you can set another the same.
+
+**0.8514.** A gate stays level; a fence or wall a step from it slopes the whole way down (or up) to it, with no gap. A
+wall put on a wall, or against one, stands the same way. A fence joins on its sides and on its corners both: a corner is
+left out only where the fence between already joins both ends.
+
+**0.85141.** A whole block beside a corner stops a fence or wall from joining across that corner. The sloped part of a fence
+or wall step can now be aimed at and collides where it is drawn. Stone, cobblestone, the rocks and the sandstones take the
+fence shape.
+
+**0.85142.** A fence or wall no longer slopes up or down a step through a whole block: one over the lower post or under
+the higher one stops the slope.
+
+**0.8515.** More block variants: adobe circle, terracotta soot brick, carved bone, carved sulfur, carved thatch and thatch
+brick (thatch's two sit on the hay bale's bar).
+
+**0.8516.** Every kind of planks has a brick variant.
+
+**0.8517.** Polished bone block variant.
+
+**0.852.** Vines hang on the giant jungle trees (new worlds) and grow down over time; climbable. Shears used on a vine cut
+it there: it stops growing and what hangs under it comes off. Mossy variants take a vine to place; chests, benches,
+beds and furnaces take planks or rock of their kind (see Variants). A metal chest is now a chest and 3 iron, copper or
+gold ingots; placing it takes a block of its metal.
+
+**0.8521.** Plates, covers and fences laid in another block's cell give back what their pick took (a mossy one's vine).
+
+**0.8525.** More mossy variants, each taking a vine: adobe, terracotta roof, cobblestone brick, sandstone brick, and dirt
+(grass does not grow over mossy dirt).
+
+**0.8526.** Dirt also coarse and frozen. Mossy brick for the sulfur block, thatch, red and pink sandstone and every
+planks (each takes a vine).
+
+**0.8527.** Cracked variants: adobe, obsidian, and each sandstone (plain and brick).
+
+**0.8491.** A new quest before the last one: **defeat the Dead Pharaoh** (7500 XP). Both boss quests show a crown
+marker on the nearest boss of their kind or its lair (pyramid or castle). In a world made before the pyramids (or with
+structures off) the quest passes by itself and still pays. Each boss kind beaten is a stack of **boss boost**, +20% XP
+each (one boss x1.2, both x1.4).
+
+**The Dead Pharaoh (0.849), the summer boss.** His **great pyramid** stands, rarely, on the Deep Red Desert Flat (new
+worlds), and he waits inside it. Near him (32 blocks) the **summer curse** grows a stack every 5 seconds, up to 20: each
+takes 10% off your mining speed (from 10 stacks you cannot mine at all), 2% off your heat resistance and 1% off your
+damage reduction, and while it is on you no TNT goes down. Away from him one stack falls every 5 seconds; all of them go
+when he dies. He throws **cursed scrolls**, **dashes** at you and shoves you back (then walks slowly back to his place),
+and calls up **four mummies** at a time out of the floor, mummies the sun does not burn. At half his health he **rises in
+a storm of sand** and comes down enraged: the **pharaoh's curse** fills your eyes with sand for 10 seconds (you see a few
+blocks), he and his mummies hit 20% harder, he throws three scrolls at once, and now and then his **golden wand** flies
+round him, spinning: it hits and pushes you away. Killed, he gives a level of boss boost, his mummies fall to dust and
+both curses lift; his pyramid stays empty. With F3 open, Shift+F8 still calls one in front of you.
+
+**0.84883.** Zombies that rise in the deserts are **mummies**, wrapped in old linen. The summer boss, the **Dead
+Pharaoh**, has its look: calm, and enraged from half its health (dark skin, red burning eyes); it does not fight yet
+(with F3 open, Shift+F8 calls one). **Middle mouse button**: the block you aim at into your hand: its hotbar slot if it
+has one, else (creative) a stack of it, or (survival) the stack you carry moved to the hotbar. **Ctrl + middle button**:
+only for a block in your hotbar, picked with the look and the chisel shape of the one you aim at (survival: looks need
+the chisel worn, shapes the hammer). TNT blasts 30% wider. Fire on a hay bale smokes; lit in creative, or laid by a
+structure, it burns for good without spreading or burning the hay. The structure block's frame marks its middle in
+orange.
+
+**0.84884.** New worlds: the **Deep Red Desert Flat**, wide open plains of red sand inside the Deep Red Desert (patches
+about 150-250 blocks across, a quarter of it): no tables, ridges, hoodoos or bones, only the desert's low roll. The
+summer boss's great pyramid will stand there. The structure block now saves what the signs in it say. Closing or
+reloading the page with a world open asks first whether to leave when it has changed since its last save.
 
 Glass shapes are see-through like the full block (0.8261), and since 0.8263 glass shows through other glass from every side. Every look of a block (brick, polished, mossy...) takes exactly the shapes its plain block takes (0.8263).
 
@@ -723,6 +985,25 @@ A cover placed over a hole becomes a lid flush with the ground; in a doorway (wa
 sits flush with the wall on your side; anywhere else it lies against the face you clicked. Mobs
 fall through it too.
 
+**Covers on other blocks (0.84885)**, like facades in Applied Energistics. A cover can also go into the cell of a
+block that is not a whole one (a slab, stairs, a fence, a wall, a pane, a carpet or layer, a chest, a sign, a plant, a
+torch, another cover), one on each of the cell's six sides, so a fence or a chest boxed in by six looks like a whole
+block. Each one is cut to the room it has: it sits on a slab or a carpet, fills the free part beside a stair's step,
+leaves a hole for a fence post's tip, and over a chest it is half as thin. Click a face inside the cell (a fence post, the
+top of a slab, a chest's front) and the cover goes on that side of it; click a cover's broad face near one of its edges
+to put the next one on that edge's side. A cover keeps its own block: broken by itself, it drops that block. Break what
+holds the covers and one of them takes the cell. A chest does not open from the side a cover lies in front of, and not at all
+with a cover over its lid. A torch on top no longer counts as covering a chest, a bench, a mortar or a furnace's chimney.
+The structure block saves these covers with a prefab.
+
+**The doorway trap (0.84886).** Sand, red sand, gravel or a hay bale resting on a door falls the moment the door opens,
+down past the open panel, and stays in the doorway as a whole block: the way is shut. A door something has fallen into
+cannot be opened or shut by hand any more (a pressure plate still swings it). Break the block to free the doorway; what
+was piled over the door falls in again. Someone standing in the doorway is pushed out of it to their own side as the
+block comes down. Sand put on a door already open falls in too, and so does a full pile of sand. A plate on a stair's lower step or on a slab also opens a door one level up beside it (the
+top of the stairs). A door picked on the hammer
+shows as a door in your hand and in its slot.
+
 ## Block variants
 
 The **iron chisel** (bench: 5 iron ingots, 4 copper nuggets, 2 sticks, 1 fiber block, 5 string) is worn in the
@@ -733,15 +1014,21 @@ looks of the block in your hand, drawn in the picked shape, the plain block in t
 and scroll, or hold D-pad Right and press LB / RB, to step through them. Tap `R` or D-pad Right twice to
 go back to the plain block. The
 pick changes every one of that block you carry (no separate stacks), is not saved, and a variant
-breaks back into the plain block. Stone: brick, mossy brick, polished, band, pillar, carved. Cobblestone: mossy.
-Sulfur block: brick. Granite, marble, limestone, dolomite: brick, mossy brick, polished, band, pillar, carved (a pillar lies along the face you place it on, like a log). Terracotta (the old bricks block): brick, carved, roof. Variants take the
-same shapes as their plain block. Glass: dark, greenhouse, brick, dark brick. Adobe: brick, carved. Each sandstone: brick,
-polished, carved. Snow and ice: brick, snow-ice brick, carved. Obsidian: carved, brick. Hay bale: thatch (0.8469).
-A hay bale falls like sand since 0.8469 and lands whole; thatch, and hay slabs and stairs, stay where they are put.
+breaks back into the plain block. Stone: brick, mossy brick, polished, band, pillar, carved. Cobblestone: mossy, mossy brick.
+Dirt: mossy, coarse, frozen.
+Sulfur block: brick, carved, mossy brick. Bone block: brick, carved, polished. Granite, marble, limestone, dolomite: brick, mossy brick, polished, band, pillar, carved (a pillar lies along the face you place it on, like a log). Terracotta (the old bricks block): brick, carved, roof, soot brick, mossy roof. Variants take the
+same shapes as their plain block. Glass: dark, greenhouse, brick, dark brick. Adobe: brick, carved, circle, mossy, cracked. Each sandstone: brick,
+polished, carved, mossy brick, cracked, cracked brick. Snow and ice: brick, snow-ice brick, carved. Obsidian: carved, brick, cracked. Hay bale: thatch, carved thatch, thatch brick, mossy thatch brick. Every planks: brick, mossy brick.
+A hay bale falls like sand since 0.8469 and lands whole; thatch and its looks, and hay slabs and stairs, stay where they are put.
 Mortar and pestle: a granite, marble or limestone bowl. Gem clusters: a stone, granite, marble, limestone or dolomite bed.
 Furnace: granite, marble, limestone or dolomite. Crafting bench: birch, acacia, cherry or dark wood.
 Chest: birch or spruce (only two chests of the same wood join into a double chest).
 Bed (0.8342): an oak, birch or spruce frame; a new look, half a block tall on four legs.
+Since 0.852 some picks take one more thing as they go down, shown under their slot on the bar (dim when you have
+none) and in the tooltip, and give it back when broken: every mossy look a vine; a chest, a crafting bench or a bed
+(the oak one too) 1 planks of its wood; a furnace (stone too) 1 block of its rock; a metal chest a block of its metal.
+Creative takes nothing. Blocks found in the world give nothing extra back. Since 0.8521 a mossy plate, cover or
+fence laid in another block's cell gives its vine back too.
 
 ## Seasons and weather
 
@@ -894,11 +1181,11 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 | Iron hammer | 1 iron block, 8 copper nuggets, 4 sticks, 2 fiber blocks, 10 string | Bench |
 
 **Cloth** is spun from 20 fiber at the bench and goes into beds, backpacks and metal tools. A
-**leather backpack** adds two more rows of carrying space, a **leather belt** five quick slots. Both show on
+**leather backpack** adds four more rows of carrying space, a **leather belt** two hotbar slots. Both show on
 your body: the pack on your back with its straps over the chest, the belt round your waist.
 
 After a death you come back with full health, stamina and oxygen, but food, thirst, energy, fruit, vegetables and protein at 75% (0.833; half in 0.8324). Sleeping in a bed sets your respawn point and, once everyone is in bed, runs the night past as a 10 s time-lapse to sunrise (0.8323; getting up stops it). Stuck? The pause menu's **Respawn** (keep the cursor on it 1 s, then click) kills you on the spot, once every 20 minutes. Hold `Shift` in the crafting list to
 craft as many as you can afford in one click.
 
-**Chests** hold 3 rows; a double chest 7 (0.829, 5 and 10 before; anything past that falls out when you open it). A metal
-chest 6, a double 13 (0.843; it scrolls: mouse wheel or right stick).
+**Chests** hold 2 rows; a double chest 5. A metal chest 4, a double 9 (0.84825; anything past that falls out when you
+open it). The chest's window fits its chest, never taller than the equipment's, and never scrolls.

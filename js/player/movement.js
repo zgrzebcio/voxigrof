@@ -298,6 +298,26 @@ function rayBox(o, d, X0, Y0, Z0, X1, Y1, Z1) {
    by hand. Reads `player.canFly` (the creative flag) live, per ray. */
 const _plantsTargetable = () => !!(typeof player !== 'undefined' && player && player.canFly);
 
+/* A fence's or a wall's step reaches out of its cell, half a block under or over it (a whole one toward a gate): a ray asks
+   the cells over and under the one it is in for their steps (joinPickAt, chunks/block-access.js; a rail's railBoxesAt), and
+   takes a hit only inside its own cell (t0 to t1), so what lies nearer along the ray is met first. The hit is on that cell. */
+function _joinReachHit(origin, dir, x, y, z, t0, t1) {
+  let best = null;
+  for (let k = -1; k <= 1; k += 2) {
+    const yy = y + k, v = getBlock(x, yy, z), p = PROPS[v & 255];
+    let boxes = p && p.raycast ? joinPickAt(x, yy, z, v) : null, over = false;
+    if (!boxes && _railOverN && railOverAt(x, yy, z)) { boxes = railBoxesAt(x, yy, z); over = true; }
+    if (!boxes) continue;
+    for (const bb of boxes) {
+      const h = rayBox(origin, dir, x+bb[0], yy+bb[1], z+bb[2], x+bb[3], yy+bb[4], z+bb[5]);
+      if (!h || h.t < t0 - 1e-6 || h.t > t1 || (best && h.t >= best.t)) continue;
+      best = over ? { x, y: yy, z, nx: h.nx, ny: h.ny, nz: h.nz, id: railOverAt(x, yy, z) & 255, bi: RAIL_OVER_BI, over: true, t: h.t }
+                  : { x, y: yy, z, nx: h.nx, ny: h.ny, nz: h.nz, id: v & 255, bi: 0, t: h.t };
+    }
+  }
+  return best;
+}
+
 // Amanatides & Woo voxel traversal; skips non-raycastable blocks (water can never be targeted).
 // For non-cube models (slabs) it refines the cell hit against the real sub-boxes, so aiming
 // through a slab's empty upper half passes through instead of falsely targeting the cell.
@@ -312,6 +332,39 @@ function raycastVoxel(origin, dir, maxDist) {
   let tEnter = 0;                     // distance along the ray at which we entered the current cell
   for (let i = 0; i < 256; i++) {
     const b = getBlock(x, y, z), id = b & 255, prop = PROPS[id];
+    /* a pressure plate lying in this cell, on what holds it (blocks/pressure-plates.js): aimed at unless the block holding it
+       is met first, and even where that block is not (a plant in survival). `over` and its `bi` tell the rest so.
+       One buried under a layer stack is hidden: the ray passes it. */
+    let ph = null, phBi = PLATE_OVER_BI;
+    const pov = _plateOverN ? plateOverAt(x, y, z) : 0;
+    const pbx = pov && !((pov >> 8) & PLATE_BURIED) ? plateOverBoxesAt(x, y, z) : null;
+    if (pbx) for (const bb of pbx) {
+      const h = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
+      if (h && h.t <= maxDist && (!ph || h.t < ph.t)) ph = h;
+    }
+    // ...and the covers lying in it, one a side (blocks/covers.js): bi COVER_OVER_BI + the side
+    const cbx = _coverOverN ? coverBoxesAt(x, y, z) : null;
+    if (cbx) for (let s = 0; s < 6; s++) if (cbx[s]) for (const bb of cbx[s]) {
+      const h = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
+      if (h && h.t <= maxDist && (!ph || h.t < ph.t)) { ph = h; phBi = COVER_OVER_BI + s; }
+    }
+    // ...and a block fallen into a doorway (blocks/doors.js): bi DOOR_FILL_BI
+    const fbx = _doorFillN ? doorFillBoxesAt(x, y, z) : null;
+    if (fbx) for (const bb of fbx) {
+      const h = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
+      if (h && h.t <= maxDist && (!ph || h.t < ph.t)) { ph = h; phBi = DOOR_FILL_BI; }
+    }
+    // ...and a fence or a wall lying in it, on a slab or stairs (blocks/rails.js): bi RAIL_OVER_BI
+    /* (its steps reach out of the cell, and so do its boxes on a slab or stairs: taken only inside this cell, tOut; the cell
+       they reach into finds them through _joinReachHit) */
+    const tOut = Math.min(tX, tY, tZ, maxDist) + 1e-6;
+    const rbx = _railOverN ? railBoxesAt(x, y, z) : null;
+    if (rbx) for (const bb of rbx) {
+      const h = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
+      if (h && h.t <= tOut && (!ph || h.t < ph.t)) { ph = h; phBi = RAIL_OVER_BI; }
+    }
+    // ...and a fence's or a wall's step reaching into it from the cell over or under (a hit on that cell)
+    const jh = _joinReachHit(origin, dir, x, y, z, tEnter, tOut);
     /* `noTarget` blocks are see-through to the crosshair in SURVIVAL: the ray passes straight
        on, because bush pickup is what gathers them. Kept separate from `raycast:false` because
        that flag also drops a block from the creative palette (13-actions builds PLACEABLE from
@@ -324,16 +377,19 @@ function raycastVoxel(origin, dir, maxDist) {
       const boxes = rayBoxesAt(x, y, z);                     // neighbour-aware (stair corners) box list
       if (!boxes) return { x, y, z, nx, ny, nz, id, t: tEnter };   // full cube: cell hit is the face hit
       let best = null, bestI = 0;                            // slab etc: refine against sub-boxes
+      const sh = CORE.shapeOfVal(b), tMax = sh === 'fence' || sh === 'wall' ? tOut : maxDist;   // a step's reach: as rails'
       for (let bi = 0; bi < boxes.length; bi++) {
         const bb = boxes[bi];
         const hit = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
-        if (hit && hit.t <= maxDist && (!best || hit.t < best.t)) { best = hit; bestI = bi; }
+        if (hit && hit.t <= tMax && (!best || hit.t < best.t)) { best = hit; bestI = bi; }
       }
       // a mixed slab is the block of the half aimed at: its hardness, its sound, its name
       const mix = typeof slabMixIdsAt === 'function' ? slabMixIdsAt(x, y, z, b) : null;
-      if (best) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] & 255 : id, bi: bestI, t: best.t };
+      if (best && (!ph || best.t <= ph.t) && (!jh || best.t <= jh.t)) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] & 255 : id, bi: bestI, t: best.t };
       // no box hit in this cell -> keep traversing
     }
+    if (ph && (!jh || ph.t <= jh.t)) return { x, y, z, nx: ph.nx, ny: ph.ny, nz: ph.nz, id: overValAt(x, y, z, phBi) & 255, bi: phBi, over: true, t: ph.t };
+    if (jh) return jh;
     if (tX < tY && tX < tZ) { if (tX > maxDist) return null; tEnter = tX; x += stepX; tX += dtX; nx = -stepX; ny = 0; nz = 0; }
     else if (tY < tZ)       { if (tY > maxDist) return null; tEnter = tY; y += stepY; tY += dtY; nx = 0; ny = -stepY; nz = 0; }
     else                    { if (tZ > maxDist) return null; tEnter = tZ; z += stepZ; tZ += dtZ; nx = 0; ny = 0; nz = -stepZ; }

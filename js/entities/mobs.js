@@ -6,7 +6,8 @@
      mobOf(e)                      the entry of a creature
 
    Each creature's own file adds its entry with defineMob, at its end (sheep.js, cow.js, pig.js, horse.js,
-   polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js, termite.js). A creature's numbers, what the
+   polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js, termite.js, otter.js, tumbleweed.js,
+   meerkat.js). A creature's numbers, what the
    save keeps of it, what it drops and where it lives are all in that one entry: the files named below read them
    from here, so none of them lists the kinds itself.
 
@@ -17,7 +18,11 @@
        group      'animal', 'monster', 'villager', 'fish' or 'boss': who a world made without animals or without
                   monsters leaves out, whose meat the Butcher skill adds to, what a hound's kill counts as
        body       what moves it: 'grazer' (four legs, entities/grazers.js), 'fish' (entities/fish.js), 'humanoid'
-                  (entities/update.js), 'insect' (entities/termite.js) or 'boss' (entities/frozen-king.js)
+                  (entities/update.js), 'insect' (entities/termite.js), 'otter' (entities/otter.js) or 'boss'
+                  (entities/frozen-king.js)
+       step       (e, dt, tp, i) => its own step, taken instead of any body's (updateEntities hands it over after the
+                  shared bookkeeping; `tp` the nearest player, `i` its place in ENTITIES): the meerkat, the tumbleweed.
+                  A new kind with a step of its own needs no line in updateEntities
        night      true: it comes with the dark, burns at dawn and is never saved (zombie, skeleton)
        unsaved    true: never saved, something else brings it back (a termite hill its termites)
 
@@ -30,6 +35,11 @@
        walk       strolling speed, blocks a second
        flee       a grazer's bolting speed, before FLEE_SPEED_MUL (entities/grazers.js)
        fleeTime   seconds it bolts after a blow (entities/combat.js). Not given: it does not bolt
+       hungerMul  how fast its hunger drains (entities/update.js; a ridden horse's too, entities/grazers.js): 0.5 = half as
+                  fast, the kinds that can be tamed (horse, hellhound, otter, meerkat). Not given: 1
+       fleeTogether  blocks: a blow sends every wild one of its kind within that many off with it (the otter)
+       passive    true: a blow never sets it on the player, it bolts as a grazer does (one whose body is its own)
+       xp         0: killing it pays nothing and is not told as a kill (a tumbleweed). Not given: mobKillXP
        chase      a humanoid's speed after its target (entities/update.js)
        reach      how far its blow reaches, edge to edge. Not given: MONSTER_MELEE_REACH (entAttackRange)
        fallSafe   blocks of fall it shrugs off. Not given: ENT_FALL_SAFE (entities/physics.js)
@@ -60,6 +70,18 @@
                   fleece, a cow's or pig's coat). A new creature does not need it
        load       (s) => the creature made again. `s`: x, y, z, hp, name, hx, hz (checked: a bad hp or name is
                   undefined), inv, woolly, variant (as they were written), d (the `save` object, {} if none)
+
+     somebody's (a tamed one)
+       spared     true: its owner's swing passes it by (player/combat.js)
+       prompt     (e) => the lines under the crosshair within reach, HTML (ui/animals.js tameablePrompt). Not given: the
+                  tameable table's (entities/taming.js), or nothing
+       subText    (e) => the second line of the name over it (ui/animals.js entitySubText)
+
+     its voice
+       sounds     { say, hurt, eat, step }: each { key, rate, gain, vary }, a sound key (32-sound.js) and how fast it plays,
+                  which pitches it (mobSound below); `gain` scales how loud (1), `vary` how far the rate wanders each time
+                  (0.1 = 5% either way). `hurt` plays on a blow, `say` on a pat and now and then, `step` instead of the
+                  block's footstep (entityStepSound). Not given: no voice, the block's footsteps
 
      what it leaves (entities/loot.js)
        loot       (e, pop, first, byPlayer) => drops what it leaves when it dies. pop(id, n) drops n;
@@ -124,3 +146,12 @@ const isNightMob = (e) => mobOf(e).night === true;       // zombie, skeleton
 const isAnimal   = (e) => mobOf(e).group === 'animal';   // sheep, cow, pig, horse, polar bear
 // "killed a polar bear": the line a kill's XP is paid under
 const mobKillText = (e) => 'killed a ' + mobOf(e).name.toLowerCase();
+// one of a creature's own sounds (its entry's `sounds`), at it, pitched by its rate; false when its kind has none
+function mobSound(e, what, gain = 0.7) {
+  const s = mobOf(e).sounds, snd = s && s[what];
+  if (!snd) return false;
+  const vary = snd.vary ?? 0.1;
+  playSound(snd.key, { gain: gain * (snd.gain ?? 1), rate: (snd.rate || 1) * (1 - vary / 2 + Math.random() * vary), pitch: true,
+                       pos: { x: e.x, y: e.y + 0.5, z: e.z } });
+  return true;
+}

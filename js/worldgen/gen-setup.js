@@ -19,6 +19,22 @@ corePart('gen.make', function () {
        more lava mushrooms (LAVA_SHROOM_CH, worldgen/cave-floors.js). Each only raises its roll's threshold: what an older rev
        placed is still placed */
     const REV37 = biomeRev >= 37, WEB_CH = REV37 ? 0.003125 : 0.0025, LAVA_POOL_CH = REV37 ? 0.104 : 0.08, LAVA_SHROOM_CH = REV37 ? 0.021 : 0.015;
+    /* rev 38: clams on warm sea floors, CLAM_TOP and under (worldgen/desert-and-shore-plants.js), in beds CLAM_BED_F across;
+       each one a CLAM_CH chance in a bed. Rolled on hashes of place only, after everything else on the floor */
+    const REV38 = biomeRev >= 38, CLAM_TOP = 93, CLAM_CH = 0.05, CLAM_BED_F = 0.03;
+    // rev 39: no two clams nearer than CLAM_APART blocks (of the places the hashes pick, the one ranked higher keeps it)
+    const REV39 = biomeRev >= 39, CLAM_APART = 5;
+    // rev 40: coal, iron, copper and tin lie higher, their veins' best band and top moved up (ORE_HIGH, worldgen/underground.js)
+    const REV40 = biomeRev >= 40;
+    /* rev 41: wild carrots, small patches on the mild (level 0) plains, mostly in the flowery meadows: a CARROT_MEADOW
+       chance a chunk there, CARROT_PLAINS on the rest of the plains (worldgen/ground-plants.js); about wild wheat's rate on
+       that land (its two tries of 0.144 / 0.0288) */
+    const REV41 = biomeRev >= 41, CARROT_MEADOW = 0.29, CARROT_PLAINS = 0.058;
+    /* rev 44: sugar cane CANE_HOT_MUL times as often on a shore by the Jungle, a desert (sand or red sand) or the Savanna: the
+       shore column or one within 2 of it (worldgen/desert-and-shore-plants.js). It only raises the seed chance there */
+    const REV44 = biomeRev >= 44, CANE_HOT_MUL = 2.5;
+    // rev 45: vines on the giant jungle trees, down their trunks and from their leaves (woods/jungle-trees.js, gen-jungle.js)
+    const VINES = biomeRev >= 45;
     const TALL_SPRUCE = biomeRev >= 6;                // spruce forest trees on a bare stem
     const LADDER = biomeRev >= 7;                     // the climate ladder (biomes/biomes.js)
     const SPIKES = biomeRev >= 9;                     // the Ice Spikes biome and the snow's icebergs
@@ -52,7 +68,7 @@ corePart('gen.make', function () {
     biome's name (biomeAt) and the sub-biome masks — live in biomes/biomes.js since 0.823 (BIOME_CORE, shipped into the
     worker beside this core). */
     const bio = BIOMES.makeBiomes({ noise2, fbm, smooth01, seedInt, WATER_LEVEL, FLAT, FLAT_TOP, biomeRev });
-    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2, DBEACH, DB_SAND, DB_BAND } = bio;
+    const { terrainInfo, heightAt, biomeAt, birchAt, snowForestAt, iceSpikesAt, climAt, SHORES, shoreKindAt, shoreWidth, HILLS, UPLAND, RIV2, FALLS, DIVIDE, RIME, RIME2, DESERT2, DESERT3, DRYLAND, SAVANNA, SAV2, DBEACH, DB_SAND, DB_BAND, JUNGLE } = bio;
     /* The desert update (0.84, rev 21, biomes/biomes.js): the Deep Desert's rock is banded sandstone from DD_ROCK_FROM up,
        a band of red every DD_BAND layers (ddStrata: `off` wobbles the bands by column). Rev 22 by its half,
        `kind`: 1 the Deep Desert, sandstone with a thin red band every DD_BAND_Y; 2 the Deep Red Desert, red sandstone

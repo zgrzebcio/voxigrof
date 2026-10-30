@@ -154,6 +154,8 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
 
   // a cow being milked stands where it is for as long as the bucket is held under it (updateMilking in entities/taming.js)
   if (e._milkHold > 0) { e._milkHold -= dt; moveSpeed = 0; }
+  // ...and a horse or a hellhound eating (entEatStart, entities/entities.js) stands till it is done; a rider still drives
+  if (e._eatT > 0 && !e.rider && !(e.fleeT > 0)) moveSpeed = 0;
 
   /* ---- move ---- */
   let moved = 0;
@@ -269,8 +271,10 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
   /* a horse that minds a player (horseLooksAt, entities/taming.js: one it was tamed or won over by, one holding
      what it eats, one who just petted it) turns its head to them, and keeps it up while it does */
   const lookP = horse ? horseLooksAt(e, tp) : null;
+  // a horse eating from the hand (entEatStart, entities/entities.js): the food in its mouth, chewing aloud
+  const eating = horse && entEatStep(e, dt, m.muzzle, HORSE_EAT_AT, 0.8);
   const dipTo = bear ? (e.atkAnimT > 0 ? 0.7 : e.state === 'chase' ? -0.15 : e.state === 'idle' ? 0.35 : 0.1)
-              : horse ? ((e.state === 'idle' && !e.rider && e.fleeT <= 0 && e.onGround && !lookP) ? 1 : 0)
+              : horse ? (eating ? HORSE_EAT_DIP : (e.state === 'idle' && !e.rider && e.fleeT <= 0 && e.onGround && !lookP) ? 1 : 0)
               : cow ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.55 : 0)
               : pig ? ((e.state === 'idle' && e.fleeT <= 0 && e.onGround) ? 0.75 : 0)
                     : ((e.chewT > 0) ? 0.9 : 0);   // a sheep chewing what it just cropped
@@ -282,6 +286,11 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
     animateQuadruped(m, e.walk, swing,
                      HORSE_NECK_REST + (HORSE_NECK_GRAZE - HORSE_NECK_REST) * e.headDip);
     m.head.rotation.y = _entHeadTurn(e, lookP, dt, m.root.rotation.y);   // its head to the side, toward them
+    /* chewing, what it was handed or the grass it crops: the muzzle (its jaw) works up and down, the neck nods with it */
+    const chewing = eating || (!e.rider && e.headDip > 0.7 && e.onGround);
+    const now = performance.now() / 1000;
+    if (eating) m.head.rotation.x += Math.sin(now * 11) * 0.04;
+    if (m.muzzle) m.muzzle.position.y = (HORSE_MUZZLE_Y + (chewing ? Math.sin(now * 11) * 0.45 - 0.25 : 0)) * PX;
     /* Lying down (the 'lie' stance): eased; the legs fold forward along the ground and the body comes
        down onto them (HORSE_LIE_DROP of the model's own units, under its scale). */
     const lieTo = (e.tame && e.stance === 'lie' && !e.rider && !(e.fleeT > 0) && e.onGround && !inWater) ? 1 : 0;
@@ -293,7 +302,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
        Grazing is the idle head-dip it already does — standing on grass with its nose down now
        actually feeds it (the turf is left alone: a horse in your garden must not strip it to
        dirt the way a sheep does). A rider at speed burns it faster; a full belly heals. */
-    if (e.rider && spd > 0.5) e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * (HORSE_RIDE_HUNGER - 1) * dt);
+    if (e.rider && spd > 0.5) e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * (mobOf(e).hungerMul ?? 1) * (HORSE_RIDE_HUNGER - 1) * dt);
     if (!e.rider && e.headDip > 0.7 && e.onGround &&
         (getBlock(Math.floor(e.x), Math.floor(e.y - 0.02), Math.floor(e.z)) & 255) === B.GRASS)
       e.hunger = Math.min(ENT_HUNGER_MAX, entHunger(e) + HORSE_GRAZE_RATE * dt);

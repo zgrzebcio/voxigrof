@@ -10,6 +10,7 @@ const rawMouseSel = document.getElementById('rawMouseSel');   // Options > Gamep
 const wrongToolSel = document.getElementById('wrongToolSel'); // ...and the wrong-tool hint
 const arachnoSel = document.getElementById('arachnoSel');     // ...and Arachnophobia
 const shadowSel = document.getElementById('shadowSel');
+const shadowQSel = document.getElementById('shadowQSel');
 const splitDirSel = document.getElementById('splitDirSel');
 let playing = false;
 let lockTimer = 0, lockTries = 0;
@@ -144,6 +145,7 @@ function applySettings() {
   if (sd !== simRadius) { simRadius = sd; localStorage.setItem('vg_sim', sd); }
   const sr = parseInt(shadowSel.value);
   if (sr !== shadowR) { shadowR = sr; applyShadowDist(); }
+  if (shadowQSel) applyShadowQuality(shadowQSel.value);   // 07-sky.js: nothing done when it is the same
   applySplitDir();
 }
 /* Split screen membership is per-world and driven by the pause-menu roster (see 37-profiles.js).
@@ -180,7 +182,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
               // 0.837, fixed at creation: off = always noon / a clear sky / no clouds / no animals / no monsters
               dayNight: !!newDayNightChk.checked, weather: !!newWeatherChk.checked, clouds: !!newCloudsChk.checked,
               animals: !!newAnimalsChk.checked, monsters: !!newMonstersChk.checked,
-              biomeRev: 37,                         // 37: a quarter more cobwebs, 30% more cave lava pools, 40% more lava mushrooms; 36: a flatter Savanna with more tall grass and tall dry grass, a tenth more ore (not coal); 35: a quarter fewer caves, smaller pink patches on deep beaches; 34: half the pink beaches, waters a step or two apart join; 33: no Dryland or Savanna under 16 blocks across; 32: wider Dryland and Savanna, fewer acacias and termite hills, wheat by the climate; 31: deep beaches on warm big-ocean coasts, palms on sandy dirt; 30: the Savanna a big biome, its termite hills fewer and apart; 29: half the grass plants short grass; 28: the Savanna (acacias, termite hills) at the Dryland's hot edge; 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
+              biomeRev: 45,                         // 45: vines on the giant jungle trees; 44: two and a half times the sugar cane on shores by the Jungle, the deserts and the Savanna; 43: the Jungle, in wet patches of the hot land, with its trees and cocoa; 42: the Deep Red Desert Flat, open plains in the Deep Red Desert; 41: wild carrots on the mild plains; 40: coal, iron, copper and tin higher up; 39: clams 5 blocks apart; 38: clams on warm sea floors; 37: a quarter more cobwebs, 30% more cave lava pools, 40% more lava mushrooms; 36: a flatter Savanna with more tall grass and tall dry grass, a tenth more ore (not coal); 35: a quarter fewer caves, smaller pink patches on deep beaches; 34: half the pink beaches, waters a step or two apart join; 33: no Dryland or Savanna under 16 blocks across; 32: wider Dryland and Savanna, fewer acacias and termite hills, wheat by the climate; 31: deep beaches on warm big-ocean coasts, palms on sandy dirt; 30: the Savanna a big biome, its termite hills fewer and apart; 29: half the grass plants short grass; 28: the Savanna (acacias, termite hills) at the Dryland's hot edge; 27: about half of the river and lake shores level with the water, mostly the sand; 24: 70% fewer skeletons in the Dryland; 23: the Dryland; 22: the Deep Red Desert half, mountain halls, tunnels and deep shafts, red desert gold, desert mine shafts; 21: the Deep Desert, oases, palms, dry plants, desert sandstone, desert bones and hoodoos; 20: the Coldest Deep Snow split in two (its Forest, and flatter open snow), mushrooms by tree kind; 19: the Coldest Deep Snow, rime trees and ice shapes; 9: the Ice Spikes biome and the snow's icebergs; 10: Snowy Hills, bigger icebergs; 11: oceans 3x bigger, rivers that flow to the sea; 12: taller land, mountains to ~240; 13: shores of turf, sand, gravel and rock; 14: hills, crags, cliffs, no puddles, beaches to 10 wide; 15: rivers and lakes at their own height, rooms, tunnels, cave mouths, arches, overhangs; 16: rivers out of lakes into lakes or the sea, bigger longer lakes, gentler shores; 17: flat-topped mountains, mountain valleys, waterfalls, spruce forms; 18: divides between waters, shared basin lakes, gentler lake shores, Hills names, half the plains, mountain oaks                          // bigger snow and desert biomes, fewer desert hills, pink beaches, bigger biomes, deep and spruce forests, fewer oceans (biomes/biomes.js), tall spruce forest trees, the climate ladder, every biome twice as big; older worlds keep theirs
               createdVersion: APP_VERSION, lastVersion: APP_VERSION,   // the game's alpha number
               created: Date.now(), lastPlayed: Date.now() };
   WORLDS.unshift(w);
@@ -212,6 +214,7 @@ function quitToMenu() {
      screen reopens when this world is loaded again. */
   for (const el of document.querySelectorAll('#deathScreen')) { el.style.display = 'none'; el.parentElement?.classList.remove('dying'); }
   toast('world saved');
+  if (typeof clearPetTags === 'function') clearPetTags();   // its tamed animals' name tags go with it (ui/animals.js)
   currentWorld = null;
   pendingRestore = null;
   pendingWorldRestore = null;
@@ -250,7 +253,8 @@ document.addEventListener('pointerlockchange', () => {
     /* ...and never while a world is still loading: the pause menu would open over the loading
        screen. The loss is noted instead, and once the world is in the game pauses only if the window
        is still minimised or in the background (see the end of loading in 22-main-loop.js). */
-    if (playing && !invOpen && !player.dead) {
+    // ...nor when a dialog with a text field let it go to be typed into (the waypoint's, an animal's name: ui/waypoints.js)
+    if (playing && !invOpen && !player.dead && !(typeof textDialogOpen === 'function' && textDialogOpen())) {
       if (worldJoining()) pauseAfterJoin = true;
       else setPlaying(false);
     }
@@ -292,10 +296,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'F1') { e.preventDefault(); toggleFullscreen(); return; }
   if (e.code === 'F2') { e.preventDefault(); if (playing) cycleCameraView(); return; }
   if (e.code === 'F3') { e.preventDefault(); toggleDebugHud(0); return; }   // keyboard is seat one
-  // F8 with F3 open: summon the Frozen King in front of you, until his castle exists (entities/frozen-king.js)
+  // F8 with F3 open: summon the Frozen King in front of you, until his castle exists (entities/frozen-king.js); Shift+F8
+  // the Dead Pharaoh, until his pyramid exists (entities/pharaoh.js)
   if (e.code === 'F8') {
     e.preventDefault();
-    if (!e.repeat && typeof bossDebugSummon === 'function' && !debugHudHidden(0)) bossDebugSummon();
+    if (e.repeat || debugHudHidden(0)) return;
+    if (e.shiftKey) { if (typeof pharaohDebugSummon === 'function') pharaohDebugSummon(); }
+    else if (typeof bossDebugSummon === 'function') bossDebugSummon();
     return;
   }
   // Backspace: hide every piece of HUD and the hand for a clean view, again to bring them back.
@@ -346,13 +353,19 @@ document.addEventListener('keydown', (e) => {
   // Y with the inventory open throws from the hovered slot: one, or the whole stack with Shift
   if (e.code === 'KeyY' && invOpen) { if (!e.repeat || !e.shiftKey) dropHovered(e.shiftKey ? 'all' : 1); return; }
   if (e.code === 'KeyY' && !e.repeat && !invOpen) { dropFromHotbar(e.shiftKey ? 'stack' : 1); return; }
+  // U: name a waypoint where you stand, or take yours away (ui/waypoints.js)
+  if (e.code === 'KeyU' && !e.repeat && !invOpen) { openWaypointDialog(player); return; }
+  // F: the hand's item and the offhand's change places (40-shield.js)
+  if (e.code === 'KeyF' && !e.repeat && !invOpen) { swapOffhand(); return; }
   // KeyE (bush pickup) is HELD, not tapped — driven from the frame loop off `keys`, not here
   if (e.code === 'Space' && !e.repeat && !invOpen) jumpTap();
   if (e.code === 'KeyR' && !e.repeat && !invOpen && typeof variantBindTap === 'function') variantBindTap();   // double tap: default
   if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && !e.repeat && !invOpen) player.fast = !player.fast;
-  if (!invOpen && e.code.startsWith('Digit')) {
-    const n = +e.code.slice(5) || 10;                // 0 is the tenth slot (a belt's second)
-    if (n >= 1 && n <= hotbarLen()) hotbarSel = n - 1, updateHotbar();
+  // the hotbar stays where it is while both hands hold a live fish (player/fish-hold.js)
+  // 0 is the tenth slot (a belt's second), - and = creative's 11th and 12th (HOTBAR_KEY_CODES, player/inventory.js)
+  const hotKey = HOTBAR_KEY_CODES.indexOf(e.code);
+  if (!invOpen && hotKey >= 0 && !(typeof hotbarLocked === 'function' && hotbarLocked())) {
+    if (hotKey < hotbarLen()) hotbarSel = hotKey, updateHotbar();
   }
   if (e.code === 'BracketLeft')  { viewDist = clampi(viewDist - 1, 4, 32); distInput.value = viewDist; applyViewDist(); rebuildQueues(); }
   if (e.code === 'BracketRight') { viewDist = clampi(viewDist + 1, 4, 32); distInput.value = viewDist; applyViewDist(); rebuildQueues(); }
@@ -365,6 +378,7 @@ document.addEventListener('wheel', (e) => {
 }, { passive: false });
 document.addEventListener('wheel', (e) => {
   if (!playing || invOpen || player.dead || worldJoining() || player._benchWork) return;
+  if (typeof hotbarLocked === 'function' && hotbarLocked()) return;   // a live fish in both hands (player/fish-hold.js)
   /* While the shape radial is open the wheel turns ITS pages and the hotbar stays put —
      the ring covers the hotbar anyway, so scrolling the selection under it is invisible work. */
   if (typeof chiselWheel === 'function' && chiselWheel(e.deltaY)) return;
@@ -391,6 +405,8 @@ document.addEventListener('mousedown', (e) => {
   lastInputDevice = 'kbd';
   if (e.button === 0) mouseBreak = true;
   if (e.button === 2) mousePlace = true;
+  // the middle button: the block aimed at into the hand; with Ctrl its look and shape too (pickBlock, player/inventory.js)
+  if (e.button === 1) { e.preventDefault(); _asKeyboardSeat(() => pickBlock(e.ctrlKey)); }
 });
 document.addEventListener('mouseup', (e) => {
   if (e.button === 0) mouseBreak = false;
@@ -501,12 +517,15 @@ function invGamepad(g, dt, btn, edge) {
     if (list) list.scrollTop += ry * 700 * dt;
   }
   const hov = hoveredSlot();
-  if (edge(0) && hov) beginDrag(hov.region, hov.i);              // A press = pick up
-  if (edge(0) && !hov) {                                         // A on a craft button = craft
-    const el = document.elementFromPoint(invCursor.x, invCursor.y);
-    // craft or inventory buttons, the furnace book and its tabs
-    // ...and the skill tree's tabs and skills
-    const b = el && el.closest ? el.closest('.cbtn, .invBtn, .cqSlot, .fbookBtn, #furnTabs .ctab, .skTab, .skNode') : null;
+  /* A presses the button under the cursor: a recipe's, an inventory button, the inventory's own tabs (Equipment, the
+     Skill tree, the station), the furnace book and its tabs, the skill tree's tabs and skills. A slot only NEAR the
+     cursor (hoveredSlot reaches 34 px) does not take the press from a button the cursor is on. */
+  const atEl = edge(0) ? document.elementFromPoint(invCursor.x, invCursor.y) : null;
+  const atBtn = atEl && atEl.closest ? atEl.closest('.cbtn, .invBtn, .invTab, .cqSlot, .fbookBtn, #furnTabs .ctab, .skTab, .skNode') : null;
+  const onSlot = !!atBtn && !!slotAtPoint(invCursor.x, invCursor.y);
+  if (edge(0) && hov && (!atBtn || onSlot)) beginDrag(hov.region, hov.i);   // A press = pick up
+  else if (edge(0)) {                                            // A on a button = press it (a craft button crafts)
+    const b = atBtn;
     // X held on a recipe counts a batch out on the cursor instead of ordering one; letting X go orders it
     const row = b && b.classList.contains('cbtn') ? b.closest('.crow') : null;
     if (row && row._recipe && btn(2) && typeof craftPickAdd === 'function') { pad.xCombo = true; craftPickAdd(row._recipe); }
@@ -543,12 +562,14 @@ function invGamepad(g, dt, btn, edge) {
     if (edge(5)) cycleFurnBookCategory(+1);
   }
 }
+// the retired radial hidden: this runs every frame, so it is written only when it shows
+const _radialHide = () => { if (radialEl.style.display !== 'none') radialEl.style.display = 'none'; };
 function pollGamepad(dt) {
   const g = getPad();
   if (!g) {                                 // disconnected: release held pad actions
     pad.radialOpen = false;
     act.padBreak = act.padPlace = act.padPick = false;
-    radialEl.style.display = 'none';
+    _radialHide();
     return { mx: 0, mz: 0, up: false, dn: false };
   }
   const btn = (i) => !!(g.buttons[i] && g.buttons[i].pressed);
@@ -596,7 +617,7 @@ function pollGamepad(dt) {
       pad.prev = g.buttons.map(b => b.pressed);
       pad.radialOpen = false;
       act.padBreak = act.padPlace = act.padPick = false;
-      radialEl.style.display = 'none';
+      _radialHide();
       return { mx: 0, mz: 0, up: false, dn: false };
     }
   }
@@ -648,14 +669,14 @@ function pollGamepad(dt) {
     pad.prev = g.buttons.map(b => b.pressed);
     pad.radialOpen = false;
     act.padBreak = act.padPlace = act.padPick = false;
-    radialEl.style.display = 'none';
+    _radialHide();
     return { mx: 0, mz: 0, up: false, dn: false };
   }
   if (!playing) {
     pad.prev = g.buttons.map(b => b.pressed);
     pad.radialOpen = false;
     act.padBreak = act.padPlace = act.padPick = false;
-    radialEl.style.display = 'none';
+    _radialHide();
     return { mx: 0, mz: 0, up: false, dn: false };
   }
 
@@ -675,7 +696,7 @@ function pollGamepad(dt) {
     if (Math.hypot(sx, sy) > 0.4) chiselAim(sx, sy, true);
   }
   if (pad.trigBlock && val(6) <= 0.5 && val(7) <= 0.5) pad.trigBlock = false;
-  radialEl.style.display = 'none';
+  _radialHide();
 
   // look (right stick) — smoothed, disabled while the radial is open
   if (!pad.radialOpen) {
@@ -691,8 +712,10 @@ function pollGamepad(dt) {
   /* Bumpers cycle the hotbar — but while the shape radial is open they turn its pages instead
 , matching what the wheel does for mouse and keyboard. */
   // ...and with D-pad Right held they step the variant bar instead
-  if (edge(4)) { if (!(player._variantHold && stepHeldVariant(-1)) && !chiselRadialPage(-1)) { hotbarSel = (hotbarSel + hotbarLen() - 1) % hotbarLen(); updateHotbar(); } }
-  if (edge(5)) { if (!(player._variantHold && stepHeldVariant(1))  && !chiselRadialPage(1))  { hotbarSel = (hotbarSel + 1) % hotbarLen(); updateHotbar(); } }
+  // ...and not while both hands hold a live fish (player/fish-hold.js)
+  const _barStill = typeof hotbarLocked === 'function' && hotbarLocked();
+  if (edge(4)) { if (!(player._variantHold && stepHeldVariant(-1)) && !chiselRadialPage(-1) && !_barStill) { hotbarSel = (hotbarSel + hotbarLen() - 1) % hotbarLen(); updateHotbar(); } }
+  if (edge(5)) { if (!(player._variantHold && stepHeldVariant(1))  && !chiselRadialPage(1) && !_barStill)  { hotbarSel = (hotbarSel + 1) % hotbarLen(); updateHotbar(); } }
 
   // double-tap A toggles flying (same rule as double-tap Space); L3 toggles sprint
   if (edge(0)) jumpTap();

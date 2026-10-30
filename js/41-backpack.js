@@ -79,11 +79,11 @@ function syncBackpackCapacity() {
 
 /* ---------------------------------- the worn pack ----------------------------------
    A real model on the back, not an extruded icon: the pack is the piece of gear other players see most, and a
-   flat sprite would disappear edge-on. Each kind of pack is two files named by the item's `wear` (items/items.js),
-   in textures/Entity/equipment/Backpacks/:
-     <wear>.json   its model: a list of boxes (`elements`), each with `from` and `to` corners and, per face, the
-                   part of the sheet it shows (`uv`: left, top, right, bottom, in 16ths of the sheet)
-     <wear>.png    its sheet
+   flat sprite would disappear edge-on. Each kind of pack is named by the item's `wear` (items/items.js):
+     its model     js/models/backpacks.js, defineBoxModel(<wear>, ...) (entities/box-models.js): a list of boxes
+                   (`elements`), each with `from` and `to` corners and, per face, the part of the sheet it shows (`uv`:
+                   left, top, right, bottom, in 16ths of the sheet)
+     its sheet     textures/Entity/equipment/Backpacks/<wear>.png
    (The straps over the chest are a third, <wear>_torso_overlay.png, laid on the torso by player/armor-model.js.)
 
    THE MODEL'S SPACE is the one its JSON describes: units are skin pixels, the torso is 8 x 12 x 4 round x = 0,
@@ -91,8 +91,8 @@ function syncBackpackCapacity() {
    every corner is turned half round (x and z negated) as it is read; a turn, not a mirror, so every face keeps
    its picture the right way round. The waist is the TORSO group's own origin, so the node needs no offset.
 
-   The files are fetched the first time a pack of that kind is worn. Until they are in, buildBackpackNode gives
-   null and its callers ask again. */
+   Its sheet is loaded the first time a pack of that kind is worn. Until it is in, buildBackpackNode gives null and its
+   callers ask again. */
 const PACK_DIR = 'textures/Entity/equipment/Backpacks/';
 const _packModels = {};                          // wear name -> { geo, tex } once loaded, 'loading', or 'failed'
 // one box's six faces as seen from outside: [the JSON's name for it, its four corners: top left, top right,
@@ -128,15 +128,15 @@ function _packGeometry(json) {
   return geo;
 }
 function _loadPackModel(wear) {
+  const json = BOX_MODEL_DATA[wear];
+  if (!json) { _packModels[wear] = 'failed'; console.error('backpack model ' + wear + ': no such model (js/models/backpacks.js)'); return; }
   _packModels[wear] = 'loading';
-  fetch(PACK_DIR + wear + '.json').then(r => r.ok ? r.json() : Promise.reject(new Error(r.status))).then((json) => {
-    const tex = new THREE.TextureLoader().load(PACK_DIR + wear + '.png');
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
-    tex.generateMipmaps = true;
-    _packModels[wear] = { geo: _packGeometry(json), tex };
-  }).catch((e) => { _packModels[wear] = 'failed'; console.error('backpack model ' + wear + ':', e); });
+  const tex = new THREE.TextureLoader().load(PACK_DIR + wear + '.png', () => { _packModels[wear] = { geo: _packGeometry(json), tex }; },
+    undefined, (e) => { _packModels[wear] = 'failed'; console.error('backpack sheet ' + wear + ':', e); });
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestMipmapLinearFilter;   // mipmapped
+  tex.generateMipmaps = true;
 }
 /* The pack `id` is, as a mesh positioned for the TORSO group (which pivots at the hips with 12px of body above
    it), or null while its files are still loading (or it has none). Each mesh gets its own copy of the geometry

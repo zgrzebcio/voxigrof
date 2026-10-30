@@ -2,7 +2,15 @@
 /* player/place-block.js: _doPlace, one right click from start to end. Animals and stations first, then what the held
    thing does (bucket, fire, key, seed...), then the block itself: where it may stand, how it is turned, what it costs. */
 
+/* What the held pick takes beside itself this click (heldNeedOf, blocks/variants.js), set once the click is a placement:
+   spendHeld (player/breaking.js) takes it as the block goes down, and the cell is marked NEED_PAID so breaking it gives it
+   back. null in creative and for everything else. */
+let _placeNeed = null;
+const _paidBit = () => (_placeNeed != null ? NEED_PAID : 0);
 function _doPlace() {
+  _placeNeed = null;
+  // a live fish in both hands: the right button lets it go, and does nothing else (player/fish-hold.js)
+  if (player._heldFish) { if (!(act && act.place) && typeof releaseHeldFish === 'function') releaseHeldFish(false); return; }
   // shears on a woolly sheep: take the fleece instead of placing anything
   if (tryShearSheep()) { handPlaceSwing = true; return; }
   /* Using an ANIMAL beats using the world behind it: feeding, mounting and saddling all come
@@ -11,13 +19,25 @@ function _doPlace() {
   if (typeof tryMilkCow === 'function' && tryMilkCow()) { handPlaceSwing = true; return; }
   // a hellhound: the mushroom that starts its taming, its food, its behaviour and stance (entities/hellhound.js)
   if (typeof tryHoundInteract === 'function' && tryHoundInteract()) { handPlaceSwing = true; return; }
+  // an otter: its stance, its food, onto your neck and off it again (entities/otter.js)
+  if (typeof tryOtterInteract === 'function' && tryOtterInteract()) { handPlaceSwing = true; return; }
+  // a meerkat: its stance, onto your shoulder and off it again (entities/meerkat.js)
+  if (typeof tryMeerkatInteract === 'function' && tryMeerkatInteract()) { handPlaceSwing = true; return; }
   if (typeof tryTameInteract === 'function' && tryTameInteract()) { handPlaceSwing = true; return; }
+  // the right button held on a fish takes it alive in both hands (player/fish-hold.js)
+  if (typeof tryGrabFish === 'function' && tryGrabFish()) return;
   // empty bucket: fill from open water even when nothing solid is behind it (no block hit needed)
   if (slotId(HOTBAR[hotbarSel]) === ITEM.BUCKET) { useBucket(ITEM.BUCKET, null); return; }
   const hit = currentRay();
   if (!hit) return;
+  // the wrench joins, parts and turns what it is used on, creative only (player/wrench.js)
+  if (slotId(HOTBAR[hotbarSel]) === ITEM.WRENCH) { if (!(act && act.place)) useWrench(hit); handPlaceSwing = true; return; }
+  // a clam: opened, shut, its pearl taken, a thing put in or taken out (blocks/clam.js)
+  if (typeof tryUseClam === 'function' && tryUseClam(hit)) return;
   // shears carve a pumpkin, a torch lights a carved one
   if (tryCarvePumpkin(hit)) { handPlaceSwing = true; return; }
+  // shears cut a vine: it stops growing, what hangs under it comes off (woods/vines.js)
+  if (tryCutVine(hit)) { handPlaceSwing = true; return; }
   // flint or a glow crystal lights an unlit torch (blocks/torches.js)
   if (tryLightTorch(hit)) { handPlaceSwing = true; return; }
   // fire, a burning torch or flint lights TNT (blocks/tnt.js)
@@ -28,8 +48,18 @@ function _doPlace() {
   if (!player.canFly && isStation(hit.id)) { if (!benchBusy(hit.x, hit.y, hit.z)) openBench(hit.x, hit.y, hit.z, STATION_MODE[hit.id & 255]); return; }
   // survival: right-clicking a furnace opens its smelting GUI
   if (!player.canFly && hit.id === B.FURNACE) { openFurnace(hit.x, hit.y, hit.z); return; }
-  // doors open/close in any mode; a key locks, opens or unlocks one (blocks/doors.js)
-  if (BLOCKS.isDoorVal(getBlock(hit.x, hit.y, hit.z))) { useDoor(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
+  // doors open/close in any mode; a key locks, opens or unlocks one (blocks/doors.js); sneaking with a block in hand
+  // places it against the door instead
+  const sneakBlock = player.sneaking && (() => { const h = heldBlockOf(slotId(HOTBAR[hotbarSel])); return h != null && h < 256; })();
+  // (not a block fallen into its doorway, nor a cover in its cell: the crosshair is on that, blocks/doors.js)
+  if (!sneakBlock && !hit.over && BLOCKS.isDoorVal(getBlock(hit.x, hit.y, hit.z))) { useDoor(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
+  // a gate opens and shuts; sneaking with no block in hand makes a fence or a wall one (blocks/gates.js)
+  if (!hit.over && tryUseGate(hit, sneakBlock)) { handPlaceSwing = true; return; }
+  // a sign: use writes on it, in any mode; sneak + use places against it as against any block (blocks/signs.js)
+  if (!player.sneaking && !hit.over && isSignVal(getBlock(hit.x, hit.y, hit.z))) {   // (not a cover lying in front of it)
+    if (!(act && act.place)) openSignEditor(hit.x, hit.y, hit.z);
+    return;
+  }
   // right-clicking a bed sleeps through the night
   if (hit.id === B.BED) { trySleep(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // right-clicking a chest opens its storage GUI (both halves if it is a double)
@@ -40,6 +70,13 @@ function _doPlace() {
   if (!player.canFly && isChestId(hit.id)) { useChest(hit.x, hit.y, hit.z); handPlaceSwing = true; return; }
   // a block with a variant picked places as that variant: stone as stone brick (blocks/variants.js)
   const heldId = heldBlockOf(slotId(HOTBAR[hotbarSel]));
+  // ...and some picks take one more thing out of the bags (a mossy look a vine, a chest planks): none there, nothing goes down
+  _placeNeed = player.canFly ? null : heldNeedOf(slotId(HOTBAR[hotbarSel]));
+  if (_placeNeed != null && invCount(_placeNeed) < 1) {
+    if (!(act && act.place)) feedWarn(needWarning(slotId(HOTBAR[hotbarSel]), _placeNeed));
+    _placeNeed = null;
+    return;
+  }
   // creative: a bone ash block on a sapling hastens it instead of being placed (feedSapling, woods/saplings.js)
   if (player.canFly && heldId === B.BONE_ASH_BLOCK && isSapling(hit.id & 255) && feedSapling(hit.x, hit.y, hit.z)) { handPlaceSwing = true; return; }
   // buckets: fill empty bucket from a water source, or pour a water source from a full one
@@ -75,7 +112,7 @@ function _doPlace() {
     if (isNoTargetPlant(hit.id) || !isSolid(hit.x, hit.y, hit.z)) return;
     const px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
     const cur = getBlock(px, py, pz) & 255;
-    if (!isPlaceableInto(cur)) return;
+    if (!isPlaceableInto(cur) || plateOverAt(px, py, pz)) return;
     const o = hit.ny === 1 ? 0 : hit.ny === -1 ? 1 : hit.nx === 1 ? 2 : hit.nx === -1 ? 3 : hit.nz === 1 ? 4 : 5;
     if (isPlantReplaceable(cur)) clearPlantAt(px, py, pz);
     // one of the four looks, on the bed picked on the variant bar
@@ -90,7 +127,18 @@ function _doPlace() {
      fiber) clicked onto a stack that will take it piles on as one more layer — any mix, up to 8. Once the
      stack is full, or will not take it, the click falls through to normal placement (a new layer above). */
   const layerShape = typeof chiselShapedPlace === 'function' ? chiselShapedPlace(heldId) : null;
-  if (layerShape && layerShape.key === 'carpet' && canStackLayer(getBlock(hit.x, hit.y, hit.z), heldId)
+  // a carpet of a walk-through layer block on a pressure plate buries it, still pressed (tryBuryPlate, blocks/pressure-plates.js)
+  if (layerShape && layerShape.key === 'carpet'
+      && tryBuryPlate(hit, heldId, typeof heldLookOf === 'function' ? heldLookOf(slotId(HOTBAR[hotbarSel])) : 0)) {
+    playBlockSound(heldId, 'place', hit.x, hit.y, hit.z);
+    handPlaceSwing = true;
+    spendHeld("placed");
+    chiselWear();
+    return;
+  }
+  // (a cell a pressure plate lies in takes nothing more, here and below; but layers pile over a buried one)
+  const overHit = plateOverAt(hit.x, hit.y, hit.z), overBuried = !!overHit && !!((overHit >> 8) & PLATE_BURIED);
+  if (layerShape && layerShape.key === 'carpet' && (!overHit || overBuried) && canStackLayer(getBlock(hit.x, hit.y, hit.z), heldId)
       && addLayer(hit.x, hit.y, hit.z, heldId)) {
     playBlockSound(heldId, 'place', hit.x, hit.y, hit.z);
     handPlaceSwing = true;
@@ -101,7 +149,7 @@ function _doPlace() {
   // grass on grass -> grow a 2-block tall grass (lower + upper), if there's headroom
   // ...and dry grass on dry grass a tall dry grass
   const tallOf = heldId === B.TALLGRASS ? B.TALL_LOWER : heldId === B.DRY_GRASS ? B.DRY_TALL_LOWER : 0;
-  if (tallOf && hit.id === heldId && (getBlock(hit.x, hit.y + 1, hit.z) & 255) === B.AIR) {
+  if (tallOf && hit.id === heldId && !overHit && (getBlock(hit.x, hit.y + 1, hit.z) & 255) === B.AIR) {
     setBlock(hit.x, hit.y, hit.z, tallOf);
     setBlock(hit.x, hit.y + 1, hit.z, TALL_UPPER_OF[tallOf]);
     playBlockSound(B.TALL_LOWER, 'place', hit.x, hit.y, hit.z);
@@ -110,7 +158,7 @@ function _doPlace() {
     return;
   }
   // short grass on short grass -> the grass plant
-  if (heldId === B.SHORT_GRASS && hit.id === B.SHORT_GRASS) {
+  if (heldId === B.SHORT_GRASS && hit.id === B.SHORT_GRASS && !overHit) {
     setBlock(hit.x, hit.y, hit.z, B.TALLGRASS);
     playBlockSound(B.TALLGRASS, 'place', hit.x, hit.y, hit.z);
     handPlaceSwing = true;
@@ -134,8 +182,38 @@ function _doPlace() {
   const halfFill = !!shaped && (shaped.key === 'slab' || shaped.key === 'vslab');
   // the held block as a value with its look (blocks/looks.js), for filling a half
   const heldMat = ((heldId | ((typeof heldLookOf === 'function' ? heldLookOf(slotId(HOTBAR[hotbarSel])) : 0) << 16)) >>> 0);
+  // ...marked when it took a need, so a plate, cover or rail laid in another block's cell gives the need back when broken
+  const paidMat = (heldMat | _paidBit()) >>> 0;
+  /* a pressure plate put down in the cell of what it lies on: a bottom slab, a stair's lower step, a carpet, among a
+     plant (tryPlateOver, blocks/pressure-plates.js); anywhere else it goes on as any shape */
+  if (shaped && shaped.key === 'plate') {
+    const r = tryPlateOver(hit, paidMat);
+    if (r) {
+      if (r === 'placed') { handPlaceSwing = true; spendHeld("placed"); chiselWear(); }
+      return;
+    }
+  }
+  /* a cover put down in the cell of a block that is not a whole one, on one of its six sides (tryCoverOver, blocks/covers.js);
+     in an empty cell it goes in as any shape */
+  if (shaped && shaped.key === 'cover') {
+    const r = tryCoverOver(hit, paidMat);
+    if (r) {
+      if (r === 'placed') { handPlaceSwing = true; spendHeld("placed"); chiselWear(); }
+      return;
+    }
+  }
+  /* a fence put down on a bottom slab or on stairs, a wall on stairs: into that cell, a railing (tryRailOver,
+     blocks/rails.js); anywhere else it goes in as any shape */
+  if (shaped && (shaped.key === 'fence' || shaped.key === 'wall')) {
+    const r = tryRailOver(hit, paidMat, shaped.key);
+    if (r) {
+      if (r === 'placed') { handPlaceSwing = true; spendHeld("placed"); chiselWear(); }
+      return;
+    }
+  }
   // filling a half, case 1: clicked the inner flat face of a half of this very block → complete THAT cell
-  if (halfFill) {
+  // (not one covers lie in: a whole block leaves them no room)
+  if (halfFill && !overHit && !coversAt(hit.x, hit.y, hit.z)) {
     const hv = getBlock(hit.x, hit.y, hit.z);
     if (slabHalfTakes(hv, heldMat)) {                // ...or of another that mixes with it
       const h = ((hv >> 8) & 255) & ROT_MASK, o = h >> 1, axisN = o === 0 ? hit.ny : o === 1 ? hit.nx : hit.nz;
@@ -154,6 +232,9 @@ function _doPlace() {
         py = ontoPlant ? hit.y : hit.y + hit.ny,
         pz = ontoPlant ? hit.z : hit.z + hit.nz;
   const cur = getBlock(px, py, pz) & 255;
+  // a cell a plate lies in takes nothing else: no slab made a double under it, no layer piled up, the plant left be
+  // ...nor one covers lie in (blocks/covers.js)
+  if (plateOverAt(px, py, pz) || coversAt(px, py, pz) || railOverAt(px, py, pz)) return;   // ...nor one a rail stands in
   // The plant itself is free ground for this placement — the clearPlantAt calls further down do
   // the mowing, so a click that ends up placing nothing (empty hand, no headroom) leaves it be.
   if (!isPlaceableInto(cur) && !(ontoPlant && isNoTargetPlant(cur))) {   // only into air/water/lava/grass...
@@ -180,6 +261,11 @@ function _doPlace() {
   if (id >= 256) return;                                   // items (sticks, etc.) are not placeable
   // the look picked on the variant bar (blocks/looks.js): kept in the cell's bits 16-23; a pillar look turns like a log
   const look = typeof heldLookOf === 'function' ? heldLookOf(slotId(slot)) : 0, lookE = look ? CORE.LOOKS[id]?.[look] : null;
+  // an effect with `noTnt` (the summer curse, entities/pharaoh.js) keeps TNT in the hand
+  if (id === B.TNT && typeof playerHasEffect === 'function' && playerHasEffect('noTnt')) {
+    feedWarn('The summer curse is on you: TNT will not go down');
+    return;
+  }
   // food you carry rather than build with (the pumpkin). Creative still plants them.
   // ...and mushrooms: they come up by themselves; a food among them (grilled) just gets eaten, no warning
   if ((PROPS[id].noPlace || PROPS[id].shroom != null) && !player.canFly) {
@@ -265,8 +351,11 @@ function _doPlace() {
   }
   // a flared stump next door already fills this cell, whatever the block data says
   if (!OVERHANG_OK.includes(id) && logOverhangsCell(px, py, pz)) return;
-  // don't place a solid inside yourself (a layer you wade through is fine)
-  if (PROPS[id].solid && !(shaped && ((shaped.key === 'carpet' && PROPS[id].layerStack) || shaped.key === 'cover'))) {
+  // a pressure plate lies on a block's whole top (blocks/pressure-plates.js)
+  if (shaped && shaped.key === 'plate' && !plateFloorAt(px, py - 1, pz)) return;
+  // don't place a solid inside yourself (a layer you wade through is fine, and a cover, a plate or a sign)
+  if (PROPS[id].solid && !(shaped && ((shaped.key === 'carpet' && PROPS[id].layerStack) || shaped.key === 'cover'
+                                      || shaped.key === 'plate' || shaped.key === 'sign'))) {
     const p = player.pos, R = player.R;
     if (px + 1 > p.x - R && px < p.x + R && py + 1 > p.y && py < p.y + player.H &&
         pz + 1 > p.z - R && pz < p.z + R) return;
@@ -315,7 +404,7 @@ function _doPlace() {
   // bed: needs two free cells on solid ground, lays foot + head and spawns the mesh
   if (id === B.BED) {
     // its frame's wood from the variant bar
-    if (!tryPlaceBed(px, py, pz, typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(slotId(slot)) : 0)) return;
+    if (!tryPlaceBed(px, py, pz, typeof heldVariantBitsOf === 'function' ? heldVariantBitsOf(slotId(slot)) : 0, _paidBit())) return;
     playBlockSound(B.BED, 'place', px, py, pz);   // its frame set down: it was silent
     handPlaceSwing = true;
     spendHeld("placed");
@@ -331,8 +420,8 @@ function _doPlace() {
   const type = PROPS[id].model;
   // a placed berry bush arrives RIPE, matching the icon that was in the slot — a bare sprout
   // would give no sign which of the two bushes had just been put down
-  // ...or at the stage picked on the variant bar, ripe by default; wheat the same
-  const growth = isBerryBush(id) || id === B.WHEAT;
+  // ...or at the stage picked on the variant bar, ripe by default; wheat and the carrot the same
+  const growth = isBerryBush(id) || id === B.WHEAT || id === B.CARROT;
   if (growth) varb = typeof variantOptions === 'function' && variantOptions(slotId(slot)) ? heldVariantBitsOf(slotId(slot))
                    : isBerryBush(id) ? BERRY_STAGE.GROWN : 0;
   // a coconut from the creative palette goes down ripe: hung under what you click, or resting on a block's top face
@@ -341,17 +430,22 @@ function _doPlace() {
     // front faces the player: facing = horizontal direction from block toward player
     const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
     varb = Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1);
+    // a clam put down opens at a touch and grows no pearl (blocks/clam.js)
+    if (id === B.CLAM) varb |= BLOCKS.CLAM_BITS.PLACED;
   } else if (rot === 'all') {
     if (id === B.LOG || isHollowLog(id) || (lookE ? lookE.pillar : PROPS[id].pillar)) varb = hit.nx ? 1 : hit.nz ? 2 : 0;   // axis = clicked face normal (hollow logs 0.7842, pillars 0.8093)
   }
   if (shaped) varb = _shapeVariantFor(shaped.key, hit, px, py, pz);   // the chisel's shape
   // a furnace's rock, a bench's or a chest's wood, picked on the variant bar
   else if (!growth && typeof heldVariantBitsOf === 'function') varb |= heldVariantBitsOf(slotId(slot));
+  // a sign needs what it is put up on: the floor under it, the wall behind it, the ceiling over it (blocks/signs.js)
+  const signShape = !!shaped && shaped.key === 'sign';
+  if (signShape && !signSupported(px, py, pz, (id | (varb << 8)) >>> 0)) return;
   // sugar cane: planted as a sprout that grows (on another cane a stage on); creative puts it down grown
   const caneSprout = id === B.SUGAR_CANE && !player.canFly;
   if (caneSprout) varb = (getBlock(px, py - 1, pz) & 255) === B.SUGAR_CANE ? CANE_STEPS - 1 : CANE_STEPS;
   clearPlantAt(px, py, pz);                 // grass in the way is destroyed, not a blocker
-  setBlock(px, py, pz, (id | (varb << 8) | (look << 16)) >>> 0);
+  setBlock(px, py, pz, (id | (varb << 8) | (look << 16) | _paidBit()) >>> 0);   // marked when it took a need (above)
   if (caneSprout && typeof queueCaneGrow === 'function') queueCaneGrow(px, py, pz);
   if (id === B.COCONUT && typeof coconutPlaced === 'function') coconutPlaced(px, py, pz);   // nothing over it: it falls (woods/coconuts.js)
   playBlockSound(id, 'place', px, py, pz);
@@ -369,4 +463,5 @@ function _doPlace() {
   handPlaceSwing = true;
   spendHeld("placed");
   if (shaped) chiselWear();                                // one point of chisel wear per shaped block
+  if (signShape) openSignEditor(px, py, pz);               // a new sign is written on at once
 }

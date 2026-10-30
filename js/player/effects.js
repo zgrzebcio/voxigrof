@@ -16,19 +16,33 @@ function activeEffects() {
   }
   const b = armorSetBonus();
   if (b) out.push({ name: b.name, time: Infinity, good: b.good, desc: b.desc });
+  /* a creature worn, and what it gives by its level and its taming (entities/otter.js, entities/meerkat.js): listed here
+     for as long as it is worn, not on the effect bar by the hotbar (no icon) */
+  const _pc = (v) => (Math.round(v * 1000) / 10).toFixed(1) + '%';
+  const ot = player._wornOtter, mk = player._wornMeerkat;
+  if (ot && typeof otterScarfCold === 'function')
+    out.push({ name: `${ot.name} round your neck`, time: Infinity, good: true, lasts: 'Lasts while it is round your neck',
+               desc: `Cold resistance +${_pc(otterScarfCold())}: 10%, 0.2% a level (level ${ot.level || 1}), and up to 5% by ` +
+                     `its taming (effectiveness ${Math.round((ot.eff > 0 ? ot.eff : 1) * 100)}%).` });
+  if (mk && typeof meerkatReachBonus === 'function')
+    out.push({ name: `${mk.name} on your shoulder`, time: Infinity, good: true, lasts: 'Lasts while it is on your shoulder',
+               desc: `Item pickup range and foraging reach +${_pc(meerkatReachBonus(player))}: 10%, 0.3% a level (level ` +
+                     `${mk.level || 1}), and up to 5% by its taming (effectiveness ${Math.round((mk.eff > 0 ? mk.eff : 1) * 100)}%).` });
   /* boss boost (entities/frozen-king.js): for good, through death too. Listed here with what it gives; not on the effect
      bar by the hotbar, which is for what comes and goes */
   if (typeof bossBoostLevel === 'function' && bossBoostLevel() > 0) {
     const lv = bossBoostLevel(), d = EFFECT_DEFS.bossBoost;
-    out.push({ name: `${d.name} ${lv}`, time: Infinity, good: true, lasts: d.lasts,
+    out.push({ name: `${d.name} x${lv}`, time: Infinity, good: true, lasts: d.lasts,
                desc: `XP +${Math.round((bossXpMul() - 1) * 100)}% (x${bossXpMul().toFixed(1)}) on everything you earn. ` +
-                     `Level ${lv} of ${BOSS_BOOST_MAX}, one for each kind of boss defeated: ${bossBoostNames().join(', ')}.` });
+                     `${lv} stack${lv > 1 ? 's' : ''} of ${BOSS_BOOST_MAX}, +${Math.round(BOSS_BOOST_STEP * 100)}% each, one for each kind of boss defeated: ${bossBoostNames().join(', ')}.` });
   }
   for (const e of PLAYER_EFFECTS) out.push(e);
   for (const e of player.effects || []) {
     const d = EFFECT_DEFS[e.id];
     // an aura's effect (the Frozen King's curse) has no clock to read: it says what keeps it instead
-    if (d) out.push({ name: d.name, time: d.aura ? Infinity : Math.ceil(e.left), good: d.good, desc: d.desc, lasts: d.lasts });
+    // ...and one in stacks (the summer curse) says how many, and what they come to
+    if (d) out.push({ name: d.name + (e.stacks > 1 ? ` x${e.stacks}` : ''), time: d.aura ? Infinity : Math.ceil(e.left), good: d.good,
+                      desc: d.stackDesc && e.stacks ? d.stackDesc(e.stacks) : d.desc, lasts: d.lasts });
   }
   return out;
 }
@@ -167,7 +181,8 @@ const _stressDesc = (st) => (stressIsCold(st) ? 'Food and protein' : 'Thirst and
   ` drain ${Math.round((st.mul - 1) * 100)}% faster` + (st.dps > 0 ? `, and you lose ${st.dps.toFixed(1)} health a second` : '') +
   ` (${Math.round(player.temp)}°C` + (st.res ? `, ${Math.round(st.res * 100)}% resisted` : '') + ').';
 // sum of one numeric field over this player's running effects
-const _effectSum = (field) => (player.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.[field] || 0), 0);
+// an effect in stacks (`stacks` on its entry: the summer curse) gives its numbers once a stack
+const _effectSum = (field) => (player.effects || []).reduce((n, e) => n + (EFFECT_DEFS[e.id]?.[field] || 0) * (e.stacks || 1), 0);
 const playerHasEffect = (field) => (player.effects || []).some(e => EFFECT_DEFS[e.id]?.[field]);
 // multiplier on hunger and over-food drain: 2 while nauseous
 const playerHungerMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT_DEFS[e.id]?.hungerMul || 1), 1);   // Slow Burner left it for the stats depletion
@@ -200,14 +215,16 @@ function addPlayerEffect(id, time) {   // time: a food's own length for it (food
   if (invOpen) buildEquipPanel();
 }
 // counts down; the equipment panel is rebuilt only when a shown second changes or an effect ends
+// one in stacks whose def has `stackFade` loses a stack each time its clock runs out, the clock set to stackFade again
 function tickPlayerEffects(dt) {
   const list = player.effects;
   if (!list || !list.length) return;
   let changed = false;
   for (let i = list.length - 1; i >= 0; i--) {
-    const e = list[i], shown = Math.ceil(e.left);
+    const e = list[i], shown = Math.ceil(e.left), fade = EFFECT_DEFS[e.id]?.stackFade;
     e.left -= dt;
-    if (e.left <= 0) { list.splice(i, 1); changed = true; }
+    if (e.left <= 0 && fade && e.stacks > 1) { e.stacks--; e.left = fade; changed = true; }
+    else if (e.left <= 0) { list.splice(i, 1); changed = true; }
     else if (Math.ceil(e.left) !== shown) changed = true;
   }
   /* Poison drips health away, never below VITAL_K. Since 0.7992 it also LOOKS like damage: the drip
@@ -235,7 +252,9 @@ function syncEffectBar() {
   if (typeof hotbarEl === 'undefined' || !hotbarEl) return;
   const t = (s) => s >= 60 ? Math.ceil(s / 60) + 'm' : Math.ceil(s) + 's';
   // an aura's effect shows what it is, not a clock that never runs down
-  const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id, label: EFFECT_DEFS[e.id]?.aura ? EFFECT_DEFS[e.id].aura : t(e.left) }));
+  // ...and one in stacks how many it holds
+  const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id,
+    label: EFFECT_DEFS[e.id]?.aura ? EFFECT_DEFS[e.id].aura : e.stacks ? 'x' + e.stacks : t(e.left) }));
   // cold or hot first, showing the temperature instead of a clock; sneaking and climbing too
   list.unshift(...stateEffects().map(s => ({ id: s.id, label: s.label || '' })));
   let bar = hotbarEl.querySelector(':scope > .effBar');

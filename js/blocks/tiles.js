@@ -108,6 +108,30 @@ corePart('blocks', function () {
   Object.assign(T, { BONE_ASH_BLOCK:438 });                                // the ash block's art in white (built in 03-atlas.js)
   Object.assign(T, { RIME_SAPLING:439 });                                  // the cherry sapling's art in a frosty blue (built in 03-atlas.js)
   // T 440-444 are taken: every berry bush's ripe stage (the berry loop above)
+  T.SEASHELL_BLOCK_FRONT = 445;                                            // the seashell block's front, and its back
+  for (let s = 0; s < 7; s++) T['CARROT_S' + s] = 446 + s;                 // the carrot's growth stages, 446-452 (6 ripe)
+  // jungle wood and its sapling; the cocoa pod, ripe, and green while it grows (built at atlas build, 03-atlas.js)
+  Object.assign(T, { JUNGLE_LOG:453, JUNGLE_LOG_TOP:454, STRIPPED_JUNGLE_LOG:455, STRIPPED_JUNGLE_LOG_TOP:456, JUNGLE_PLANKS:457,
+                     JUNGLE_LEAVES:458, JUNGLE_SAPLING:459, COCOA_SIDE:460, COCOA_TOP:461, COCOA_YOUNG_SIDE:462, COCOA_YOUNG_TOP:463 });
+  // more looks (blocks/looks.js): adobe's circle, terracotta's soot brick, carved bone and sulfur, thatch's carved and brick
+  Object.assign(T, { ADOBE_CIRCLE:464, TERRACOTTA_SOOT_BRICKS:465, CARVED_BONE:466, CARVED_SULFUR:467, CARVED_THATCH:468, THATCH_BRICKS:469 });
+  // every planks' brick look (blocks/looks.js)
+  Object.assign(T, { OAK_PLANK_BRICKS:470, BIRCH_PLANK_BRICKS:471, SPRUCE_PLANK_BRICKS:472, RIME_PLANK_BRICKS:473, PALM_PLANK_BRICKS:474,
+                     ACACIA_PLANK_BRICKS:475, JUNGLE_PLANK_BRICKS:476 });
+  // the bone block's polished look (blocks/looks.js)
+  T.POLISHED_BONE_BLOCK = 477;
+  // the jungle's vine and its half-cut look (built in 03-atlas.js from the vine's art)
+  Object.assign(T, { VINE:478, VINE_CUT:479 });
+  // more mossy looks (blocks/looks.js): adobe, terracotta's roof, cobblestone's brick, sandstone's brick, dirt
+  Object.assign(T, { MOSSY_ADOBE:480, MOSSY_TERRACOTTA_ROOF:481, MOSSY_COBBLE_BRICKS:482, MOSSY_SANDSTONE_BRICKS:483, MOSSY_DIRT:484 });
+  // dirt's coarse and frozen looks; mossy sulfur, thatch, red and pink sandstone brick; every planks' mossy brick (blocks/looks.js)
+  Object.assign(T, { COARSE_DIRT:485, FROZEN_DIRT:486, MOSSY_SULFUR_BRICKS:487, MOSSY_THATCH_BRICKS:488,
+                     MOSSY_RED_SANDSTONE_BRICKS:489, MOSSY_PINK_SANDSTONE_BRICKS:490,
+                     MOSSY_OAK_PLANK_BRICKS:491, MOSSY_BIRCH_PLANK_BRICKS:492, MOSSY_SPRUCE_PLANK_BRICKS:493, MOSSY_RIME_PLANK_BRICKS:494,
+                     MOSSY_PALM_PLANK_BRICKS:495, MOSSY_ACACIA_PLANK_BRICKS:496, MOSSY_JUNGLE_PLANK_BRICKS:497 });
+  // cracked looks (blocks/looks.js): adobe, obsidian, each sandstone and its brick
+  Object.assign(T, { CRACKED_ADOBE:498, CRACKED_OBSIDIAN:499, CRACKED_SANDSTONE:500, CRACKED_RED_SANDSTONE:501, CRACKED_PINK_SANDSTONE:502,
+                     CRACKED_SANDSTONE_BRICKS:503, CRACKED_RED_SANDSTONE_BRICKS:504, CRACKED_PINK_SANDSTONE_BRICKS:505 });
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -188,12 +212,18 @@ corePart('blocks', function () {
               BONE_ASH_BLOCK:240,
               RIME_SAPLING:241,                                                        // the rime tree's sapling; a retired look's id
               HOLLOW_PALM_LOG:242,                                                     // the palm's hollow log; a retired look's id                                                      // five bone ash pressed into a block that falls like sand; a retired look's id
+              CLAM:243,                                                                // on warm sea floors, a pearl grows in it (blocks/clam.js); a retired look's id
+              CARROT:244,                                                              // a crop like wheat, wild on mild plains; a retired look's id
+              // jungle wood (the Jungle's trees) and the cocoa pod on their trunks (woods/cocoa.js); retired looks' ids
+              JUNGLE_LOG:245, STRIPPED_JUNGLE_LOG:246, JUNGLE_PLANKS:247, JUNGLE_LEAVES:248, JUNGLE_SAPLING:250,
+              HOLLOW_JUNGLE_LOG:251, COCOA:252,
+              VINE:253,                                                                // hangs on the giant jungle trees and grows down (woods/vines.js); a retired look's id
               THATCH:249,                                                              // hay's look of its own: it does not fall
               SANDY_DIRT:254,                                                          // where sand meets turf on a deep beach, and under every palm
               SEASHELL:255,                                                            // lies on the sea's beaches, picked up by hand
             };
   /* RETIRED IDS. Every other look lives in the cell's bits 16-23 since 0.84691 (blocks/looks.js); the ids those looks
-     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block, 241 the rime sapling, 242 the hollow palm log) are converted on load
+     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block, 241 the rime sapling, 242 the hollow palm log, 243 the clam, 244 the carrot, 245-248 and 250-252 jungle wood and the cocoa pod, 253 the vine) are converted on load
      (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 3` stamp. Free again, but reuse one only when that
      conversion is gated by the stamp everywhere (it is: worlds in 16-worlds.js, prefabs in 34-structures.js). */
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants

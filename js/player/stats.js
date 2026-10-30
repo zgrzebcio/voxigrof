@@ -154,6 +154,8 @@ const FOOD_NUTRITION = {
   [ITEM.MILK_BUCKET]:      { thirst: 30 },                       // a container, not a food group
   [ITEM.WATER_BOTTLE]:     { thirst: 25 },                       // 0.845
   [ITEM.HALF_COCONUT]:     { thirst: 20, thirstFull: 10, fruit: 4 },   // thirstFull: what it gives when thirst is already full
+  [ITEM.JAM_SANDWICH]:     { fruit: 10, stamina: 5 },
+  [ITEM.CARROT]:           { veg: 25, vegFull: 5 },            // vegFull: what it gives when vegetables are already full
   [ITEM.MUTTON]:  { protein: 10 }, [ITEM.COOKED_MUTTON]:  { protein: 25 },
   [ITEM.BEEF]:    { protein: 12 }, [ITEM.COOKED_BEEF]:    { protein: 35 },
   [ITEM.PORK]:    { protein: 12 }, [ITEM.COOKED_PORK]:    { protein: 30 },
@@ -175,7 +177,7 @@ const foodPropsOf = (id) => {
   const p = id >= 256 ? ITEM_PROPS[id] : PROPS[id];
   return p && (p.food > 0 || p.drink) ? p : null;   // a bottle of water: a drink that is no food
 };
-const NUTRITION_KEYS = ['thirst', 'fruit', 'veg', 'protein', 'energy'];   // energy 0.832 (the golden apple)
+const NUTRITION_KEYS = ['thirst', 'fruit', 'veg', 'protein', 'energy', 'stamina'];   // energy 0.832 (the golden apple), stamina the jam sandwich
 
 /* ---- bars and over-stats ---- */
 // adds to a bar; whatever does not fit spills into its over-stat
@@ -210,11 +212,13 @@ function fillVitals(p, over = true) {
 }
 // what a food does to the new bars (from updateEating, player/eating.js)
 function eatNutrition(p, f) {
-  // a drink that quenches less when you are not thirsty (`thirstFull`, the half coconut): that much past a full bar
-  const fullThirst = f.thirstFull != null && (p.thirst ?? MAX_THIRST) >= MAX_THIRST - 0.5;
   for (const k of NUTRITION_KEYS) {
+    /* a food that gives less of a bar already full (`<bar>Full`: the half coconut's `thirstFull`, a carrot's `vegFull`):
+       that much past the full bar */
+    const full = f[k + 'Full'] != null && (p[k] ?? VITAL_MAX[k]) >= VITAL_MAX[k] - 0.5;
+    const base = full ? f[k + 'Full'] : f[k];
     // energy from food is a regen: the regen stat scales it
-    const amt = k === 'energy' && f[k] > 0 ? f[k] * playerRegenMul() : k === 'thirst' && fullThirst ? f.thirstFull : f[k];
+    const amt = k === 'energy' && base > 0 ? base * playerRegenMul() : base;
     if (amt > 0) gainStat(p, k, amt); else if (amt < 0) drainStat(p, k, -amt);   // white berries
   }
 }

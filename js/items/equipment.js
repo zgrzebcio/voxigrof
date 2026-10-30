@@ -30,16 +30,16 @@ defineItems('equipment', {
   [ITEM.GOLDEN_BOOTS]:       { name: 'Golden boots',       stack: 1, icon: 'golden_boots',       equip: 'boots',      armor: 10, tier: 3, durability: 91,  armorMat: 'golden',  desc: '' },
   /* Bronze armor: between iron and steel, made with leather, cloth and the termites' chitin (items/recipes.js). Half
      the slow of iron's, the gauntlets a harder blow. */
-  [ITEM.BRONZE_HELMET]:      { name: 'Bronze helmet',      stack: 1, icon: 'bronze_helmet',      equip: 'helmet',     armor: 12, tier: 4, durability: 300, armorMat: 'bronze',  moveSpeed: -0.0025, desc: '' },
-  [ITEM.BRONZE_CHESTPLATE]:  { name: 'Bronze chestplate',  stack: 1, icon: 'bronze_chestplate',  equip: 'chestplate', armor: 35, tier: 4, durability: 380, armorMat: 'bronze',  moveSpeed: -0.0075, desc: '' },
-  [ITEM.BRONZE_LEGGINGS]:    { name: 'Bronze leggings',    stack: 1, icon: 'bronze_leggings',    equip: 'leggings',   armor: 27, tier: 4, durability: 350, armorMat: 'bronze',  moveSpeed: -0.006, desc: '' },
-  [ITEM.BRONZE_BOOTS]:       { name: 'Bronze boots',       stack: 1, icon: 'bronze_boots',       equip: 'boots',      armor: 12, tier: 4, durability: 320, armorMat: 'bronze',  moveSpeed: -0.0025, desc: '' },
-  [ITEM.BRONZE_GLOVES]:      { name: 'Bronze gauntlets',   stack: 1, icon: 'bronze_gloves',      equip: 'gloves',     armor: 5, tier: 4, durability: 250, armorMat: 'bronze',  moveSpeed: -0.00125, strength: 5, desc: '' },
+  [ITEM.BRONZE_HELMET]:      { name: 'Bronze helmet',      stack: 1, icon: 'bronze_helmet',      equip: 'helmet',     armor: 12, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.0025, desc: '' },
+  [ITEM.BRONZE_CHESTPLATE]:  { name: 'Bronze chestplate',  stack: 1, icon: 'bronze_chestplate',  equip: 'chestplate', armor: 35, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.0075, desc: '' },
+  [ITEM.BRONZE_LEGGINGS]:    { name: 'Bronze leggings',    stack: 1, icon: 'bronze_leggings',    equip: 'leggings',   armor: 27, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.006, desc: '' },
+  [ITEM.BRONZE_BOOTS]:       { name: 'Bronze boots',       stack: 1, icon: 'bronze_boots',       equip: 'boots',      armor: 12, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.0025, desc: '' },
+  [ITEM.BRONZE_GLOVES]:      { name: 'Bronze gauntlets',   stack: 1, icon: 'bronze_gloves',      equip: 'gloves',     armor: 5, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.00125, strength: 5, desc: '' },
   // steel armor: the strongest. It took the diamond armor's place, numbers and ids
-  [ITEM.STEEL_HELMET]:       { name: 'Steel helmet',       stack: 1, icon: 'steel_helmet',       equip: 'helmet',     armor: 15, tier: 5, durability: 363, armorMat: 'steel',   desc: '' },
-  [ITEM.STEEL_CHESTPLATE]:   { name: 'Steel chestplate',   stack: 1, icon: 'steel_chestplate',   equip: 'chestplate', armor: 40, tier: 5, durability: 528, armorMat: 'steel',   desc: '' },
-  [ITEM.STEEL_LEGGINGS]:     { name: 'Steel leggings',     stack: 1, icon: 'steel_leggings',     equip: 'leggings',   armor: 30, tier: 5, durability: 495, armorMat: 'steel',   desc: '' },
-  [ITEM.STEEL_BOOTS]:        { name: 'Steel boots',        stack: 1, icon: 'steel_boots',        equip: 'boots',      armor: 15, tier: 5, durability: 429, armorMat: 'steel',   desc: '' },
+  [ITEM.STEEL_HELMET]:       { name: 'Steel helmet',       stack: 1, icon: 'steel_helmet',       equip: 'helmet',     armor: 15, tier: 5, durability: 900, armorMat: 'steel',   desc: '' },
+  [ITEM.STEEL_CHESTPLATE]:   { name: 'Steel chestplate',   stack: 1, icon: 'steel_chestplate',   equip: 'chestplate', armor: 40, tier: 5, durability: 900, armorMat: 'steel',   desc: '' },
+  [ITEM.STEEL_LEGGINGS]:     { name: 'Steel leggings',     stack: 1, icon: 'steel_leggings',     equip: 'leggings',   armor: 30, tier: 5, durability: 900, armorMat: 'steel',   desc: '' },
+  [ITEM.STEEL_BOOTS]:        { name: 'Steel boots',        stack: 1, icon: 'steel_boots',        equip: 'boots',      armor: 15, tier: 5, durability: 900, armorMat: 'steel',   desc: '' },
   /* Cloth is the light, cool tier: little armor, but each piece is 8% heat resistance, and the full set
      guards against sandstorms and heatstroke (ARMOR_SET_BONUS, player/equipment.js). A hat on — the bandana or the
      leather cap — shades the head: heatstroke comes 25% slower and only 5°C hotter (heatstrokeResist,
@@ -50,11 +50,13 @@ defineItems('equipment', {
   [ITEM.CLOTH_BOOTS]:        { name: 'Cloth boots',        stack: 1, icon: 'cloth_boots',        equip: 'boots',      armor: 5, tier: 1, durability: 45,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
   [ITEM.CLOTH_GLOVES]:       { name: 'Cloth gloves',       stack: 1, icon: 'cloth_gloves',       equip: 'gloves',     armor: 5, tier: 1, durability: 35,  armorMat: 'cloth', heatResist: 0.08, coldResist: -0.03, desc: '' },
   /* The leather belt and the leather backpack (ids BELT and BACKPACK: the first of their kind, others have art
-     waiting). `beltSlots` opens that many quick-access slots above the equipment panel while worn; `packSlots`
+     waiting). `hotbarSlots` opens that many more hotbar slots while worn (hotbarLen, player/equipment.js). `beltSlots`
+     would open that many quick-access slots above the equipment panel (for utility gear; none exists yet, so the leather
+     belt has none for now); `packSlots`
      opens that many carrying slots under the main grid (41-backpack.js). `wear` names what is seen on the body:
      <wear>_torso_overlay laid on the torso (WORN_TEXTURES, 01-textures-data.js; player/armor-model.js), and for a
-     backpack its model and sheet, textures/Entity/equipment/Backpacks/<wear>.json and .png (41-backpack.js). */
-  [ITEM.BELT]:               { name: 'Leather belt',       stack: 1, icon: 'leather_belt',       wear: 'leather_belt',     equip: 'belt', beltSlots: 5, hotbarSlots: 2, desc: 'Worn on the belt. Adds special slots and 2 hotbar slots (keys 9 and 0)' },
+     backpack its model (js/models/backpacks.js) and sheet, textures/Entity/equipment/Backpacks/<wear>.png (41-backpack.js). */
+  [ITEM.BELT]:               { name: 'Leather belt',       stack: 1, icon: 'leather_belt',       wear: 'leather_belt',     equip: 'belt', hotbarSlots: 2, desc: 'Worn on the belt. Adds 2 hotbar slots (keys 9 and 0)' },
   [ITEM.BACKPACK]:           { name: 'Leather backpack',   stack: 1, icon: 'leather_backpack',   wear: 'leather_backpack', equip: 'back', packSlots: 32,
                                desc: 'Worn on the back. Adds four more rows of carrying space' },
 });

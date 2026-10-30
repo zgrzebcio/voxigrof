@@ -51,6 +51,9 @@ const FK = {
   W_BALL: 6, W_SPIKES: 2, W_FLY: 2, W_BEAMS: 1.5,
   CREDIT_R: 64,                                  // players this close when it dies get the boss boost
 };
+/* Other bosses: their own tick and hit, by `e.boss` ({ update(e, dt), hit(e, dmg, src) }); updateBoss and bossTakeHit
+   hand them over first. The Dead Pharaoh (entities/pharaoh.js). */
+const BOSS_OWN = {};
 const BOSS_BOOST_MAX = 5, BOSS_BOOST_STEP = 0.2;
 const BOSS_BAR_R = 48;                           // its health bar shows within this many blocks
 
@@ -63,7 +66,7 @@ EFFECT_DEFS.iceDaze = { name: 'Ice daze', time: FK.SPIKE_DAZE_S, good: false, ic
   desc: 'Jump height -30%. Regen -20%.',                                   // read like the curse's
   lasts: `${FK.SPIKE_DAZE_S} s from the hit of the Frozen King's ice spike. Milk lifts it.` };
 EFFECT_DEFS.bossBoost = { name: 'Boss boost', good: true, icon: '🏆',
-  lasts: 'For good: every kind of boss you defeat adds a level (up to 5). Death and milk do not take it.' };
+  lasts: 'For good: every kind of boss you defeat adds a stack of +20% XP (up to 5). Death and milk do not take it.' };
 
 /* ---- boss boost ---- */
 function _bossFeats(p) {
@@ -82,7 +85,8 @@ function _grantBossBoost(p, kind, name) {
   if (!f || f.bosses.has(kind)) return false;
   f.bosses.add(kind);
   withPlayer(p, () => {
-    if (typeof feedInfo === 'function') feedInfo(`${name} defeated! Boss boost ${bossBoostLevel(p)}: XP x${bossXpMul(p).toFixed(1)}`);
+    const n = bossBoostLevel(p);
+    if (typeof feedInfo === 'function') feedInfo(`${name} defeated! Boss boost: ${n} stack${n > 1 ? 's' : ''}, XP x${bossXpMul(p).toFixed(1)}`);
     if (typeof fxLevelUp === 'function') fxLevelUp(p);
   });
   return true;
@@ -221,6 +225,7 @@ function bossDeflects(e, fromX, fromZ) {
 }
 // a player's blow or arrow (damageEntity, entities/combat.js): the shield first, from the front; returns true if it died
 function bossTakeHit(e, dmg, src) {
+  if (e && BOSS_OWN[e.boss]) return BOSS_OWN[e.boss].hit(e, dmg, src);
   if (!e || e.hp <= 0) return e ? e.hp <= 0 : false;
   const sx = src ? src.x : player.pos.x, sz = src ? src.z : player.pos.z;
   if (!e.target && !player.canFly) e.target = player;              // a hit wakes it
@@ -299,6 +304,7 @@ function _bossMoveTo(e, nx, ny, nz) {
   _useBox(null);
 }
 function updateBoss(e, dt) {
+  if (BOSS_OWN[e.boss]) { BOSS_OWN[e.boss].update(e, dt); return; }
   const m = e.model;
   const ecx = Math.floor(e.x / 16), ecz = Math.floor(e.z / 16), ch = getChunk(ecx, ecz);
   const loaded = !!(ch && ch.data);
@@ -710,7 +716,8 @@ function updateBossFx(dt) {
   _bossClock++;
   for (let i = BOSS_FX.length - 1; i >= 0; i--) {
     const f = BOSS_FX[i];
-    const keep = f.type === 'ball' ? _ballTick(f, dt) : f.type === 'spike' ? _spikeTick(f, dt)
+    // another boss's spell brings its own step (`tick`: the Dead Pharaoh's scrolls and wand, entities/pharaoh.js)
+    const keep = f.tick ? f.tick(f, dt) : f.type === 'ball' ? _ballTick(f, dt) : f.type === 'spike' ? _spikeTick(f, dt)
                : f.type === 'carpet' ? _carpetTick(f, dt) : f.type === 'beam' ? _beamTick(f, dt) : false;
     if (!keep) _bossFxRemove(i);
   }

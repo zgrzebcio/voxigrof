@@ -15,12 +15,20 @@ const isSolid = (x, y, z) => CORE.solidVal(getBlock(x, y, z));
 const _plainGrass = (v) => (v & 255) === B.GRASS && !CORE.shapeOfVal(v);
 const FULL_BOX = [[0, 0, 0, 1, 1, 1]];
 // collision sub-boxes of the block at (x,y,z) in world coords, or null if non-solid
+// ...and of a fence or a wall lying in its cell, on a slab or stairs (blocks/rails.js)
 function blockBoxes(x, y, z) {
+  const own = _blockBoxes(x, y, z);
+  if (!_railOverN) return own;
+  const rail = railBoxesAt(x, y, z, true);
+  return rail ? (own ? own.concat(rail) : rail) : own;
+}
+function _blockBoxes(x, y, z) {
   const val = getBlock(x, y, z);
   const prop = PROPS[val & 255];
   if (!prop || !prop.solid) return null;
+  if (_doorFillN && doorFillAt(x, y, z)) return FULL_BOX;   // a doorway something fell into is shut (blocks/doors.js)
   // chiseled shapes: corners included, and a fence's taller collision set
-  { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, true); if (sb) return sb; }
+  { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, true, railLookup()); if (sb) return sb; }
   if (prop.boxesOf) return prop.boxesOf(val);      // variant too wide to index (layered carpet)
   if (prop.boxesByVar) { const b = prop.boxesByVar[(val >> 8) & 255]; if (b) return b; }
   // loose ground gave underfoot (a whole sand, gravel or snow block stopped your feet 30% down into it). Sand and
@@ -36,11 +44,20 @@ const SINK_BLOCKS = new Set();   // by value: whole blocks only
 function rayBoxesAt(x, y, z) {
   const val = getBlock(x, y, z), prop = PROPS[val & 255];
   if (!prop) return null;
-  { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val); if (sb) return sb; }
+  { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, false, railLookup());
+    if (sb) { const pk = joinPickAt(x, y, z, val); return pk ? sb.concat(pk) : sb; } }
   if (CORE.slabMixed(val)) return CORE.slabMixBoxes(val);   // its two halves, so the crosshair knows which
   if (prop.boxesOf) return prop.boxesOf(val);
   const bvr = prop.rayBoxesByVar || prop.boxesByVar;
   return bvr ? (bvr[(val >> 8) & 255] || prop.boxes) : prop.boxes;
+}
+/* a fence's or a wall's steps and corner joins as the crosshair sees them (BLOCKS.joinPickBoxes: its shape boxes leave
+   them out, the mesher draws them), or null: a step's reach out of the cell, under or over it */
+function joinPickAt(x, y, z, val) {
+  const s = CORE.shapeOfVal(val);
+  if (s !== 'fence' && s !== 'wall') return null;
+  const pk = BLOCKS.joinPickBoxes(s, getBlock, x, y, z, val, railLookup(), 0);
+  return pk.length ? pk : null;
 }
 
 let editRushing = false;   // true while a player edit runs: marks its re-meshes for grouped apply
@@ -75,9 +92,11 @@ function setBlock(x, y, z, val) {
   if (typeof burnPlaced === 'function') burnPlaced(x, y, z, oldVal, val);
   // leveling ledger: remember cells the player placed into, forget them when they are cleared
   if (typeof notePlacedCell === 'function') notePlacedCell(x, y, z, newId);
-  let edits = editStore.get(key(cx, cz));
-  if (!edits) editStore.set(key(cx, cz), edits = new Map());
+  const ck = key(cx, cz);
+  let edits = editStore.get(ck);
+  if (!edits) editStore.set(ck, edits = new Map());
   edits.set(i, val);
+  SAVE_DIRTY.add(ck);                                  // the next save sends this chunk's edits (16-worlds.js)
   markDirty(c);
   // faces on the border also live in the neighbour's mesh
   if (lx === 0)  markDirty(getChunk(cx - 1, cz));
@@ -138,12 +157,22 @@ function setBlock(x, y, z, val) {
   // a door is a shape of its material since 0.842; a new one's mesh comes up as its bottom half is set
   if (BLOCKS.isDoorVal(oldVal) && !BLOCKS.isDoorVal(val)) doorBroken(x, y, z, oldVal);
   else if (BLOCKS.isDoorVal(val) && !((val >> 8) & 8)) registerDoor(x, y, z, val);
+  // a gate made, opened, shut or gone: its swinging mesh (blocks/gates.js)
+  if (CORE.shapeOfVal(oldVal) === 'gate' || CORE.shapeOfVal(val) === 'gate') gateChanged(x, y, z, oldVal, val);
   // bed half removed: take the other half + the mesh with it
   if (oldId === B.BED && newId !== B.BED) bedBroken(x, y, z, oldVal);
   // a termite hill's cell broken (the whole hill goes, its termites come out) or one put down (blocks/termite-hill.js)
   if ((oldId === B.TERMITE_HILL || newId === B.TERMITE_HILL) && typeof termiteHillChanged === 'function') termiteHillChanged(x, y, z, oldVal, val);
   // ...and one standing on this cell needs a full block under it, or it breaks
   if (y < WORLD_TOP && typeof termiteHillFloor === 'function' && !termiteHillFloor(val) && (getBlock(x, y + 1, z) & 255) === B.TERMITE_HILL) termiteHillUnder(x, y, z, val);
+  // a clam put down, opened, shut, filled or broken (blocks/clam.js: its model, and what was put in it falls out)
+  if ((oldId === B.CLAM || newId === B.CLAM) && typeof clamChanged === 'function') clamChanged(x, y, z, oldVal, val);
+  // a pressure plate down broken (what it held lets go), or the block under one gone (it comes off) (blocks/pressure-plates.js)
+  if (typeof plateChanged === 'function') plateChanged(x, y, z, oldVal, val);
+  // a sign gone takes its words; the block a sign was put up on gone lets the sign down (blocks/signs.js)
+  if (typeof signChanged === 'function') signChanged(x, y, z, oldVal, val);
+  // a sand layer a meerkat buried something under, broken or replaced: what it hid comes out (entities/meerkat.js)
+  if ((oldId === B.SAND || oldId === B.RED_SAND) && typeof MEERKAT_STASH !== 'undefined' && MEERKAT_STASH.size) meerkatStashChanged(x, y, z, oldVal, val);
   // chest removed/replaced: spill its contents and drop the mesh
   if (isChestId(oldId) && newId !== oldId) chestBroken(x, y, z, oldVal);   // wooden or metal
   // crafting bench removed: its order (finished and unfinished) spills on the floor
@@ -177,7 +206,7 @@ function setBlock(x, y, z, val) {
     if (isDoorBottom || upId === B.BED) {
       setBlock(x, y + 1, z, B.AIR);
       if (!player.canFly)
-        for (const d of isDoorBottom ? doorDropOf(upVal) : blockDrop(upId)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);
+        for (const d of isDoorBottom ? doorDropOf(upVal) : blockDrop(upVal)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);   // a bed's value: what it took back too
     }
   }
   /* Wall torches hang off the SIDE of a block. When that block goes, any torch mounted on
@@ -192,17 +221,23 @@ function setBlock(x, y, z, val) {
         for (const d of blockDrop(nv & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x + dx, y, z + dz);
     }
   /* A glow vine clings to the block behind it: take that block away and the vine comes down with
-     it. Nothing harvested it, so it drops nothing. [dx, dz, the variant of a vine whose wall is this cell] */
+     it. Nothing harvested it, so it drops nothing. [dx, dz, the variant of a vine whose wall is this cell]
+     (the jungle's vine is held by a vine over it too: vineChanged below) */
   if (newId === B.AIR)
     for (const [dx, dz, vv] of [[1, 0, 2], [-1, 0, 3], [0, 1, 0], [0, -1, 1]]) {
       const nv = getBlock(x + dx, y, z + dz);
-      if (PROPS[nv & 255]?.model !== 'wall' || ((nv >> 8) & 3) !== vv) continue;
+      if (PROPS[nv & 255]?.model !== 'wall' || (nv & 255) === B.VINE || ((nv >> 8) & 3) !== vv) continue;
       setBlock(x + dx, y, z + dz, B.AIR);
       // a ladder is something you built: it drops back as a ladder. A vine just falls apart.
       if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
     }
+  // the jungle's vines: a tip put down or grown; what held some gone, the ones nothing else holds fall (woods/vines.js)
+  if (typeof vineChanged === 'function') vineChanged(x, y, z, oldVal, val);
   // a coconut hangs from what is over it, or rests on what is under it: that gone (nothing solid left), it falls (woods/coconuts.js)
   if (CORE.solidVal(oldVal) && !CORE.solidVal(val) && typeof coconutLostHold === 'function') { coconutLostHold(x, y - 1, z); coconutLostHold(x, y + 1, z); }
+  // a cocoa pod hangs on the side of jungle wood: that gone, it breaks off (woods/cocoa.js)
+  if ((((oldVal & 255) === B.JUNGLE_LOG || (oldVal & 255) === B.STRIPPED_JUNGLE_LOG) && (val & 255) !== B.JUNGLE_LOG
+       && (val & 255) !== B.STRIPPED_JUNGLE_LOG) && typeof cocoaLostHold === 'function') cocoaLostHold(x, y, z);
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
   if (newId === B.AIR && y + 1 <= WORLD_TOP) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;
@@ -265,6 +300,12 @@ function setBlock(x, y, z, val) {
      seasons, a structure going up) come many to a chunk, and are better meshed once after the lot. */
   const rushed = editRushing;
   editRushing = false;
+  // covers lying in this cell: what holds them changed, or went (one of them becomes the cell's block) (blocks/covers.js)
+  if (typeof coverChanged === 'function') coverChanged(x, y, z, oldVal, val);
+  // a door opening lets what lies on it fall into the doorway; a door gone leaves what fell in as blocks (blocks/doors.js)
+  if (typeof doorFillChanged === 'function') doorFillChanged(x, y, z, oldVal, val);
+  // a fence or a wall lying in this cell: what holds it changed, or went (it becomes the cell's block) (blocks/rails.js)
+  if (typeof railChanged === 'function') railChanged(x, y, z, oldVal, val);
   if (rushed && !structBulkLight && meshQueue.length && performance.now() - _playerEditAt < PLAYER_EDIT_MS) pump();
 }
 let _playerEditAt = -1e9;

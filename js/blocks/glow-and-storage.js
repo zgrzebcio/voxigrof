@@ -1,5 +1,5 @@
 'use strict';
-/* blocks/glow-and-storage.js: the glow vine, glowstone and glow crystal (and their burnt-out forms), the cobweb, and
+/* blocks/glow-and-storage.js: the glow vine and the jungle's vine, glowstone and glow crystal (and their burnt-out forms), the cobweb, and
    the storage blocks (ten of a material pressed into one).
    A part of BLOCK_CORE (blocks/blocks.js). */
 
@@ -14,6 +14,11 @@ corePart('blocks', function () {
   PROPS[B.GLOW_VINE] = { name:'Glow vine', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
                          light:10, coldLight:true, stack:50, hardness:0.3, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                          faces:[T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE,T.GLOW_VINE], desc: '' };
+  /* The jungle's vine: the same plate, climbable, no light. Held by what is behind it or by a vine over it, and it grows
+     down (woods/vines.js); look 1 is the half-cut one shears leave (blocks/looks.js). Variant = the side it hangs on, as
+     the glow vine's. */
+  PROPS[B.VINE] = { name:'Vine', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true, stack:50,
+                    hardness:0.2, type:'grass', boxes:WALL_VAR[0], boxesByVar:WALL_VAR, faces:Array(6).fill(T.VINE), desc: '' };
   // five glow crystals pressed into a block: brighter than glowstone's reach, a real room light
   PROPS[B.GLOWCRYSTAL_BLOCK] = { name:'Glowcrystal block', solid:true, opaque:true, raycast:true, pass:0, model:'cube',
                          light:18, handLight:12, coldLight:true, stack:50, hardness:2.5, type:'glass',

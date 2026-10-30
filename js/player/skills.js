@@ -51,7 +51,7 @@ const SKILLS = [
   { id: 'canopy',      cat: 'survival', name: 'Canopy Forager', cost: 1, req: ['grassWeaver'],
     desc: '30% better chance of sticks, saplings and apples from leaves' },
   { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 1, req: ['canopy'],
-    desc: 'Each log you cut shakes the tree: every leaf on it has a 2% chance to fall and drop its loot' },
+    desc: 'Each log you cut shakes the tree: every leaf on it has a 2% chance to fall and drop its loot, and every ripe cocoa pod on it 15% to fall for its beans' },
   // ---- crafting ----
   // the ids stay (they are what a save holds). `nimble` is Work Fingers now, and took the walking bonus over
   // from `walkWork`, which became Precise Focus (player/crafting.js: craftMoveMul, benchFocusMul)
@@ -95,7 +95,7 @@ const SKILLS = [
     desc: 'The saddle recipe costs 20% less' },
   // 0.828, a path of its own
   { id: 'luckyHands',  cat: 'husbandry', name: 'Lucky Hands',    cost: 1, req: [],
-    desc: '20% chance of one more flint, stone pebble, berry, mushroom, wheat, melon or cantaloupe slice or pumpkin when you forage one' },   // mushrooms, wheat and gourds 0.8442
+    desc: '20% chance of one more flint, stone pebble, berry, mushroom, wheat, carrot, melon or cantaloupe slice or pumpkin when you forage one' },   // mushrooms, wheat and gourds 0.8442
 ];
 const SKILL_BY_ID = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 
@@ -197,6 +197,7 @@ function skillShakeTree(x, y, z) {
       if (isAnyLog(v & 255) && !isPlacedLog(v)) stack.push([nx, ny, nz]);
     }
   }
+  if (typeof cocoaShake === 'function') cocoaShake(logs);   // its ripe cocoa pods may come off too (woods/cocoa.js)
   /* The leaf flood keeps its OWN visited set: the log flood above marks every neighbour of every log
      as seen, leaves included, and sharing that set would hide exactly the leaves touching the trunk. */
   const leaves = [], lq = [], leafSeen = new Set();

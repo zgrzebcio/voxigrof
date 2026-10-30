@@ -88,7 +88,8 @@ const ICON_MESH_ART = {
               'oak_planks', 'birch_planks', 'spruce_planks', 'rime_planks', 'acacia_planks'],   // metal and the wood colours (CHEST_WOODS in blocks/chest.js; rime 0.8392)
   // the metal chest: its body is the iron, copper or gold block's art
   [B.METAL_CHEST]: ['chest_wood', 'chest_metal', ...[B.IRON_BLOCK, B.COPPER_BLOCK, B.GOLD_BLOCK].map(id => ATLAS_TILES[PROPS[id].faces[0]])],
-  [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow', 'oak_planks', 'birch_planks', 'spruce_planks'],   // 0.8342
+  [B.BED]:   ['bed_frame', 'bed_blanket', 'bed_sheet', 'bed_pillow',   // and the frame's woods' planks (BED_WOODS in blocks/bed.js, which loads later)
+              'oak_planks', 'birch_planks', 'spruce_planks', 'acacia_planks'],
   [B.DOOR]:  ['oak_door'],
 };
 const iconArtReady = (id) => (ICON_MESH_ART[id] || []).every(n => IMAGES[n]);
@@ -105,6 +106,24 @@ function renderBlockIcon(id, variant) {
   if (!variant && PROPS[id]?.model === 'log') variant = CORE.LOG_W_BLOCK << 2;
   const key = id + ':' + variant;
   if (ICON3D[key]) return ICON3D[key];
+  // a door (the hammer's Door shape of its material, blocks/doors.js): its panel, two high, in that material's door art
+  const doorVal = (id | (variant << 8)) >>> 0;
+  if (BLOCKS.isDoorVal(doorVal)) {
+    const mat = matKey(doorVal);
+    if (!doorTexture(mat).tex.image) return '';    // art still loading — ask again, don't cache
+    const scene = new THREE.Scene();
+    const m = doorMaterials(mat);
+    const mesh = new THREE.Mesh(doorPanelGeom(false), m.mats);
+    scene.add(mesh);
+    const cam = new THREE.OrthographicCamera(-1.25, 1.25, 1.25, -1.25, 0.1, 10);
+    cam.position.set(1.8, 1.6, 1.8);
+    cam.lookAt(0, 0, 0);
+    const url = _renderIconScene(scene, cam);
+    mesh.geometry.dispose(); m.face.dispose(); m.edge.dispose();
+    ICON3D[key] = url;
+    const im = new Image(); im.src = url; ICON_IMG[key] = im;
+    return url;
+  }
   if (!iconArtReady(id)) return '';               // art still loading — ask again, don't cache
   if (isChestId(id)) {                    // chest has no chunk-mesh model — render its real mesh
     const scene = new THREE.Scene();
@@ -117,6 +136,18 @@ function renderBlockIcon(id, variant) {
     const url = _renderIconScene(scene, cam);
     m.group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     for (const mt of m.mats) mt.dispose();
+    ICON3D[key] = url;
+    const im = new Image(); im.src = url; ICON_IMG[key] = im;
+    return url;
+  }
+  if (id === B.CLAM) {                    // the clam neither: its box model shut (blocks/clam.js), once that is in
+    if (typeof clamModelReady !== 'function' || !clamModelReady()) return '';
+    const scene = new THREE.Scene();
+    scene.add(clamItemNode());
+    const cam = new THREE.OrthographicCamera(-0.62, 0.62, 0.62, -0.62, 0.1, 10);
+    cam.position.set(1.4, 1.5, 1.8);
+    cam.lookAt(0, -0.05, 0);
+    const url = _renderIconScene(scene, cam);   // the geometry is the clam's own, shared: nothing to free
     ICON3D[key] = url;
     const im = new Image(); im.src = url; ICON_IMG[key] = im;
     return url;

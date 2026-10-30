@@ -2,9 +2,10 @@
 /* ui/chest-panel.js: the chest's window. */
 
 /* ---------------------------------- GUI ---------------------------------- */
-// Rendered to the RIGHT of the inventory. A single chest is CHEST_ROWS x CHEST_COLS; a double
-// stacks its partner's grid above the first half's (which has the bonus row): 7 x 7.
-const CHEST_SCROLL_ROWS = 7;                                  // more rows than this scroll (css #chestPanel .chestScroll)
+/* Rendered to the RIGHT of the inventory, as tall as its chest and never taller than the equipment panel (css
+   #chestPanel). A single chest is CHEST_ROWS x CHEST_COLS (a metal one CHEST_ROWS_METAL); a double stacks its
+   partner's grid above the first half's (which has the bonus row). The largest, a metal double's 9 rows, fits whole:
+   nothing scrolls. */
 function buildChestPanel() {
   const panel = invPanel('chestPanel');
   if (!panel) return;
@@ -13,17 +14,13 @@ function buildChestPanel() {
   if (invPanelHeld(panel)) return;                                                  // the skill tree is up
   const b = activeChest2 && CHESTS.get(activeChest2);
   panel.style.display = 'flex';
-  // a rebuild (every drag and drop) keeps a large metal chest where it was scrolled; a new chest opens at the bottom
-  const oldBox = panel.querySelector('.chestScroll');
-  const keepScroll = oldBox && panel._chestKey === activeChest ? oldBox.scrollTop : null;
-  panel._chestKey = activeChest;
   panel.innerHTML = '';                                       // its tab names it (was a "Chest" title)
   addInvTabs(panel, 'chest');                                 // Chest / Equipment / Skill tree
   const mkGrid = (arr, region) => {
     const grid = document.createElement('div');
     grid.className = 'grid';
     grid.dataset.region = region;
-    const rows = Math.ceil(arr.length / CHEST_COLS);   // 3, or 4 for a double's first half
+    const rows = Math.ceil(arr.length / CHEST_COLS);   // 2 (metal 4), and one more for a double's first half
     for (let row = 0; row < rows; row++) {             // row 0 renders at the bottom
       const rowEl = document.createElement('div');
       rowEl.className = 'row';
@@ -37,19 +34,8 @@ function buildChestPanel() {
     }
     return grid;
   };
-  /* 3 x 7 fits on screen outright, and a wooden double is only 7 rows. A metal chest's 6 do too, but a double's 13
- sit in a box CHEST_SCROLL_ROWS tall that scrolls: the wheel, or the right stick under the pad cursor (17) */
-  const rowsAll = Math.ceil(a.slots.length / CHEST_COLS) + (b ? Math.ceil(b.slots.length / CHEST_COLS) : 0);
-  let box = panel;
-  if (rowsAll > CHEST_SCROLL_ROWS) { box = document.createElement('div'); box.className = 'chestScroll'; panel.appendChild(box); }
-  if (b) box.appendChild(mkGrid(b.slots, 'chest2'));        // partner sits above
-  box.appendChild(mkGrid(a.slots, 'chest'));
-  if (box !== panel) {
-    // done twice, as the creative palette does (20): before layout the scroll height is still 0
-    const settle = () => { box.scrollTop = keepScroll ?? box.scrollHeight; };
-    settle();
-    requestAnimationFrame(settle);
-  }
+  if (b) panel.appendChild(mkGrid(b.slots, 'chest2'));      // partner sits above
+  panel.appendChild(mkGrid(a.slots, 'chest'));
   // its own Sort under the slots: both halves of a large chest sort as one
   if (typeof invButton === 'function') {
     const row = document.createElement('div');

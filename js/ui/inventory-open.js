@@ -55,10 +55,14 @@ function toggleInventory(open, mode) {
     if (!player._sneakKeep) player.sneaking = false;
   }
   invWrapEl.style.display = open ? 'flex' : 'none';
+  /* The mouse (the pointer lock) is seat ONE's. Another seat's inventory leaves it alone: letting it go there paused the
+     game (the lock's handler, 17-input.js, saw seat one's inventory shut and opened the pause menu), and taking it back
+     on close locked seat one's cursor in the middle of seat one's own inventory. */
+  const mouseSeat = activePlayerSlot() === 0;
   if (open) {
     alignInvWrap();                             // needs the panel laid out, so after display:flex
     resetInvListScroll();                       // a newly opened inventory starts every list from its top
-    if (document.pointerLockElement) document.exitPointerLock();   // free the cursor
+    if (mouseSeat && document.pointerLockElement) document.exitPointerLock();   // free the cursor
     const r = invEl.getBoundingClientRect();
     invCursor.x = r.left + r.width / 2; invCursor.y = r.top + r.height / 2;
     /* Only seat ZERO owns the mouse. Every other seat is on a pad and has no OS pointer, so
@@ -82,7 +86,7 @@ function toggleInventory(open, mode) {
        updateInvCursorVisual only runs while the inventory is open, so the frame that would have
        cleaned it up never comes and the panel stays stranded on screen. */
     vcurEl.style.display = vdragEl.style.display = ctipEl.style.display = 'none';
-    if (playing) { lockTries = 0; tryPointerLock(); }
+    if (playing && mouseSeat) { lockTries = 0; tryPointerLock(); }
   }
 }
 
@@ -105,10 +109,12 @@ function invBounds() {
 }
 var lastHoverEl = null;
 var _invSeq = 0;                    // when this seat opened its inventory — see toggleInventory
+// hidden, written only when it is not already (once a frame: a style set to what it is still costs the browser a parse)
+const _invHide = (el) => { if (el.style.display !== 'none') el.style.display = 'none'; };
 function updateInvCursorVisual(dt) {
   if (!invOpen) {
     if (lastHoverEl) { lastHoverEl.classList.remove('hover'); lastHoverEl = null; }
-    vcurEl.style.display = vdragEl.style.display = ctipEl.style.display = 'none';
+    _invHide(vcurEl); _invHide(vdragEl); _invHide(ctipEl);
     return;
   }
   const bnd = invBounds();
@@ -119,18 +125,24 @@ function updateInvCursorVisual(dt) {
     // crafting icons are small, so they get a wider capture radius and a harder pull
     // and the furnace book's icons and tabs pull hardest still, so a pad lands on one exact icon
     const book = n && (n.type === 'book' || n.type === 'skill');   // skill buttons pull as hard
-    const snapR = (book ? 150 : n && n.type === 'craft' ? 120 : 80) * invScale();
+    // a line (a stat, an effect, the XP bar, a row of the vitals) pulls gently and only from close by, onto its nearest
+    // edge: it is wide, and pulled to its middle the cursor could not pass it (LINE_BIAS, ui/inventory-cursor.js)
+    const line = n && (n.type === 'info' || n.type === 'vital');
+    const snapR = (book ? 150 : n && n.type === 'craft' ? 120 : line ? 28 : 80) * invScale() + (line ? LINE_BIAS : 0);
     if (n && n.dist < snapR && (pad.invStick || 0) < 0.2) {
-      const k = Math.min(1, dt * (book ? 50 : n.type === 'craft' ? 30 : 20));
-      invCursor.x += (n.cx - invCursor.x) * k;
-      invCursor.y += (n.cy - invCursor.y) * k;
+      const k = Math.min(1, dt * (book ? 50 : n.type === 'craft' ? 30 : line ? 8 : 20));
+      const r = line ? n.rect : null;
+      const tx = r ? Math.max(r.left + 2, Math.min(r.right - 2, invCursor.x)) : n.cx;
+      const ty = r ? Math.max(r.top + 2, Math.min(r.bottom - 2, invCursor.y)) : n.cy;
+      invCursor.x += (tx - invCursor.x) * k;
+      invCursor.y += (ty - invCursor.y) * k;
     }
     vcurEl.style.display = 'block';
     vcurEl.style.left = invCursor.x + 'px';
     vcurEl.style.top = invCursor.y + 'px';
     if (typeof craftPickFollow === 'function') craftPickFollow();   // a counted batch rides the cursor
   } else {
-    vcurEl.style.display = 'none';
+    _invHide(vcurEl);
   }
   const hov = hoveredSlot(), hovEl = hov ? hov.el : null;
   if (hovEl !== lastHoverEl) {
@@ -144,14 +156,19 @@ function updateInvCursorVisual(dt) {
   const tipR = (invCursor.mode === 'pad' ? 60 : 24) * invScale();
   const hovSlot = hov && slotArr(hov.region)[hov.i];
   // a stat or effect line under the cursor is lit up while its tooltip shows
-  const infoEl = !dragHeld && !hovSlot && ne && ne.type === 'info' && ne.dist < tipR ? ne.el : null;
+  const infoEl = !dragHeld && !hovSlot && ne && ne.type === 'info' && ne.dist - LINE_BIAS < tipR ? ne.el : null;
   if (infoEl !== player._infoHoverEl) {
     if (player._infoHoverEl) player._infoHoverEl.classList.remove('tipHover');
     if (infoEl) infoEl.classList.add('tipHover');
     player._infoHoverEl = infoEl;
   }
+  // a bar of the vitals above the hotbar, its value out of its max and its over-stat: first when the cursor is on the bar
+  // and not on a slot itself (the hotbar's slots are near enough to count as hovered from there)
+  const vt = !dragHeld && typeof vitalsTipAt === 'function' && !slotAtPoint(invCursor.x, invCursor.y) ? vitalsTipAt(invCursor.x, invCursor.y) : '';
   if (dragHeld) {
-    ctipEl.style.display = 'none';
+    _invHide(ctipEl);
+  } else if (vt) {
+    showTooltip(vt);
   } else if (hovSlot) {
     showTooltip(itemTooltipHTML(hovSlot.id, hovSlot.dur, hovSlot.fresh, hovSlot.wm, hovSlot.lock));
   } else if (ne && (ne.type === 'craft' || ne.type === 'book') && ne.dist < tipR && ne.title && _inClip(ne.clip)) {
@@ -163,9 +180,7 @@ function updateInvCursorVisual(dt) {
   } else if (infoEl) {
     showTooltip(ne.tip());                           // what a stat means, or what an effect is doing
   } else {
-    // a bar in the vitals above the hotbar: its value out of its max, and its over-stat (0.82, player/hazards.js)
-    const vt = typeof vitalsTipAt === 'function' ? vitalsTipAt(invCursor.x, invCursor.y) : '';
-    if (vt) showTooltip(vt); else ctipEl.style.display = 'none';
+    _invHide(ctipEl);
   }
   if (dragHeld) {
     vdragEl.style.display = 'block';
@@ -174,8 +189,8 @@ function updateInvCursorVisual(dt) {
     const dragKey = dragHeld ? `${dragHeld.id}:${dragHeld.count}` : '';
     if (vdragEl.dataset.id !== dragKey) { vdragEl.innerHTML = slotInner(dragHeld); vdragEl.dataset.id = dragKey; }
   } else {
-    vdragEl.style.display = 'none';
-    vdragEl.dataset.id = '';
+    _invHide(vdragEl);
+    if (vdragEl.dataset.id) vdragEl.dataset.id = '';
   }
 }
 

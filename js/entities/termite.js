@@ -5,7 +5,7 @@
    it goes home and stays in the hill a while (the hill's `rest`, blocks/termite-hill.js). The SOLDIER guards the hill and bites a player who comes close to it, or who has hit one of
    its hill's termites (the hill's `angryT`). Both drop a chitin plate now and then.
 
-   Their model is a box model each (textures/Entity/Animals/termite_<kind>.json, entities/box-models.js), its legs
+   Their model is a box model each (js/models/termites.js, entities/box-models.js; sheets textures/Entity/Animals/termite_<kind>.png), its legs
    swinging on their own. They are never saved (`unsaved`): the hill keeps them, and lets them out again.
    Their step is their own (updateTermite, from updateEntities: body 'insect'). All numbers in TERMITE. */
 const TERMITE = {
@@ -28,8 +28,8 @@ const TERMITE = {
   restS: 240,                    // ...and seconds it then stays inside its hill
 };
 const _termiteModel = {
-  worker:  () => boxModel('textures/Entity/Animals/termite_worker.json', 'textures/Entity/Animals/termite_worker.png'),
-  soldier: () => boxModel('textures/Entity/Animals/termite_soldier.json', 'textures/Entity/Animals/termite_soldier.png'),
+  worker:  () => boxModel('termite_worker', 'textures/Entity/Animals/termite_worker.png'),
+  soldier: () => boxModel('termite_soldier', 'textures/Entity/Animals/termite_soldier.png'),
 };
 _termiteModel.worker(); _termiteModel.soldier();          // fetched from the start: hills let them out at once
 /* Its model: an empty root at once, the boxes put in the first frame they are ready (_termiteDress), since a hill may

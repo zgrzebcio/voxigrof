@@ -91,4 +91,17 @@ corePart('blocks', function () {
                             stack:1, hardness:5.0, type:'ground', boxes:HILL_SMALL_BOXES,
                             boxesByVar:[HILL_SMALL_BOXES, ...HILL_BIG_BOXES.slice(1).map(b => [_hb(b)])],
                             faces:Array(6).fill(T.DIRT), desc: 'Termites live in it. Break it and they come out' };
+  /* Clam: lies on warm sea floors (worldgen/desert-and-shore-plants.js), drawn by the page like the termite hill
+     (blocks/clam.js: its model, its lid, what is inside, a pearl growing). It stands in water (`waterlog`); the water
+     does not wash it away. Its variant byte, CLAM_BITS:
+       bits 0-1  facing, as rot:'side' (0 +Z, 1 -Z, 2 +X, 3 -X): the way it opens; its hinge is on the other side
+       bit 2     OPEN
+       bits 3-4  what is inside (HAS_SHIFT): NONE, SAND (a pearl growing), PEARL, ITEM (blocks/clam.js keeps that item)
+       bit 5     PLACED: put down by a player. It opens at a touch, and never takes in sand
+       bits 6-7  how far its sand has filled it (SAND_SHIFT), 0 .. SAND_FULL: full, the sand can be taken */
+  const CLAM_BITS = { OPEN: 4, HAS_SHIFT: 3, HAS_MASK: 24, PLACED: 32, NONE: 0, SAND: 1, PEARL: 2, ITEM: 3,
+                      SAND_SHIFT: 6, SAND_MASK: 192, SAND_FULL: 3 };
+  PROPS[B.CLAM] = { name:'Clam', solid:false, opaque:false, raycast:true, pass:1, model:'clam', rot:'side', pageModel:true, waterlog:true,
+                    stack:50, hardness:0.8, type:'stone', boxes:[[0, 0, 0, 1, 3 / 16, 1]],
+                    faces:Array(6).fill(T.SEASHELL_SIDE), desc: 'A pearl may grow in one found on a warm sea floor. Put down, it keeps one thing for you' };
 });

@@ -2,7 +2,7 @@
 /* woods/woods.js: THE WOODS TABLE. One entry per wood, and the lists the rest of the game makes from it.
 
    Each wood's own file adds its entry with defineWood: oak.js, birch.js, spruce.js, rime.js, palm.js, dry-bush.js,
-   acacia.js.
+   acacia.js, jungle.js.
    THEIR ORDER IN index.html IS THE ORDER OF EVERY LIST made here (the creative palette, the recipe groups, the
    smelting book), so a new wood goes after the others.
 

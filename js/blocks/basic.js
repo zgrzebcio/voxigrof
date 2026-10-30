@@ -20,11 +20,40 @@ corePart('blocks', function () {
   // A log you hold, place or see in the inventory is a full block. Only grown wood is slimmer:
   // trunks sit at 60 units and branches well under that.
   const LOG_W_NORMAL = LOG_W_BLOCK;
-  const logWidthPx = (w) => 8 + 2 * Math.max(LOG_W_MIN, Math.min(LOG_W_MAX, w));
+  /* A QUARTER of a log two blocks wide (a jungle giant's 2x2 trunk). Width index = quadW(q, level): q 0..3 = which
+     quarter (bit 0 the high half across the first axis beside the log's own, X for an upright log; bit 1 across the
+     second, Z), `level` 0..QUAD_LEVELS-1 how far a hatchet has cut it in: the big log QUAD_WIDTHS[level] units across
+     (128 = two blocks, each quarter filling its cell). Level 0 is LOG_W_QUAD + q (60-63), each level the four below.
+     The four quarters at a height are drawn as ONE log scaled x2, its bark and its top's rings spread over them
+     (emitQuadLog, chunks/mesher-logs.js), and cut together: the first swing strips all four, each swing after takes
+     them a level in, and past the last the tree falls (woods/felling.js). */
+  const LOG_W_QUAD = 60, QUAD_LEVELS = 5, LOG_W_QUAD_MIN = LOG_W_QUAD - 4 * (QUAD_LEVELS - 1);   // 44
+  const QUAD_WIDTHS = [128, 112, 96, 80, 64];
+  const isQuadW = (w) => w >= LOG_W_QUAD_MIN;
+  const quadOf = (w) => w & 3;
+  const quadLevel = (w) => (63 - w) >> 2;
+  const quadW = (q, level) => LOG_W_QUAD - 4 * level + q;
+  // how far a quarter reaches across its cell from the big log's middle line, in blocks (1 = the whole cell)
+  const quadExtent = (w) => QUAD_WIDTHS[quadLevel(w)] / 128;
+  /* ...and as DRAWN: a quarter being cut keeps the swings it has taken in the cell's bits 25-30 (LOG_CUT_SHIFT; nothing
+     else uses them, and a log has no look of its own), and the big log narrows QUAD_CUT_UNITS a swing from 128 across, so
+     every swing shows. Its level (the width index) follows a step behind: the box it collides with is never narrower than
+     what is drawn. 0 swings: its level's width. */
+  const LOG_CUT_SHIFT = 25, LOG_CUT_MAX = 63, QUAD_CUT_UNITS = 1.6;
+  const logCutOf = (v) => (v >>> LOG_CUT_SHIFT) & LOG_CUT_MAX;
+  const quadReach = (v) => { const c = logCutOf(v); return c ? Math.max(8, 128 - c * QUAD_CUT_UNITS) / 128 : quadExtent(((v >> 8) & 255) >> 2); };
+  const logWidthPx = (w) => w >= LOG_W_QUAD_MIN ? 64 : 8 + 2 * Math.max(LOG_W_MIN, Math.min(LOG_W_MAX, w));
   const logWidthOf = (variant) => ((variant >> 2) & 63) || LOG_W_NORMAL;
   // how much of a wooden log's width is cut off each of its long edges when meshed: 2 of 16 pixels
   const LOG_BEVEL = 0.125;
   function logCutBox(axis, w) {
+    if (isQuadW(w)) {                                         // a quarter: from the big log's middle line out to its reach
+      const e = quadExtent(w), q = quadOf(w), lo = (bit) => (bit ? 0 : 1 - e), hi = (bit) => (bit ? e : 1);
+      const P = q & 1, Q = q >> 1;
+      return axis === 1 ? [0, lo(P), lo(Q), 1, hi(P), hi(Q)]          // X-axis: across it Y, then Z
+           : axis === 2 ? [lo(P), lo(Q), 0, hi(P), hi(Q), 1]          // Z-axis: across it X, then Y
+           :              [lo(P), 0, lo(Q), hi(P), 1, hi(Q)];         // Y-axis: across it X, then Z
+    }
     const t = (1 - logWidthPx(w) / 64) / 2;                  // inset per side; negative past 64
     return axis === 1 ? [0, t, t, 1, 1 - t, 1 - t]           // X-axis: inset Y,Z
          : axis === 2 ? [t, t, 0, 1 - t, 1 - t, 1]           // Z-axis: inset X,Y
@@ -58,9 +87,10 @@ corePart('blocks', function () {
                           faces:Array(6).fill(T.PACKED_ICE), desc: 'Ice pressed hard over the years: it never melts' };
   // the bone block: pressed from ten bones; a pillar that turns to the face it is put on, its brick a look of it
   /* the seashell block: ten seashells pressed into a block (a bench recipe), turned to face you when placed like a chest,
-     its top and bottom art turning with it (rotTop, chunks/mesher-cubes.js) */
+     its top and bottom art turning with it (rotTop) and its front and back art on the faces it is turned to (frontBack:
+     [front, back], chunks/mesher-cubes.js); `faces` holds its sides */
   PROPS[B.SEASHELL_BLOCK] = { name:'Seashell block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', rot:'side', rotTop:true,
-                              stack:50, hardness:2, type:'stone', desc: '',
+                              stack:50, hardness:2, type:'stone', desc: '', frontBack:[T.SEASHELL_BLOCK_FRONT, T.SEASHELL_BLOCK_FRONT],
                               faces:[T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_TOP, T.SEASHELL_BLOCK_TOP, T.SEASHELL_BLOCK_SIDE, T.SEASHELL_BLOCK_SIDE] };
   PROPS[B.BONE_BLOCK] = { name:'Bone block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:2, type:'stone',
                           pillar: true, rot: 'all',

@@ -30,7 +30,7 @@ const TEXTURES = {
   snow_ice_bricks:  'textures/Blocks/Decorations/Winter/snow_ice_bricks.png',
   bone_block_side:  'textures/Blocks/Natures/bone_block_side.png',
   bone_block_top:   'textures/Blocks/Natures/bone_block_top.png',
-  bone_bricks:      'textures/Blocks/Decorations/bone_bricks.png',
+  bone_bricks:      'textures/Blocks/Decorations/bone/bone_bricks.png',
   grass_block_snow: 'textures/Blocks/Natures/grass_block_snow.png',
   cobblestone:      'textures/Blocks/Decorations/Cobblestone/cobblestone.png',
   coal_ore:         'textures/Blocks/Ores/coal_ore.png',
@@ -127,7 +127,7 @@ const TEXTURES = {
   mossy_stone_brick:    'textures/Blocks/Decorations/Stone/mossy_stone_bricks.png',
   cracked_stone_brick:  'textures/Blocks/Decorations/Stone/stone_bricks.png',
   mossy_cobblestone:    'textures/Blocks/Decorations/Cobblestone/mossy_cobblestone.png',
-  sulfur_bricks:        'textures/Blocks/Decorations/sulfur_bricks.png',
+  sulfur_bricks:        'textures/Blocks/Decorations/Sulfur/sulfur_bricks.png',
   granite_bricks:       'textures/Blocks/Decorations/Granite/granite_bricks.png',
   marble_bricks:        'textures/Blocks/Decorations/Marble/marble_bricks.png',
   limestone_bricks:     'textures/Blocks/Decorations/Limestone/limestone_bricks.png',
@@ -202,6 +202,14 @@ const TEXTURES = {
   acacia_leaves:            'textures/Blocks/Woods/acacia/acacia_leaves.png',
   acacia_sapling:           'textures/Billboards/Plants/Saplings/acacia_sapling.png',
   cherry_sapling:           'textures/Billboards/Plants/Saplings/cherry_sapling.png',   // no tile: tinted blue into the rime sapling (03-atlas.js)
+  // jungle wood: the Jungle's trees (its leaves grey art, tinted in 03-atlas.js)
+  jungle_log:               'textures/Blocks/Woods/jungle/jungle_log_side.png',
+  jungle_log_top:           'textures/Blocks/Woods/jungle/jungle_log_top.png',
+  stripped_jungle_log:      'textures/Blocks/Woods/jungle/jungle_stripped_log_side.png',
+  stripped_jungle_log_top:  'textures/Blocks/Woods/jungle/jungle_stripped_log_top.png',
+  jungle_planks:            'textures/Blocks/Woods/jungle/jungle_planks.png',
+  jungle_leaves:            'textures/Blocks/Woods/jungle/jungle_leaves.png',
+  jungle_sapling:           'textures/Billboards/Plants/Saplings/jungle_sapling.png',
   // the desert's dry plants; the tall one is one 2-tall sprite, split in 03-atlas.js like the tall grass
   dry_grass:                'textures/Billboards/Plants/Warm/short_dry_grass.png',
   dry_tall_grass:           'textures/Billboards/Plants/Warm/dry_tall_grass.png',
@@ -224,8 +232,11 @@ const TEXTURES = {
   seashell_top:             'textures/Blocks/Models/seashell/seashell_top.png',
   coconut_side:             'textures/Blocks/Plants/coconut_block_side.png',   // its green look is built from these (03-atlas.js)
   coconut_top:              'textures/Blocks/Plants/coconut_block_top.png',
-  seashell_block_side:      'textures/Blocks/Decorations/big_seashell_side.png',
-  seashell_block_top:       'textures/Blocks/Decorations/big_seashell_top.png',
+  cocoa_side:               'textures/Blocks/Plants/cocoa_block_side.png',     // its green look is built from these too
+  cocoa_top:                'textures/Blocks/Plants/cocoa_block_top.png',
+  seashell_block_side:      'textures/Blocks/Decorations/Seashell/big_seashell_side.png',
+  seashell_block_top:       'textures/Blocks/Decorations/Seashell/big_seashell_top.png',
+  seashell_block_front:     'textures/Blocks/Decorations/Seashell/big_seashell_front.png',   // its front and its back
   // dolomite and the mossy and polished rocks
   dolomite:                 'textures/Blocks/Natures/Underground/dolomite.png',
   dolomite_bricks:          'textures/Blocks/Decorations/Dolomite/dolomite_bricks.png',
@@ -317,11 +328,59 @@ Object.assign(TEXTURES, {
   carved_adobe:          'textures/Blocks/Decorations/Clay/carved_adobe.png',
   carved_terracotta:     'textures/Blocks/Decorations/Clay/carved_terracotta.png',
   terracotta_roof:       'textures/Blocks/Decorations/Clay/terracotta_roof.png',
-  thatch:                'textures/Blocks/Decorations/thatch.png',
+  thatch:                'textures/Blocks/Decorations/Thatch/thatch.png',
   carved_snow:           'textures/Blocks/Decorations/Winter/carved_snow.png',
   carved_ice:            'textures/Blocks/Decorations/Winter/carved_ice.png',
   carved_obsidian:       'textures/Blocks/Decorations/Obsidian/carved_obsidian.png',
   obsidian_bricks:       'textures/Blocks/Decorations/Obsidian/obsidian_bricks.png',
+  // adobe's circle, terracotta's soot brick, the bone block's and the sulfur block's carved, thatch's carved and brick
+  adobe_circle:           'textures/Blocks/Decorations/Clay/adobe_circle.png',
+  terracotta_soot_bricks: 'textures/Blocks/Decorations/Clay/terracotta_soot_bricks.png',
+  carved_bone:            'textures/Blocks/Decorations/bone/carved_bone.png',
+  carved_sulfur:          'textures/Blocks/Decorations/Sulfur/carved_sulfur.png',
+  carved_thatch:          'textures/Blocks/Decorations/Thatch/carved_thatch.png',
+  thatch_bricks:          'textures/Blocks/Decorations/Thatch/thatch_bricks.png',
+  // every planks' brick, in the woods' folders
+  oak_plank_bricks:       'textures/Blocks/Woods/oak/oak_plank_bricks.png',
+  birch_plank_bricks:     'textures/Blocks/Woods/birch/birch_plank_bricks.png',
+  spruce_plank_bricks:    'textures/Blocks/Woods/spruce/spruce_plank_bricks.png',
+  rime_plank_bricks:      'textures/Blocks/Woods/rimewood/rimewood_plank_bricks.png',
+  palm_plank_bricks:      'textures/Blocks/Woods/palm/palm_plank_bricks.png',
+  acacia_plank_bricks:    'textures/Blocks/Woods/acacia/acacia_plank_bricks.png',
+  jungle_plank_bricks:    'textures/Blocks/Woods/jungle/jungle_plank_bricks.png',
+  // the bone block's polished
+  polished_bone_block:    'textures/Blocks/Decorations/bone/polished_bone_block.png',
+  // the jungle's vine (its half-cut look is built from it in 03-atlas.js)
+  vine:                   'textures/Blocks/Plants/vine.png',
+  // more mossy looks: adobe, terracotta's roof, cobblestone's brick, sandstone's brick, dirt
+  mossy_adobe:              'textures/Blocks/Decorations/Clay/mossy_adobe.png',
+  mossy_terracotta_roof:    'textures/Blocks/Decorations/Clay/mossy_terracotta_roof.png',
+  mossy_cobblestone_bricks: 'textures/Blocks/Decorations/Cobblestone/mossy_cobblestone_bricks.png',
+  mossy_sandstone_bricks:   'textures/Blocks/Decorations/Sandstone/mossy_sandstone_bricks.png',
+  mossy_dirt:               'textures/Blocks/Natures/Ground/mossy_dirt.png',
+  // dirt's coarse and frozen; mossy sulfur brick, thatch brick, red and pink sandstone brick; every planks' mossy brick
+  coarse_dirt:                    'textures/Blocks/Natures/Ground/coarse_dirt.png',
+  frozen_dirt:                    'textures/Blocks/Natures/Ground/frozen_dirt.png',
+  mossy_sulfur_bricks:            'textures/Blocks/Decorations/Sulfur/mossy_sulfur_bricks.png',
+  mossy_thatch_bricks:            'textures/Blocks/Decorations/Thatch/mossy_thatch_bricks.png',
+  mossy_red_sandstone_bricks:     'textures/Blocks/Decorations/Sandstone/mossy_red_sandstone_bricks.png',
+  mossy_pink_sandstone_bricks:    'textures/Blocks/Decorations/Sandstone/mossy_pink_sandstone_bricks.png',
+  mossy_oak_plank_bricks:         'textures/Blocks/Woods/oak/mossy_oak_plank_bricks.png',
+  mossy_birch_plank_bricks:       'textures/Blocks/Woods/birch/mossy_birch_plank_bricks.png',
+  mossy_spruce_plank_bricks:      'textures/Blocks/Woods/spruce/mossy_spruce_plank_bricks.png',
+  mossy_rime_plank_bricks:        'textures/Blocks/Woods/rimewood/mossy_rimewood_plank_bricks.png',
+  mossy_palm_plank_bricks:        'textures/Blocks/Woods/palm/mossy_palm_plank_bricks.png',
+  mossy_acacia_plank_bricks:      'textures/Blocks/Woods/acacia/mossy_acacia_plank_bricks.png',
+  mossy_jungle_plank_bricks:      'textures/Blocks/Woods/jungle/mossy_jungle_plank_bricks.png',
+  // cracked looks: adobe, obsidian, each sandstone and its brick
+  cracked_adobe:                  'textures/Blocks/Decorations/Clay/cracked_adobe.png',
+  cracked_obsidian:               'textures/Blocks/Decorations/Obsidian/cracked_obsidian.png',
+  cracked_sandstone:              'textures/Blocks/Decorations/Sandstone/cracked_sandstone.png',
+  cracked_red_sandstone:          'textures/Blocks/Decorations/Sandstone/cracked_red_sandstone.png',
+  cracked_pink_sandstone:         'textures/Blocks/Decorations/Sandstone/cracked_pink_sandstone.png',
+  cracked_sandstone_bricks:       'textures/Blocks/Decorations/Sandstone/cracked_sandstone_bricks.png',
+  cracked_red_sandstone_bricks:   'textures/Blocks/Decorations/Sandstone/cracked_red_sandstone_bricks.png',
+  cracked_pink_sandstone_bricks:  'textures/Blocks/Decorations/Sandstone/cracked_pink_sandstone_bricks.png',
 });
 // ms per frame: water a quarter of its old speed, lava a tenth (150 and 220 before)
 const ANIMATED_TILES = {
@@ -363,6 +422,8 @@ for (const r of DECOR_ROCKS)
     TEXTURES[`${r}_${p}`] = `textures/Blocks/Decorations/${r[0].toUpperCase() + r.slice(1)}/${r}_${p}.png`;
 // wheat's growth stages: stage 0 sprout .. 5, and 6 is the ripe wheat (0..6 then wheat_full before)
 for (let s = 0; s < 7; s++) TEXTURES['wheat_stage' + s] = `textures/Billboards/Plants/Wheat/wheat_stage${s}.png`;
+// the carrot's the same way: stage 0 a sprout .. 6 ripe
+for (let s = 0; s < 7; s++) TEXTURES['carrot_stage' + s] = `textures/Billboards/Plants/Carrot/carrot_stage${s}.png`;
 // every berry bush's seven growth stages, in BERRY_KINDS order (blocks/tiles.js); stage 6 is ripe
 const BERRY_COLORS = ['red', 'blue', 'black', 'yellow', 'white'];
 for (const c of BERRY_COLORS) for (let s = 0; s < 7; s++)
@@ -412,6 +473,7 @@ for (const w of BENCH_WOODS.slice(1))
 const ITEM_TEXTURES = {
   stick:       'textures/Items/Materials/stick.png',
   build_wand:  'textures/Items/Tools/build_wand.png',      // the stick tinted purple
+  wrench:      'textures/Items/Useables/wrench.png',       // creative's debug stick (player/wrench.js)
   break_wand:  'textures/Items/Tools/break_wand.png',      // the stick tinted red
   bark:        'textures/Items/Materials/bark.png',
   coal:        'textures/Items/Ores/coal.png',
@@ -443,6 +505,8 @@ const ITEM_TEXTURES = {
   flint:       'textures/Items/Materials/flint.png',
   stone_pebble: 'textures/Items/Materials/stone_pebble.png',     // 0.8095
   seashell:     'textures/Items/Materials/seashell.png',
+  pearl:        'textures/Items/Materials/pearl.png',
+  fur:          'textures/Items/Materials/fur.png',
   coconut:      'textures/Items/Consumables/Fruits/coconut.png',
   coconut_half: 'textures/Items/Consumables/Fruits/coconut_half.png',
   cantaloupe_slice: 'textures/Items/Consumables/Others/cantaloupe_slice.png',   // 0.8098
@@ -533,6 +597,8 @@ const ITEM_TEXTURES = {
   iron_key:        'textures/Items/Useables/iron_key.png',
   golden_key:      'textures/Items/Useables/golden_key.png',
   copper_key:      'textures/Items/Useables/copper_key.png',
+  lockpick:        'textures/Items/Useables/lockpick.png',
+  jam_sandwich:    'textures/Items/Consumables/Fruits/jam_sandwich.png',
   string:          'textures/Items/Materials/string.png',
   fiber:           'textures/Items/Materials/fiber.png',
   cloth:           'textures/Items/Materials/cloth.png',
@@ -556,6 +622,8 @@ const ITEM_TEXTURES = {
   catfish:         'textures/Items/Consumables/Protein/catfish.png',
   cooked_catfish:  'textures/Items/Consumables/Protein/cooked_catfish.png',
   fat:             'textures/Items/Materials/fat.png',               // 0.789
+  cocoa_beans:     'textures/Items/Plants/cocoa_beans.png',
+  cocoa_powder:    'textures/Items/Materials/cocoa_powder.png',
   saddle:          'textures/Items/Useables/saddle.png',
   // armor in a folder per material, with its own names for the pieces
   leather_helmet:     'textures/Items/Equipments/Leather/leather_cap.png',
@@ -603,8 +671,8 @@ for (const m in EQUIP_MATS) for (const p of EQUIP_PARTS)
   EQUIP_TEXTURES[m + '_' + p] = `textures/Entity/equipment/${EQUIP_MATS[m][0]}/${EQUIP_MATS[m][1]}_${p}.png`;
 /* What is worn that is not armor (an item's `wear` in items/items.js names it): a belt's and a backpack's straps
    are one picture laid on the torso, `<wear>_torso_overlay`; a shield in the hand is `<wear>_front` with
-   `<wear>_back` on the side you hold. They load with the armor pictures. The backpack's own model and sheet
-   (Backpacks/<wear>.json and .png) are fetched by 41-backpack.js when one is first worn. */
+   `<wear>_back` on the side you hold. They load with the armor pictures. The backpack's own sheet (Backpacks/<wear>.png)
+   is loaded by 41-backpack.js when one is first worn; its model is js/models/backpacks.js. */
 const WORN_TEXTURES = {
   leather_belt_torso_overlay:     'textures/Entity/equipment/Belts/leather_belt_torso_overlay.png',
   leather_backpack_torso_overlay: 'textures/Entity/equipment/Backpacks/leather_backpack_torso_overlay.png',

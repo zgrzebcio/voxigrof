@@ -49,12 +49,14 @@ function beltCapacity() {
 }
 const beltAccepts = (i, id) =>
   i < beltCapacity() && id != null && id >= 256 && !!ITEM_PROPS[id]?.beltItem;
-/* How many hotbar slots are in use: the bar's own HOTBAR_SLOTS and the worn belt's `hotbarSlots` (the leather
-   belt's 2: slots 9 and 10, keys 9 and 0). HOTBAR always holds HOTBAR_MAX slots (player/inventory.js); the ones past
-   this are empty and hidden. Everything that fills or picks a hotbar slot counts to this, not HOTBAR.length. */
+/* How many hotbar slots are in use: in survival the bar's own HOTBAR_SLOTS and the worn belt's `hotbarSlots` (the
+   leather belt's 2: slots 9 and 10, keys 9 and 0), in creative all HOTBAR_MAX (12: keys - and = are 11 and 12). HOTBAR
+   always holds HOTBAR_MAX slots (player/inventory.js); the ones past this are empty and hidden. Everything that fills or
+   picks a hotbar slot counts to this, not HOTBAR.length. */
 function hotbarLen() {
+  if (currentInvMode === 'creative') return HOTBAR_MAX;
   const s = typeof equipSlots !== 'undefined' ? equipSlots[EQUIP_INDEX.belt] : null;
-  return Math.min(HOTBAR_MAX, HOTBAR_SLOTS + ((s && ITEM_PROPS[s.id]?.hotbarSlots) || 0));
+  return Math.min(HOTBAR_BELT_MAX, HOTBAR_SLOTS + ((s && ITEM_PROPS[s.id]?.hotbarSlots) || 0));
 }
 
 /* Called after any equipment change. Slots beyond the current capacity (belt removed, or
@@ -130,8 +132,10 @@ const armorBarSignature = () => playerArmorPointMats().join(',');
 /* The share of a hit that gets through. Armor soaks 0.8% a point up to 80% (4% of 20 points before 0.82).
    Thick Skin added 10% on top until 0.8446: it is health only now (THICK_SKIN_HP, player/stats.js). */
 const ARMOR_SOAK_PER_POINT = 0.008;
+// ...less what effects take off it (`damageReduction`: the summer curse -1% a stack, entities/pharaoh.js); under 0, more gets through
 function armorDamageMultiplier() {
-  return 1 - Math.min(0.8, playerArmorPoints() * ARMOR_SOAK_PER_POINT);
+  const fx = typeof _effectSum === 'function' ? _effectSum('damageReduction') : 0;
+  return 1 - Math.max(-1, Math.min(0.8, playerArmorPoints() * ARMOR_SOAK_PER_POINT) + fx);
 }
 /* Armour wear follows the blow: every worn piece loses three quarters of the damage taken,
    rounded, and never less than 2. It used to lose a flat 1 however hard the hit, so a set lasted ages. */

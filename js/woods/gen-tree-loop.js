@@ -1,7 +1,7 @@
 'use strict';
 /* woods/gen-tree-loop.js: the tree pass. Over a grid of 5-block cells (reaching past the chunk's edge, so a tree's
    crown crosses borders) it decides whether a tree stands there, which one by the biome, and builds oak, birch and
-   spruce in place; rime trees, palms, acacias, dry bushes and termite hills it hands to their own files.
+   spruce in place; rime trees, palms, acacias, the jungle's trees, dry bushes and termite hills it hands to their own files.
    A part of genChunk's body (worldgen/gen-chunk.js). */
 
 corePart('gen.chunk', function () {
@@ -61,6 +61,8 @@ corePart('gen.chunk', function () {
             else if (!SAV2 && hash2(gcx * 131 - 17, gcz * 127 + 29) < HILL_CHANCE) termiteHill(tx, tz, wx, wz, h, gcx, gcz);   // rev 30: termiteHillPass below
             continue;
           }
+          // the Jungle (rev 43): thick with the jungle's trees, from giants to bent little ones, bushes between (woods/gen-jungle.js)
+          if (JUNGLE && ti.fJungle > 0.5) { jungleCell(tx, tz, h, wx, wz, gcx, gcz, r, ti); continue; }
           if (isRime) {
             /* in groves with open snow between: thick in a grove, a few about its edge, the odd lone one out on the snow */
             const grove = fbm(wx * 0.011 - 4417.1, wz * 0.011 + 2903.3, 2);

@@ -1,0 +1,40 @@
+{
+ "comment": "The fire pole (0.84887): a planks fence three posts high, a hay bale on it cased in four cobblestone covers (15; one in each cell beside the hay, against it: wood round a fire that never burns it looked wrong) and a fifth under it (lying in the top post's cell, round the post: `covers`, [x, y, z, id, variant], 113 = SHAPE_COVER + top), and a fire on the hay. A structure's fire on hay never spreads, never burns the hay and never goes out (FIRE_ETERNAL, fireStamped in 53-storms.js). The posts are oak planks (5); spawn.replace gives them the planks of the trees where it stands, by biome: the full name first (Cold Plains), then its base name (a Deep Birch Forest is a Birch Forest, the Deep Beach a Beach). Cells: [x, y, z, id, variant]; fence 64 = SHAPE_FENCE, covers 114-117 = SHAPE_COVER + side (-X, +X, -Z, +Z), fire 179 variant 1 = eternal.",
+ "id": "fire_pole",
+ "cells": 4,
+ "size": [3, 5, 3],
+ "blocks": [
+  [1, 0, 1, 5, 64],
+  [1, 1, 1, 5, 64],
+  [1, 2, 1, 5, 64],
+  [1, 3, 0, 15, 117],
+  [0, 3, 1, 15, 115],
+  [1, 3, 1, 45, 0],
+  [2, 3, 1, 15, 114],
+  [1, 3, 2, 15, 116],
+  [1, 4, 1, 179, 1]
+ ],
+ "covers": [
+  [1, 2, 1, 15, 113]
+ ],
+ "loot": {},
+ "spawn": {
+  "mode": "surface",
+  "biomes": ["Plains", "Forest", "Birch Forest", "Spruce Forest", "Snow Forest", "Coldest Deep Snow Forest", "Mountains", "Savanna", "Beach", "Oasis", "Jungle"],
+  "chance": 0.006,
+  "minY": 60,
+  "maxY": 200,
+  "apart": 160,
+  "replace": {
+   "Cold Plains": { "5": 75 },
+   "Birch Forest": { "5": 43 },
+   "Spruce Forest": { "5": 75 },
+   "Snow Forest": { "5": 75 },
+   "Coldest Deep Snow Forest": { "5": 216 },
+   "Savanna": { "5": 232 },
+   "Beach": { "5": 221 },
+   "Oasis": { "5": 221 },
+   "Jungle": { "5": 247 }
+  }
+ }
+}

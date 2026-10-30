@@ -75,6 +75,56 @@ corePart('mesh.chunk', function () {
        stay see-through (drawn in the opaque pass since shapes came in 0.783, which showed glass solid; the
        see-through pass 4 since 0.8263). Leaf and snow carpets stay where they were. */
     const _shapePass = (id) => { const p = PROPS[id].pass; return p === 4 ? 4 : p === 1 && !PROPS[id].layerStack ? 1 : 0; };
+    // the rails round here (meshChunk's `rails`): a fence or wall lying in another block's cell, or 0
+    const railAt = rails ? (xx, yy, zz) => (xx < -1 || xx > 16 || zz < -1 || zz > 16 || yy < 0 || yy >= CY) ? 0
+                                         : (rails.get((xx + 1) + (zz + 1) * 18 + yy * 324) || 0) : null;
+    /* A box risen along `ax` (0 x, 2 z) by `dy` blocks over a block, level at the cell's middle: a fence's or a wall's step
+       (joinSlopesAt, shapes/boxes.js), `sg` the way it goes from its post. Its four long faces only: its ends lie in the post
+       and against the neighbour's step. Lit from its cell. */
+    function emitSlantBox(x, y, z, b, f, ax, sg, dy, ps) {
+      const rise = (a) => dy * (sg > 0 ? a - 0.5 : 0.5 - a);
+      const P = (px, py, pz) => [x + px, y + py + rise(ax === 0 ? px : pz), z + pz];
+      const L = gl(x, y, z), u = b;
+      const [x0, y0, z0, x1, y1, z1] = b;
+      quad(ps, P(x0,y0,z0), P(x1,y0,z0), P(x1,y0,z1), P(x0,y0,z1), [u[0],u[2]],[u[3],u[2]],[u[3],u[5]],[u[0],u[5]], f[3], 140, L);   // bottom
+      if (ax !== 0) {
+        quad(ps, P(x1,y0,z0), P(x1,y1,z0), P(x1,y1,z1), P(x1,y0,z1), [1-u[2],u[1]],[1-u[2],u[4]],[1-u[5],u[4]],[1-u[5],u[1]], f[0], 178, L);   // +X
+        quad(ps, P(x0,y0,z0), P(x0,y0,z1), P(x0,y1,z1), P(x0,y1,z0), [u[2],u[1]],[u[5],u[1]],[u[5],u[4]],[u[2],u[4]], f[1], 178, L);           // -X
+      }
+      if (ax !== 2) {
+        quad(ps, P(x0,y0,z1), P(x1,y0,z1), P(x1,y1,z1), P(x0,y1,z1), [u[0],u[1]],[u[3],u[1]],[u[3],u[4]],[u[0],u[4]], f[4], 216, L);           // +Z
+        quad(ps, P(x0,y0,z0), P(x0,y1,z0), P(x1,y1,z0), P(x1,y0,z0), [1-u[0],u[1]],[1-u[0],u[4]],[1-u[3],u[4]],[1-u[3],u[1]], f[5], 216, L);   // -Z
+      }
+      quad(ps, P(x0,y1,z0), P(x0,y1,z1), P(x1,y1,z1), P(x1,y1,z0), [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]], f[2], 255, L);   // top
+    }
+    // a fence's or a wall's steps up and down (lift: a rail stood on its slab or step)
+    function emitSlopes(x, y, z, v, fam, lift) {
+      const f = facesOfVal(v), ps = _shapePass(v & 255);
+      for (const [d, dy] of joinSlopesAt(fam, gb, x, y, z, v, railAt, lift))
+        for (const b of slopeBoxesOf(fam, v, d))
+          emitSlantBox(x, y, z, lift ? [b[0], b[1] + lift, b[2], b[3], b[4] + lift, b[5]] : b, f, d < 2 ? 0 : 2, d === 0 || d === 2 ? 1 : -1, dy, ps);
+    }
+    /* A corner join (joinDiagsAt, shapes/boxes.js): DIAG_RAILS turned 45 degrees toward d, from the post's middle to the cell's
+       corner. Laid out as a box along +X (s along it, t across it round 0.5) and turned, so its faces wind as emitBoxFaces'
+       do; its two ends are left out (in the post, and against the neighbour's). `sh` [x, z]: a wall's move off the middle. */
+    function emitDiagRails(x, y, z, d, parts, f, ps, lift, sh) {
+      const ux = FENCE_DIRS[d][0] * Math.SQRT1_2, uz = FENCE_DIRS[d][1] * Math.SQRT1_2, wx = -uz, wz = ux, len = Math.SQRT1_2;
+      const cx = x + 0.5 + sh[0], cz = z + 0.5 + sh[1], L = gl(x, y, z);
+      const P = (s, yy, t) => [cx + ux * s + wx * (t - 0.5), y + lift + yy, cz + uz * s + wz * (t - 0.5)];
+      for (const [y0, y1, h] of parts) {
+        const u = [0, y0, 0.5 - h, len, y1, 0.5 + h], s1 = len, t0 = 0.5 - h, t1 = 0.5 + h;
+        quad(ps, P(0,y0,t0), P(s1,y0,t0), P(s1,y0,t1), P(0,y0,t1), [u[0],u[2]],[u[3],u[2]],[u[3],u[5]],[u[0],u[5]], f[3], 140, L);   // bottom
+        quad(ps, P(0,y0,t1), P(s1,y0,t1), P(s1,y1,t1), P(0,y1,t1), [u[0],u[1]],[u[3],u[1]],[u[3],u[4]],[u[0],u[4]], f[4], 197, L);   // one side
+        quad(ps, P(0,y0,t0), P(0,y1,t0), P(s1,y1,t0), P(s1,y0,t0), [1-u[0],u[1]],[1-u[0],u[4]],[1-u[3],u[4]],[1-u[3],u[1]], f[5], 197, L);   // the other
+        quad(ps, P(0,y1,t0), P(0,y1,t1), P(s1,y1,t1), P(s1,y1,t0), [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]], f[2], 255, L);   // top
+      }
+    }
+    // a fence's or a wall's corner joins (lift: a rail stood on its slab or step)
+    function emitDiags(x, y, z, v, fam, lift) {
+      const sh = wallShift(fam, v);
+      for (const d of joinDiagsAt(fam, gb, x, y, z, v, railAt, lift))
+        emitDiagRails(x, y, z, d, DIAG_RAILS[fam], facesOfVal(v), _shapePass(v & 255), lift, sh);
+    }
     // `skip`: faces left out, a bit each in the order below (top 1, bottom 2, +X 4, -X 8, +Z 16, -Z 32)
     function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0, u = b, ps = 0, skip = 0) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
@@ -84,9 +134,7 @@ corePart('mesh.chunk', function () {
       if (glow && L >= 0 && (L & 15) < glow) L = (L & 0xF0) | glow;
       const lit = (inner, xx, yy, zz) => (inner && L >= 0 ? L : gl(xx, yy, zz));
       const T4 = (k, a, c, d, e) => ((sw >> k) & 1) ? [[a[1],a[0]], [c[1],c[0]], [d[1],d[0]], [e[1],e[0]]] : [a, c, d, e];
-      if (!(skip & 1) && (b[4] < 1 || !op(x, y+1, z)))    // top
-        quad(ps, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
-             ...T4(2, [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]]), f[2], 255, lit(b[4] < 1, x, y+1, z));
+      // the top goes last: a see-through box blends its faces in this order (the cube sweeps' SWEEP_ORDER, mesher-cubes.js)
       if (!(skip & 2) && (b[1] > 0 || !op(x, y-1, z)))    // bottom
         quad(ps, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],
              ...T4(3, [u[0],u[2]],[u[3],u[2]],[u[3],u[5]],[u[0],u[5]]), f[3], 140, lit(b[1] > 0, x, y-1, z));
@@ -102,6 +150,9 @@ corePart('mesh.chunk', function () {
       if (!(skip & 32) && (b[2] > 0 || !op(x, y, z-1)))   // -Z
         quad(ps, [x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],
              ...T4(5, [1-u[0],u[1]],[1-u[0],u[4]],[1-u[3],u[4]],[1-u[3],u[1]]), f[5], 216, lit(b[2] > 0, x, y, z-1));
+      if (!(skip & 1) && (b[4] < 1 || !op(x, y+1, z)))    // top
+        quad(ps, [x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],
+             ...T4(2, [u[0],u[2]],[u[0],u[5]],[u[3],u[5]],[u[3],u[2]]), f[2], 255, lit(b[4] < 1, x, y+1, z));
     }
     for (let y = 0; y < yCap; y++)
       for (let z = 0; z < 16; z++)
@@ -109,8 +160,8 @@ corePart('mesh.chunk', function () {
           const val = data[x + (z << 4) + (y << 8)], vid = val & 255;
           if (!PROPS[vid]) continue;                           // an id this build does not know
           const lc = layerCount(val);                          // a layer stack
-          const shapeBoxes = lc ? null : shapeBoxesAt(gb, x, y, z, val);   // a chiseled slab or stairs
-          if (shapeBoxes && shapeOfVal(val) === 'door') continue;      // a door is its own swinging mesh (blocks/doors.js)
+          const shapeBoxes = lc ? null : shapeBoxesAt(gb, x, y, z, val, false, railAt);   // a chiseled slab or stairs
+          if (shapeBoxes && (shapeOfVal(val) === 'door' || shapeOfVal(val) === 'gate')) continue;   // its own swinging mesh (blocks/doors.js, gates.js)
           /* The furnace's chimney: a 6px stub standing proud of its top, drawn only — no
              hitbox, it never blocks a placement. Emitted in the cell above so the open air lights it.
              Since 0.809 it is 6px tall (furnace_*.json) in its rock's own chimney art, the whole picture
@@ -137,8 +188,11 @@ corePart('mesh.chunk', function () {
               i = j;
             }
           }
-          else if (shapeBoxes)
+          else if (shapeBoxes) {
             for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, facesOfVal(val), false, 0, 0, bx, _shapePass(vid));
+            const fam = shapeOfVal(val);
+            if ((fam === 'fence' || fam === 'wall') && lod < 2) { emitSlopes(x, y, z, val, fam, 0); emitDiags(x, y, z, val, fam, 0); }   // its steps and corner joins
+          }
           else if (slabMixed(val)) {                     // two slabs of different blocks: each half in its own art
             const ids = layers ? layers.get(x + (z << 4) + (y << 8)) : null;
             const hb = slabMixBoxes(val), ax = (((val >> 8) & ROT_MASK) & 6) >> 1;   // 0 y, 1 x, 2 z
@@ -161,7 +215,7 @@ corePart('mesh.chunk', function () {
             const fv = PROPS[vid].facesByVar, fl = PROPS[vid].fullUV ? FULL_UV_BOX : undefined;
             const pf = PROPS[vid].partFaces;             // a model whose boxes wear different art (the seashell's hinge)
             for (let bi = 0; bi < boxes.length; bi++)
-              emitBoxFaces(x, y, z, boxes[bi], fv ? fv[va & (fv.length - 1)] : pf ? pf[bi] : PROPS[vid].faces, own, 0, 0, fl);   // 4 by facing, or 8 by stage (the coconut)
+              emitBoxFaces(x, y, z, boxes[bi], fv ? fv[va & (fv.length - 1)] : pf ? pf[bi] : facesOfVal(val), own, 0, 0, fl);   // 4 by facing, or 8 by stage (the coconut); a look's art (the half-cut vine)
           }
           else if (PROPS[vid].model === 'voxel') {
             // a voxel model: every box in its own material, lit from its own cell like a wall plate
@@ -180,4 +234,48 @@ corePart('mesh.chunk', function () {
               emitBoxFaces(x, y, z, bx, gem ? cp.faces : bed, true, 0, gem ? (cp.selfGlow || 0) : 0);
           }
         }
+    /* Pressure plates lying in another block's cell (on a plant's floor, a carpet, a bottom slab, a stair's lower step:
+       plateOverBoxes, shapes/boxes.js), in their own block's art, lit from their cell; their underside lies on what holds
+       them and is left out. Not in a half-resolution chunk: its cells are not the real ones. One buried under a layer
+       stack (PLATE_BURIED) is hidden: not drawn. */
+    if (plates && lod < 2)
+      for (const [i, pv] of plates) {
+        if ((pv >> 8) & PLATE_BURIED) continue;
+        const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+        const boxes = PROPS[pv & 255] ? plateOverBoxes(gb, x, y, z, data[i], pv) : null;
+        if (boxes) for (const bx of boxes) emitBoxFaces(x, y, z, bx, facesOfVal(pv), true, 0, 0, bx, _shapePass(pv & 255), 2);
+      }
+    /* Covers lying in another block's cell, up to one on each side (coverOverBoxes, shapes/boxes.js: each cut to the room it
+       has), in their own block's art and lit from their cell; a face flush with the cell's edge hides against an opaque
+       neighbour as any shape's does. Not in a half-resolution chunk, as the plates. */
+    if (covers && lod < 2)
+      for (const [i, cv] of covers) {
+        const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+        const sides = coverOverBoxes(gb, x, y, z, data[i], cv);
+        if (sides) for (let s = 0; s < 6; s++)
+          if (sides[s] && PROPS[cv[s] & 255]) for (const bx of sides[s]) emitBoxFaces(x, y, z, bx, facesOfVal(cv[s]), true, 0, 0, bx, _shapePass(cv[s] & 255));
+      }
+    // a block fallen into a doorway: the room the door's panel leaves (doorFillBoxes, shapes/boxes.js), in its own art
+    if (fills && lod < 2)
+      for (const [i, fv] of fills) {
+        const x = i & 15, z = (i >> 4) & 15, y = i >> 8;
+        if (!PROPS[fv & 255] || !isDoorVal(data[i])) continue;
+        for (const bx of doorFillBoxes(data[i])) emitBoxFaces(x, y, z, bx, facesOfVal(fv), true, 0, 0, bx, _shapePass(fv & 255));
+      }
+    /* Fences and walls lying in another block's cell (rails: railOverBoxes, shapes/boxes.js; a fence stood on its slab or step),
+       in their own block's art and lit from their cell, with their steps. Only this chunk's own: the ring round it is there
+       for the joins. Not in a half-resolution chunk, as the plates. */
+    if (rails && lod < 2)
+      for (const [k, rv] of rails) {
+        const x = (k % 18) - 1, z = (((k / 18) | 0) % 18) - 1, y = (k / 324) | 0;
+        if (x < 0 || x > 15 || z < 0 || z > 15 || !PROPS[rv & 255]) continue;
+        const bx = railOverBoxes(gb, x, y, z, rv, false, railAt);
+        if (bx) for (const b of bx) emitBoxFaces(x, y, z, b, facesOfVal(rv), true, 0, 0, b, _shapePass(rv & 255));
+        const fam = shapeOfVal(rv);
+        if (fam === 'fence' || fam === 'wall') {
+          const lift = railLift(gb(x, y, z), rv);
+          emitSlopes(x, y, z, rv, fam, lift);
+          emitDiags(x, y, z, rv, fam, lift);
+        }
+      }
 });

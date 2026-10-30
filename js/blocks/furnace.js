@@ -184,8 +184,9 @@ function updateFurnaces(dt, quiet = false) {
     }
     if (lit !== f.lit) {                                     // swap the front face + light on/off
       f.lit = lit;
-      const keep = ((getBlock(x, y, z) >> 8) & 255) & ~V.FURNACE_ON;   // the rotation and the rock
-      setBlock(x, y, z, B.FURNACE | ((keep | (lit ? V.FURNACE_ON : 0)) << 8));
+      const fv = getBlock(x, y, z), keep = ((fv >> 8) & 255) & ~V.FURNACE_ON;   // the rotation and the rock
+      // ...and its high bits (what it took to place: NEED_PAID, blocks/variants.js)
+      setBlock(x, y, z, ((fv & ~0xFFFF) | B.FURNACE | ((keep | (lit ? V.FURNACE_ON : 0)) << 8)) >>> 0);
     }
     if (quiet) continue;                                     // a night's catch-up: no sound, no smoke
     if (lit) { _furnaceCrackle(k, x, y, z); burning.add(k); }

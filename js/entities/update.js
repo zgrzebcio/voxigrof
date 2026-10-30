@@ -1,7 +1,7 @@
 'use strict';
 /* entities/update.js: updateEntities, the loop over every creature: waking and parking by distance, hunger and
    healing, then the step of a villager or a monster (animals go to grazers.js, bosses to frozen-king.js, termites to
-   termite.js). */
+   termite.js, otters to otter.js). */
 
 /* `pick`: only the creatures it says yes to; `frameJobs`: the player's knockback and the villagers' torch lights,
    which follow the frame. With the fixed tick (SIM_FIXED) updateEntitiesTick steps every creature but a ridden horse and
@@ -15,6 +15,10 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
   // once a world step, not on the ridden horse's per-frame pass: hounds left behind come to their owner, a taming's
   // day runs out (entities/hellhound.js)
   if ((!pick || pick === _entIsDue) && typeof houndWorldTick === 'function') houndWorldTick(dtAll);
+  // ...and otters: one saved round its owner's neck goes back on, one left behind comes (entities/otter.js)
+  if ((!pick || pick === _entIsDue) && typeof otterWorldTick === 'function') otterWorldTick(dtAll);
+  // ...and meerkats the same: back on a shoulder, or come to a following owner (entities/meerkat.js)
+  if ((!pick || pick === _entIsDue) && typeof meerkatWorldTick === 'function') meerkatWorldTick(dtAll);
 
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];
@@ -54,7 +58,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
     e.active = true;
     // hunger drains for every simulating entity; only the horse acts on it (see _updateGrazer)
     // ...and a hellhound, whose food is out of 120 and whose thirst is its fire (it starts on its own numbers)
-    e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * dt);
+    e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * (mobOf(e).hungerMul ?? 1) * dt);   // slower for the tamable kinds
     e.thirst = Math.max(0, entThirst(e) - ENT_THIRST_DECAY * dt);   // 0.823
     if (e.milkCd > 0) e.milkCd -= dt;                  // a milked cow refills (entities/taming.js)
     // a hit is noticed as hp lower than last tick; healing never restarts the no-damage clock
@@ -99,6 +103,9 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
     if (isGrazer(e)) { _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp); continue; }   // tp: whom a bear hunts
     if (isFish(e)) { _updateFish(e, dt, tp, i); continue; }   // 0.805
     if (mobOf(e).body === 'insect') { updateTermite(e, dt, tp, i); continue; }   // termites (entities/termite.js)
+    if (mobOf(e).body === 'otter') { updateOtter(e, dt, tp, i); continue; }      // the otter, in water and out (entities/otter.js)
+    const ownStep = mobOf(e).step;                     // a kind with a step of its own (the creature table): meerkat, tumbleweed
+    if (ownStep) { ownStep(e, dt, tp, i); continue; }
     /* ---- night mobs: claw out of the ground, hunt on sight, burn at dawn ---- */
     if (isNightMob(e)) {
       if (e.riseT > 0) {

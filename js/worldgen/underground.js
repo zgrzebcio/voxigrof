@@ -35,12 +35,26 @@ corePart('gen.chunk', function () {
         /* rev 36: the ores' veins ORE_MORE_K as often (worldgen/gen-setup.js), coal's and the rock patches' as they were. The extra
            tries come after a row's own (a higher `ai`), the last of them by a chance, so the veins already there stay where they are. */
         const ORE_MORE = REV36 ? new Set([B.IRON_ORE, B.DIAMOND_ORE, B.COPPER_ORE, B.TIN_ORE, B.GOLD_ORE]) : null;
-        const moreTries = (n, salt) => {
-          const t = n * ORE_MORE_K;
+        const moreTries = (n, salt, k = ORE_MORE_K) => {
+          const t = n * k;
           return Math.floor(t) + (hash3(cx * 29 + salt, 97, cz * 31 + salt) < t % 1 ? 1 : 0);
         };
+        /* rev 40: these ores higher up, nearer where a player digs: [bestLo, bestHi, rangeLo, rangeHi] in place of the row's.
+           Coal most at 100-120, most of all 110 (to 180), iron 82-98 (to 156), copper 65-75 (to 120), tin 47-53 (to 90): each band
+           peaks in its middle. Where the land is lower
+           than the band, a try would start in the open and be lost (coal lost a third that way): it starts again instead in
+           the top HIGH_DROP blocks of the rock under that spot, so low land keeps its share, as high as its rock goes. */
+        const ORE_HIGH = REV40 ? new Map([
+          [B.COAL_ORE,   [100, 120, 35, 180]],
+          [B.IRON_ORE,   [ 82,  98, 15, 156]],
+          [B.COPPER_ORE, [ 65,  75, 20, 120]],
+          [B.TIN_ORE,    [ 47,  53, 10,  90]],
+        ]) : null;
+        const HIGH_DROP = 12;
         for (let oi = 0; oi < ORE_TYPES.length; oi++) {
-          const [oreId, attempts, minN, maxN, bestLo, bestHi, rangeLo, rangeHi] = ORE_TYPES[oi];
+          let [oreId, attempts, minN, maxN, bestLo, bestHi, rangeLo, rangeHi] = ORE_TYPES[oi];
+          const high = ORE_HIGH && ORE_HIGH.get(oreId);
+          if (high) [bestLo, bestHi, rangeLo, rangeHi] = high;
           const tries = ORE_MORE && ORE_MORE.has(oreId) ? moreTries(attempts, oi) : attempts;
           // gems grow as clusters in caves since 0.7945 (below). Skipped rather than removed, so every other
           // row keeps its index `oi`, which seeds its veins: the rest of the underground stays where it was
@@ -49,11 +63,22 @@ corePart('gen.chunk', function () {
             const lx = (hash3(cx * 47 + oi + ai,       11, cz * 43 + oi + ai    ) * 16) | 0;
             const lz = (hash3(cx * 53 + oi + ai * 3,   17, cz * 59 + oi + ai    ) * 16) | 0;
             const inBest = hash3(cx + oi * 7 + ai * 3, 31, cz + oi * 3 + ai * 7) < 0.7;
-            const ly = inBest
-              ? bestLo  + ((hash3(cx * 13 + ai + oi, 41, cz * 11 + ai) * (bestHi  - bestLo  + 1)) | 0)
+            // a raised ore's best band peaks in its middle (coal at 110 of 100-120): the mean of two hashes
+            const bestH = high ? (hash3(cx * 13 + ai + oi, 41, cz * 11 + ai) + hash3(cx * 31 + ai + oi, 47, cz * 7 + ai)) / 2
+                               : hash3(cx * 13 + ai + oi, 41, cz * 11 + ai);
+            let ly = inBest
+              ? bestLo  + ((bestH * (bestHi  - bestLo  + 1)) | 0)
               : rangeLo + ((hash3(cx * 19 + ai + oi, 37, cz * 17 + ai) * (rangeHi - rangeLo + 1)) | 0);
             if (ly < rangeLo || ly > rangeHi || ly < 2 || ly > CY - 2) continue;
-            if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
+            if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) {
+              if (!high) continue;
+              // a raised ore over this land: again in the top HIGH_DROP blocks of the rock under it (ORE_HIGH above)
+              let top = ly - 1;
+              while (top >= rangeLo && (data[idx(lx, top, lz)] & 255) !== B.STONE) top--;
+              if (top < Math.max(rangeLo, 2)) continue;
+              ly = Math.max(rangeLo, top - ((hash3(cx * 23 + ai + oi, 43, cz * 29 + ai) * HIGH_DROP) | 0));
+              if ((data[idx(lx, ly, lz)] & 255) !== B.STONE) continue;
+            }
             const count = minN + ((hash3(cx + ai, ly + oi, cz + ai) * (maxN - minN + 1)) | 0);
             // LCG seeded from position for deterministic vein shape
             let lcg = (Math.imul(cx * 37 + lx + oi * 13, 374761393) ^ Math.imul(ly * 7 + ai, 668265263) ^ (cz * 41 + lz)) | 0;

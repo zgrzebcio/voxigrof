@@ -43,16 +43,18 @@ const canRepair = (s) => !!s && !player.canFly && hasSkill('mender') && !!ITEM_P
   && (s.dur ?? ITEM_PROPS[s.id].durability) < ITEM_PROPS[s.id].durability && !!repairRecipeFor(s.id);
 const canDismantle = (s) => !!s && !player.canFly && hasSkill('dismantle') && !!ITEM_PROPS[s.id]?.durability && !!repairRecipeFor(s.id);
 
-// the two zones, one pair per seat (each seat has its own inventory wrapper)
+/* the two zones, one pair per seat (keyed by the seat's inventory wrapper). They hang on the BODY, as the seats' cursors
+   do: they are placed in screen pixels (position:fixed), and inside the wrapper, which is moved by a transform, fixed
+   would have counted from the wrapper instead and put them off the screen (and the wrapper's centring counted them in). */
 const _zonesOf = new WeakMap();
 function _zones() {
-  const host = typeof invWrapEl !== 'undefined' && invWrapEl ? invWrapEl : document.body;
-  let z = _zonesOf.get(host);
+  const key = typeof invWrapEl !== 'undefined' && invWrapEl ? invWrapEl : document.body;
+  let z = _zonesOf.get(key);
   if (!z) {
     const mk = (cls) => { const el = document.createElement('div'); el.className = 'dropZone ' + cls;
-      el.innerHTML = '<div class="dzTitle"></div><div class="dzText"></div>'; host.appendChild(el); return el; };
+      el.innerHTML = '<div class="dzTitle"></div><div class="dzText"></div>'; document.body.appendChild(el); return el; };
     z = { repair: mk('dzRepair'), dismantle: mk('dzDismantle') };
-    _zonesOf.set(host, z);
+    _zonesOf.set(key, z);
   }
   return z;
 }

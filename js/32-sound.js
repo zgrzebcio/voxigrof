@@ -89,6 +89,12 @@ const SOUND_FILES = {
   fireOff:         'Sound/Fire/off.ogg',
   // gui — one chime for the feed, pitched per row kind (ui/feed.js)
   feedAlert: 'Sound/VFX/GUI/feed_alert.wav',
+  // creatures with a voice of their own (their entry's `sounds` in the creature table, entities/mobs.js)
+  otterSay:  'Sound/Mobs/Otter/otter_say.ogg',
+  otterHurt: 'Sound/Mobs/Otter/otter_hurt.ogg',
+  meerkatSay:  'Sound/Mobs/Meerkat/meerkat_say.ogg',
+  meerkatHurt: 'Sound/Mobs/Meerkat/meerkat_hurt.ogg',
+  meerkatEat:  'Sound/Mobs/Meerkat/meerkat_eat.ogg',
 };
 
 /* PROPS.type -> sound key. Anything unmapped (or a block with no type) falls back to stone. */
@@ -174,7 +180,9 @@ function blockSoundKey(id) {
 function playBlockSound(id, kind, x, y, z) {
   const k = SOUND_KIND[kind] || SOUND_KIND.break;
   const pos = x != null ? { x: x + 0.5, y: y + 0.5, z: z + 0.5 } : null;
-  playSound(blockSoundKey(id), { gain: k.gain, rate: k.rate * (0.95 + Math.random() * 0.1), pos });
+  // a block may sound otherwise when put down (`placeSound`: TNT of cloth)
+  const key = (kind === 'place' && PROPS[id & 255]?.placeSound) || blockSoundKey(id);
+  playSound(key, { gain: k.gain, rate: k.rate * (0.95 + Math.random() * 0.1), pos });
   // every placement makes this sound, so this is where a placed block kicks up its bits
   if (kind === 'place' && x != null && typeof fxPlace === 'function') fxPlace(x, y, z, getBlock(x, y, z));
 }
@@ -225,6 +233,8 @@ function entityStepSound(e, dt, spd) {
   e._stepAccum = (e._stepAccum || 0) + spd * dt;
   if (e._stepAccum < ENT_STEP_DIST) return;
   e._stepAccum = 0;
+  // a creature with footsteps of its own (its entry's `sounds.step`: the otter's patter)
+  if (typeof mobSound === 'function' && mobSound(e, 'step', 0.3)) return;
   const id = getBlock(Math.floor(e.x), Math.floor(e.y - 0.06), Math.floor(e.z)) & 255;
   if (id === B.AIR) return;
   const k = SOUND_KIND.step;
@@ -250,10 +260,22 @@ function updateMusic() {
 
 /* ---- rain and snow ----
    A loop each, as loud as what falls where the players are (precipAt, seasons/weather-sky.js; the loudest seat counts),
-   muffled to a third under a roof or in a cave, eased over WX_SOUND_EASE_S. Rain plays rain.ogg, louder the harder
+   muffled to a third under a roof or in a cave and dying away deeper down (_wxMuffle), eased over WX_SOUND_EASE_S. Rain plays rain.ogg, louder the harder
    it falls. Snow has no file, so it is made here with Web Audio: brown noise through a low-pass filter, a soft hush,
    which a blizzard opens up into a gusting, howling wind. The audio context sleeps whenever nothing falls. */
 const RAIN_GAIN = 0.6, SNOW_GAIN = 0.35, BLIZZARD_GAIN = 1.1, WX_SOUND_EASE_S = 2.5, WX_ROOF_MUFFLE = 0.35;
+/* Underground it dies away. Under a roof it is WX_ROOF_MUFFLE, less the more ground lies over the eye (the topmost
+   opaque block of the column): silent under WX_DEPTH_SILENT blocks of it. And nothing at all below WX_SILENT_Y, open
+   sky or not, fading over the WX_SILENT_FADE blocks above it. */
+const WX_DEPTH_SILENT = 24, WX_SILENT_Y = 50, WX_SILENT_FADE = 8;
+function _wxMuffle(p, ey) {
+  const x = Math.floor(p.pos.x), y = Math.floor(ey), z = Math.floor(p.pos.z);
+  const low = Math.max(0, Math.min(1, (ey - WX_SILENT_Y) / WX_SILENT_FADE));
+  if (!(getSkyWorld(x, y, z) < 12 || p._eyeUnder)) return low;
+  let top = y;
+  for (let yy = WORLD_TOP - 1; yy > y; yy--) if (CORE.opaqueVal(getBlock(x, yy, z))) { top = yy; break; }
+  return WX_ROOF_MUFFLE * Math.max(0, 1 - (top - y) / WX_DEPTH_SILENT) * low;
+}
 const _wxSnd = { rain: 0, snow: 0, bliz: 0, aim: [0, 0, 0], t: 0, ph: 0 };
 let _rainAudio = null, _wxCtx = null, _wxSnowGain = null, _wxSnowLP = null;
 // the snow's noise loop, built once on first need (after a gesture: browsers start no audio before one)
@@ -305,7 +327,7 @@ function updateWeatherSound(dt) {
       for (const p of PLAYERS) {
         if (!p.spawned || !p.pos) continue;
         const ey = p.pos.y + (p.EYE || 1.62), pr = precipAt(p.pos.x, p.pos.z, ey);
-        const m = getSkyWorld(Math.floor(p.pos.x), Math.floor(ey), Math.floor(p.pos.z)) < 12 || p._eyeUnder ? WX_ROOF_MUFFLE : 1;
+        const m = _wxMuffle(p, ey);
         rain = Math.max(rain, pr.rain * m); snow = Math.max(snow, pr.snow * m); bliz = Math.max(bliz, pr.blizzard * m);
       }
     s.aim = [rain, snow, bliz];

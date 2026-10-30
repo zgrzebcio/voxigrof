@@ -146,7 +146,7 @@ function updateVitals(dt) {
     const lost = dmgBase - player.hp;      // cross-frame, so a mob's blow is soaked too
     if (lost >= 0.5 * VITAL_K && !player.dead) {
       const mult = armorDamageMultiplier();
-      if (mult < 1) player.hp = Math.min(playerMaxHP(), dmgBase - lost * mult);
+      if (mult !== 1) player.hp = Math.min(playerMaxHP(), dmgBase - lost * mult);   // over 1: a curse lets more through
       damageArmorDurability(lost / VITAL_K);   // wear follows how hard the hit was, in the old points
       statsOnHit(player, dmgBase - player.hp);  // a hit costs energy too
       // ...and healing waits: Rapid regen shortens the wait rather than ignoring it
@@ -173,6 +173,10 @@ function updateVitals(dt) {
     if (typeof clearFeed === 'function' && PLAYERS.every(p => !p.spawned || p.dead)) clearFeed();
     player._deathDay = worldDay;                 // the day on the death screen, kept through a save
     if (player.sleepingAt) leaveBed(player);     // dying in your sleep still gets you out of it
+    // a fish in your hands goes free, an otter round your neck is put down where you fell (player/fish-hold.js, entities/otter.js)
+    if (typeof releaseHeldFish === 'function') releaseHeldFish(true);
+    if (typeof otterTakeOff === 'function') otterTakeOff(player, true);
+    if (typeof meerkatTakeOff === 'function') meerkatTakeOff(player, true);   // ...and a meerkat on the shoulder
     playSound('death', { gain: 1 });
     const dx0 = Math.floor(player.pos.x), dy0 = Math.floor(player.pos.y + 0.5), dz0 = Math.floor(player.pos.z);
     /* Everything carried — worn gear included, and everything the belt and the backpack hold: a

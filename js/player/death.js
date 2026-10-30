@@ -16,7 +16,8 @@ function updatePauseRespawn(dt) {
   if (!giveUpBtn) return;
   const p = PLAYERS[0];
   const show = !playing && menuScreen === 'pause' && !!currentWorld && !!p && !p.dead && !p.canFly;
-  giveUpBtn.style.display = show ? '' : 'none';
+  const disp = show ? '' : 'none';
+  if (giveUpBtn.style.display !== disp) giveUpBtn.style.display = disp;   // once a frame: written only when it changes
   if (!show) { _giveUpHold = 0; return; }
   const cd = p._giveUpCd || 0;
   const over = giveUpBtn.matches(':hover') || (typeof _mHover !== 'undefined' && _mHover === giveUpBtn);
@@ -58,7 +59,8 @@ function respawnPlayer() {
   player.effects = [];
   if (player.sleepingAt) leaveBed(player);     // never respawn still flagged as in a bed
   player.vy = 0; player.fallStart = null; player._kbT = 0; player._dmgCause = null; player.aliveT = 0; player._deathDay = null;
-  const s = findValidSpawn();
+  // the bed slept in comes first (it was asked last: the world's spawn was always found, so the bed was never used)
+  const s = bedRespawnSpot(player) || findValidSpawn();
   if (s) {
     player.pos.set(s.x, s.y, s.z);
     if (!player.spawnPos) player.spawnPos = player.pos.clone();

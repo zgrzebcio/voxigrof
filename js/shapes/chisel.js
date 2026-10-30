@@ -46,7 +46,13 @@ const CHISEL_PAGES = [
     // a door of planks, the iron, copper or tin block, adobe or glass (blocks/doors.js); 3 blocks and 6 hammer wear
     { key: 'door',   name: 'Door',          desc: 'Two high; takes 3 blocks and 6 hammer durability',
       boxes: [[2, 0, 7, 14, 16, 9], [10, 6, 6, 12, 9, 10]] },
-    ...Array.from({ length: 8 }, (_, i) => _soonSlot(i + 2)),
+    // stepped on, it opens the doors and lights the TNT beside or under it (blocks/pressure-plates.js)
+    { key: 'plate',  name: 'Pressure plate', desc: 'Stepped on: opens doors, lights TNT beside or under it',
+      boxes: [[1, 0, 1, 15, 2, 15]] },
+    // on a floor, a wall or a ceiling, with words written on it (blocks/signs.js)
+    { key: 'sign',   name: 'Sign',          desc: 'On a floor, a wall or a ceiling; use it to write on it',
+      boxes: [[0, 7, 7.25, 16, 15, 8.75], [7.25, 0, 7.25, 8.75, 7, 8.75]] },
+    ...Array.from({ length: 6 }, (_, i) => _soonSlot(i + 4)),
   ],
 ];
 const CHISEL_PAGE_NAMES = ['Simple', 'Advanced'];
@@ -77,13 +83,14 @@ function chiselShapeKey() {
    byte (CHISEL SHAPES in blocks/blocks.js); which blocks take which shape is SHAPE_BLOCKS there, read here
    through PROPS[id].shapes — so a block can take a pane but no fence, and the slots show that. */
 const CHISEL_BLOCK_SHAPE = { slab: 'slab', vslab: 'slab', stairs: 'stairs', pane: 'pane', fence: 'fence',
-                             carpet: 'layer', cover: 'cover', wall: 'wall', door: 'door' };   // radial key -> family (carpet 0.785, cover/wall 0.787, door 0.842)
+                             carpet: 'layer', cover: 'cover', wall: 'wall', door: 'door', plate: 'plate', sign: 'sign' };   // radial key -> family (carpet 0.785, cover/wall 0.787, door 0.842)
 // how a slot or the hand draws each shape: a bottom half, a back half standing up, stairs facing away,
 // a pane facing you, and a fence with its rails out both sides (a lone post would read as a stick)
 const CHISEL_ICON_VAR = { slab: SHAPE_SLAB, vslab: SHAPE_SLAB + 4, stairs: SHAPE_STAIRS,
                           pane: SHAPE_PANE, fence: SHAPE_FENCE + 1, carpet: SHAPE_LAYER,
                           cover: SHAPE_COVER + 4, wall: SHAPE_WALL + 1,
-                          door: 0 };                     // a door has no chunk model to draw: the slot shows the block
+                          door: BLOCKS.SHAPE_DOOR,       // drawn as the door itself (renderBlockIcon, buildDropGeom: blocks/doors.js)
+                          plate: SHAPE_PLATE, sign: SHAPE_SIGN };   // a sign standing, facing you
 // what a held block places as right now: { key }, or null (no chisel, a shape without a model, or a block that cannot take it)
 function chiselShapedPlace(id) {
   if (id == null || id >= 256 || !PROPS[id]?.shapes || !chiselEquipped()) return null;

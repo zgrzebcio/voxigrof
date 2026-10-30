@@ -79,6 +79,10 @@ function dispatchMesh(worker, c) {
      without, the chunk's three arrays are copied here and the neighbours' border planes cut out. */
   const msg = { type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
                 layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks
+                plates: PLATE_OVER.get(key(c.cx, c.cz)) || null,              // plates in other blocks' cells (blocks/pressure-plates.js)
+                covers: COVER_OVER.get(key(c.cx, c.cz)) || null,              // ...and covers (blocks/covers.js)
+                fills: DOOR_FILL.get(key(c.cx, c.cz)) || null,                // ...and blocks fallen into doorways (blocks/doors.js)
+                rails: railsForMesh(c.cx, c.cz),                              // ...and fences and walls, with the ring round it (blocks/rails.js)
                 lod: c.lod,
                 rush: !!c.editRush };                                         // a player's edit: the worker takes it next
   if (SHARED_OK && c.data.buffer instanceof SharedArrayBuffer) {
@@ -185,9 +189,36 @@ function _genThrottle() {
      ms (its cache read, its turn in the worker's queue, the making), and the old 2 or 3 at a time held the land to
      about 9 chunks a second at render 10. Beyond it, the far ring drawn at LOD 2: a steady pace, ~25 a second. */
   // (one ring further than viewDist: a chunk at the very edge is meshed only once the four round it are made and lit)
-  const makers = Math.max(1, workers.length - (_editLane ? 1 : 0));
-  if (d2 <= (viewDist + 1) * (viewDist + 1)) return { max: makers + 1, gap: 3 };
+  const makers = Math.max(1, poolWorkers.length - (_editLane ? 1 : 0));
+  if (d2 <= (viewDist + 1) * (viewDist + 1)) {
+    /* PACED BY NEED. The rings at the edge of the render distance (outside EDGE_IN chunks of it) are where new land comes
+       in while you walk: a few chunks a second, all at once on every core, then nothing until the next border. While
+       every player goes slower than STREAM_FAST_BPS they are made at most EDGE_WALK_MAX at a time, the same land spread
+       over the time it takes to walk there. A chunk still missing once you are nearer than that is made at full speed,
+       and so is all of it while someone travels fast (flying, riding) or land is missing near a player (streamBehind). */
+    const edge = d2 > Math.max(0, viewDist - EDGE_IN) ** 2;
+    if (edge && !streamBehind && streamSpeed() < STREAM_FAST_BPS) return { max: Math.min(makers + 1, EDGE_WALK_MAX), gap: 3 };
+    return { max: makers + 1, gap: 3 };
+  }
   return { max: 2, gap: 40 };
+}
+const EDGE_IN = 2, EDGE_WALK_MAX = 2, STREAM_FAST_BPS = 9;
+/* How fast the quickest player goes over the ground, blocks a second, eased over about half a second (_streamSpeedTick,
+   from runChunkStream): a sprint is about 7, a horse at a gallop and flying are more. A jump to far away (a respawn, a
+   teleport) reads as very fast, which is right: everything round the new place is wanted at once. */
+let _streamSpeed = 0;
+const _streamLast = [];
+const streamSpeed = () => _streamSpeed;
+function _streamSpeedTick(dt) {
+  if (!(dt > 0)) return;
+  let fastest = 0;
+  for (let i = 0; i < PLAYERS.length; i++) {
+    const p = PLAYERS[i], last = _streamLast[i];
+    if (last) fastest = Math.max(fastest, Math.hypot(p.pos.x - last[0], p.pos.z - last[1]) / dt);
+    _streamLast[i] = [p.pos.x, p.pos.z];
+  }
+  _streamLast.length = PLAYERS.length;
+  _streamSpeed += (fastest - _streamSpeed) * Math.min(1, dt / 0.5);
 }
 function noteGenDone() { if (_genInflight > 0) _genInflight--; }
 function resetGenThrottle() { _genInflight = 0; _lastGenAt = 0; _genTokens = 1; }
@@ -206,7 +237,7 @@ let _editLane = null;
    has room). */
 function _bestWorker(room = Infinity, skip = null) {
   let best = null;
-  for (const w of workers) {
+  for (const w of poolWorkers) {                       // the workers the Background threads setting hands jobs to (10-workers.js)
     if (w === skip || w.busy >= room) continue;
     if (!best || w.genOut < best.genOut || (w.genOut === best.genOut && w.busy < best.busy)) best = w;
   }
@@ -227,7 +258,7 @@ function pump() {
      may be out as the gap would have started in that time (one worker slot always left for meshing). */
   const slow = Math.max(1, frameMsAvg / 16.7);
   const depth = slow >= 3 ? 4 : slow >= 2 ? 3 : 2;
-  const genMax = thr.gap > 0 ? Math.min(workers.length * depth - 1, Math.max(thr.max, Math.ceil(frameMsAvg / thr.gap)))
+  const genMax = thr.gap > 0 ? Math.min(poolWorkers.length * depth - 1, Math.max(thr.max, Math.ceil(frameMsAvg / thr.gap)))
                              : thr.max;        // no gap = the loading screen or the title: as many as it ever took
   _genTokens = thr.gap > 0 ? Math.min(genMax, _genTokens + (now - _lastGenAt) / thr.gap) : genMax;
   _lastGenAt = now;
@@ -339,6 +370,16 @@ function _genFromCache(cx, cz, wid) {
    per frame from the main loop so the per-chunk cost is spread instead of arriving in bursts. */
 const genFinishQueue = [];
 
+/* A block the page draws itself (PROPS `pageModel`) or keeps an eye on (`pageSeen`), met in a chunk coming in: its own file
+   is told. The termite hill (blocks/termite-hill.js) and the clam (blocks/clam.js), drawn from then on; the cocoa pod
+   (woods/cocoa.js), grown and checked for its trunk. */
+function pageModelSeen(x, y, z, v) {
+  const id = v & 255;
+  if (id === B.TERMITE_HILL) { if (typeof termiteHillSeen === 'function') termiteHillSeen(x, y, z, v); }
+  else if (id === B.CLAM) { if (typeof clamSeen === 'function') clamSeen(x, y, z, v); }
+  else if (id === B.COCOA) { if (typeof cocoaSeen === 'function') cocoaSeen(x, y, z, v); }
+}
+
 function finishChunkGen(c) {
   if (!c.data || !chunks.has(key(c.cx, c.cz))) return;      // unloaded while it waited
   // the title backdrop wears its random season straight from the generator (seasons/seasons.js)
@@ -354,8 +395,8 @@ function finishChunkGen(c) {
   const seeEmitter = (i) => {
     const v = d[i];
     if (!EMITTER_ID[v & 255]) return;
-    // a termite hill's foot cell: its model and its termites (blocks/termite-hill.js)
-    if (PROPS[v & 255].pageModel) { if (!menuScene && typeof termiteHillSeen === 'function') termiteHillSeen(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v); return; }
+    // a block the page draws: a termite hill's foot cell (its model and its termites), a clam
+    if (PROPS[v & 255].pageModel || PROPS[v & 255].pageSeen) { if (!menuScene) pageModelSeen(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15), v); return; }
     if (blockLightOf(v) > 0) {
       glowAdd(wx0 + (i & 15), i >> 8, wz0 + ((i >> 4) & 15));
       // a torch or glow block seen for the first time starts burning (blocks/torches.js)
@@ -518,7 +559,7 @@ function applyMeshResults(maxPerFrame, deadline) {
     if (deadline && performance.now() > deadline) break;
   }
   /* new or changed geometry the shadow maps can see must reach them: a player's edit at once, everything else (new land,
-     water flowing, sand falling) at the maps' own pace, at most every SHADOW_SOFT_MS (07-sky.js) */
+     water flowing, sand falling) at the maps' own pace, at most every `softMs` of the shadow quality (SHADOW_Q, 07-sky.js) */
   if (_shadowTouched) {
     if (_shadowUrgent) shadowDirty = true; else shadowSoftDirty = true;
     _shadowTouched = _shadowUrgent = false;

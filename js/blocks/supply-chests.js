@@ -6,12 +6,13 @@
    somewhere in its middle SUPPLY_JITTER blocks, so the next one along is always 100 to 250 blocks away (0.843 rolled a
    chance per chunk for each metal, and the wooden supply crate another of its own: two could stand side by side, or
    none for a long way). Which kind is rolled from the square too (SUPPLY_KINDS):
-     wood    the supply crate structure (structures/supply_crate.json), set on the ground with its own loot; it no
+     wood    the supply crate structure (structures/temperate/supply_crate.json), set on the ground with its own loot; it no
              longer rolls as a lone prefab (34 _spawnCandidates). Not on water. its chest is SEALED like the
              metal ones, and a blank wooden key (crafted: 4 planks and a nugget) opens it.
-     metal   a sealed copper, iron or gold chest at any height in its column: a cave floor, a peak, the open plain, on
-             any whole cell of air standing on a whole solid block. Its loot is rolled the first time a key opens it
-             (DEFAULT_LOOT's <metal>_chest, 34).
+     metal   a sealed copper, iron or gold chest in a CAVE, WORLD_CHEST_Y_LO to WORLD_CHEST_Y_HI high: a whole cell of air
+             standing on a whole solid block, with the 3x3 of cells round it at its height air too and air over it (room
+             for its lid), and rock somewhere over it (not under the open sky). Its loot is rolled the first time a key
+             opens it (DEFAULT_LOOT's <metal>_chest, 34).
    Placed with the structures' roll, once as the chunk holding the spot first arrives (trySpawnStructureInChunk, 34),
    seeded by the world like them. */
 const SUPPLY_CELL = 175, SUPPLY_JITTER = 75;
@@ -19,7 +20,8 @@ const SUPPLY_CELL = 175, SUPPLY_JITTER = 75;
    over, 16% of the squares, holds nothing: the shares no longer add up to 1 (supplySiteOf's kind is then null). */
 const SUPPLY_KINDS = [['wood', 0.30], ['copper', 0.30], ['iron', 0.21], ['gold', 0.09]];
 const SUPPLY_CRATE = 'supply_crate';                           // the wooden kind's prefab
-const WORLD_CHEST_TRIES = 6;                                   // columns looked down for a metal chest's spot
+const WORLD_CHEST_TRIES = 24;                                  // columns looked down for a metal chest's spot
+const WORLD_CHEST_Y_LO = 1, WORLD_CHEST_Y_HI = 200;           // the heights a metal chest may stand at
 // the supply chest of square (gx, gz): where it stands and what it is
 function supplySiteOf(gx, gz) {
   const pad = (SUPPLY_CELL - SUPPLY_JITTER) / 2;
@@ -65,18 +67,27 @@ function _spawnSupplyCrate(cx, cz, s) {
   markPendingLoot(ax, y, az, '1', null);
   return true;
 }
-// a metal one: sealed, at any height in the spot's column, or in a column near it when that one has no room
+/* a metal one: sealed, in a cave in the spot's column, or in a column near it when that one has none. The columns are
+   kept a block in from the chunk's edge, so the 3x3 round a spot is all in this chunk (a neighbour not in yet reads as air) */
 function _spawnSealedChest(cx, cz, s) {
   const metal = CHEST_METALS.findIndex(m => m.name === s.kind);
   if (metal < 0) return false;
+  const x0 = cx * 16, z0 = cz * 16, inner = (v, o) => Math.min(o + 14, Math.max(o + 1, v));
   for (let t = 0; t < WORLD_CHEST_TRIES; t++) {
-    const x = t ? cx * 16 + Math.floor(_structHash(cx, cz, 411 + t * 7) * 16) : s.x;
-    const z = t ? cz * 16 + Math.floor(_structHash(cx, cz, 413 + t * 7) * 16) : s.z;
+    const x = inner(t ? x0 + Math.floor(_structHash(cx, cz, 411 + t * 7) * 16) : s.x, x0);
+    const z = inner(t ? z0 + Math.floor(_structHash(cx, cz, 413 + t * 7) * 16) : s.z, z0);
     const spots = [];
-    for (let y = WORLD_TOP - 2; y > 1; y--) {
-      if (getBlock(x, y, z) !== B.AIR) continue;              // a whole empty cell: no water, plant or snow layer in it
+    let roof = false;                                         // rock met on the way down: under it is a cave
+    for (let y = WORLD_TOP - 2; y >= WORLD_CHEST_Y_LO; y--) {
+      const v = getBlock(x, y, z);
+      if (CORE.opaqueVal(v)) { roof = true; continue; }
+      if (!roof || y > WORLD_CHEST_Y_HI || v !== B.AIR) continue;   // a whole empty cell: no water, plant or snow layer in it
       const below = getBlock(x, y - 1, z);
-      if (CORE.opaqueVal(below) && !CORE.shapeOfVal(below)) spots.push(y);
+      if (!CORE.opaqueVal(below) || CORE.shapeOfVal(below) || getBlock(x, y + 1, z) !== B.AIR) continue;
+      let open = true;                                        // the 3x3 round it at its height: air
+      for (let dz = -1; dz <= 1 && open; dz++)
+        for (let dx = -1; dx <= 1 && open; dx++) if (getBlock(x + dx, y, z + dz) !== B.AIR) open = false;
+      if (open) spots.push(y);
     }
     if (!spots.length) continue;
     const y = spots[Math.floor(_structHash(cx, cz, 419 + t) * spots.length)];

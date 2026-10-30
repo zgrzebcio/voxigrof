@@ -104,11 +104,15 @@ function wetRainHere(pos) {
   return best ? best._wetRain || 0 : 0;
 }
 
-/* Per frame, from frame() (22-main-loop.js): each player's ground soaks or dries with the rain where they stand, and
-   drips after the water; the map follows player one, dries, and goes to the shader a few times a second. */
+/* From frame() (22-main-loop.js), but stepped at the tick rate (SIM_DT, the time since added up, `_wetAcc`): each player's
+   ground soaks or dries with the rain where they stand, and drips after the water; the map follows player one, dries,
+   and goes to the shader a few times a second. All of it is slow: twenty steps a second show the same. */
+let _wetAcc = 0;
 function updateWetness(dt) {
   const box = sharedUniforms.uWetBox.value;
   if ((typeof menuScene !== 'undefined' && menuScene) || typeof PLAYERS === 'undefined' || !PLAYERS[0]) { box.w = 0; return; }
+  if ((_wetAcc += dt) < SIM_DT) return;
+  dt = Math.min(_wetAcc, 0.25); _wetAcc = 0;
   const world = typeof currentWorld !== 'undefined' ? currentWorld : null;
   if (world !== _wetWorld) {                                   // another world: nothing of the last one stays wet
     _wetWorld = world; _wetClear();

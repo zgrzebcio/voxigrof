@@ -23,6 +23,30 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(SKY);
 
 const scene = new THREE.Scene();
+/* THE SCENE'S MATRIX WALK. Before each render (and each shadow slice) three works out where every object is in the world.
+   The scene itself never moves, but with its own matrix on auto it re-made it every time and flagged it changed, and that
+   made three multiply out every object under it again, some 1,500, every render. So the scene is still, and its walk
+   skips what cannot have changed:
+   - a hidden model: nothing of it is drawn, and showing it again works it out whole (its own update reaches every part);
+   - a still model (`freezeModel`: every part placed once, off auto): what moves one calls its root's updateMatrix(), or,
+     when only an inner part moved (a chest's lid), that part's updateMatrix() and `root.matrixWorldNeedsUpdate = true`.
+   Everything else is walked exactly as three does it. */
+scene.matrixAutoUpdate = false;
+scene.updateMatrixWorld = function (force) {
+  if (this.matrixWorldNeedsUpdate || force) { this.matrixWorld.copy(this.matrix); this.matrixWorldNeedsUpdate = false; force = true; }
+  const ch = this.children;
+  for (let i = 0, n = ch.length; i < n; i++) {
+    const o = ch[i];
+    if (!force && (!o.visible || (!o.matrixAutoUpdate && !o.matrixWorldNeedsUpdate && (!o.children.length || o.userData.frozen)))) continue;
+    o.updateMatrixWorld(force);
+  }
+};
+// a model that stays where it is put: every part's matrix made once and taken off auto (the scene's walk above)
+function freezeModel(root) {
+  root.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+  root.userData.frozen = true;
+  return root;
+}
 /* `camera` is the ACTIVE camera, not the only one. Split screen gives every player its own
    PerspectiveCamera and swaps this binding around each player's tick and render pass, so all the
    code written against a single camera keeps working untouched. `var` (not const/let) on purpose:

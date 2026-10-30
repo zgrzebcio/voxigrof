@@ -2,21 +2,32 @@
 /* woods/saplings.js: saplings growing into trees. The clock, and the trees built by the page. The palm (_growPalm), the
    acacia (_growAcacia), the spruce's usual cone (_growCone) and the rime spire (_growRimeSpire) are the page's own copies of
    the generator's shapes (woods/gen-*.js; change both). The oak (_growOak), the birch (_growBirch) and the spruce's four
-   other kinds (_growSpruce) grow from saplings only: the world's own trees stay as the generator makes them. Which wood
+   other kinds (_growSpruce) grow from saplings only: the world's own trees stay as the generator makes them. The jungle's
+   (_growJungle) are not copies: the generator and the page build the one shape (woods/jungle-trees.js). Which wood
    grows which is its `grow` in the woods table (woods/woods.js). */
 
 /* ---- saplings: grow into full trees after 7-14 in-game days ----
-   Placed saplings register in SAPLINGS with a target worldDay. Each frame we compare current
-   worldDay against the target; when reached, replace the sapling with a small tree. Growth is
-   transient (Map lives in memory only) — saplings placed before a world reload keep sitting as
-   saplings forever. Acceptable for a first pass. */
-const SAPLINGS = new Map();     // "x,y,z" -> { type, need (days of growing), grown, last (world clock) }
+   A planted sapling registers in SAPLINGS: the days of growing it needs and has had, and the world clock when it was
+   last looked at. updateSaplings adds the days gone by since; when they are enough, the sapling becomes its tree. The
+   clocks are the world's, saved with it (`saplings`, 16-worlds.js). A sapling whose land is not loaded keeps its clock
+   and catches up when its land comes back. */
+const SAPLINGS = new Map();     // "x,y,z" -> { type, need (days of growing), grown, last (world clock), owner, ownerId }
 /* Since 0.81 a sapling counts days of GROWING rather than waiting for a date: the season speeds it up
    (spring 1.3x), slows it (autumn 0.7x) or stops it (winter), seasonGrowth() in seasons/calendar.js. */
 function armSapling(x, y, z, type) {
   // ...and who planted it, paid when it grows (armSapling runs in the planter's own tick)
+  const p = typeof player !== 'undefined' ? player : null;
   SAPLINGS.set(x + ',' + y + ',' + z, { type, need: 7 + Math.floor(Math.random() * 8), grown: 0, last: worldClockDays(),
-                                       owner: typeof player !== 'undefined' ? player : null });
+                                       owner: p, ownerId: (p && p.profileId) || null });
+}
+// the save: [place, sapling id, days needed, days grown, world clock last looked at, planter's profile]
+const serializeSaplings = () => [...SAPLINGS].map(([k, r]) => [k, r.type, r.need, +r.grown.toFixed(3), +r.last.toFixed(4), r.ownerId || null]);
+function restoreSaplings(list) {
+  SAPLINGS.clear();
+  if (!Array.isArray(list)) return;
+  for (const r of list)
+    if (Array.isArray(r) && typeof r[0] === 'string' && isSapling(r[1]))
+      SAPLINGS.set(r[0], { type: r[1], need: +r[2] || 7, grown: +r[3] || 0, last: +r[4] || 0, owner: null, ownerId: r[5] || null });
 }
 function _putSoft(x, y, z, id) {
   if (y < 0 || y > WORLD_TOP) return;
@@ -85,6 +96,34 @@ function _growAcacia(x, y, z) {
         _putSoft(ex + ox, ly + 2, ez + oz, B.ACACIA_LEAVES);
       }
   }
+}
+/* A jungle tree from its sapling: any of the jungle's kinds, the very shapes the generator builds (jungleTree,
+   woods/jungle-trees.js, in the voxel core: nothing copied here). A giant needs room for its 2x2 trunk: the three cells
+   beside the sapling toward +X and +Z free over solid ground, else it grows a tall one. Its wood goes only into air and
+   leaves, bar the sapling's own cell, its vines only into air (a giant's: woods/vines.js); no cocoa pods on it yet (they
+   come in time, woods/cocoa.js). */
+function _growJungle(x, y, z) {
+  const K = CORE.JUNGLE_TREE;
+  let kind = CORE.jungleKindOf(Math.random(), false);
+  if (kind === K.GIANT)
+    for (const [dx, dz] of [[1, 0], [0, 1], [1, 1]]) {
+      const cur = getBlock(x + dx, y, z + dz) & 255;
+      if (!(cur === B.AIR || _isLeaf(cur) || isSapling(cur)) || !isSolid(x + dx, y - 1, z + dz)) { kind = K.TALL; break; }
+    }
+  // true when the cell was written (a vine's strand stops at one that was not)
+  const put = (dx, dy, dz, val) => {
+    const wx = x + dx, wy = y + dy, wz = z + dz;
+    if ((val & 255) === B.VINE) {
+      if (wy < 0 || wy > WORLD_TOP || (getBlock(wx, wy, wz) & 255) !== B.AIR) return false;
+      setBlock(wx, wy, wz, val);
+      return true;
+    }
+    if (!dx && !dy && !dz) setBlock(x, y, z, val);
+    else if (kind === K.GIANT && dy === 0 && dx >= 0 && dx <= 1 && dz >= 0 && dz <= 1) setBlock(wx, y, wz, val);   // its foot's other cells
+    else _putSoft(wx, wy, wz, val);
+    return true;
+  };
+  CORE.jungleTree(kind, put, () => Math.random(), { vines: true });
 }
 /* The tree a sapling grows into is its wood's `grow` in the woods table (woods/woods.js): the round tree below for
    oak and birch, the cone for spruce, the palm above. `species` is the sapling's block id. */
@@ -334,11 +373,19 @@ function feedSapling(x, y, z) {
   else toast(`Sapling: ${Math.floor(r.grown)} of ${r.need} days grown`);
   return true;
 }
-function updateSaplings() {
-  if (SAPLINGS.size === 0) return;
+// once a second (from simTick): a sapling counts the world's days, so looking 20 times a second showed nothing more
+let _saplingT = 0;
+function updateSaplings(dt) {
+  if (SAPLINGS.size === 0 || (_saplingT += dt) < 1) return;
+  _saplingT = 0;
   const stale = [];
   for (const [k, r] of SAPLINGS) {
     const p = k.split(','), x = +p[0], y = +p[1], z = +p[2];
+    // its land and the chunks round it (a tree reaches into them) must be in: until then it waits, its clock kept
+    const cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+    let loaded = true;
+    for (let dx = -1; dx <= 1 && loaded; dx++) for (let dz = -1; dz <= 1; dz++) { const c = getChunk(cx + dx, cz + dz); if (!c || !c.data) { loaded = false; break; } }
+    if (!loaded) continue;
     const cur = getBlock(x, y, z) & 255;
     if (cur !== r.type) { stale.push(k); continue; }               // broken / replaced
     const now = worldClockDays();
@@ -348,7 +395,9 @@ function updateSaplings() {
     if (r.grown >= r.need) {
       stale.push(k);
       _growTree(x, y, z, r.type);
-      if (r.owner) grantXP(r.owner, XP_SAPLING[r.type] || 0, 'a sapling grew');   // each wood's `xp.sapling` (the woods table)
+      // the planter, in the world now (one from a save is found by their profile)
+      const owner = r.owner && PLAYERS.includes(r.owner) ? r.owner : PLAYERS.find(q => r.ownerId && q.profileId === r.ownerId);
+      if (owner) grantXP(owner, XP_SAPLING[r.type] || 0, 'a sapling grew');   // each wood's `xp.sapling` (the woods table)
     }
   }
   for (const k of stale) SAPLINGS.delete(k);

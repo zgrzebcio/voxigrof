@@ -6,7 +6,7 @@
 <title>voxiGrof</title>
 <!-- shared memory for the workers (0.8386): adds the isolation headers GitHub Pages cannot send; first visit reloads once -->
 <script src="coi-sw.js"></script>
-<link rel="stylesheet" href="css/style.css?v=0.8476">
+<link rel="stylesheet" href="css/style.css?v=0.852">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -18,7 +18,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.84778</div>
+<div id="version">alpha 0.8527</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="progRing"></div>
@@ -271,6 +271,13 @@
           <option value="240">240</option>
         </select>
       </label>
+      <label title="Low: shadows redrawn a quarter as often as the sun moves, lighter on the processor. High: twice as sharp, heavier on the graphics card.">Shadow quality
+        <select id="shadowQSel">
+          <option value="low">low</option>
+          <option value="normal">normal</option>
+          <option value="high">high</option>
+        </select>
+      </label>
       <label title="Draws the world at fewer pixels and stretches it to the screen. Lower = faster on a weak graphics card or a hi-DPI / 4K screen, a little softer.">Render scale
         <select id="scaleSel">
           <option value="100">100%</option>
@@ -299,6 +306,23 @@
           <option value="off">off</option>
         </select>
       </label>
+      <label title="Fancy: clouds drawn far and deep. Fast: the far clouds thin out sooner, less work for the graphics card. Off: no clouds and no cloud shade (a world made without clouds has none anyway).">Clouds
+        <select id="cloudsSel">
+          <option value="fancy">fancy</option>
+          <option value="fast">fast</option>
+          <option value="off">off</option>
+        </select>
+      </label>
+      <label title="How many processor cores make and draw new land. Fewer: the land comes in slower, the machine stays cooler and quieter.">Background threads
+        <select id="threadsSel">
+          <option value="auto">auto</option>
+          <option value="4">4</option>
+          <option value="2">2</option>
+        </select>
+      </label>
+      <label title="Sets the frame rate limit to 30, render distance to 8 and simulation distance to 3 (only lower), particles fewer, shadows off, clouds fast and background threads 2. Each can be changed again after.">Power saver
+        <button id="powerSaverBtn" type="button">use</button>
+      </label>
       <!-- 0.804: the display refresh note sits here, under the frame rate limit it is about -->
       <div id="hzNote"></div>
     </div>
@@ -321,7 +345,9 @@
         <div><b>2&times;Space</b> toggle flying</div>
         <div><b>Space + W</b> at a wall: climb up to 3 blocks</div>
         <div><b>LMB / RMB</b> break / place</div>
-        <div><b>1–9 / wheel</b> select block</div>
+        <div><b>1–0 / wheel</b> select block &middot; creative also <b>- =</b></div>
+        <div><b>U</b> set / remove your waypoint</div>
+        <div><b>F</b> swap the held item with the off hand (shield, torch)</div>
         <div><b>Tab</b> inventory</div>
         <div><b>hold R + wheel</b> block variant (chisel worn)</div>
         <div><b>K</b> skill tree</div>
@@ -410,6 +436,7 @@ window.THREE = THREE;
 <script defer src="js/blocks/waterlog.js"></script>
 <script defer src="js/blocks/blocks.js"></script>
 <script defer src="js/chunks/voxel-shared.js"></script>
+<script defer src="js/woods/jungle-trees.js"></script>
 <script defer src="js/worldgen/noise.js"></script>
 <script defer src="js/worldgen/make-gen.js"></script>
 <script defer src="js/worldgen/gen-setup.js"></script>
@@ -422,6 +449,7 @@ window.THREE = THREE;
 <script defer src="js/woods/gen-rime-trees.js"></script>
 <script defer src="js/woods/gen-palms.js"></script>
 <script defer src="js/woods/gen-acacia.js"></script>
+<script defer src="js/woods/gen-jungle.js"></script>
 <script defer src="js/biomes/gen-savanna.js"></script>
 <script defer src="js/woods/gen-dry-bush.js"></script>
 <script defer src="js/woods/gen-tree-loop.js"></script>
@@ -459,6 +487,7 @@ window.THREE = THREE;
 <script defer src="js/woods/palm.js"></script>
 <script defer src="js/woods/dry-bush.js"></script>
 <script defer src="js/woods/acacia.js"></script>
+<script defer src="js/woods/jungle.js"></script>
 <script defer src="js/blocks/mining-rules.js"></script>
 <!-- the item table: items.js (the ids) first, then one file per group of items, finish.js last -->
 <script defer src="js/items/items.js"></script>
@@ -491,6 +520,7 @@ window.THREE = THREE;
 <script defer src="js/player/foraging.js"></script>
 <script defer src="js/player/placing.js"></script>
 <script defer src="js/player/wands.js"></script>
+<script defer src="js/player/wrench.js"></script>
 <script defer src="js/player/place-block.js"></script>
 <script defer src="js/player/mining.js"></script>
 <script defer src="js/15-drops.js"></script>
@@ -515,7 +545,14 @@ window.THREE = THREE;
 <script defer src="js/ui/chest-panel.js"></script>
 <script defer src="js/blocks/supply-chests.js"></script>
 <script defer src="js/entities/box-models.js"></script>
+<script defer src="js/models/termite-hills.js"></script>
+<script defer src="js/models/termites.js"></script>
+<script defer src="js/models/otter.js"></script>
+<script defer src="js/models/meerkat.js"></script>
+<script defer src="js/models/clam.js"></script>
+<script defer src="js/models/backpacks.js"></script>
 <script defer src="js/blocks/termite-hill.js"></script>
+<script defer src="js/blocks/clam.js"></script>
 <script defer src="js/player/equipment.js"></script>
 <script defer src="js/player/armor-model.js"></script>
 <script defer src="js/ui/equip-panel.js"></script>
@@ -537,8 +574,14 @@ window.THREE = THREE;
 <script defer src="js/player/eating.js"></script>
 <script defer src="js/blocks/layer-drops.js"></script>
 <script defer src="js/blocks/tnt.js"></script>
+<script defer src="js/blocks/pressure-plates.js"></script>
+<script defer src="js/blocks/signs.js"></script>
+<script defer src="js/blocks/covers.js"></script>
+<script defer src="js/blocks/rails.js"></script>
+<script defer src="js/blocks/gates.js"></script>
 <script defer src="js/woods/saplings.js"></script>
 <script defer src="js/fluids/current.js"></script>
+<script defer src="js/ui/cpu-meter.js"></script>
 <script defer src="js/22-main-loop.js"></script>
 <script defer src="js/player/tick.js"></script>
 <script defer src="js/player/hands.js"></script>
@@ -568,6 +611,7 @@ window.THREE = THREE;
 <script defer src="js/38-ranged.js"></script>
 <script defer src="js/entities/taming.js"></script>
 <script defer src="js/ui/animals.js"></script>
+<script defer src="js/ui/waypoints.js"></script>
 <script defer src="js/40-shield.js"></script>
 <script defer src="js/41-backpack.js"></script>
 <script defer src="js/shapes/chisel.js"></script>
@@ -588,6 +632,8 @@ window.THREE = THREE;
 <script defer src="js/seasons/seasons.js"></script>
 <script defer src="js/seasons/growth.js"></script>
 <script defer src="js/woods/coconuts.js"></script>
+<script defer src="js/woods/cocoa.js"></script>
+<script defer src="js/woods/vines.js"></script>
 <script defer src="js/seasons/ice.js"></script>
 <script defer src="js/52-clouds.js"></script>
 <script defer src="js/53-storms.js"></script>
@@ -602,12 +648,17 @@ window.THREE = THREE;
 <script defer src="js/blocks/torches.js"></script>
 <script defer src="js/57-camera-filter.js"></script>   <!-- rain, water, snow, lightning and fire on the lens (0.837) -->
 <script defer src="js/entities/frozen-king.js"></script>
+<script defer src="js/entities/pharaoh.js"></script>   <!-- the Dead Pharaoh, the summer boss: its model and moods -->
 <script defer src="js/entities/boss-lair.js"></script>
 <script defer src="js/ui/boss-hud.js"></script>
 <script defer src="js/fluids/fluids.js"></script>
 <script defer src="js/fluids/waterlog.js"></script>
 <script defer src="js/entities/hellhound.js"></script>
 <script defer src="js/entities/termite.js"></script>
+<script defer src="js/entities/otter.js"></script>
+<script defer src="js/entities/tumbleweed.js"></script>
+<script defer src="js/entities/meerkat.js"></script>
+<script defer src="js/player/fish-hold.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>
 <script defer src="js/37-profiles.js"></script>

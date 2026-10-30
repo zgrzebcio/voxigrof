@@ -35,7 +35,21 @@ function mainHandUsesRightClick(id) {
   return !!(p.shield || p.food > 0 || p.drink || p.ranged || p.throwable || p.tool === 'shears'
          || id === ITEM.BUCKET || id === ITEM.WATER_BUCKET || id === ITEM.LAVA_BUCKET
          || id === ITEM.GLASS_BOTTLE || id === ITEM.FIRE                // 0.845
-         || id === ITEM.SUGAR_CANE || id === ITEM.SADDLE);
+         || id === ITEM.SUGAR_CANE || id === ITEM.SADDLE || id === ITEM.WRENCH);
+}
+/* F (17-input.js), as in Minecraft: what the hand holds and what the offhand holds change places. The offhand only takes
+   what its slot accepts (a shield, a torch: equipAccepts, player/equipment.js), so anything else stays put; an empty hand
+   takes the offhand's thing back. Not while both hands hold a live fish. */
+function swapOffhand() {
+  if (typeof hotbarLocked === 'function' && hotbarLocked()) return;
+  const oi = EQUIP_INDEX.offhand, main = HOTBAR[hotbarSel] || null, off = equipSlots[oi] || null;
+  if (!main && !off) return;
+  if (main && !equipAccepts(oi, main.id)) { toast(`${idName(main.id)} cannot go in the off hand`); return; }
+  HOTBAR[hotbarSel] = off;
+  equipSlots[oi] = main;
+  saveHotbar(); saveEquip();
+  buildHotbar(); updateHotbar();
+  playSound('wool', { gain: 0.35, rate: 1.4, pitch: true });   // a soft rustle, there being no sound of its own
 }
 // which shield the right button would raise right now, and from which hand (active seat)
 function _activeShield() {
@@ -130,23 +144,27 @@ function buildShieldNode(id) {
 
 /* ---------------------------------- first person: the offhand arm ----------------------------------
    Built with the right arm (player/hands.js) and hung off root.userData.off. It shows whatever the
-   offhand holds. A shield rests low on the left turned edge-on, and when raised swings in front
-   of the left half of the view with its back toward you (its FRONT always faces away, hence the
-   half turn about Y). A torch is simply carried, upright, where you can see its light. */
-const OFF_REST  = { pos: [-0.86, -1.06, -2.10], arm: [H_RX, -H_RY],        sh: [0.14, 0.46, 0.10], rot: [-0.15, Math.PI - 0.6, 0.06] };
-const OFF_RAISE = { pos: [-0.44, -0.60, -1.78], arm: [H_RX + 0.35, -0.12], sh: [0.20, 0.40, 0.06], rot: [0.0,   Math.PI - 0.14, 0.0] };
+   offhand holds. A shield rests low in the bottom left corner, under the crosshair, turned with its outer edge near you
+   and its inner edge away (turned the other way, the near inner edge reached across the middle of the view); raised, it
+   swings in front of the left half of the view with its back toward you (its FRONT always faces away, hence the half
+   turn about Y). The main hand's shield takes these mirrored (updateHands, player/hands.js). Only a SHIELD rests that
+   low: a torch is carried at OFF_HOLD, upright, where you can see its light, and so is a bare hand reaching. */
+const OFF_REST  = { pos: [-1.15, -2.30, -2.10], arm: [H_RX, -H_RY],        sh: [0.14, 0.46, 0.10], rot: [-0.15, Math.PI + 0.6, -0.06] };
+const OFF_RAISE = { pos: [-0.44, -0.90, -1.78], arm: [H_RX + 0.35, -0.12], sh: [0.20, 0.40, 0.06], rot: [0.0,   Math.PI + 0.14, 0.0] };
+const OFF_HOLD  = { pos: [-0.86, -1.06, -2.10] };
 const OFF_ITEM  = { sh: [0.10, 0.52, 0.02], rot: [-0.25, 0.25, 0.10], scale: 0.55 };   // a carried block (torch)
 const SHIELD_FP_SCALE = 2.5;                // doubled in 0.757
 function _poseOffhandArm(dt) {
   const off = handRoot && handRoot.userData && handRoot.userData.off;
   if (!off) return;
   const id = offhandItemId();
-  // an empty left arm still comes up for a forage grab
-  const show = (id != null || player._offPickT > 0 || player._climbAnim) && playing && !menuScene && !invOpen && !player.dead
+  // an empty left arm still comes up for a forage grab, and to hold a live fish (player/fish-hold.js)
+  const fish = player._heldFish ? 1 : 0;
+  const show = (id != null || player._offPickT > 0 || player._climbAnim || fish) && playing && !menuScene && !invOpen && !player.dead
     && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water
   off.root.visible = show;
   off.held.visible = !offHandBusy(player);                  // climbing, drinking, drawing a bow: put away (player/hands.js)
-  if (!show) { off.root.position.y = OFF_REST.pos[1] - 1.4; return; }       // come back up from below
+  if (!show) { off.root.position.y = Math.min(OFF_REST.pos[1], OFF_HOLD.pos[1]) - 1.4; return; }   // come back up from below
   const shield = id != null && isShieldId(id);
   if (off.heldId !== id) {
     off.heldId = id;
@@ -176,9 +194,19 @@ function _poseOffhandArm(dt) {
   const cl = player._climbAnim ? Math.sin((player._climbT || 0) * 7 + Math.PI) : 0, climb = player._climbAnim ? 1 : 0;
   const k = 1 - Math.exp(-dt * 18);
   const r = off.root.position;
-  r.x += (L(OFF_REST.pos[0], OFF_RAISE.pos[0]) + climb * 0.12 - r.x) * k;
-  r.y += (L(OFF_REST.pos[1], OFF_RAISE.pos[1]) + swing * 0.06 + climb * (0.4 + cl * 0.16) - r.y) * k;
-  r.z += (L(OFF_REST.pos[2], OFF_RAISE.pos[2]) + jolt - r.z) * k;
+  if (fish) {
+    // both hands on the fish: the right arm's pose, mirrored (FISH_ARM, player/hands.js), shaken as it bucks
+    const f = player._heldFish, shake = 0.04 * f.jolt * Math.sin(f.anim * 4 + 1);
+    r.x += (-FISH_ARM.pos[0] - r.x) * k; r.y += (FISH_ARM.pos[1] - shake - r.y) * k; r.z += (FISH_ARM.pos[2] - r.z) * k;
+    off.pivot.rotation.x = FISH_ARM.arm[0] - shake;
+    off.pivot.rotation.y = -FISH_ARM.arm[1];
+    return;
+  }
+  // where the arm is: a shield's rest and raise, anything else (a torch, a bare hand) OFF_HOLD
+  const at = (n) => shield ? L(OFF_REST.pos[n], OFF_RAISE.pos[n]) : OFF_HOLD.pos[n];
+  r.x += (at(0) + climb * 0.12 - r.x) * k;
+  r.y += (at(1) + swing * 0.06 + climb * (0.4 + cl * 0.16) - r.y) * k;
+  r.z += (at(2) + jolt - r.z) * k;
   off.pivot.rotation.x = L(OFF_REST.arm[0], OFF_RAISE.arm[0]) - swing * 0.8 + climb * (0.75 + cl * 0.3);
   off.pivot.rotation.y = L(OFF_REST.arm[1], OFF_RAISE.arm[1]);
   if (shield) {

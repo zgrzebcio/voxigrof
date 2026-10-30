@@ -39,20 +39,31 @@ function syncBossHud() {
   if (showBar) {
     if (ui.name._t !== near.name) { ui.name._t = near.name; ui.name.textContent = near.name; }
     ui.hp.style.width = (100 * Math.max(0, near.hp) / near.maxHp).toFixed(1) + '%';
-    ui.sh.style.width = (100 * Math.max(0, near.shield) / FK.SHIELD).toFixed(1) + '%';
-    ui.sh.style.opacity = near.shieldState === 'broken' ? '0.45' : '1';
+    // the shield's bar, for a boss that has one (the Dead Pharaoh has none)
+    const hasSh = near.shield != null, shRow = ui.sh.parentElement;
+    if ((shRow.style.display !== 'none') !== hasSh) shRow.style.display = hasSh ? '' : 'none';
+    if (hasSh) {
+      ui.sh.style.width = (100 * Math.max(0, near.shield) / FK.SHIELD).toFixed(1) + '%';
+      ui.sh.style.opacity = near.shieldState === 'broken' ? '0.45' : '1';
+    }
   }
   if ((ui.bar.style.display !== 'none') !== showBar) ui.bar.style.display = showBar ? 'block' : 'none';
-  // the quest's marker: only while the last quest is the one you are on
+  // a boss quest's marker (the Dead Pharaoh's, the Frozen King's): only while that quest is the one you are on
   const q = typeof QUESTS !== 'undefined' ? QUESTS[questIndex()] : null;
-  const onQuest = live && !p.canFly && q && q.reqs.some(r => r.boss === 'frozen_king');
-  /* where it points: a king within sight of the bar, else the nearest castle still standing or worked out from
-     the seed (even land never loaded), else a king summoned anywhere */
+  const want = live && !p.canFly && q ? q.reqs.find(r => r.boss) : null;
+  /* where it points: that boss within sight of the bar, else the nearest of its lairs still standing or worked out from
+     the seed (even land never loaded), else one summoned anywhere */
   let mark = null;
-  if (onQuest) {
-    const castle = _nearestCastle(p);
-    if (near && (nd <= BOSS_BAR_R || !castle || nd < castle.d)) mark = { x: near.x, y: near.y + FK.BOX[1] + 0.6, z: near.z, d: nd, txt: near.name };
-    else if (castle) mark = { x: castle.x, y: castle.y, z: castle.z, d: castle.d, txt: "Frozen King's castle" };
+  if (want) {
+    let boss = null, bd = Infinity;
+    for (const e of ENTITIES) {
+      if (e.boss !== want.boss || e.hp <= 0) continue;
+      const d = Math.hypot(e.x - p.pos.x, e.y - p.pos.y, e.z - p.pos.z);
+      if (d < bd) { bd = d; boss = e; }
+    }
+    const K = lairKindOfBoss(want.boss), lair = K ? _nearestLair(p, K) : null;
+    if (boss && (bd <= BOSS_BAR_R || !lair || bd < lair.d)) mark = { x: boss.x, y: boss.y + entH(boss) + 0.6, z: boss.z, d: bd, txt: boss.name };
+    else if (lair) mark = { x: lair.x, y: lair.y, z: lair.z, d: lair.d, txt: K.HOME };
   }
   /* The milk quest's marker (`mark: 'cow'` in QUESTS): the nearest female cow there is, one whose milk is ready
      before one still waiting. Only cows the game is carrying, so none shows until some are near enough to exist. */

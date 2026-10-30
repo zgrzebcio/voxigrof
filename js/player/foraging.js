@@ -30,6 +30,7 @@ BUSH_NAME[B.TALLGRASS] = 'grass';
 BUSH_NAME[B.SHORT_GRASS] = 'short grass';
 BUSH_NAME[B.TALL_LOWER] = BUSH_NAME[B.TALL_UPPER] = 'tall grass';
 BUSH_NAME[B.WHEAT] = 'wheat';
+BUSH_NAME[B.CARROT] = 'carrot';
 BUSH_NAME[B.DRY_GRASS] = 'dry grass';                                          // the desert's dry plants
 BUSH_NAME[B.DRY_TALL_LOWER] = BUSH_NAME[B.DRY_TALL_UPPER] = 'tall dry grass';
 BUSH_NAME[B.DRY_BUSH] = 'dry bush';
@@ -110,7 +111,8 @@ function findBushPickup(readyOnly = false) {
     // ...but an empty main hand picks whatever the offhand holds (a torch no longer blocks it)
     if (off && HOTBAR[hotbarSel] && !(isShieldId(off.id) && !player.blocking && !(player._shieldUp > 0.05))) return null;
   }
-  const p = player.pos, r = player.R * BUSH_REACH;
+  // ...further with a meerkat on the shoulder (wornReachMul, entities/meerkat.js)
+  const p = player.pos, r = player.R * BUSH_REACH * (typeof wornReachMul === 'function' ? wornReachMul(player) : 1);
   const y0 = Math.floor(p.y);
   const x0 = Math.floor(p.x - r), x1 = Math.floor(p.x + r);
   const z0 = Math.floor(p.z - r), z1 = Math.floor(p.z + r);
@@ -134,7 +136,7 @@ function findBushPickup(readyOnly = false) {
           if (d < bestD) { bestD = d; best = { x, y, z, id, v, name }; }
           continue;
         }
-        if (readyOnly && ((isBerryBush(id) && berryStage(v) !== BERRY_STAGE.GROWN) || (id === B.WHEAT && (v & 7)))) continue;   // 0.8443
+        if (readyOnly && ((isBerryBush(id) && berryStage(v) !== BERRY_STAGE.GROWN) || ((id === B.WHEAT || id === B.CARROT) && (v & 7)))) continue;   // 0.8443
         if (d >= bestD) continue;
         bestD = d;
         // the prompt says what you would actually get, so a bare bush reads as bare
@@ -243,7 +245,7 @@ function harvestAtPlayer(readyOnly = false) {
     const st = (getBlock(x, t.y, z) >> 8) & 7, ripe = !st;           // growing wheat gives straw only
     /* a ripe one is cut, not pulled up: the plant stays at its first stage and grows again (seasons/seasons.js).
        One still growing comes up whole, as before: a tap only, a held E leaves it be (findBushPickup). */
-    if (ripe && typeof wheatRegrow === 'function') wheatRegrow(x, t.y, z);
+    if (ripe && typeof cropRegrow === 'function') cropRegrow(x, t.y, z, B.WHEAT);
     else setBlock(x, t.y, z, B.AIR);
     playBlockSound(B.WHEAT, 'break', x, t.y, z);
     if (ripe) {
@@ -256,6 +258,23 @@ function harvestAtPlayer(readyOnly = false) {
     }
     // wheat straw yields fiber as well: 5% at its first stage, 5% more each stage on, 40% ripe (20% flat before)
     _harvestFiber(x, t.y, z, 1, WHEAT_FIBER_PER_STAGE * (ripe ? 7 : Math.min(6, st)));   // 35% ripe since 0.8273 (six stages)
+    return BUSH_REPEAT;
+  }
+  /* A carrot as wheat is: a ripe one pulled gives one carrot (Lucky Hands may add one) and its top stays, cut back to its
+     first stage, to grow again; one still growing comes up whole with nothing (a tap only, findBushPickup). No fiber. */
+  if (id === B.CARROT) {
+    const ripe = !((getBlock(x, t.y, z) >> 8) & 7);
+    if (ripe && typeof cropRegrow === 'function') cropRegrow(x, t.y, z, B.CARROT);
+    else setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.CARROT, 'break', x, t.y, z);
+    if (ripe) {
+      const drops = blockDrop(B.CARROT);
+      if (drops.length) drops[0].count += lootBonus(hasSkill('luckyHands'));   // Lucky Hands: 20% for one more carrot
+      for (const d of drops) {
+        for (let n = 0; n < d.count; n++) bushGive(d.id, x, t.y, z);
+        addXP(d.count * XP_FORAGE_ITEM);
+      }
+    }
     return BUSH_REPEAT;
   }
   // the grass is cut down to short grass, as the tall grass to grass; short grass comes up whole

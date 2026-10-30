@@ -25,11 +25,27 @@ function _fillHalf(x, y, z, mat) {
      slab            always flat; a ceiling click, or the upper half of a wall, hangs it high
      vertical slab   hugs the clicked wall; on a floor or ceiling it takes the half away from you
      pane            through the middle, its wide face toward you
-     fence           a post; its rails follow the fences around it, so nothing to choose */
+     fence           a post; its rails follow the fences around it, so nothing to choose
+     wall            toward the side of its cell away from you; on or against a wall, as that wall stands */
 function _shapeVariantFor(key, hit, px, py, pz) {
   const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5), alongX = Math.abs(ddx) > Math.abs(ddz);
   if (key === 'carpet') return SHAPE_LAYER;                 // one layer
-  if (key === 'wall') return SHAPE_WALL;                    // joins its neighbours on its own
+  /* a wall stands toward the side of its cell away from you (WALL_BACK, shapes/shapes.js); put on a wall, or against one, it
+     stands as that one does (the one under it first). It joins its neighbours on its own */
+  if (key === 'wall') {
+    for (const v of [getBlock(px, py - 1, pz), getBlock(hit.x, hit.y, hit.z)]) {
+      const r = ((v >> 8) & 255) & ROT_MASK;
+      if (CORE.shapeOfVal(v) === 'wall' && r !== 1) return SHAPE_WALL | r;    // (not the pose, 1)
+    }
+    return SHAPE_WALL | BLOCKS.WALL_BACK | (alongX ? (ddx > 0 ? 3 : 2) : (ddz > 0 ? 1 : 0));
+  }
+  if (key === 'plate') return SHAPE_PLATE;                  // a pressure plate, up
+  /* a sign: on a floor it stands on its post and on a ceiling it hangs from its sticks, both turned to face you; on a wall
+     it lies flat against the block clicked, facing out from it */
+  if (key === 'sign') {
+    if (hit.ny) return SHAPE_SIGN | (alongX ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1)) | ((hit.ny === 1 ? SIGN_STAND : SIGN_HANG) << 2);
+    return SHAPE_SIGN | (hit.nx === 1 ? 2 : hit.nx === -1 ? 3 : hit.nz === 1 ? 0 : 1) | (SIGN_WALL << 2);
+  }
   if (key === 'cover') {
     /* A cover goes where it hides something:
          over a hole (walled in on 3+ sides, open above)  a lid flush with the top of the cell

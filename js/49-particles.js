@@ -421,18 +421,21 @@ class FxDecals {
     U[ou] = u0; U[ou + 1] = v0; U[ou + 2] = u0 + du; U[ou + 3] = v0;
     U[ou + 4] = u0 + du; U[ou + 5] = v0 + dv; U[ou + 6] = u0; U[ou + 7] = v0 + dv;
     this.base.set([r, g, b, a], q * 4);
+    if (this.age[q] >= 1e8) this.live++;               // a free slot taken (one still showing is written over)
     this.age[q] = 0; this.life[q] = life;
     this.aPos.needsUpdate = true; this.aUv.needsUpdate = true;
   }
-  clear() { this.age.fill(1e9); this.col.fill(0); this.aCol.needsUpdate = true; }
+  clear() { this.age.fill(1e9); this.col.fill(0); this.aCol.needsUpdate = true; this.live = 0; }
+  // once a frame; with none showing (`live`) nothing at all, not a walk over every slot
   update(dt) {
+    if (!this.live) return;
     let any = false;
     for (let q = 0; q < this.max; q++) {
       if (this.age[q] >= 1e8) continue;
       const age = (this.age[q] += dt), life = this.life[q];
       let a = 0;
       if (age < life) { const t = age / life; a = this.base[q * 4 + 3] * (t < 0.55 ? 1 : (1 - t) / 0.45); }
-      else this.age[q] = 1e9;
+      else { this.age[q] = 1e9; this.live--; }
       const o = q * 16;
       for (let k = 0; k < 4; k++) {
         this.col[o + k * 4] = this.base[q * 4]; this.col[o + k * 4 + 1] = this.base[q * 4 + 1];
@@ -978,6 +981,21 @@ function fxEat(p, id, dt, water = false) {
     FX.sprites.grav[i] = 9; FX.sprites.flags[i] = FX_COLLIDE; FX.sprites.own[i] = own;
   }
 }
+/* An animal chewing (entEatStep, entities/entities.js): crumbs of what it eats fall from `mouth`, the part of its model the
+   food sits at. Seen by everyone. */
+function fxMouthCrumbs(mouth, id) {
+  if (_fxScale <= 0 || !mouth) return;
+  mouth.updateWorldMatrix(true, false);
+  mouth.getWorldPosition(_fxV);
+  if (!_fxNear(_fxV.x, _fxV.y, _fxV.z)) return;
+  const rgb = _fxColorOf(id), L = _fxLight(_fxV.x, _fxV.y, _fxV.z);
+  for (let k = 0; k < 3; k++) {
+    const i = _fxDust(_fxV.x + _rnd(-0.08, 0.08), _fxV.y - 0.05, _fxV.z + _rnd(-0.08, 0.08), rgb, L, _rnd(0.4, 0.7), 0.045);
+    if (i < 0) return;
+    FX.sprites.vx[i] = _rnd(-0.5, 0.5); FX.sprites.vy[i] = _rnd(0.1, 0.6); FX.sprites.vz[i] = _rnd(-0.5, 0.5);
+    FX.sprites.grav[i] = 9; FX.sprites.flags[i] = FX_COLLIDE;
+  }
+}
 /* A block placed: a few bits of it knocked loose around its foot. */
 function fxPlace(x, y, z, val) {
   if (_fxScale <= 0 || !_fxNear(x + 0.5, y + 0.5, z + 0.5)) return;
@@ -1028,6 +1046,12 @@ function _fxPlantBurst(x, y, z, val, L) {
   const id = val & 255;
   if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxGrassCol(), _fxN(8), L); return true; }
   if (id === B.WHEAT) { _fxPlantBits(x, y, z, _FX_WHEAT, _fxN(8), L); return true; }
+  // a carrot's green top, and orange bits when a ripe one comes up
+  if (id === B.CARROT) {
+    if (!((val >> 8) & 7)) _fxPlantBits(x, y, z, [0.93, 0.5, 0.12], _fxN(4), L);
+    _fxPlantBits(x, y, z, _FX_LEAF_DARK, _fxN(6), L);
+    return true;
+  }
   // the desert's dry plants: straw-coloured bits, a dry bush's twigs browner
   if (id === B.DRY_GRASS || id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER) { _fxPlantBits(x, y, z, _FX_DRY, _fxN(8), L); return true; }
   if (id === B.DRY_BUSH) { _fxPlantBits(x, y, z, _FX_DRY_BUSH, _fxN(7), L); return true; }
@@ -1098,6 +1122,23 @@ function _fxTorches(dt, live) {
       else if (r < dt * 3.1 * k) _fxEmber(tx, ty + 0.03, tz, _rnd(-0.2, 0.2), _rnd(0.6, 1.2), _rnd(-0.2, 0.2));
       else if (r < dt * 3.5 * k) _fxSmoke(tx, ty + 0.1, tz, 0.45, 1, 0.35);
     });
+  }
+}
+/* Every drop lying on the ground breathes a faint white mote now and then, rising off its top and fading: a thing on
+   the ground can be found in tall grass or at night. Not smoke: small, bright, short. Lit at least DROP_MOTE_DIM. */
+const DROP_MOTE_RATE = 1.4, DROP_MOTE_DIM = 0.55;
+function _fxDropMotes(dt) {
+  if (typeof DROPS === 'undefined') return;
+  for (const d of DROPS) {
+    if (!d.grounded || Math.random() > dt * DROP_MOTE_RATE) continue;
+    const g = d.group.position;
+    if (!d.group.visible || !_fxNear(g.x, g.y, g.z)) continue;
+    const L = DROP_MOTE_DIM + (1 - DROP_MOTE_DIM) * _fxLight(g.x, g.y, g.z);
+    const i = _fxDust(g.x + _rnd(-0.08, 0.08), g.y + 0.12, g.z + _rnd(-0.08, 0.08), [1, 1, 1], L, _rnd(0.9, 1.3), 0.05);
+    if (i < 0) return;
+    const S = FX.sprites;
+    S.vx[i] = _rnd(-0.04, 0.04); S.vy[i] = _rnd(0.3, 0.45); S.vz[i] = _rnd(-0.04, 0.04);
+    S.grav[i] = 0; S.drag[i] = 0.4; S.fade[i] = 0.6; S.flags[i] = FX_FADEIN;
   }
 }
 // a gem lying on the ground catches the light now and then
@@ -1580,6 +1621,7 @@ function updateParticles(dt) {
     for (const p of PLAYERS) if (p.spawned && !p.dead) live++;
     if (live) _fxTorches(dt, live);           // 0.801
     _fxDroppedGems(dt);                       // 0.801
+    _fxDropMotes(dt);                         // a white mote off every drop on the ground
     for (const p of PLAYERS) {
       if (!p.spawned || p.dead) continue;
       // asleep: a slow trail of Zzz from the pillow
@@ -1590,6 +1632,7 @@ function updateParticles(dt) {
       if (!p.flying) _fxBodyInFluid(p, p.pos.x, p.pos.y, p.pos.z, p.vy || 0, dt, p.pos.y + (p.EYE || 1.62));
       _fxEffects(p, dt);                      // 0.803
       _fxSandstorm(p, dt);                    // 0.825
+      if (typeof fxCurseSand === 'function') fxCurseSand(p, dt);   // the Dead Pharaoh's curse in their eyes (entities/pharaoh.js)
       _fxWeather(p, dt);                      // rain and snow
     }
     _fxRainK = 0;

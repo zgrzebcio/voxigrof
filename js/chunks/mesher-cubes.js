@@ -167,6 +167,7 @@ corePart('mesh.chunk', function () {
       { d: 2, s: +1, ua: 0, va: 1, us: 16, vs: CY },   // +Z
       { d: 2, s: -1, ua: 0, va: 1, us: 16, vs: CY },   // -Z
     ];
+    const SWEEP_ORDER = [1, 2, 3, 4, 5, 0];   // -Y, the sides, +Y (the order the faces are written in, below)
     const dims = [16, CY, 16];
     const pos = [0, 0, 0], npos = [0, 0, 0];
 
@@ -181,7 +182,11 @@ corePart('mesh.chunk', function () {
     }
     const yCap = Math.min(dims[1], topY + 2);   // +1 layer of air above the top block keeps top faces
 
-    for (let dir = 0; dir < 6; dir++) {
+    /* The see-through pass (ice, glass) is blended with no depth write, so the faces are drawn in the order they sit in
+       the buffer: bottoms first, sides, tops last, back to front for a surface seen from above. Tops first had a frozen
+       sea's far bottom faces laid over its near tops (darker), while across a chunk border the farther chunk's bottoms are
+       drawn first anyway (lighter): a pale band along every border. The other passes write depth: order is nothing there. */
+    for (const dir of SWEEP_ORDER) {
       const { d, s, ua, va, us, vs } = CFG[dir];
       const faceIdx = DIR_FACE[dir], shade = DIR_SHADE[dir];
       const nMax = d === 1 ? Math.min(dims[d], yCap) : dims[d];   // cap the vertical extent
@@ -276,6 +281,11 @@ corePart('mesh.chunk', function () {
         // rot:'side' blocks: front tile sits on the variant's facing; lit furnace swaps it
         if (id === B.FURNACE) tile = furnaceTile(varb, faceIdx);   // its rock's set
         if (id === B.CRAFTING_BENCH) tile = benchTile(varb, faceIdx);   // its wood's set
+        // ...and a rot:'side' block with `frontBack` [front, back] wears them on the face it is turned to and the one behind
+        if (prop.frontBack && prop.rot === 'side') {
+          if (faceIdx === SIDE_FACE[varb & 3]) tile = prop.frontBack[0];
+          else if (faceIdx === SIDE_FACE[(varb & 3) ^ 1]) tile = prop.frontBack[1];
+        }
         /* A lying pillar: its top on the two faces along its axis (1 = X, 2 = Z), and its side art
            turned a quarter on the rest, so the fluting runs along it rather than across. */
         let sw = false;

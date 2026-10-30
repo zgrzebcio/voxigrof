@@ -41,7 +41,8 @@ corePart('gen.chunk', function () {
             const ax = gcx * HD_CELL + 2 + Math.floor(rr(1) * (HD_CELL - 4)), az = gcz * HD_CELL + 2 + Math.floor(rr(2) * (HD_CELL - 4));
             if (ax < x0 - HD_REACH || ax > x0 + 15 + HD_REACH || az < z0 - HD_REACH || az > z0 + 15 + HD_REACH) continue;
             const ti = terrainInfo(ax, az);
-            if (!(ti.fDeepD > 0.5) || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
+            // (none on the Deep Red Desert Flat: an open plain, biomes/fields.js RDFLAT)
+            if (!(ti.fDeepD > 0.5) || (ti.rdf || 0) > 0.5 || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
             const g = ti.h, hgt = 5 + Math.floor(rr(3) * 12), off = Math.round(rr(4) * 8), capped = rr(5) < 0.55;
             const kind = DESERT3 ? (ti.ddRed > 0.5 ? 2 : 1) : 0, capB = kind === 1 ? B.SANDSTONE : B.RED_SANDSTONE;   // by its half
             const neck = 0.7 + rr(6) * 0.9, foot = neck + (rr(7) < 0.5 ? 1 : 0.3);
@@ -119,7 +120,7 @@ corePart('gen.chunk', function () {
             const ti = terrainInfo(ax, az);
             // the Deep Desert, and the Dryland half as often
             const dryland = DRYLAND && ti.fDry > 0.5;
-            if (!(ti.fDeepD > 0.5 || dryland) || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
+            if (!(ti.fDeepD > 0.5 || dryland) || (ti.rdf || 0) > 0.5 || ti.h < ti.wl || ti.h <= WATER_LEVEL || onCanyon(ax, az)) continue;
             // ...and 70% fewer again in worlds made since 0.8442 (rev 24; a whole skeleton or none, so not in older worlds)
             if (dryland && rr(0) > BN_KEEP * 0.5 * (FOSSIL2 ? 0.3 : 1)) continue;
             let lo = ti.h, hi = ti.h;

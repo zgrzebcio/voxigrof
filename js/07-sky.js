@@ -315,27 +315,51 @@ for (const o of [sky, moonSky, skyDome, meteor, flareMesh]) { o.traverse(c => c.
      - they are drawn again only when something moved: the sun a SHADOW_SUN_STEP (a quarter second of its way: a
        shadow moves far less than a texel), the players' middle out of its SHADOW_SNAP cell (~14 blocks; the map
        reaches shadowR round the cell, so the land near the players is always in it), a player's edit near
-       (shadowDirty: at once), or new land near (shadowSoftDirty: at most every SHADOW_SOFT_MS);
+       (shadowDirty: at once), or new land near (shadowSoftDirty: at most every softMs of the quality, below);
      - a new pair is drawn over SHADOW_SLICES frames, a share of the scene's objects each frame, into the BACK pair,
        and swapped in whole when done (its textures and its matrix together): no frame pays for all of it, and none
        shows half a map. */
-const SHADOW_SIZE = 1024, SHADOW_SLICES = 4, SHADOW_SNAP = 64, SHADOW_SOFT_MS = 500;
+const SHADOW_SLICES = 4, SHADOW_SNAP = 64;
 const SHADOW_SUN_STEP = Math.PI / 2400;     // the sun's wheel turns 2 PI a day (DAY_LEN 1200 s): 4 steps a second
+/* SHADOW QUALITY (Options > Video, saved as `vg_shadowq`). 'normal' is the above. 'low' draws a new pair a quarter as
+   often: the sun's step four times as long (once a second high up) and new land at most every 2 s; a pair is two passes
+   over every chunk near, so a quarter of the processor's shadow work. 'high' draws the maps at twice the size, sharper
+   edges for more of the graphics card. */
+const SHADOW_Q = { low: { size: 1024, stepMul: 4, softMs: 2000 }, normal: { size: 1024, stepMul: 1, softMs: 500 },
+                   high: { size: 2048, stepMul: 1, softMs: 500 } };
+let shadowQ = (() => { try { const q = localStorage.getItem('vg_shadowq'); return SHADOW_Q[q] ? q : 'normal'; } catch { return 'normal'; } })();
+const shadowQual = () => SHADOW_Q[shadowQ];
 function makeShadowRT() {
-  const dt = new THREE.DepthTexture(SHADOW_SIZE, SHADOW_SIZE);
+  const S = shadowQual().size, dt = new THREE.DepthTexture(S, S);
   dt.compareFunction = THREE.LessCompare;   // sampler2DShadow + linear filter = hardware PCF
   dt.minFilter = dt.magFilter = THREE.LinearFilter;
-  return new THREE.WebGLRenderTarget(SHADOW_SIZE, SHADOW_SIZE, { depthTexture: dt });
+  return new THREE.WebGLRenderTarget(S, S, { depthTexture: dt });
 }
 // [solid, leaves]: the front pair is what the world is drawn with, the back pair is being drawn
-let shadowFront = [makeShadowRT(), makeShadowRT()], shadowBack = [makeShadowRT(), makeShadowRT()];
+let shadowFront = null, shadowBack = null;
 function _setShadowTextures() {
   sharedUniforms.tShadS.value = shadowFront[0].depthTexture;
   sharedUniforms.tShadL.value = shadowFront[1].depthTexture;
 }
-_setShadowTextures();
-for (const rt of [...shadowFront, ...shadowBack]) { renderer.setRenderTarget(rt); renderer.clear(); }   // prime: everything lit until the first pair
-renderer.setRenderTarget(null);
+// both pairs made at the quality's size (the old ones let go), cleared: everything lit until the first pair is drawn
+function _makeShadowPairs() {
+  for (const rt of [...(shadowFront || []), ...(shadowBack || [])]) { rt.depthTexture.dispose(); rt.dispose(); }
+  shadowFront = [makeShadowRT(), makeShadowRT()]; shadowBack = [makeShadowRT(), makeShadowRT()];
+  _setShadowTextures();
+  for (const rt of [...shadowFront, ...shadowBack]) { renderer.setRenderTarget(rt); renderer.clear(); }
+  renderer.setRenderTarget(null);
+}
+_makeShadowPairs();
+// a quality picked in Options (17-input.js applySettings)
+function applyShadowQuality(q) {
+  if (!SHADOW_Q[q] || q === shadowQ) return;
+  const sizeWas = shadowQual().size;
+  shadowQ = q;
+  try { localStorage.setItem('vg_shadowq', q); } catch {}
+  _shadowBuild = null;                      // a pair half drawn at the old quality is not finished
+  if (shadowQual().size !== sizeWas) _makeShadowPairs();
+  shadowDirty = true;
+}
 
 const shadowCam = new THREE.OrthographicCamera(-110, 110, 110, -110, 1, 560);
 function applyShadowDist() {
@@ -399,10 +423,10 @@ function renderShadowMaps(dir, key) {
      which is the same graceful degradation distance already causes in single player. */
   // ...on a cell of SHADOW_SNAP texels: a whole number of texels still, so the alignment holds
   const p = _shadowCenter();
-  const texel = (Math.max(shadowR, 1) * 2) / SHADOW_SIZE, snap = texel * SHADOW_SNAP;
+  const texel = (Math.max(shadowR, 1) * 2) / shadowQual().size, snap = texel * SHADOW_SNAP;
   const tx = Math.round(p.dot(_sr) / snap) * snap;
   const ty = Math.round(p.dot(_su) / snap) * snap;
-  const now = performance.now(), soft = shadowSoftDirty && now - _shadowBuiltAt >= SHADOW_SOFT_MS;
+  const now = performance.now(), soft = shadowSoftDirty && now - _shadowBuiltAt >= shadowQual().softMs;
   if (!shadowDirty && !soft && key === shadowKey && tx === shadowTX && ty === shadowTY) return;
   shadowDirty = shadowSoftDirty = false; shadowKey = key; shadowTX = tx; shadowTY = ty; _shadowBuiltAt = now;
 
@@ -658,7 +682,7 @@ function updateDayNight(dt, advance = true) {
        block for a tall tree at sunset), so the step halves under 30 degrees and again under 15: 8 and 16 a second.
        Halvings only: a step that changed smoothly would move `qa` every frame, and every frame would start a new pair */
     const elevSin = Math.max(0, useSun ? sunElev : moonElev);     // the sine of its height
-    const step = SHADOW_SUN_STEP / (elevSin >= 0.5 ? 1 : elevSin >= 0.25 ? 2 : 4);
+    const step = SHADOW_SUN_STEP * shadowQual().stepMul / (elevSin >= 0.5 ? 1 : elevSin >= 0.25 ? 2 : 4);
     const qa = Math.floor((useSun ? a : am) / step) * step;   // the moon on its own wheel since 0.817
     _skyDir(_sv, qa, useSun ? dec : decM);
     renderShadowMaps(_sv, qa + (useSun ? 0 : 7));

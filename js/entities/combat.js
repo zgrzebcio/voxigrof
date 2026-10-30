@@ -67,16 +67,29 @@ const _fxEntHurt = (ent, dmg) => {
   // the killing blow: crit stars and a white puff
   if (ent.hp <= 0 && typeof fxDeath === 'function') fxDeath(ent.x, ent.y, ent.z, entH(ent));
 };
+/* A blow on a creature that bolts: it runs for its kind's `fleeTime`, away from where the blow came from; and a kind with
+   `fleeTogether` (the otter) sends every wild one of its kind that near off with it. */
+function _entBolt(ent, fromX, fromZ) {
+  const def = mobOf(ent), t = def.fleeTime || 0;
+  ent.fleeT = t; ent._fleeFrom = { x: fromX, z: fromZ };
+  if (!def.fleeTogether || !t) return;
+  const r = def.fleeTogether;
+  for (const o of ENTITIES)
+    if (o !== ent && o.kind === ent.kind && !o.tame && Math.abs(o.x - ent.x) < r && Math.abs(o.z - ent.z) < r && Math.hypot(o.x - ent.x, o.z - ent.z) < r) {
+      o.fleeT = t; o._fleeFrom = { x: fromX, z: fromZ };
+    }
+}
 function damageEntityByMob(ent, dmg, by) {
   if (!ent || ent.hp <= 0 || ent._killedByMob) return false;
   if (ent.boss) return false;                    // a boss is the players' fight
   ent.hp -= dmg;
   _fxEntHurt(ent, dmg);
+  mobSound(ent, 'hurt');                         // its own cry, when it has one (the creature table's `sounds`)
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;
   if (ent.kind === 'polar_bear') { /* a bear stands its ground */ }
   else if (ent.kind === 'hellhound') { if (by && by !== ent) { ent._hurtBy = by; ent._hurtByAt = performance.now(); } }   // it turns on what bit it
-  else if (isGrazer(ent) || isFish(ent)) ent.fleeT = mobOf(ent).fleeTime || 0;   // the rest bolt, for their kind's `fleeTime`
+  else if (isGrazer(ent) || isFish(ent) || mobOf(ent).passive) _entBolt(ent, by ? by.x : ent.x, by ? by.z : ent.z);   // the rest bolt, for their kind's `fleeTime`
   // a monster or a villager fights back at a hellhound that bit it, as they do at each other
   else if (by && by !== ent && by.hp > 0 &&
            ((_isMonster(ent) && by.kind === 'npc') || (ent.kind === 'npc' && _isMonster(by)) || by.kind === 'hellhound')) {
@@ -109,6 +122,7 @@ function damageEntity(ent, dmg, src = null) {
   if (ent.boss && typeof bossTakeHit === 'function') return bossTakeHit(ent, dmg, src);
   ent.hp -= dmg;
   _fxEntHurt(ent, dmg);
+  mobSound(ent, 'hurt');                         // its own cry, when it has one (the creature table's `sounds`)
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;                   // limbs thrash on impact even while standing
   /* what this player struck last is what their hound goes for (houndThink, entities/hellhound.js); and a kill made
@@ -116,8 +130,8 @@ function damageEntity(ent, dmg, src = null) {
   if (ent.kind !== 'hellhound' || !ent.owner) { player._houndTarget = ent; player._houndTargetAt = performance.now(); }
   if (ent.hp <= 0 && !player.canFly && typeof fireKillBy === 'function' && (_fireBlow || (ent.fireT > 0 && ent._fireBy === player)))
     fireKillBy(ent, player);
-  // Grazers are passive: they bolt rather than retaliate. So are fish
-  if (isGrazer(ent) || isFish(ent)) {
+  // Grazers are passive: they bolt rather than retaliate. So are fish, and the kinds marked `passive` (the otter)
+  if (isGrazer(ent) || isFish(ent) || mobOf(ent).passive) {
     // a polar bear does not bolt: the hit sets it on you, however far you run
     if (ent.kind === 'polar_bear') {
       if (!player.canFly) {
@@ -127,9 +141,10 @@ function damageEntity(ent, dmg, src = null) {
     }
     // a hellhound neither: a wild one is set on you, one of yours only takes the blow
     else if (ent.kind === 'hellhound') { if (!player.canFly && typeof houndStruckByPlayer === 'function') houndStruckByPlayer(ent, player); }
-    else if (!player.canFly) ent.fleeT = mobOf(ent).fleeTime || 0;   // its kind's `fleeTime` (the creature table)
+    else if (!player.canFly) _entBolt(ent, src ? src.x : player.pos.x, src ? src.z : player.pos.z);   // its kind's `fleeTime` (the creature table)
     if (ent.hp <= 0) {
-      if (!player.canFly) { _entDropLoot(ent, true); addXP(mobKillXP(ent), mobKillText(ent)); }   // killed by the player
+      // killed by the player; a kind whose `xp` is 0 (a tumbleweed) pays nothing and is not told as a kill
+      if (!player.canFly) { _entDropLoot(ent, true); if (mobOf(ent).xp !== 0) addXP(mobKillXP(ent), mobKillText(ent)); }
       const i = ENTITIES.indexOf(ent);
       if (i >= 0) _removeEntity(i);
       return true;

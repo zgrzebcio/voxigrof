@@ -18,7 +18,7 @@
    definition, the minimum is the destination's own clock, and that site needs no code at all.
 
    Spoilage was a cost of CARRYING food only; food in a chest spoils at the same rate, and so does food in a furnace
-   (_tickFurnaceSpoil, below).
+   (_tickFurnaceSpoil, below) and food put in a clam (_tickClamSpoil, blocks/clam.js).
 
    SALT: carried salt, or salt in the same chest, makes food last 50% longer (its clock runs at 2/3
    speed). Since 0.8192 a salt is used up the MOMENT it has work to do — salt put in beside food, or food put in
@@ -138,8 +138,11 @@ function tickSpoilage(dt) {
     if (typeof spawnDrop === 'function' && typeof player !== 'undefined')
       spawnDrop(id, Math.floor(player.pos.x), Math.floor(player.pos.y + 0.5), Math.floor(player.pos.z));
   }
-  // chests and furnaces once per frame, whoever's seat this is
-  if (typeof PLAYERS === 'undefined' || PLAYERS.indexOf(player) <= 0) { _tickChestSpoil(); _tickFurnaceSpoil(); }
+  // chests, furnaces and what was put in clams (blocks/clam.js) once per frame, whoever's seat this is
+  if (typeof PLAYERS === 'undefined' || PLAYERS.indexOf(player) <= 0) {
+    _tickChestSpoil(); _tickFurnaceSpoil();
+    if (typeof _tickClamSpoil === 'function') _tickClamSpoil();
+  }
   if (hotLost && typeof saveHotbar === 'function') saveHotbar();
   if (invLost && typeof saveInv === 'function') saveInv();
   if (offLost && typeof saveEquip === 'function') saveEquip();

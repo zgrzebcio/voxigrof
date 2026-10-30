@@ -102,8 +102,8 @@ function tryAttackEntity(ent) {
   if (_atkCooldown > 0) return false;
   if (!ent) ent = pickEntity();
   if (!ent) return false;
-  // your own tamed hound is never what you swing at: it stands in every fight you have
-  if (ent.kind === 'hellhound' && ent.tame && ent.owner === player) return false;
+  // your own tamed hound or otter is never what you swing at (`spared`, the creature table): it stands in every fight you have
+  if (mobOf(ent).spared && ent.tame && houndOwner(ent) === player) return false;
   const held = heldUseId();                  // a broken weapon hits like a fist
   playSound('hit', { gain: 0.9, rate: 0.95 + Math.random() * 0.1, pos: { x: ent.x, y: ent.y + 1, z: ent.z } });
   _atkCooldown = attackCooldownFor(held);

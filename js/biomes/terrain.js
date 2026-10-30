@@ -42,6 +42,13 @@ corePart('biomes.make', function () {
       return _dryOut;
     }
 
+    /* The Jungle's share of a column (rev 43, JUNGLE_* in biomes/fields.js): its wet field high, on the hot levels from
+       JUNGLE_LVL, fading out before the red sand's heat (JUNGLE_HOT). The wet field is only read where the heat allows. */
+    function _jungleF(x, z, temp, lvl) {
+      const hot = smooth01(lvl, JUNGLE_LVL - 0.1, JUNGLE_LVL + 0.1) * (1 - smooth01(temp, JUNGLE_HOT - 0.04, JUNGLE_HOT));
+      return hot > 0 ? hot * smooth01(fbm(x * JUNGLE_F + 6917.3, z * JUNGLE_F - 5113.9, 2), JUNGLE_LO, JUNGLE_HI) : 0;
+    }
+
     /* is a water higher than level L within FLUSH_SAFE of this column's bank (the river `rv0`, the lake `lw`, and the
        waters near them)? A level shore (FLUSH) is not laid there: that water's rim has to stand */
     const _higherNear = (rv, rv0, lw, L) => {
@@ -118,6 +125,10 @@ corePart('biomes.make', function () {
         fDeepSnow = down(2.5);
         fTaiga = cold * (1 - fSnow);
       }
+      /* the Jungle (rev 43): where it lies the plains' flats, the desert and the red sand give way to it (the Savanna and
+         the Dryland too, below) */
+      const fJungle = JUNGLE && LADDER ? _jungleF(x, z, temp, lvl) : 0;
+      if (fJungle > 0) { const k = 1 - fJungle; fPlains *= k; fDesert *= k; fRedL *= k; }
       const fRime = RIME ? smooth01(-temp, RIME_FROM, RIME_TO) * fDeepSnow : 0;   // 0.836
       const rimeAir = RIME ? smooth01(-temp, RIME_AIR_FROM, RIME_TO) * fDeepSnow : 0;
       // rev 20: its forest half, by a slow noise of its own (about half), and how calm the open half lies here
@@ -128,12 +139,14 @@ corePart('biomes.make', function () {
       const ddAir = DESERT2 ? smooth01(temp, DD_AIR_FROM, DD_TO) * fDesert : 0;
       // ...and which half of it this is (rev 22): 1 the Deep Red Desert, 0 the (yellow) Deep Desert; all red before
       const ddRed = DESERT3 ? smooth01(fbm(x * 0.0017 + 8813.1, z * 0.0017 - 6611.3, 2), -0.06, 0.06) : 1;
+      // ...and in its red half the Deep Red Desert Flat (rev 42): 1 where the broken land is eased away (RDF_* in biomes/fields.js)
+      const rdf = RDFLAT && fDeepD > 0.01 ? smooth01(fbm(x * RDF_F + 3907.3, z * RDF_F - 7121.9, 2), RDF_LO, RDF_HI) * ddRed : 0;
       // the Dryland (rev 23): the warm plains' hot side, short of the desert
       // ...and the Savanna (rev 28) its hot edge, on the same wobble: the Dryland keeps what lies before it
       // (no patch of either narrower than DRY_MIN in rev 33: _dryBand above)
       const dryWob = DRYLAND && LADDER ? _dryBand(x, z, lvl)[0] : 0, dryShift = DRYLAND && LADDER ? _dryOut[1] : 0;
-      const fSav = SAVANNA && LADDER ? smooth01(dryWob, SAV_LO, SAV_HI) * (1 - fDesert) : 0;
-      const fDry = DRYLAND && LADDER ? smooth01(dryWob, DRY_LO - dryShift, DRY_HI - dryShift) * (1 - fDesert) * (1 - fSav) : 0;
+      const fSav = SAVANNA && LADDER ? smooth01(dryWob, SAV_LO, SAV_HI) * (1 - fDesert) * (1 - fJungle) : 0;
+      const fDry = DRYLAND && LADDER ? smooth01(dryWob, DRY_LO - dryShift, DRY_HI - dryShift) * (1 - fDesert) * (1 - fSav) * (1 - fJungle) : 0;
       /* Deep forests (rev 5): their own patches inside forest country, where trees stand denser and grow bigger. */
       const deepF = REV5 ? smooth01(fbm(x * 0.0022 * BS + 3137.1, z * 0.0022 * BS - 1289.3, 2), 0.18, 0.34) : 0;
 
@@ -190,7 +203,7 @@ corePart('biomes.make', function () {
         const rg = 1 - Math.abs(fbm(x * 0.008 + 4421.7, z * 0.008 - 1733.1, 3));
         const ridge = Math.pow(smooth01(rg, 0.74, 0.97), 1.6) * (8 + 16 * (fbm(x * 0.004 + 2217.9, z * 0.004 - 819.3, 2) + 1) * 0.5) * (1 - mesa);
         const rough = fbm(x * 0.09 + 55.1, z * 0.09 - 77.3, 2) * 1.6 * Math.max(mesa, smooth01(rg, 0.7, 0.9));
-        h += (hm + ridge + rough) * fDeepD;
+        h += (hm + ridge + rough) * fDeepD * (1 - rdf);                // none of it on the Deep Red Desert Flat
       }
       /* Hills and cliffs (rev 14) so no land lies long flat: none on the sea floor or in the mountains (their
          own), less on the plains, little in a desert */
@@ -230,8 +243,8 @@ corePart('biomes.make', function () {
             if (lng > 0.01) cs += (fbm(x * 0.0035 + 1733.9, z * 0.0035 - 2909.1, 2) - cs) * lng;
             hl += cm * smooth01(cs, 0.0, 0.025 + 0.09 * soft) * (5 + 9 * size) * (1 + 0.4 * lng);
           }
-          h += hl * land * (1 - calm);                 // the open Coldest Deep Snow only gently rolling
-          hlv = hl * land * (1 - calm);
+          h += hl * land * (1 - calm) * (1 - rdf);     // the open Coldest Deep Snow only gently rolling; the Deep Red Desert Flat flat
+          hlv = hl * land * (1 - calm) * (1 - rdf);
         }
       }
       /* Continental shelf -> oceans. The descent used to switch on the instant cont crossed -0.2,
@@ -426,6 +439,6 @@ corePart('biomes.make', function () {
       h = Math.min(TALL ? TALL_CAP : 196, Math.max(4, Math.floor(h)));
       return { h, fPlains, fDesert, fSnow, dh, fRed, rdh, rT, lk, deep, warm, cold, fTaiga, deepF,
                fDeepSnow, lvl, air: LADDER ? climateAir(lvl) : null, sh, cliff, wl, fd, ff, mt: mTerm, hlv, fRime, rimeAir, rimeW,
-               fDeepD, ddAir, oas, ddRed, fDry, fSav, db, dbd };   // 0.84; ddRed 0.841; fDry 0.8411; fSav the Savanna; db a deep beach
+               fDeepD, ddAir, oas, ddRed, rdf, fDry, fSav, db, dbd, fJungle };   // 0.84; ddRed 0.841; rdf the Deep Red Desert Flat; fDry 0.8411; fSav the Savanna; db a deep beach; fJungle the Jungle
     }
 });

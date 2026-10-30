@@ -39,11 +39,81 @@ corePart('mesh.chunk', function () {
       const n = logAt(nx, ny, nz, fam);
       return !!n && n.axis === axis && n.w >= LOG_JOIN_MIN;
     };
+    /* A QUARTER of a log two blocks wide (LOG_W_QUAD, blocks/basic.js: a jungle giant's 2x2 trunk). The four cells draw
+       ONE log scaled x2: every face takes its uv from where it lies on the big log (its bark a picture over two blocks
+       each way, its top's rings one over all four cells), a face against the next quarter of the same log is left out,
+       and only the big log's four outer long edges are notched round (LOG_BEVEL of its width: twice a block log's). An
+       end is left out against an opaque block or the same quarter going on at least as wide. `w`: its width index, which
+       quarter (quadOf: bit 0 the high half across the first axis beside the log's own, bit 1 the second); the quarter
+       reaches quadReach of its cell out from the middle line (its swings so far, LOG_CUT_SHIFT, blocks/basic.js). */
+    const QL_SH = [178, 178, 255, 140, 216, 216];
+    const QL_NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+    const QL_UVF = [(l) => [1 - l[2], l[1]], (l) => [l[2], l[1]], (l) => [l[0], l[2]],
+                    (l) => [l[0], l[2]], (l) => [l[0], l[1]], (l) => [1 - l[0], l[1]]];
+    function emitQuadLog(x, y, z, val, va, w, fam, pss) {
+      const id = val & 255, A = va === 1 ? 0 : va === 2 ? 2 : 1, Pa = va === 1 ? 1 : 0, Qa = va === 2 ? 1 : 2;
+      const q = quadOf(w), e = quadReach(val);                      // as far as its swings have cut it, every one shown
+      const qp = q & 1, qq = (q >> 1) & 1, sP = qp ? 1 : -1, sQ = qq ? 1 : -1;
+      const par = [(ox || 0) + x, y, (oz || 0) + z][A] & 1;      // which of the two blocks along the log this is
+      const F = PROPS[id].faces, side = F[0], top = F[2], cut = 2 * LOG_BEVEL * e;
+      const lit = (d) => gl(x + QL_NB[d][0], y + QL_NB[d][1], z + QL_NB[d][2]);
+      const at = (a, p, r) => { const l = [0, 0, 0]; l[A] = a; l[Pa] = p; l[Qa] = r; return l; };
+      // a point of this cell on the big log: 0..1 across its four quarters and along its two blocks
+      const big = (l) => { const b = [0, 0, 0]; b[A] = (par + l[A]) / 2; b[Pa] = (qp + l[Pa]) / 2; b[Qa] = (qq + l[Qa]) / 2; return b; };
+      const face = (pts, n, ud, tile, shade, lite) => {
+        const [c0, c1, c2] = pts;
+        const e = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]], f = [c2[0] - c0[0], c2[1] - c0[1], c2[2] - c0[2]];
+        const dot = (e[1] * f[2] - e[2] * f[1]) * n[0] + (e[2] * f[0] - e[0] * f[2]) * n[1] + (e[0] * f[1] - e[1] * f[0]) * n[2];
+        if (dot < 0) pts = [pts[0], pts[3], pts[2], pts[1]];
+        const w = pts.map(l => [x + l[0], y + l[1], z + l[2]]), u = pts.map(l => QL_UVF[ud](big(l)));
+        quad(pss, w[0], w[1], w[2], w[3], u[0], u[1], u[2], u[3], tile, shade, lite);
+      };
+      const unit = (k, s) => { const n = [0, 0, 0]; n[k] = s; return n; };
+      const dirOf = (k, s) => 2 * k + (s < 0 ? 1 : 0);
+      const nbv = (d) => gb(x + QL_NB[d][0], y + QL_NB[d][1], z + QL_NB[d][2]);
+      const shut = (d) => { const nv = nbv(d); return opaqueVal(nv) || fastLeaf(nv); };
+      /* the big log's quarter `want` (same wood family, same axis) in the cell that way, cut in no further than this one:
+         as wide or wider, so it hides the face between them */
+      const quarterAt = (d, want) => {
+        const v = nbv(d), p = P[v & 255];
+        if (!p || p.model !== 'log' || (p.family || 'wood') !== fam || ((v >> 8) & 3) !== va) return false;
+        const nw = logWidthOf((v >> 8) & 255);
+        return isQuadW(nw) && quadOf(nw) === want && quadReach(v) >= e - 1e-6;
+      };
+      // across each axis: [from, to] the quarter spans in its cell (the middle line at its inner side), its outer face
+      const pSpan = qp ? [0, e] : [1 - e, 1], qSpan = qq ? [0, e] : [1 - e, 1];
+      const pOut = qp ? pSpan[1] : pSpan[0], qOut = qq ? qSpan[1] : qSpan[0];
+      const pIn = qp ? pSpan[0] : pSpan[1], qIn = qq ? qSpan[0] : qSpan[1];
+      const pRest = qp ? [pSpan[0], pSpan[1] - cut] : [pSpan[0] + cut, pSpan[1]], qRest = qq ? [qSpan[0], qSpan[1] - cut] : [qSpan[0] + cut, qSpan[1]];
+      const pStrip = qp ? [pSpan[1] - cut, pSpan[1]] : [pSpan[0], pSpan[0] + cut], qStrip = qq ? [qSpan[1] - cut, qSpan[1]] : [qSpan[0], qSpan[0] + cut];
+      const atEdge = e >= 0.999;                                  // the outer faces lie on the cell's sides: an opaque block there hides them
+      // the two ends: the quarter's square less the notch at its outer corner
+      for (const s of [1, -1]) {
+        const d = dirOf(A, s), av = s > 0 ? 1 : 0;
+        if (shut(d) || quarterAt(d, q)) continue;
+        const n = unit(A, s), L = lit(d);
+        face([at(av, pSpan[0], qRest[0]), at(av, pSpan[1], qRest[0]), at(av, pSpan[1], qRest[1]), at(av, pSpan[0], qRest[1])], n, d, top, QL_SH[d], L);
+        face([at(av, pRest[0], qStrip[0]), at(av, pRest[1], qStrip[0]), at(av, pRest[1], qStrip[1]), at(av, pRest[0], qStrip[1])], n, d, top, QL_SH[d], L);
+      }
+      // the two outer sides, each short of the notch
+      const dpo = dirOf(Pa, sP), dqo = dirOf(Qa, sQ);
+      if (!atEdge || !shut(dpo)) face([at(0, pOut, qRest[0]), at(1, pOut, qRest[0]), at(1, pOut, qRest[1]), at(0, pOut, qRest[1])], unit(Pa, sP), dpo, side, QL_SH[dpo], lit(dpo));
+      if (!atEdge || !shut(dqo)) face([at(0, pRest[0], qOut), at(1, pRest[0], qOut), at(1, pRest[1], qOut), at(0, pRest[1], qOut)], unit(Qa, sQ), dqo, side, QL_SH[dqo], lit(dqo));
+      // the notch: a square step, two small faces
+      const pi = pOut - sP * cut, qi = qOut - sQ * cut, Ln = litMax(lit(dpo), lit(dqo));
+      face([at(0, pi, qStrip[0]), at(1, pi, qStrip[0]), at(1, pi, qStrip[1]), at(0, pi, qStrip[1])], unit(Pa, sP), dpo, side, QL_SH[dpo], Ln);
+      face([at(0, pStrip[0], qi), at(1, pStrip[0], qi), at(1, pStrip[1], qi), at(0, pStrip[1], qi)], unit(Qa, sQ), dqo, side, QL_SH[dqo], Ln);
+      // the two inner sides, on the middle lines: only where the next quarter is not there as wide (cut away, or never grown)
+      const dpi = dirOf(Pa, -sP), dqi = dirOf(Qa, -sQ);
+      if (!shut(dpi) && !quarterAt(dpi, q ^ 1)) face([at(0, pIn, qSpan[0]), at(1, pIn, qSpan[0]), at(1, pIn, qSpan[1]), at(0, pIn, qSpan[1])], unit(Pa, -sP), dpi, side, QL_SH[dpi], lit(dpi));
+      if (!shut(dqi) && !quarterAt(dqi, q ^ 2)) face([at(0, pSpan[0], qIn), at(1, pSpan[0], qIn), at(1, pSpan[1], qIn), at(0, pSpan[1], qIn)], unit(Qa, -sQ), dqi, side, QL_SH[dqi], lit(dqi));
+    }
     function emitLog(x, y, z, val) {
       const id = val & 255, variant = (val >> 8) & 255, va = variant & 3;
       const fam = PROPS[id].family || 'wood';
       const pss = PROPS[id].pass;              // wood is opaque(0), cactus is cutout(1)
       const myW = logWidthOf(variant);
+      if (isQuadW(myW)) { emitQuadLog(x, y, z, val, va, myW, fam, pss); return; }
       const b = logCutBox(va, myW);
       let flared = false;                                 // did a branch pull a face out to the edge?
       if (va !== 1) {                                     // X faces are inset unless this IS an X log
