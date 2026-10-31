@@ -35,8 +35,8 @@ const CHISEL_PAGES = [
     { key: 'stairs', name: 'Stairs',        desc: 'A step, facing where you click',boxes: [[0, 0, 0, 16, 8, 16], [0, 8, 0, 16, 16, 8]] },
     { key: 'pane',   name: 'Pane',          desc: 'A thin upright sheet',          boxes: [[0, 0, 6, 16, 16, 10]] },   // half a vertical slab thick
     { key: 'fence',  name: 'Fence',         desc: 'A post, rails to its neighbours',boxes: [[6, 0, 6, 10, 16, 10], [0, 6, 7, 16, 9, 9], [0, 12, 7, 16, 15, 9]] },
-    // in development: shown by name, not pickable yet
-    { key: 'slope',  name: 'Slope',  soon: true },                              // 0.7892, took the cover's slot
+    // a wedge: whatever stands on it slides down and off (blocks/slopes.js); its preview is drawn as one (wedge)
+    { key: 'slope',  name: 'Slope',         desc: 'A wedge: anything on it slides down', wedge: true },
     { key: 'carpet', name: 'Carpet',        desc: 'One thin layer on the floor',   boxes: [[0, 0, 0, 16, 2, 16]] },    // one 1/8 layer
     { key: 'wall',   name: 'Wall',          desc: 'A thick post that joins up' },  // drawn from the real wall
     { key: 'bars',   name: 'Bars',   soon: true },
@@ -52,7 +52,9 @@ const CHISEL_PAGES = [
     // on a floor, a wall or a ceiling, with words written on it (blocks/signs.js)
     { key: 'sign',   name: 'Sign',          desc: 'On a floor, a wall or a ceiling; use it to write on it',
       boxes: [[0, 7, 7.25, 16, 15, 8.75], [7.25, 0, 7.25, 8.75, 7, 8.75]] },
-    ...Array.from({ length: 6 }, (_, i) => _soonSlot(i + 4)),
+    // climbed; held by a block behind, under or over it, or by the ladders over and under it (blocks/ladders.js)
+    { key: 'ladder', name: 'Ladder',        desc: 'Climb it; a ladder clicked with one puts the next on its end' },   // drawn from the real ladder
+    ...Array.from({ length: 5 }, (_, i) => _soonSlot(i + 5)),
   ],
 ];
 const CHISEL_PAGE_NAMES = ['Simple', 'Advanced'];
@@ -83,14 +85,16 @@ function chiselShapeKey() {
    byte (CHISEL SHAPES in blocks/blocks.js); which blocks take which shape is SHAPE_BLOCKS there, read here
    through PROPS[id].shapes — so a block can take a pane but no fence, and the slots show that. */
 const CHISEL_BLOCK_SHAPE = { slab: 'slab', vslab: 'slab', stairs: 'stairs', pane: 'pane', fence: 'fence',
-                             carpet: 'layer', cover: 'cover', wall: 'wall', door: 'door', plate: 'plate', sign: 'sign' };   // radial key -> family (carpet 0.785, cover/wall 0.787, door 0.842)
+                             carpet: 'layer', cover: 'cover', wall: 'wall', door: 'door', plate: 'plate', sign: 'sign',
+                             slope: 'slope', ladder: 'ladder' };   // radial key -> family (carpet 0.785, cover/wall 0.787, door 0.842)
 // how a slot or the hand draws each shape: a bottom half, a back half standing up, stairs facing away,
 // a pane facing you, and a fence with its rails out both sides (a lone post would read as a stick)
 const CHISEL_ICON_VAR = { slab: SHAPE_SLAB, vslab: SHAPE_SLAB + 4, stairs: SHAPE_STAIRS,
                           pane: SHAPE_PANE, fence: SHAPE_FENCE + 1, carpet: SHAPE_LAYER,
                           cover: SHAPE_COVER + 4, wall: SHAPE_WALL + 1,
                           door: BLOCKS.SHAPE_DOOR,       // drawn as the door itself (renderBlockIcon, buildDropGeom: blocks/doors.js)
-                          plate: SHAPE_PLATE, sign: SHAPE_SIGN };   // a sign standing, facing you
+                          plate: SHAPE_PLATE, sign: SHAPE_SIGN,     // a sign standing, facing you
+                          slope: SHAPE_SLOPE, ladder: SHAPE_LADDER }; // a slope falling toward you, a ladder's rungs toward you
 // what a held block places as right now: { key }, or null (no chisel, a shape without a model, or a block that cannot take it)
 function chiselShapedPlace(id) {
   if (id == null || id >= 256 || !PROPS[id]?.shapes || !chiselEquipped()) return null;
@@ -146,9 +150,31 @@ function chiselShapeIcon(shape) {
   const add = (g, m, x, y, z) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); scene.add(o); geos.push(g); };
   const e = CHISEL_EDGE;
   // the fence preview is the real picket fence in its icon pose, so the two never drift apart
-  // ...and the wall the same way
-  const pose = { fence: B.PLANKS | ((SHAPE_FENCE + 1) << 8), wall: B.COBBLE | ((SHAPE_WALL + 1) << 8) }[shape.key];
-  const boxes = pose ? CORE.shapeBoxesAt(() => 0, 0, 0, 0, pose).map(b => b.map(n => n * 16)) : shape.boxes;
+  // ...and the wall and the ladder the same way
+  const pose = { fence: B.PLANKS | ((SHAPE_FENCE + 1) << 8), wall: B.COBBLE | ((SHAPE_WALL + 1) << 8),
+                 ladder: B.PLANKS | (SHAPE_LADDER << 8) }[shape.key];
+  const boxes = shape.wedge ? [] : pose ? CORE.shapeBoxesAt(() => 0, 0, 0, 0, pose).map(b => b.map(n => n * 16)) : shape.boxes;
+  // the slope: a wedge, its low edge toward the camera (+Z), its edges bars like the boxes'
+  if (shape.wedge) {
+    const g = new THREE.BufferGeometry(), pos = [];
+    const tris = (m, ...pts) => { g.addGroup(pos.length / 3, pts.length, m); for (const p of pts) pos.push(p[0] - 0.5, p[1] - 0.5, p[2] - 0.5); };
+    tris(2, [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 0], [1, 0, 1], [1, 1, 0]);   // the slanted face, shaded as a top
+    tris(5, [0, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 0]);   // the back
+    tris(0, [1, 0, 0], [1, 1, 0], [1, 0, 1]);                                  // its ends
+    tris(1, [0, 0, 0], [0, 0, 1], [0, 1, 0]);
+    tris(3, [0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 0], [1, 0, 1], [0, 0, 1]);   // the floor
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    add(g, faceMats, 0, 0, 0);
+    const _z = new THREE.Vector3(0, 0, 1);
+    for (const [a, b] of [[[0,0,0],[1,0,0]], [[1,0,0],[1,0,1]], [[1,0,1],[0,0,1]], [[0,0,1],[0,0,0]], [[0,0,0],[0,1,0]],
+                          [[1,0,0],[1,1,0]], [[0,1,0],[1,1,0]], [[0,1,0],[0,0,1]], [[1,1,0],[1,0,1]]]) {
+      const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = d.length();
+      const o = new THREE.Mesh(new THREE.BoxGeometry(e, e, len + e), edgeMat);
+      o.position.set((a[0] + b[0]) / 2 - 0.5, (a[1] + b[1]) / 2 - 0.5, (a[2] + b[2]) / 2 - 0.5);
+      o.quaternion.setFromUnitVectors(_z, d.normalize());
+      scene.add(o); geos.push(o.geometry);
+    }
+  }
   for (const [x0, y0, z0, x1, y1, z1] of boxes) {
     const w = (x1 - x0) / 16, h = (y1 - y0) / 16, d = (z1 - z0) / 16;
     const cx = (x0 + x1) / 32 - 0.5, cy = (y0 + y1) / 32 - 0.5, cz = (z0 + z1) / 32 - 0.5;

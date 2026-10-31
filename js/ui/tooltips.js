@@ -24,13 +24,7 @@ function _blockFormsHTML(id) {
   // the default leads the list: its own name where it has one (a furnace's stone), else "default"
   if (vars && vars.length)
     html += list('Variants', [(typeof VARIANT_DEFAULT_NAME !== 'undefined' && VARIANT_DEFAULT_NAME[id]) || 'default', ...vars.map(v => v.name)]);
-  // what placing it takes beside itself, by variant (WHAT A PICK TAKES, blocks/variants.js)
-  if (typeof VARIANT_DEFAULT_NEED !== 'undefined') {
-    const dn = VARIANT_DEFAULT_NEED[id], needs = [];
-    if (dn != null) needs.push(`${(VARIANT_DEFAULT_NAME[id] || 'default')}: 1 ${PROPS[dn].name.toLowerCase()}`);
-    for (const v of vars || []) if (v.need != null) needs.push(`${v.name}: 1 ${PROPS[v.need].name.toLowerCase()}`);
-    if (needs.length) html += list('Placing takes', needs);
-  }
+  // (what placing it takes beside itself is an "On place" line, for the pick in hand: itemTooltipHTML below)
   const shapes = PROPS[typeof heldBlockOf === 'function' ? heldBlockOf(id) : id]?.shapes;
   if (shapes && typeof CHISEL_SHAPES !== 'undefined') {
     const names = CHISEL_SHAPES.filter(s => !s.soon && shapes[CHISEL_BLOCK_SHAPE[s.key]]).map(s => s.name.toLowerCase());
@@ -71,6 +65,10 @@ function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's
                 (p.packSlots || p.beltSlots || p.hotbarSlots || p.chisel) ? '' : 'none']);
   }
   if (p.ammo) conds.push(['hit', 'No effect', 'none']);
+  // what placing the pick in hand takes beside itself (WHAT A PICK TAKES, blocks/variants.js): a furnace's cobblestone,
+  // a chest's planks, a mossy look's vine
+  const need = !isItem && typeof heldNeedOf === 'function' ? heldNeedOf(id) : null;
+  if (need != null && PROPS[need]) conds.push(['place', `Requires 1 ${PROPS[need].name.toLowerCase()}`, '']);
   if (p.foodClearEffects) conds.push(['drink', 'Removes all active effects', '']);   // milk
   const ed = p.foodEffect && typeof EFFECT_DEFS !== 'undefined' ? EFFECT_DEFS[p.foodEffect] : null;
   if (ed) {

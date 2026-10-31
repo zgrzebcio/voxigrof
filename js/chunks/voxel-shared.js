@@ -40,7 +40,11 @@ corePart('voxel', function () {
           JOIN_BACK, isJoinFamily, joinTakes, autoJoins, _joinCell, joinLinks, RAIL_EPS,
           gateFamily, DIAG_RAILS, _cornerOut, joinDiagsAt, wallShift, joinPickBoxes,
           joinSlopesAt, slopeBoxesOf, GATE_RAILS, GATE_FOOT, GATE_TOP, _gatePanel, gateBoxes,
-          RAIL_LIFT, railHostOk, railLift, railOverBoxes } = BLOCKS;
+          RAIL_LIFT, railHostOk, railLift, railOverBoxes,
+          SHAPE_LADDER, SHAPE_SLOPE, SLOPE_BIT, _LADDER_AUTH, _ladderTurn, LADDER_BOX, LADDER_PICK, LADDER_DEPTH, LADDER_COLL_T, RUNG_T, RAIL_W, _rungZ, _ladderSet, LADDER_COLL,
+          WALL_PAIR, WALL_NEXT, wallSides, wallPairVar, wallClip, WALL_MATE_SHIFT, WALL_MATE_FIRST, WALL_MATES, isWallPlateVal,
+          wallMateOf, wallPlateVal, wallPairParts, _LADDER_HALVES, wallPairBoxes,
+          SLOPE_STEPS, SLOPE_COLL_STEPS, _slopeBoxes, SLOPE_BOX, SLOPE_COLL, slopeDownOf } = BLOCKS;
   /* The climate colour: grass and water blend smoothly toward their warm or cold look by a value per
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */

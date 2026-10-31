@@ -160,7 +160,12 @@ function _poseOffhandArm(dt) {
   const id = offhandItemId();
   // an empty left arm still comes up for a forage grab, and to hold a live fish (player/fish-hold.js)
   const fish = player._heldFish ? 1 : 0;
-  const show = (id != null || player._offPickT > 0 || player._climbAnim || fish) && playing && !menuScene && !invOpen && !player.dead
+  // ...and on a ladder or a vine (the weights player/tick.js eases)
+  const cUp = player._climbUpW || 0, cSlide = player._climbSlideW || 0, cHold = player._climbHoldW || 0;
+  const onRungs = player._climbAnim || player._climbHold || cUp + cSlide + cHold > 0.05;
+  // ...and working a station, both hands empty (BENCH_ARM, player/hands.js: its weight and beat are eased there)
+  const bw = player._benchW > 0.05 ? player._benchW : 0;
+  const show = (id != null || player._offPickT > 0 || onRungs || fish || bw) && playing && !menuScene && !invOpen && !player.dead
     && !(id === B.TORCH && typeof torchDoused === 'function' && torchDoused(player));   // put away under water
   off.root.visible = show;
   off.held.visible = !offHandBusy(player);                  // climbing, drinking, drawing a bow: put away (player/hands.js)
@@ -190,8 +195,9 @@ function _poseOffhandArm(dt) {
   const jolt = (player._shieldHitT > 0 && player._shieldHand === 'off') ? player._shieldHitT / 0.18 * 0.12 : 0;
   const swing = player._offPickT > 0 ? Math.sin((1 - player._offPickT / 0.35) * Math.PI)          // forage grab
     : player._offSwingT > 0 ? Math.sin((1 - player._offSwingT / 0.25) * Math.PI) : 0;               // placed a torch
-  // climbing: the left arm reaches while the right one pulls (player/hands.js), half a beat apart
-  const cl = player._climbAnim ? Math.sin((player._climbT || 0) * 7 + Math.PI) : 0, climb = player._climbAnim ? 1 : 0;
+  /* climbing: the left arm reaches while the right one pulls (player/hands.js), half a beat apart; sliding down, it holds the
+     left rail; still, it alone holds on, up on a rung, swaying a little */
+  const cl = Math.sin((player._climbT || 0) * 7 + Math.PI), sway = Math.sin(performance.now() * 0.0016);
   const k = 1 - Math.exp(-dt * 18);
   const r = off.root.position;
   if (fish) {
@@ -204,11 +210,22 @@ function _poseOffhandArm(dt) {
   }
   // where the arm is: a shield's rest and raise, anything else (a torch, a bare hand) OFF_HOLD
   const at = (n) => shield ? L(OFF_REST.pos[n], OFF_RAISE.pos[n]) : OFF_HOLD.pos[n];
-  r.x += (at(0) + climb * 0.12 - r.x) * k;
-  r.y += (at(1) + swing * 0.06 + climb * (0.4 + cl * 0.16) - r.y) * k;
-  r.z += (at(2) + jolt - r.z) * k;
-  off.pivot.rotation.x = L(OFF_REST.arm[0], OFF_RAISE.arm[0]) - swing * 0.8 + climb * (0.75 + cl * 0.3);
-  off.pivot.rotation.y = L(OFF_REST.arm[1], OFF_RAISE.arm[1]);
+  let px = at(0) + cUp * 0.12 - cSlide * 0.34 + cHold * 0.16;
+  let py = at(1) + swing * 0.06 + cUp * (0.4 + cl * 0.16) + cSlide * 0.36 + cHold * (0.44 + sway * 0.02);
+  let pz = at(2) + jolt;
+  let rx = L(OFF_REST.arm[0], OFF_RAISE.arm[0]) - swing * 0.8 + cUp * (0.75 + cl * 0.3) + cSlide * 0.95 + cHold * (0.82 + sway * 0.04);
+  let ry = L(OFF_REST.arm[1], OFF_RAISE.arm[1]) + cSlide * 0.35;
+  /* working a station: the right arm's BENCH_ARM mirrored, beating half a beat after it at a bench, holding the bowl still
+     at a mortar */
+  if (bw) {
+    const t = (player._benchT || 0) * BENCH_BEAT + Math.PI, grind = benchWorkIsMortar(player);
+    const by = grind ? 0 : Math.max(0, Math.sin(t)) * 0.14, brx = grind ? 0 : Math.sin(t) * 0.35, B2 = (a, b) => a + (b - a) * bw;
+    px = B2(px, -BENCH_ARM.pos[0]); py = B2(py, BENCH_ARM.pos[1] + by); pz = B2(pz, BENCH_ARM.pos[2]);
+    rx = B2(rx, BENCH_ARM.arm[0] + brx); ry = B2(ry, -BENCH_ARM.arm[1]);
+  }
+  r.x += (px - r.x) * k; r.y += (py - r.y) * k; r.z += (pz - r.z) * k;
+  off.pivot.rotation.x = rx;
+  off.pivot.rotation.y = ry;
   if (shield) {
     off.held.position.set(L(OFF_REST.sh[0], OFF_RAISE.sh[0]), L(OFF_REST.sh[1], OFF_RAISE.sh[1]),
                           L(OFF_REST.sh[2], OFF_RAISE.sh[2]));

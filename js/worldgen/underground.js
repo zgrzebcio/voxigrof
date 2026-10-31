@@ -607,22 +607,26 @@ corePart('gen.chunk', function () {
       (() => {   // own function: see SPEED in worldgen/gen-chunk.js
       /* ---- glow vines: strands hanging down cave walls, lighting the tunnels. A rare roll
          per open cave cell picks one side; if that side is rock, a strand of 2-6 hangs down it for
-         as long as the rock face and the open air beside it both last. ---- */
+         as long as the rock face and the open air beside it both last. From rev 46 (GLOW_WET) still water is as open as
+         air: a strand starts or goes on down into a flooded cave, each cell of it standing in the water. ---- */
       {
         const VINE_WALLS = [[0, -1, 0], [0, 1, 1], [-1, 0, 2], [1, 0, 3]];   // [dx, dz, variant]
+        // 0 no room, 1 air, 2 still water (a source)
+        const room = (v) => (v & 255) === B.AIR ? 1 : GLOW_WET && (v & 255) === B.WATER && !((v >> 8) & 7) ? 2 : 0;
         for (let z = 0; z < CZ; z++)
           for (let x = 0; x < CX; x++) {
             const top = Math.min(H[(x + 2) + (z + 2) * 20] - 6, 90);
             for (let y = 8; y < top; y++) {
-              if ((data[idx(x, y, z)] & 255) !== B.AIR) continue;
+              if (!room(data[idx(x, y, z)])) continue;
               if (hash3(cx * 1543 + x, y + 7000, cz * 1327 + z) >= 0.005) continue;   // ~3x as common
               const w = VINE_WALLS[Math.floor(hash3(cx * 1543 + x, y + 7100, cz * 1327 + z) * 4) & 3];
               const wx = x + w[0], wz = z + w[1];
               if (wx < 0 || wx > 15 || wz < 0 || wz > 15) continue;
               const len = 2 + Math.floor(hash3(cx * 1543 + x, y + 7200, cz * 1327 + z) * 5);
               for (let k = 0; k < len && y - k > 2; k++) {
-                if ((data[idx(x, y - k, z)] & 255) !== B.AIR || (data[idx(wx, y - k, wz)] & 255) !== B.STONE) break;
-                data[idx(x, y - k, z)] = B.GLOW_VINE | (w[2] << 8);
+                const r = room(data[idx(x, y - k, z)]);
+                if (!r || (data[idx(wx, y - k, wz)] & 255) !== B.STONE) break;
+                data[idx(x, y - k, z)] = (B.GLOW_VINE | (w[2] << 8) | (r === 2 ? WATERLOGGED : 0)) >>> 0;
               }
             }
           }

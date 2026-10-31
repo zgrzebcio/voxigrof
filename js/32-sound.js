@@ -95,6 +95,8 @@ const SOUND_FILES = {
   meerkatSay:  'Sound/Mobs/Meerkat/meerkat_say.ogg',
   meerkatHurt: 'Sound/Mobs/Meerkat/meerkat_hurt.ogg',
   meerkatEat:  'Sound/Mobs/Meerkat/meerkat_eat.ogg',
+  tigerSay:    'Sound/Mobs/Tiger/tiger_say.ogg',
+  tigerHurt:   'Sound/Mobs/Tiger/tiger_hurt.ogg',
 };
 
 /* PROPS.type -> sound key. Anything unmapped (or a block with no type) falls back to stone. */

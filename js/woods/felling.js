@@ -568,16 +568,20 @@ function _barkDrops(x, y, z, units) {
 
 /* A 2x2 trunk (a jungle giant's, CORE.quadW in blocks/basic.js) is cut as the one log it is: its four quarters at the
    height of the swing go together. The first swing takes the bark off all four (bark for the whole big log); after that
-   it takes QUAD_FELL_SWINGS swings to bring the giant down, and every one of them narrows the big log (the swings are kept
-   in the four cells, CORE.logCutOf, so they last through a reload): its width index a level in every QUAD_LEVEL_SWINGS
-   (QUAD_WIDTHS, what it collides with), what is drawn QUAD_CUT_UNITS a swing (quadReach, the mesher). */
-const QUAD_FELL_SWINGS = 50, QUAD_LEVEL_SWINGS = QUAD_FELL_SWINGS / CORE.QUAD_LEVELS;
-function _chopQuad(x, y, z, val) {
-  const id = val & 255, vb = (val >> 8) & 255, axis = vb & 3, w = logWidthOf(vb), q = CORE.quadOf(w), cut = CORE.logCutOf(val);
+   it takes QUAD_FELL_SWINGS swings to bring the giant down (about half the logs a giant drops, some two hundred), and the
+   big log narrows as they go: its width index a level in every QUAD_LEVEL_SWINGS (QUAD_WIDTHS, what it collides with), what
+   is drawn QUAD_CUT_UNITS a cut step (quadReach, the mesher). The four cells keep the cut steps (CORE.logCutOf, 6 bits:
+   63 at most), each QUAD_SWINGS_PER_STEP swings, so they last through a reload; a swing between two steps is counted here
+   (_QUAD_ODD, not saved: a reload loses at most that one swing). */
+const QUAD_FELL_SWINGS = 100, QUAD_SWINGS_PER_STEP = 2, QUAD_LEVEL_SWINGS = QUAD_FELL_SWINGS / CORE.QUAD_LEVELS;
+const _QUAD_ODD = new Set();                 // "x,y,z" of a big log's first quarter at a height: one swing past its cut steps
+/* the four quarters of the big log at (x, y, z)'s height that are there, cut in as far as this one: `parts` [[cell, value]...],
+   `base` the first quarter's cell */
+function _quadParts(x, y, z, val) {
+  const vb = (val >> 8) & 255, axis = vb & 3, q = CORE.quadOf(logWidthOf(vb)), cut = CORE.logCutOf(val);
   const Pa = axis === 1 ? 1 : 0, Qa = axis === 2 ? 1 : 2;
   const base = [x, y, z];
   base[Pa] -= q & 1; base[Qa] -= q >> 1;
-  // the four quarters of the big log at this height that are there, cut in as far as this one
   const parts = [];
   for (let k = 0; k < 4; k++) {
     const c = base.slice();
@@ -585,6 +589,11 @@ function _chopQuad(x, y, z, val) {
     const v = getBlock(c[0], c[1], c[2]), nb = (v >> 8) & 255, nw = logWidthOf(nb);
     if (isAnyLog(v & 255) && (nb & 3) === axis && CORE.isQuadW(nw) && CORE.quadOf(nw) === k && CORE.logCutOf(v) === cut) parts.push([c, v]);
   }
+  return { parts, base };
+}
+function _chopQuad(x, y, z, val) {
+  const id = val & 255, vb = (val >> 8) & 255, axis = vb & 3, w = logWidthOf(vb), cut = CORE.logCutOf(val);
+  const { parts, base } = _quadParts(x, y, z, val);
   // first swing: the bark off every quarter that still has it, the bark of the whole big log for it
   if (parts.some(([, v]) => isLiveLog(v & 255))) {
     let live = 0;
@@ -597,17 +606,69 @@ function _chopQuad(x, y, z, val) {
     playBlockSound(id, 'break', x, y, z);
     return true;
   }
-  // swings so far: kept in the cells, never fewer than the level the log already shows (a trunk cut before they were kept)
-  const swings = Math.max(cut, CORE.quadLevel(w) * QUAD_LEVEL_SWINGS) + 1;
-  if (swings >= QUAD_FELL_SWINGS) { fellTreeFrom(x, y, z); return true; }
+  // swings so far: the cells' cut steps and the odd one counted here, never fewer than the level the log already shows
+  // (a trunk cut before they were kept)
+  const bk = base.join(','), odd = _QUAD_ODD.has(bk) ? 1 : 0;
+  const swings = Math.max(cut * QUAD_SWINGS_PER_STEP + odd, CORE.quadLevel(w) * QUAD_LEVEL_SWINGS) + 1;
+  if (swings >= QUAD_FELL_SWINGS) { _QUAD_ODD.delete(bk); fellTreeFrom(x, y, z); return true; }
   const lvl = Math.min(CORE.QUAD_LEVELS - 1, Math.floor(swings / QUAD_LEVEL_SWINGS));
+  const steps = Math.min(CORE.LOG_CUT_MAX, Math.floor(swings / QUAD_SWINGS_PER_STEP));
+  if (swings % QUAD_SWINGS_PER_STEP) _QUAD_ODD.add(bk); else _QUAD_ODD.delete(bk);
   for (const [c, v] of parts) {
     const k = CORE.quadOf(logWidthOf((v >> 8) & 255));
-    setBlock(c[0], c[1], c[2], ((v & 255) | ((axis | (CORE.quadW(k, lvl) << 2)) << 8) | (swings << CORE.LOG_CUT_SHIFT)) >>> 0);
+    const nv = ((v & 255) | ((axis | (CORE.quadW(k, lvl) << 2)) << 8) | (steps << CORE.LOG_CUT_SHIFT)) >>> 0;
+    if (nv !== v) setBlock(c[0], c[1], c[2], nv);
   }
   playBlockSound(id, 'hit', x, y, z);
   if (typeof skillShakeTree === 'function') skillShakeTree(x, y, z);   // Timber Shaker
   return true;
+}
+
+/* ---------------------------------- stripping by hand ----------------------------------
+   The right button held STRIP_HOLD_S with a hatchet on a log that has its bark, a tree's or a placed one, takes the bark
+   off: the log stays where it is, stripped (every other bit of the cell kept), and gives LOOT.barkStrip (one bark, a
+   fifth of the time two). A quarter of a 2x2 trunk strips its four at that height, a roll for each. The hatchet wears
+   one. Started on the press by tryStripLog (_doPlace, player/place-block.js), carried by updateStripHold (tickPlayer),
+   shown on the progress ring (interactProgress, ui/hud.js). An offhand shield raised takes the button instead. */
+const STRIP_HOLD_S = 0.8, STRIP_SCRAPE_S = 0.28;
+function tryStripLog(hit) {
+  if (!hit || hit.over || !_holdingAxe() || player.riding) return false;
+  if (typeof _activeShield === 'function' && _activeShield()) return false;   // blocking with the offhand shield
+  if (!isLiveLog(getBlock(hit.x, hit.y, hit.z) & 255)) return false;
+  if (act && act.place) return true;                 // a hold starts on a press, not on a button already down
+  player._stripHold = { x: hit.x, y: hit.y, z: hit.z, t: 0, sel: hotbarSel, scrape: 0 };
+  return true;
+}
+// once a frame per seat: 0..1 for the ring; `held` the RAW right button
+function updateStripHold(dt, held) {
+  const h = player._stripHold;
+  if (!h) return 0;
+  const v = getBlock(h.x, h.y, h.z), hit = held ? currentRay() : null;
+  const ok = held && playing && !invOpen && !player.dead && hotbarSel === h.sel && _holdingAxe() && isLiveLog(v & 255)
+    && hit && !hit.over && hit.x === h.x && hit.y === h.y && hit.z === h.z;
+  if (!ok) { player._stripHold = null; return 0; }
+  player._milkLatch = true;                          // the held button is the hold's, nothing else's (tickPlayer)
+  h.t += dt;
+  if ((h.scrape -= dt) <= 0) { h.scrape = STRIP_SCRAPE_S; playBlockSound(v & 255, 'hit', h.x, h.y, h.z); handPlaceSwing = true; }
+  if (h.t < STRIP_HOLD_S) return h.t / STRIP_HOLD_S;
+  player._stripHold = null;
+  const cells = CORE.isQuadW(logWidthOf((v >> 8) & 255)) ? _quadParts(h.x, h.y, h.z, v).parts : [[[h.x, h.y, h.z], v]];
+  let bark = 0;
+  for (const [c, cv] of cells) {
+    if (!isLiveLog(cv & 255)) continue;
+    setBlock(c[0], c[1], c[2], ((cv & ~255) | STRIPPED_OF[cv & 255]) >>> 0);
+    bark += rollLoot(LOOT.barkStrip);                // 50-loottable.js
+  }
+  playBlockSound(v & 255, 'break', h.x, h.y, h.z);
+  if (!player.canFly) {
+    if (bark > 0) spawnDrop(ITEM.BARK, h.x, h.y, h.z, null, undefined, null, null, 0, bark);
+    const tslot = HOTBAR[hotbarSel];
+    if (tslot && tslot.dur != null) {
+      if (wearSlot(tslot, 1) === 'gone') HOTBAR[hotbarSel] = null;
+      saveHotbar(); buildHotbar(); updateHotbar();
+    }
+  }
+  return 0;
 }
 
 /* Collect every log connected to (x,y,z) at or above the cut, drop them together, and bring the

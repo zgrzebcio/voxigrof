@@ -7,7 +7,7 @@
 
    Each creature's own file adds its entry with defineMob, at its end (sheep.js, cow.js, pig.js, horse.js,
    polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js, termite.js, otter.js, tumbleweed.js,
-   meerkat.js). A creature's numbers, what the
+   meerkat.js, tiger.js). A creature's numbers, what the
    save keeps of it, what it drops and where it lives are all in that one entry: the files named below read them
    from here, so none of them lists the kinds itself.
 
@@ -39,7 +39,11 @@
                   fast, the kinds that can be tamed (horse, hellhound, otter, meerkat). Not given: 1
        fleeTogether  blocks: a blow sends every wild one of its kind within that many off with it (the otter)
        passive    true: a blow never sets it on the player, it bolts as a grazer does (one whose body is its own)
+       fightsBack true: a creature's blow sets it on that creature (`_hurtBy`, entities/combat.js), as a player's sets it
+                  on the player (`_struckBy`, aggroT): the tiger
+       aggro      seconds a player's blow keeps it on that player (aggroT, damageEntity); missing = ENT_AGGRO_TIME
        xp         0: killing it pays nothing and is not told as a kill (a tumbleweed). Not given: mobKillXP
+       book       false: no creature to write into the creature book (player/creature-book.js; the tumbleweed)
        chase      a humanoid's speed after its target (entities/update.js)
        reach      how far its blow reaches, edge to edge. Not given: MONSTER_MELEE_REACH (entAttackRange)
        fallSafe   blocks of fall it shrugs off. Not given: ENT_FALL_SAFE (entities/physics.js)

@@ -12,6 +12,10 @@
      stairs               on their top or bottom, turned upside down; on a side, a quarter round; sneaking, their corner set
                           by hand: straight, inner left, inner right, outer left, outer right, then read from the neighbours
                           again (STAIR_FORCE_SHIFT)
+     a slope              on its slant or its flat face, turned upside down; on its back or an end, a quarter round; sneaking,
+                          a quarter round wherever it is clicked (the sides of one in a row are hidden)
+     a ladder             its whole column a quarter round, to the next side something holds it on (blocks/ladders.js);
+                          sneaking, the one clicked alone; two in a corner turn together, to the next corner
      anything that turns  to its next way: a torch round the blocks it can stand or hang on, a single chest, a furnace, a
                           bench and every block turned to face you, a log's, a cactus' or a pillar's axis, a slab's side, a
                           pane, a standing or hanging sign, a gate's line
@@ -38,7 +42,10 @@ function useWrench(hit) {
     feedInfo(`Stairs: ${WRENCH_STAIR_NAMES[f]}`);
   }
   else if (s === 'stairs' && hit.ny) nv = _wrenchVa(v, ((v >> 8) & 255) ^ 4);   // a top or bottom face: upside down
+  else if (s === 'slope' && !player.sneaking && _wrenchSlant(hit, v)) nv = _wrenchVa(v, ((v >> 8) & 255) ^ 4);
   else nv = _wrenchTurn(v, x, y, z);
+  if (nv === 'mixed') { feedWarn('The wrench does not turn a corner of two different blocks'); return; }
+  if (nv == null && s === 'ladder') { feedWarn('Nothing would hold this ladder on another side'); return; }
   if (nv == null) { feedWarn(`The wrench does not turn ${(PROPS[v & 255]?.name || 'this').toLowerCase()}`); return; }
   if (nv === v) return;
   _wrenchPut(x, y, z, nv, rail);
@@ -46,6 +53,41 @@ function useWrench(hit) {
   playBlockSound(v & 255, 'place', x, y, z);
 }
 const _wrenchPut = (x, y, z, v, rail) => { if (rail) setRailOver(x, y, z, v); else setBlock(x, y, z, v); };
+/* a slope's slant or its flat face clicked? The crosshair meets its steps (shapes/boxes.js): their tops and bottoms, and the
+   risers, which face down the slope (STAIR_DIR of its facing, upright or hung); its back and ends are the rest */
+function _wrenchSlant(hit, v) {
+  if (hit.ny) return true;
+  const d = BLOCKS.STAIR_DIR[(v >> 8) & 3];
+  return hit.nx === d[0] && hit.nz === d[1];
+}
+/* A ladder's next side, a quarter round (WRENCH_TURN turns a ladder's back the same way: -Z -X +Z +X, its sides being 0 -Z,
+   1 +Z, 2 -X, 3 +X): the next one that leaves its column held (blocks/ladders.js), else null. The rest of the column (all of
+   it but the one clicked, which useWrench writes; not while sneaking) is turned here. */
+function _wrenchLadder(v, x, y, z) {
+  const [lo, hi] = _ladderColumn(x, y, z), from = player.sneaking ? y : lo, to = player.sneaking ? y : hi;
+  // a corner of two different blocks (blocks/ladders.js) is left as it is, and a column with one in what would turn
+  for (let yy = from; yy <= to; yy++) if (wallMateOf(ladderValAt(x, yy, z))) return 'mixed';
+  const ends = isSolid(x, lo - 1, z) || isSolid(x, hi + 1, z), cur = ladderSideOf(v);
+  for (let side = WRENCH_TURN[cur]; side !== cur; side = WRENCH_TURN[side]) {
+    let held = ends;
+    for (let yy = lo; yy <= hi && !held; yy++) {
+      const cva = (ladderValAt(x, yy, z) >> 8) & 255;      // a corner's two turn together
+      held = _ladderBacked(x, yy, z, wallSides(yy >= from && yy <= to ? (cva & ~3) | side : cva));
+    }
+    if (!held) continue;
+    // half turned, the column may hold by nothing for a moment: it is asked once whole, when useWrench writes the one clicked
+    _ladderDropping = true;
+    try {
+      for (let yy = from; yy <= to; yy++) {
+        if (yy === y) continue;
+        const cv = ladderValAt(x, yy, z), nv = _wrenchVa(cv, (((cv >> 8) & 255) & ~3) | side);
+        _wrenchPut(x, yy, z, nv, !hasLadder(getBlock(x, yy, z)));   // one lying in a slab's cell stays there
+      }
+    } finally { _ladderDropping = false; }
+    return _wrenchVa(v, (((v >> 8) & 255) & ~3) | side);
+  }
+  return null;
+}
 
 /* What a fence or a wall becomes: a side's arm on or off (and the arm back of one set by hand beside it), a wall turned on
    its top, or its joins its neighbours' again */
@@ -99,7 +141,9 @@ function wrenchPrompt() {
   } else if (s === 'stairs') {
     const f = (v >>> STAIR_FORCE_SHIFT) & 7;
     out.push(`facing ${WRENCH_SIDES[va & 3]} (${va & 3})`, (va & 4) ? 'upside down' : 'upright', `corner ${WRENCH_STAIR_NAMES[f] || f} (${f})`);
-  } else if (s === 'slab') out.push(`side ${['bottom', 'top', '-X', '+X', '-Z', '+Z'][va & ROT_MASK]} (${va & ROT_MASK})`);
+  } else if (s === 'slope') out.push(`low edge toward ${WRENCH_SIDES[va & 3]} (${va & 3})`, (va & 4) ? 'upside down' : 'upright');
+  else if (s === 'ladder') out.push(`back on ${wallSides(va).map(k => ['-Z', '+Z', '-X', '+X'][k]).join(' and ')} (${va & 7})`);
+  else if (s === 'slab') out.push(`side ${['bottom', 'top', '-X', '+X', '-Z', '+Z'][va & ROT_MASK]} (${va & ROT_MASK})`);
   else if (s === 'pane') out.push(`along ${(va & 1) ? 'Z' : 'X'} (${va & 1})`);
   else if (s === 'gate') out.push(`along ${(va & BLOCKS.GATE_AXIS_Z) ? 'Z' : 'X'}`, (va & BLOCKS.GATE_OPEN) ? 'open' : 'shut');
   else if (s === 'sign') out.push(`facing ${WRENCH_SIDES[va & 3]} (${va & 3})`);
@@ -115,7 +159,8 @@ function wrenchPrompt() {
 function _wrenchTurn(v, x, y, z) {
   const id = v & 255, p = PROPS[id], va = (v >> 8) & 255, s = CORE.shapeOfVal(v);
   if (!p) return null;
-  if (s === 'stairs') return _wrenchVa(v, (va & ~3) | WRENCH_TURN[va & 3]);           // upside down kept
+  if (s === 'stairs' || s === 'slope') return _wrenchVa(v, (va & ~3) | WRENCH_TURN[va & 3]);   // upside down kept
+  if (s === 'ladder') return _wrenchLadder(v, x, y, z);
   if (s === 'slab') return _wrenchVa(v, SHAPE_SLAB + (((va & ROT_MASK) + 1) % 6));
   if (s === 'pane') return _wrenchVa(v, SHAPE_PANE + ((va & 1) ^ 1));
   if (s === 'gate') return _wrenchVa(v, va ^ BLOCKS.GATE_AXIS_Z);

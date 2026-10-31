@@ -192,6 +192,9 @@ const ARMOR_SET_BONUS = {
   // Bronze: 35% less from what is shot or thrown at you: arrows, a boss's fireballs and beams (playerProjectileMul)
   bronze:  { name: 'Projectile resistance', projectileResist: 0.35, good: true,
              desc: 'Full set: 35% less damage from arrows and other projectiles' },
+  // Gold: 10% more of every XP earned (addXP, player/leveling.js)
+  golden:  { name: 'Gilded', xpBonus: 0.10, good: true,
+             desc: 'Full set: +10% XP on everything you earn' },
 };
 // the material every body piece shares, or null if the set is incomplete or mismatched
 function playerArmorSet() {

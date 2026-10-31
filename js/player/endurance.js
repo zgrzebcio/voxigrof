@@ -41,10 +41,10 @@ function _tickFeats(p, dt) {
   if (p._featT > 0) return;
   p._featT = 1;
   const f = p._feats || (p._feats = restoreFeats(null));
-  const pay = (text, xp) => { addXP(xp); if (typeof feedFeat === 'function') feedFeat(text, xp); };
+  const pay = (text, xp, icon) => { addXP(xp); if (typeof feedFeat === 'function') feedFeat(text, xp, icon); };
   const b = mainGen && mainGen.biomeAt ? mainGen.biomeAt(Math.floor(p.pos.x), Math.floor(p.pos.z)) : '';
-  // each new one pays more than the last (biomeXP in player/leveling.js): by how many were found before it
-  if (b && !f.biomes.has(b)) { const xp = biomeXP(f.biomes.size); f.biomes.add(b); pay(`Discovered ${b} (${f.biomes.size}/${BIOME_COUNT})`, xp); }
+  // each new one pays more than the last (biomeXP in player/leveling.js): by how many were found before it; its own picture
+  if (b && !f.biomes.has(b)) { const xp = biomeXP(f.biomes.size); f.biomes.add(b); pay(`Discovered ${b} (${f.biomes.size}/${BIOME_COUNT})`, xp, 'biomeDiscover'); }
   if (!f.top && p.pos.y >= WORLD_TOP_Y) { f.top = true; pay('Reached the top of the world', XP_WORLD_EDGE); }
   if (!f.bottom && p.pos.y <= WORLD_BOTTOM_Y) { f.bottom = true; pay('Reached the bottom of the world', XP_WORLD_EDGE); }
 }

@@ -51,13 +51,14 @@ corePart('blocks', function () {
   for (let n = 1; n <= LAYER_MAX; n++) LAYER_BOX[n - 1] = [[0, 0, 0, 1, n / LAYER_MAX, 1]];
   const NO_BOXES = [];
   // solidity of a VALUE: a stack you wade through (snow, leaves, sand, ...) is not solid, whatever its block is
-  // ...and a cover is not solid either, nor a pressure plate or a sign
+  // ...and a cover is not solid either, nor a pressure plate, a sign or a ladder
   const solidVal = (v) => {
     const p = PROPS[v & 255];
     if (!p || !p.solid) return false;
     const va = (v >> 8) & 255;
     if (!va || !p.shapes) return true;
     return !(p.layerStack && layerCount(v)) && !(p.shapes.cover && (va & SHAPE_MASK) === SHAPE_COVER)
-      && !(p.shapes.plate && (va & SHAPE_MASK) === SHAPE_PLATE) && !(p.shapes.sign && (va & SHAPE_MASK) === SHAPE_SIGN);
+      && !(p.shapes.plate && (va & SHAPE_MASK) === SHAPE_PLATE) && !(p.shapes.sign && (va & SHAPE_MASK) === SHAPE_SIGN)
+      && !(p.shapes.ladder && (va & (SHAPE_MASK | SLOPE_BIT)) === SHAPE_LADDER);
   };
 });

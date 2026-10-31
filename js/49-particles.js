@@ -1125,20 +1125,25 @@ function _fxTorches(dt, live) {
   }
 }
 /* Every drop lying on the ground breathes a faint white mote now and then, rising off its top and fading: a thing on
-   the ground can be found in tall grass or at night. Not smoke: small, bright, short. Lit at least DROP_MOTE_DIM. */
-const DROP_MOTE_RATE = 1.4, DROP_MOTE_DIM = 0.55;
+   the ground can be found in tall grass or at night. Not smoke: small, bright, short. Lit at least DROP_MOTE_DIM.
+   A fresh drop gives DROP_MOTE_RATE a second rising about a block; they grow fewer, fainter, smaller and lower as its
+   time on the ground runs out (age against life, 15-drops.js), down to DROP_MOTE_LOW of all that at the last moment. */
+const DROP_MOTE_RATE = 2.6, DROP_MOTE_DIM = 0.55, DROP_MOTE_LOW = 0.2;
 function _fxDropMotes(dt) {
   if (typeof DROPS === 'undefined') return;
   for (const d of DROPS) {
-    if (!d.grounded || Math.random() > dt * DROP_MOTE_RATE) continue;
+    if (!d.grounded) continue;
+    const life = d.life || DROP_LIFETIME, left = Math.max(0, Math.min(1, 1 - d.age / life));
+    const k = DROP_MOTE_LOW + (1 - DROP_MOTE_LOW) * left;
+    if (Math.random() > dt * DROP_MOTE_RATE * k) continue;
     const g = d.group.position;
     if (!d.group.visible || !_fxNear(g.x, g.y, g.z)) continue;
-    const L = DROP_MOTE_DIM + (1 - DROP_MOTE_DIM) * _fxLight(g.x, g.y, g.z);
-    const i = _fxDust(g.x + _rnd(-0.08, 0.08), g.y + 0.12, g.z + _rnd(-0.08, 0.08), [1, 1, 1], L, _rnd(0.9, 1.3), 0.05);
+    const L = (DROP_MOTE_DIM + (1 - DROP_MOTE_DIM) * _fxLight(g.x, g.y, g.z)) * (0.4 + 0.6 * k);
+    const i = _fxDust(g.x + _rnd(-0.1, 0.1), g.y + 0.12, g.z + _rnd(-0.1, 0.1), [1, 1, 1], L, _rnd(1.3, 1.8), 0.035 + 0.025 * k);
     if (i < 0) return;
     const S = FX.sprites;
-    S.vx[i] = _rnd(-0.04, 0.04); S.vy[i] = _rnd(0.3, 0.45); S.vz[i] = _rnd(-0.04, 0.04);
-    S.grav[i] = 0; S.drag[i] = 0.4; S.fade[i] = 0.6; S.flags[i] = FX_FADEIN;
+    S.vx[i] = _rnd(-0.04, 0.04); S.vy[i] = _rnd(0.55, 0.8) * (0.5 + 0.5 * k); S.vz[i] = _rnd(-0.04, 0.04);
+    S.grav[i] = 0; S.drag[i] = 0.3; S.fade[i] = 0.6; S.flags[i] = FX_FADEIN;
   }
 }
 // a gem lying on the ground catches the light now and then

@@ -35,6 +35,13 @@ corePart('gen.make', function () {
     const REV44 = biomeRev >= 44, CANE_HOT_MUL = 2.5;
     // rev 45: vines on the giant jungle trees, down their trunks and from their leaves (woods/jungle-trees.js, gen-jungle.js)
     const VINES = biomeRev >= 45;
+    // rev 46: glow vines hang in flooded caves too, standing in the water (WATERLOGGED; worldgen/underground.js)
+    const GLOW_WET = biomeRev >= 46;
+    /* rev 47: sugar cane as Minecraft's: it stands ON a sand, grass, dirt or gravel block whose top is level with water beside
+       it (a sea's, a river's or a lake's), from the cell over it. Before, a shore one block over the sea had its top block
+       taken by the cane, which stood sunk in a hole beside the water (worldgen/desert-and-shore-plants.js, the oasis's in
+       worldgen/ground-plants.js) */
+    const CANE2 = biomeRev >= 47;
     const TALL_SPRUCE = biomeRev >= 6;                // spruce forest trees on a bare stem
     const LADDER = biomeRev >= 7;                     // the climate ladder (biomes/biomes.js)
     const SPIKES = biomeRev >= 9;                     // the Ice Spikes biome and the snow's icebergs

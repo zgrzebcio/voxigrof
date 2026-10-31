@@ -60,6 +60,8 @@ const LOOT = {
   bearFat:     [[1, 1], [1, 0.8], [1, 0.5], [1, 0.2]],    // ...and all that fat, 1-4
   bearFur:     [[1, 0.9], [1, 0.3]],                      // ...and its fur, 90% one and 30% a second (Butcher adds)
   houndFire:   [[1, 1], [1, 0.33], [1, 0.33]],            // a hellhound: fire, 1-3
+  tigerFur:    [[1, 1], [1, 0.4]],                        // a tiger's pelt: fur, one and 40% a second (Butcher adds)
+  tigerBone:   [[1, 0.6], [1, 0.25]],                     // ...and a bone or two
   fireKill:    [[1, 1]],                                  // what a hound killed, or a player killed with fire, leaves: 1 fire
   otterFur:    [[1, 0.4], [1, 0.05]],                     // an otter: fur, 40% one and 5% a second
   woolString:  [[1, 0.7], [1, 0.2]],                      // a woolly sheep killed
@@ -76,6 +78,7 @@ const LOOT = {
   snowball:    [[2, 1], [1, 0.5], [1, 0.25]],
   sulfur:      [[1, 0.6], [1, 0.25]],
   bark:        [[1, 1], [1, 0.4],[1, 0.05]],
+  barkStrip:   [[1, 1], [1, 0.2]],                        // a log stripped by holding the right button with a hatchet (woods/felling.js)
   // a termite hill broken (its whole hill, once: blocks/termite-hill.js), and a termite
   hillBrick:   [[2, 0.2]],                                // clay bricks, the earth baked hard
   hillDirt:    [[1, 0.5]],
@@ -107,6 +110,9 @@ const _drop = (id, n) => (n > 0 ? [{ id, count: n }] : []);
    value that took a second thing to place (a mossy look's vine, a chest's planks: paidNeedOf, blocks/variants.js) gives
    that back too. */
 function blockDrop(blockVal, isNatural = false) {
+  // a ladder or a vine in a corner is two of it (blocks/ladders.js)
+  if (typeof wallPaired === 'function' && wallPaired(blockVal))
+    return blockDrop(wallSingle(blockVal, 0), isNatural).concat(blockDrop(wallSingle(blockVal, 1), isNatural));
   const out = _blockDropOwn(blockVal, isNatural);
   const back = typeof paidNeedOf === 'function' ? paidNeedOf(blockVal) : null;
   if (back != null) out.push({ id: back, count: 1 });
@@ -114,6 +120,8 @@ function blockDrop(blockVal, isNatural = false) {
 }
 function _blockDropOwn(blockVal, isNatural) {
   const blockId = blockVal & 255;
+  // someone else's bed (a village's, blocks/bed.js) gives one wool and no bed
+  if (isForeignBed(blockVal)) return [{ id: B.WOOL, count: 1 }];
   // worked snow and ice, every look of them too: a shovel gets snowballs from snow brick as from snow; ice brick gives nothing, as ice
   if (blockId === B.SNOW_BRICKS) return _drop(ITEM.SNOWBALL, rollLoot(LOOT.snowball));
   if (blockId === B.ICE_BRICKS) return [];

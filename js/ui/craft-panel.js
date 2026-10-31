@@ -198,7 +198,7 @@ function buildCraftPanel() {
     html += `<button class="cbtn" data-name="${idName(oid)}" data-id="${oid}">` +
             `<img src="${renderBlockIcon(oid)}" alt="">${_craftBadge(on, m)}</button>`;
     // what one craft pays, right of the output, the same way the furnace book shows it
-    html += `<span class="cxp">${r.xpToGive ? `<img src="textures/Items/Useables/experience_bottle.png" alt="">${r.xpToGive}` : ''}</span>`;
+    html += `<span class="cxp">${r.xpToGive ? `<img src="textures/Gui/Effects/UI/experience.png" alt="">${r.xpToGive}` : ''}</span>`;
     row.innerHTML = html;
     // Shift+click commits as many as you can afford (0.76: into the queue, or onto the bench's order)
     // Ctrl: count a batch out on the cursor first, and order it when Ctrl is let go; Ctrl+Shift: half of the most at once

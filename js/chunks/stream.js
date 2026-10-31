@@ -49,7 +49,7 @@ function tryQueueMesh(c, d2, front) {
 /* Bumped whenever worldgen changes, so cached terrain is thrown away and made again: 0.785 layer stacks,
    0.786 dunes and gravel, 0.7945 gem clusters, 0.7947 yellow berries, 0.7948 caverns carve every rock,
    0.799 fewer flowers/mushrooms/gravel/hollow logs, 0.7992 leaf drifts. */
-const TERRAIN_KEY = 'terrain84778:';  // berry bushes in seven stages (a cached chunk holds the six-stage numbers); the world 250 tall (a cached 200-tall buffer must never be read)     // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
+const TERRAIN_KEY = 'terrain85394:';  // a cache may hold the title backdrop's land, stored while a world was opening (workerWorldId, 10-workers.js): all made again   // 0.8536: another world's chunk (an answer across a world change, before the epoch)   // 0.853: mine shafts' ladders are planks ladder shapes (a cached chunk holds the old ladder block)   // 0.84778: berry bushes in seven stages (a cached chunk holds the six-stage numbers); the world 250 tall (a cached 200-tall buffer must never be read)     // 0.8273 wild wheat in six stages   //   // 0.8272 berry bushes 20% more   // 0.8271 dirt patches on cave floors, yellow berry bushes on them   // 0.827 berry bushes by place (five kinds), yellow ones in caves, six stages   // 0.826 wild wheat in any stage and twice as common, 25% more berry bushes   // 0.8193 salt crust and cactus much rarer   // 0.819 half the flowers and mushrooms   // 0.8141 salt crust 80% rarer   // 0.8097 salt crust as a layer   // 0.809 dolomite, 0.8091 salt/cantaloupe/mushrooms, 0.8095 stone pebbles
 // extract a neighbour's 16x128 border plane (block data OR block light) for cross-chunk work
 // (ZERO_LIGHT, the stand-in for an unlit neighbour, went in 0.83941: the workers pack the light since 0.8386)
 function edgeSlice(d, side, Ctor) {
@@ -77,7 +77,7 @@ function dispatchMesh(worker, c) {
      at 8; sky high nibble: `packLight` in WORKER_MAIN), which was a 102,400-cell loop here for every mesh job. With
      shared memory the chunk and its four neighbours go as they are (`self`, `nb`), and the worker copies what it needs;
      without, the chunk's three arrays are copied here and the neighbours' border planes cut out. */
-  const msg = { type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev,
+  const msg = { type: 'mesh', cx: c.cx, cz: c.cz, rev: c.rev, ep: workerEpoch,   // the world it is for (10-workers.js)
                 layers: LAYER_STACKS.get(key(c.cx, c.cz)) || null,            // mixed layer stacks
                 plates: PLATE_OVER.get(key(c.cx, c.cz)) || null,              // plates in other blocks' cells (blocks/pressure-plates.js)
                 covers: COVER_OVER.get(key(c.cx, c.cz)) || null,              // ...and covers (blocks/covers.js)
@@ -289,7 +289,7 @@ function pump() {
     const meshW = _bestWorker(depth), genW = _bestWorker(depth, lane);
     if (!meshW) return;                       // every worker holds as many jobs as it may
     // gen is allowed only while under the concurrency cap and the pacing has one to give, and a worker other than the lane has room
-    const genOk = genW !== null && _genInflight < genMax && _genTokens >= 1;
+    const genOk = genW !== null && _genInflight < genMax && _genTokens >= 1 && genForWorld();
     let job = null, kind = null;
     while (meshQueue.length || (genQueue.length && genOk)) {
       const m = meshQueue[0], g = genOk ? genQueue[0] : null;
@@ -312,8 +312,12 @@ function pump() {
     else _genSend(genW, { type: 'gen', cx: job.cx, cz: job.cz });
   }
 }
+/* the workers make land for the world shown: the world played, or the title's backdrop (null). Not while a world is
+   opening and they still hold the last one (workerWorldId, 10-workers.js): no chunk is made or stored then */
+const genForWorld = () => workerWorldId === (currentWorld && !menuScene ? currentWorld.id : null);
 // a chunk to make goes to a worker, which counts it from now on (busy, genOut; its answer counts it off, 10-workers.js)
-function _genSend(w, msg, transfer) { w.busy++; w.genOut++; w.postMessage(msg, transfer); }
+// ...stamped with the world it is for (`ep`, workerEpoch in 10-workers.js: an answer from a world left is dropped)
+function _genSend(w, msg, transfer) { w.busy++; w.genOut++; msg.ep = workerEpoch; w.postMessage(msg, transfer); }
 /* WHICH CHUNKS THE TERRAIN CACHE HOLDS, known without asking it. Every chunk to make used to read the cache first, and
    flying into new land every read found nothing, after waiting its turn behind the writes of the chunks just made: a
    median 0.36 s, up to 3 s, holding a job slot all the while (8 chunks a second from 8 workers). Now one keys-only read
@@ -461,6 +465,10 @@ function processGenFinish(maxPerFrame, deadline) {
 }
 
 function onWorkerMessage(m) {
+  /* an answer to a job sent for a world since left (its epoch, workerEpoch in 10-workers.js): its land, mesh or scan is
+     the old world's, never this one's. The worker's own counts were taken off already (10-workers.js); the throttle was
+     reset with the new world */
+  if (m.ep !== undefined && m.ep !== workerEpoch) return;
   if (m.type === 'error') {
     console.error('[worker]', m.message);
     /* the failed job gives back what it held, so one bad chunk leaves no job slot taken for good and no chunk waiting
@@ -494,7 +502,9 @@ function onWorkerMessage(m) {
     // the cells that may give light, found by the worker; without them (LIGHT_WORKER off and cached): a full scan
     c._emit = m.emit ? new Int32Array(m.emit) : null;
     c._skyW = m.sky ? new Uint8Array(m.sky) : null;   // and its own sky light, worked out there
-    if (!m._fromSave && currentWorld && !menuScene) {
+    /* stored only when the workers make this world's land (genForWorld): an answer that came in while a world was opening
+       is the title backdrop's or the last world's, and went into this world's cache for good */
+    if (!m._fromSave && currentWorld && !menuScene && workerWorldId === currentWorld.id) {
       // shared memory cannot be stored: then the worker's own buffer goes in, untouched since c.data copied it
       const wid = currentWorld.id, k = key(m.cx, m.cz);
       idbPut(TERRAIN_KEY + wid + ':' + k, c.data.buffer === m.data ? c.data.buffer.slice() : m.data)

@@ -30,6 +30,11 @@ corePart('blocks', function () {
        0xD0 sign    bits 0-1 facing (0 +Z, 1 -Z, 2 +X, 3 -X), bits 2-3 how it is put up (SIGN_STAND / WALL / HANG)
        0xE0 gate    a fence or a wall made a gate (blocks/gates.js): GATE_AXIS_Z it spans Z (else X), GATE_OPEN, GATE_SWING_POS it
                           opened toward + of the other axis, GATE_WALL it was a wall (as tall as one)
+       0xF0 ladder  bits 0-1 the side its back is on (0 -Z, 1 +Z, 2 -X, 3 +X, as the glow vine's), bit 3 clear: two rails and
+                          four rungs against that side, walked and climbed through (blocks/ladders.js holds it up)
+       0xF8 slope   bits 0-1 facing as stairs' (its low edge toward 0 +Z, 1 -Z, 2 +X, 3 -X), bit 2 upside down: a wedge,
+                          a whole face against the side it rises to; whatever stands on it slides down (blocks/slopes.js)
+     The ladder and the slope share the last nibble, told apart by bit 3 (SLOPE_BIT): no other nibble was free.
      (0x90 is the mixed slab, 0xA0 / 0xB0 the door.)
      THE HIGH BITS 25-29 of a fence's, a wall's or a stair's cell (set by the wrench, player/wrench.js; the 2x2 trunk's quarters
      keep their cut in 25-30, blocks/basic.js: another block):
@@ -80,4 +85,6 @@ corePart('blocks', function () {
   const WALL_BACK = 8, WALL_BACK_PX = 2;
   const SHAPE_GATE = 0xE0, GATE_AXIS_Z = 1, GATE_OPEN = 2, GATE_SWING_POS = 4, GATE_WALL = 8;
   const JOIN_MANUAL = 1 << 25, JOIN_ARMS_SHIFT = 26, STAIR_FORCE_SHIFT = 25;
+  // the ladder and the slope (the table above): one nibble, bit 3 says which
+  const SHAPE_LADDER = 0xF0, SHAPE_SLOPE = 0xF8, SLOPE_BIT = 8;
 });

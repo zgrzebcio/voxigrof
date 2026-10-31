@@ -133,12 +133,12 @@ legends: B = big update, M= medium update, S = small update
 131. S: ~~summer boss desert curse~~ v0.849
 132. B: ~~jungle biome with jungle tree and cocoa beans/pod~~ v0.85
 133. S: ~~missing variant wood and increase sugar can amount~~. 0.8505
-134. M: fence and walls with gates update 0.851
-135. S: adding more block shape variants 0.8515
-136. M: vines, and variant block require special item now 0.852
-137. S: all mossy decorative block to add 0.8525
-138. M: ladder shape, slope shape, better climbing (as human build jungle dungeon) v0.853
-139. S: tiger, new effect icons v0.8535
+134. M: ~~fence and walls with gates update~~ 0.851
+135. S: ~~adding more block shape variants~~ 0.8515
+136. M: ~~vines, and variant block require special item now~~ 0.852
+137. S: ~~all mossy decorative block to ad~~d 0.8525
+138. M: ~~ladder shape, slope shape, better climbing~~ (as human build jungle dungeon) v0.853
+139. S: ~~tiger, new effect icons~~ v0.8535
 140. M: parrot(tamable, pickable give hidden after and alert you about monsters), eagle(tamable pickup stone pebble and attack mobs), owl(break leaf for stick when feed) birds v0.854
 141. S: chicken, eggs, chicken egg hatching 0.8545
 142. B: falling carpet cover grass or non-full block v0.855 — carpets too lie IN the cell of a non-solid block (a plant, a billboard) or on a non-full one (bottom slab, stair step), kept beside the cell as the pressure plate is since 0.848793 (PLATE\_OVER, blocks/pressure-plates.js; plateOverBoxes, shapes/boxes.js)

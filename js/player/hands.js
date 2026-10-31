@@ -72,6 +72,13 @@ const H_RX =  0.92, H_RY =  0.48;
 // both arms holding a live fish across the view (player/fish-hold.js): the right arm's root and pivot turn; the left arm
 // takes the same, mirrored (40-shield.js)
 const FISH_ARM = { pos: [0.42, -1.0, -1.9], arm: [H_RX + 0.2, H_RY + 0.5] };
+/* both arms working a crafting bench or a mortar (E held, `_benchWork`, blocks/crafting-bench.js), hands empty: down in front
+   of you over the work. At a bench they beat in turn (the left half a beat after, 40-shield.js); at a mortar the right one
+   grinds round and the left steadies the bowl. `_benchW` eases the pose in and out, `_benchT` is the beat; the body does
+   the same in third person (poseBodyWork, player/body.js). */
+const BENCH_ARM = { pos: [0.5, -1.3, -1.95], arm: [H_RX + 0.05, H_RY + 0.35] };
+const BENCH_BEAT = 9;                                  // radians a second: about a blow and a half a second
+const benchWorkIsMortar = (p) => { const k = p._benchWork; if (!k) return false; const [x, y, z] = k.split(',').map(Number); return (getBlock(x, y, z) & 255) === B.MORTAR; };
 
 /* ─── one whole arm rig per player ─── */
 const HAND_RIGS = [];
@@ -204,13 +211,17 @@ function _rebuildNock(id) {
 }
 
 /* Both hands at work: climbing a wall or a ladder, drinking from the water, drawing a bow (the left hand holds it), a live
-   fish held (player/fish-hold.js). Whatever the hands hold is put away meanwhile: in first person here and in 40-shield.js
-   (_poseOffhandArm), on the body in player/body.js. The main hand only while climbing or holding a fish (drinking wants it
-   empty, and it is the one with the bow). */
-const mainHandBusy = (p) => !!p._climbAnim || !!p._heldFish;
-const offHandBusy = (p) => !!p._climbAnim || p._drinkProg > 0 || p._drawProg > 0 || !!p._heldFish;
+   fish held (player/fish-hold.js), working a station (E held at a bench or a mortar). Whatever the hands hold is put away
+   meanwhile: in first person here and in 40-shield.js (_poseOffhandArm), on the body in player/body.js. The main hand only
+   while climbing, holding a fish or working a station (drinking wants it empty, and it is the one with the bow). */
+const mainHandBusy = (p) => !!p._climbAnim || !!p._heldFish || !!p._benchWork;
+// ...the left one holding on alone while you keep still on a ladder or a vine (`_climbHold`, player/tick.js)
+const offHandBusy = (p) => !!p._climbAnim || !!p._climbHold || p._drinkProg > 0 || p._drawProg > 0 || !!p._heldFish || !!p._benchWork;
 
 function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
+  // working a station: the weight both views ease by, and the beat (BENCH_ARM above)
+  player._benchW = (player._benchW || 0) + ((player._benchWork ? 1 : 0) - (player._benchW || 0)) * (1 - Math.exp(-dt * 10));
+  if (player._benchWork) player._benchT = (player._benchT || 0) + dt;
   if (!playing || menuScene || invOpen) {
     if (nockGroup) nockGroup.visible = false;
     if (handRoot.userData.fishHold) handRoot.userData.fishHold.root.visible = false;   // a fish in hand (player/fish-hold.js)
@@ -237,7 +248,7 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
   const looked = Math.abs(player.yaw - _prevYaw) + Math.abs(player.pitch - _prevPitch) > 0.0005;
   const acting = wantBreak || (mousePlace && pointerLocked) || act.padBreak || act.padPlace;
   _prevYaw = player.yaw; _prevPitch = player.pitch;
-  if (moving || looked || acting || eatProg > 0) _inactive = 0; else _inactive += dt;   // an empty hand drinking stays up
+  if (moving || looked || acting || eatProg > 0 || player._benchWork) _inactive = 0; else _inactive += dt;   // an empty hand drinking or working stays up
   // a live fish in both hands: the fish across the view, the arms brought in to it (player/fish-hold.js)
   const fishHold = typeof heldFishFirstPerson === 'function' && heldFishFirstPerson();
   const inactive = !hasItem && !fishHold && _inactive > 0.8;
@@ -291,17 +302,31 @@ function updateHands(dt, wantBreak, wantPlace, eatProg, drawProg = 0) {
     _swimT = 0;
   } else { _bobT = 0; _swimT = 0; }
 
-  /* climbing a wall or a ladder: the arm reaches up and pulls down, in turn with the left one
-     (40-shield.js), which comes up for it even with nothing in it */
-  if (player._climbAnim) {
-    player._climbT = (player._climbT || 0) + dt;
-    const s = Math.sin(player._climbT * 7);
-    ty += 0.22 + s * 0.16; tx += 0.08; trx += 0.75 + s * 0.3;
+  /* on a wall, a ladder or a vine, by the weights player/tick.js eases (so each pose blends into the next): going up, hand over
+     hand in turn with the left one (40-shield.js), the beat keeping to the climb's speed; sliding down, out on the right
+     rail and held there, rattling a little over the rungs; still, this hand is free (the left one holds on) */
+  const cUp = player._climbUpW || 0, cSlide = player._climbSlideW || 0;
+  if (cUp > 0.01 || cSlide > 0.01) {
+    player._climbT = (player._climbT || 0) + dt * (0.6 + 0.4 * Math.min(1, Math.abs(player.vy) / CLIMB_SPEED));
+    const s = Math.sin(player._climbT * 7), rattle = Math.sin(player._climbT * 46) * 0.008;
+    ty += cUp * (0.22 + s * 0.16); tx += cUp * 0.08; trx += cUp * (0.75 + s * 0.3);
+    tx += cSlide * 0.34; ty += cSlide * (0.36 + rattle); trx += cSlide * 0.95; try_ -= cSlide * 0.35;
     _bobT = 0;
-  } else player._climbT = 0;
+  }
 
   if (!player.flying && player.vy > 1.5 && !player._climbAnim)   // jump: hand lifts
     ty += 0.06 * Math.min(1, (player.vy - 1.5) / 7);
+
+  /* working a station: down over the work, beating at a bench, grinding round at a mortar (BENCH_ARM) */
+  const bw = player._benchW > 0.01 ? player._benchW : 0;
+  if (bw) {
+    const t = (player._benchT || 0) * BENCH_BEAT, grind = benchWorkIsMortar(player);
+    const bx = grind ? Math.cos(t * 0.7) * 0.1 : 0, by = grind ? Math.sin(t * 0.7) * 0.05 : Math.max(0, Math.sin(t)) * 0.14;
+    const brx = grind ? 0.1 : Math.sin(t) * 0.35, L = (a, b) => a + (b - a) * bw;
+    tx = L(tx, BENCH_ARM.pos[0] + bx); ty = L(ty, BENCH_ARM.pos[1] + by); tz = L(tz, BENCH_ARM.pos[2]);
+    trx = L(trx, BENCH_ARM.arm[0] + brx); try_ = L(try_, BENCH_ARM.arm[1]);
+    _bobT = 0;
+  }
 
   /* holding a live fish: the arm comes in toward the middle and up to it, shaken as it bucks (the left one the same way,
      40-shield.js: FISH_ARM) */

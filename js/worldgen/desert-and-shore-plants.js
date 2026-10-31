@@ -70,9 +70,9 @@ corePart('gen.chunk', function () {
           capFlower(x, h + n + 1, z, 3);                               // ...and on the trunk's crown
         }
 
-      /* ---- sugar cane: ground column must be exactly one block above water level so the sand
-         base sits at the shoreline and a side neighbour is water. Cane base ends up at y=h+1
-         with water at y=WATER_LEVEL directly beside the sand base — the classic beach look.
+      /* ---- sugar cane (rev 47, CANE2): on a sand, grass, dirt or gravel block whose top is level with water beside it,
+         standing from the cell over it, as Minecraft's. Before rev 47 the ground column had to be exactly one block over
+         the sea and the cane took its top block, standing in a hole beside the water.
          only on warm and hot shores (climate level 1 and up, or a desert), about a third more of it, and in
          stands: a shore cell grows cane when it is a stand's seed, or mostly when a cell beside it is. The seeds are
          pure hashes of place, so a stand across a chunk border still agrees. ---- */
@@ -80,17 +80,27 @@ corePart('gen.chunk', function () {
       for (let z = 0; z < CZ; z++) for (let x = 0; x < CX; x++) {
         const gi = (x + 2) + (z + 2) * 20;
         const h = H[gi];
-        if (h !== WATER_LEVEL + 1) continue;                            // must be exactly at shore
+        /* rev 47 (CANE2): the soil's top level with water beside it, any water (an oasis has its own pass, ground-plants.js);
+           before, only a shore exactly one block over the sea */
+        if (CANE2 ? h < WATER_LEVEL || h > CY - 5 || OAS[gi] : h !== WATER_LEVEL + 1) continue;
         if (!DES[gi] && LVL[gi] < 0.5) continue;                        // warm or hot land only
         const top = data[idx(x, h, z)] & 255;
         if (top !== B.SAND && top !== B.GRASS && top !== B.DIRT && top !== B.RED_SAND && top !== B.PINK_SAND
             && top !== B.GRAVEL) continue;   // pink 0.822; gravel 0.8356 (the gravel beaches)
         if ((data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
-        // water adjacent at exactly y = WATER_LEVEL (shoreline)
         let waterAdj = false;
         for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-          const nx = x + dx, nz = z + dz;
-          if (nx < 0 || nx > 15 || nz < 0 || nz > 15) continue;
+          const nx = x + dx, nz = z + dz, inside = nx >= 0 && nx <= 15 && nz >= 0 && nz <= 15;
+          if (CANE2) {
+            // a side neighbour's water tops out at the soil's own height (its top water cell at y = h)...
+            const n = gi + dx + dz * 20;
+            if (!(H[n] < WLV[n] && WLV[n] === h)) continue;
+            // ...and is water there in this chunk's cells (a neighbour across the border by its column alone)
+            if (inside && (data[idx(nx, h, nz)] & 255) !== B.WATER) continue;
+            waterAdj = true; break;
+          }
+          // before rev 47: water at exactly y = WATER_LEVEL beside it, inside the chunk
+          if (!inside) continue;
           if ((data[idx(nx, WATER_LEVEL, nz)] & 255) === B.WATER) { waterAdj = true; break; }
         }
         if (!waterAdj) continue;
@@ -113,9 +123,9 @@ corePart('gen.chunk', function () {
             for (let dx = -1; dx <= 1; dx++) if ((dx || dz) && caneSeed(wx + dx, wz + dz, s)) { grow = true; break; }
         if (!grow) continue;
         const tall = 1 + Math.floor(hash3(wx, 9191, wz) * 3);           // 1..3
-        // Start cane at h (replacing the top sand) so the base cell sits at water-surface elevation
-        // and the plant reads as growing from the shoreline instead of on a raised ledge.
-        for (let k = 0; k < tall && h + k < CY - 1; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
+        // rev 47: on the soil, from h + 1, as long as the cells over it are open; before, from h, the top block taken
+        if (CANE2) { for (let k = 1; k <= tall && (data[idx(x, h + k, z)] & 255) === B.AIR; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE; }
+        else for (let k = 0; k < tall && h + k < CY - 1; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
       }
 
       /* ---- seashells: now and then one on a sea beach's sand, within SHELL_REACH of the sea (the wet grid's ocean,

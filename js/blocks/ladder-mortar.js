@@ -11,8 +11,9 @@ corePart('blocks', function () {
   // fiber block: ten fiber pressed together. Soft enough to pull apart by hand; rarely found in plains
   PROPS[B.FIBER_BLOCK]   = { name:'Fiber block', solid:true, opaque:true, raycast:true, pass:0, model:'cube', stack:50, hardness:0.8, type:'grass',
                              faces:[T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK,T.FIBER_BLOCK], desc: '' };
-  /* Ladder: a glow vine made of sticks — the same upright plate on a wall, climbed the same way,
-     but no light. Wood, and it comes down by hand as quickly as a crafting bench does. */
+  /* The old ladder: a flat plate on a wall. A ladder is a hammer shape of planks, the iron block or a stone now
+     (SHAPE_LADDER, shapes/shapes.js); this id stays only so old saves and prefabs convert into an oak planks one
+     (migrateLegacyVal, blocks/legacy.js). Never placed, not in creative. */
   PROPS[B.LADDER] = { name:'Ladder', solid:false, opaque:false, raycast:true, pass:1, model:'wall', climbable:true,
                       stack:50, hardness:4.5, type:'wood', boxes:WALL_VAR[0], boxesByVar:WALL_VAR,
                       faces:[T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER,T.LADDER], desc: '' };

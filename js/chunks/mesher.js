@@ -73,6 +73,7 @@ corePart('voxel', function () {
     if (p.model === 'log') return 3;
     if (p.model !== 'cube' || layerCount(v)) return 0;            // snow and leaf layers stay out: a skin, not a block
     if (shapeOfVal(v) === 'door') return 0;                         // a door is drawn as its own mesh
+    if (shapeOfVal(v) === 'ladder') return 0;                       // ...and a ladder far off is too thin to be a block
     if ((v & 255) === B.WATER || (v & 255) === B.LAVA) return 1;
     return p.opaque ? 3 : (shapeOfVal(v) ? 3 : 2);                 // a slab or stairs counts as its full block
   }

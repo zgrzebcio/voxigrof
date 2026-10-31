@@ -24,6 +24,8 @@ function blockBoxes(x, y, z) {
 }
 function _blockBoxes(x, y, z) {
   const val = getBlock(x, y, z);
+  // a corner of two different blocks: its ladder's board, whichever of the two the cell is (blocks/ladders.js)
+  if (wallMateOf(val)) { const [a, b] = BLOCKS.wallPairBoxes(val, 2); return a.concat(b); }
   const prop = PROPS[val & 255];
   if (!prop || !prop.solid) return null;
   if (_doorFillN && doorFillAt(x, y, z)) return FULL_BOX;   // a doorway something fell into is shut (blocks/doors.js)
@@ -44,6 +46,10 @@ const SINK_BLOCKS = new Set();   // by value: whole blocks only
 function rayBoxesAt(x, y, z) {
   const val = getBlock(x, y, z), prop = PROPS[val & 255];
   if (!prop) return null;
+  // a corner of two different blocks: each its own (a ladder's board, a vine's plate), bi 0 the first side (blocks/ladders.js)
+  if (wallMateOf(val)) { const [a, b] = BLOCKS.wallPairBoxes(val, 1); return a.concat(b); }
+  // a ladder is one board to the crosshair: between its rungs is still the ladder, never the block behind (shapes/boxes.js)
+  if (CORE.shapeOfVal(val) === 'ladder') return BLOCKS.LADDER_PICK[(val >> 8) & 7];   // two in a corner (bi 1 the second)
   { const sb = CORE.shapeBoxesAt(getBlock, x, y, z, val, false, railLookup());
     if (sb) { const pk = joinPickAt(x, y, z, val); return pk ? sb.concat(pk) : sb; } }
   if (CORE.slabMixed(val)) return CORE.slabMixBoxes(val);   // its two halves, so the crosshair knows which
@@ -222,17 +228,17 @@ function setBlock(x, y, z, val) {
     }
   /* A glow vine clings to the block behind it: take that block away and the vine comes down with
      it. Nothing harvested it, so it drops nothing. [dx, dz, the variant of a vine whose wall is this cell]
-     (the jungle's vine is held by a vine over it too: vineChanged below) */
+     (the jungle's vine is held by a vine over it too: vineChanged below). One in a corner goes alone (blocks/ladders.js). */
   if (newId === B.AIR)
     for (const [dx, dz, vv] of [[1, 0, 2], [-1, 0, 3], [0, 1, 0], [0, -1, 1]]) {
-      const nv = getBlock(x + dx, y, z + dz);
-      if (PROPS[nv & 255]?.model !== 'wall' || (nv & 255) === B.VINE || ((nv >> 8) & 3) !== vv) continue;
-      setBlock(x + dx, y, z + dz, B.AIR);
-      // a ladder is something you built: it drops back as a ladder. A vine just falls apart.
-      if ((nv & 255) === B.LADDER && !player.canFly) spawnDrop(B.LADDER, x + dx, y, z + dz);
+      const parts = wallParts(getBlock(x + dx, y, z + dz));
+      const k = parts.findIndex(p => (p & 255) === B.GLOW_VINE && ((p >> 8) & 3) === vv);
+      if (k >= 0) wallPartOff(x + dx, y, z + dz, k, false);
     }
   // the jungle's vines: a tip put down or grown; what held some gone, the ones nothing else holds fall (woods/vines.js)
   if (typeof vineChanged === 'function') vineChanged(x, y, z, oldVal, val);
+  // ladders: a column that nothing holds any more comes down (blocks/ladders.js)
+  if (typeof ladderChanged === 'function') ladderChanged(x, y, z, oldVal, val);
   // a coconut hangs from what is over it, or rests on what is under it: that gone (nothing solid left), it falls (woods/coconuts.js)
   if (CORE.solidVal(oldVal) && !CORE.solidVal(val) && typeof coconutLostHold === 'function') { coconutLostHold(x, y - 1, z); coconutLostHold(x, y + 1, z); }
   // a cocoa pod hangs on the side of jungle wood: that gone, it breaks off (woods/cocoa.js)

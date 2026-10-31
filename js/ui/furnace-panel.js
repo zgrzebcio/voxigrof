@@ -100,7 +100,8 @@ function _furnBookHtml() {
   const arrow = '<svg class="fbArrow" viewBox="0 0 16 10" width="16" height="10" aria-hidden="true">' +
     '<path d="M1 5h11M8.5 1.5 12.5 5 8.5 8.5" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const xp = (n) => `<span class="fbXp">${n ? `<img src="textures/Items/Useables/experience_bottle.png" alt="">${num(n)}` : ''}</span>`;
+  // the experience picture (textures/Gui/Effects/UI, as the feed's)
+  const xp = (n) => `<span class="fbXp">${n ? `<img src="textures/Gui/Effects/UI/experience.png" alt="">${num(n)}` : ''}</span>`;
   const rows = (cat) => {
     let h = '';
     if (cat === 'fuel')

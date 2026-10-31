@@ -55,6 +55,21 @@ const FEED_INFO_SVG =
   '<circle cx="8" cy="4.4" r="1.05" fill="currentColor"/>' +
   '<rect x="7.05" y="6.6" width="1.9" height="5.4" rx=".9" fill="currentColor"/></svg>';
 
+/* The feed's pictures, textures/Gui/Effects/UI: level_up (a level reached, skill points to spend), biomeDiscover (a biome
+   found), experience (XP, a quest or another feat paid), unlocked
+   (a skill learned), repair (a station's order done), alert (a warning), and for an info line by its words locked,
+   unlocked or treasure; any other info line keeps the "i" badge. */
+const FEED_UI_DIR = 'textures/Gui/Effects/UI/';
+const _feedImg = (name) => `<img class="fImg" src="${FEED_UI_DIR}${name}.png" alt="">`;
+// an info line's picture by what it says (a lock, a key, a seal; a treasure or a loot chest), else the badge
+function _feedInfoIcon(text, warn) {
+  if (warn) return _feedImg('alert');
+  if (/\bunlock|\bpick(ed)? the lock|\bunseal|opens? with/i.test(text)) return _feedImg('unlocked');
+  if (/\block(ed|s)?\b|\bsealed\b|\bkey\b/i.test(text)) return _feedImg('locked');
+  if (/\btreasure|\bloot chest|\bsupply (chest|crate)/i.test(text)) return _feedImg('treasure');
+  return FEED_INFO_SVG;
+}
+
 /* Retire a row: play the leaving animation, then take it out of the DOM. `.out` collapses the
    row's height as well as fading it, so the rows below slide up into the gap instead of jumping. */
 function _feedRetire(key, rows = _feedRows()) {
@@ -196,7 +211,7 @@ function feedInfo(msg, warn) {
   const text = String(msg == null ? '' : msg);
   if (!text) return;
   const row = _feedPush('m:' + text, warn === 'crit' ? 'crit' : warn ? 'warn' : 'info',
-    `<span class="fIcon">${FEED_INFO_SVG}</span>` +
+    `<span class="fIcon">${_feedInfoIcon(text, warn)}</span>` +
     `<span class="fTxt">${_feedEsc(text)}</span><span class="fMul"></span>`);
   if (!row) return;
   row.amt++;
@@ -206,25 +221,22 @@ function feedInfo(msg, warn) {
 const feedWarn = (msg) => feedInfo(msg, true);
 const feedCrit = (msg) => feedInfo(msg, 'crit');   // you are losing health right now
 
-/* Level-ups get a row of their own: a gold star instead of the plain info badge, under one
+/* Level-ups get a row of their own: the experience picture instead of the plain info badge, under one
    key, so levelling twice in a burst reads as the newest level rather than two lines. */
-const FEED_STAR_SVG =
-  '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">' +
-  '<path d="M8 1.2l2.05 4.3 4.7.6-3.45 3.25.88 4.65L8 11.75 3.82 14l.88-4.65L1.25 6.1l4.7-.6z" fill="currentColor"/></svg>';
 /* A station's order finished (updateBenchWork in blocks/crafting-bench.js): a yellow-gold row of its own (.craft in
    style.css) with its own chime, a step above the level-up's, so it is heard apart from a warning or a level. */
 function feedCraft(text) {
   const t = String(text == null ? '' : text);
   if (!t) return;
   const row = _feedPush('craft:' + t, 'craft',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b></span>`);
+    `<span class="fIcon">${_feedImg('repair')}</span><span class="fTxt"><b class="fAmt"></b></span>`);
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = t;
   if (!row.fresh) _feedBump(row.el);
 }
 function feedLevel(level) {
   const row = _feedPush('lvl', 'level',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Reached level <b class="fAmt"></b></span>`);
+    `<span class="fIcon">${_feedImg('level_up')}</span><span class="fTxt">Reached level <b class="fAmt"></b></span>`);
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = level;
   if (!row.fresh) _feedBump(row.el);
@@ -235,14 +247,14 @@ function feedLevel(level) {
 // a gold reminder that skill points are waiting (player/skills.js repeats it every SKILL_REMIND seconds)
 function feedSkillPoints(n) {
   const row = _feedPush('skillpts', 'level',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"></span>`);
+    `<span class="fIcon">${_feedImg('level_up')}</span><span class="fTxt"></span>`);
   if (!row) return;
   row.el.querySelector('.fTxt').innerHTML = `<b class="fAmt">${n}</b> skill point${n === 1 ? '' : 's'} to spend &middot; open the tree`;
   if (!row.fresh) _feedBump(row.el);
 }
 function feedSkill(name) {
   const row = _feedPush('skill:' + name, 'level',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Learned <b class="fAmt"></b></span>`);
+    `<span class="fIcon">${_feedImg('unlocked')}</span><span class="fTxt">Learned <b class="fAmt"></b></span>`);
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = name;
   if (!row.fresh) _feedBump(row.el);
@@ -252,7 +264,7 @@ function feedSkill(name) {
    quest, so two finished at once read as two rows — but only one of them rings (see _feedChime). */
 function feedQuest(name, xp) {
   const row = _feedPush('quest:' + name, 'level',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt">Quest done: <b class="fAmt"></b></span>` +
+    `<span class="fIcon">${_feedImg('experience')}</span><span class="fTxt">Quest done: <b class="fAmt"></b></span>` +
     '<span class="fWhy"></span>');
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = name;
@@ -260,11 +272,11 @@ function feedQuest(name, xp) {
   if (!row.fresh) _feedBump(row.el);
 }
 
-/* A feat: a biome found, the top or bottom of the world, a night lived through. The gold star again, the
-   feat on the left and what it paid on the right. */
-function feedFeat(text, xp) {
+/* A feat: a biome found, the top or bottom of the world, a night lived through. Its picture (`icon`, a name in
+   FEED_UI_DIR: biomeDiscover for a biome found, experience else), the feat on the left and what it paid on the right. */
+function feedFeat(text, xp, icon = 'experience') {
   const row = _feedPush('feat:' + text, 'level',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b></span>` + '<span class="fWhy"></span>');
+    `<span class="fIcon">${_feedImg(icon)}</span><span class="fTxt"><b class="fAmt"></b></span>` + '<span class="fWhy"></span>');
   if (!row) return;
   row.el.querySelector('.fAmt').textContent = text;
   row.el.querySelector('.fWhy').textContent = '+' + xp + ' XP';
@@ -277,7 +289,7 @@ function feedFeat(text, xp) {
 function feedXP(n, why) {
   if (!(n > 0) || !why) return;
   const row = _feedPush('xp:' + why, 'xp',
-    `<span class="fIcon">${FEED_STAR_SVG}</span><span class="fTxt"><b class="fAmt"></b> XP</span>` + '<span class="fWhy"></span>');
+    `<span class="fIcon">${_feedImg('experience')}</span><span class="fTxt"><b class="fAmt"></b> XP</span>` + '<span class="fWhy"></span>');
   if (!row) return;
   row.amt += n;
   row.el.querySelector('.fAmt').textContent = '+' + row.amt;

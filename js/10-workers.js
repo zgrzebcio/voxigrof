@@ -56,9 +56,24 @@ function postScanJob(msg, transfer) {
   let best = poolWorkers[0];
   for (const w of poolWorkers) if (w.busy < best.busy) best = w;
   best.busy++;
+  msg.ep = workerEpoch;                     // the world it is for (the epoch, initWorkers below)
   best.postMessage(msg, transfer);
 }
-function initWorkers(seed, terrainType, biomeRev = 1) {
+/* THE WORLD EPOCH: one more for every initWorkers. Every job to a worker (a chunk to make or read from the cache, a mesh, a
+   season scan) carries the epoch it was sent in (`ep`) and the worker sends it back on the answer (chunks/worker.js);
+   onWorkerMessage (chunks/stream.js) drops an answer from an older epoch. A job still queued or running when another
+   world opened (or the title's backdrop was left) answered with the old land, which was put into the new world's chunk
+   at the same place and stored in its terrain cache: a square column of another land standing in this one. */
+let workerEpoch = 0;
+/* THE WORLD THE WORKERS MAKE LAND FOR (`worldId`: a world's id, null for the title's backdrop). loadWorld sets the world it
+   opens as currentWorld and then waits on the save before resetWorld comes here: in that gap the workers still made the
+   backdrop's (or the last world's) land, and every chunk they answered was stored in the NEW world's terrain cache, a column
+   of the backdrop standing near the spawn for good. The stream makes and stores land only while this is the world played
+   (genForWorld, chunks/stream.js). */
+let workerWorldId = null;
+function initWorkers(seed, terrainType, biomeRev = 1, worldId = null) {
+  workerEpoch++;
+  workerWorldId = worldId;
   // a world swap abandons whatever was in flight; the throttle's counter must not leak with it
   if (typeof resetGenThrottle === 'function') resetGenThrottle();
   // the sky light's rules, so a worker can light a new chunk the same way (LIGHT_WORKER in 00-config)

@@ -35,10 +35,10 @@ corePart('blocks', function () {
   const quadW = (q, level) => LOG_W_QUAD - 4 * level + q;
   // how far a quarter reaches across its cell from the big log's middle line, in blocks (1 = the whole cell)
   const quadExtent = (w) => QUAD_WIDTHS[quadLevel(w)] / 128;
-  /* ...and as DRAWN: a quarter being cut keeps the swings it has taken in the cell's bits 25-30 (LOG_CUT_SHIFT; nothing
-     else uses them, and a log has no look of its own), and the big log narrows QUAD_CUT_UNITS a swing from 128 across, so
-     every swing shows. Its level (the width index) follows a step behind: the box it collides with is never narrower than
-     what is drawn. 0 swings: its level's width. */
+  /* ...and as DRAWN: a quarter being cut keeps its cut steps in the cell's bits 25-30 (LOG_CUT_SHIFT; nothing else uses
+     them, and a log has no look of its own; a step is two swings, woods/felling.js), and the big log narrows QUAD_CUT_UNITS
+     a step from 128 across. Its level (the width index) follows a step behind: the box it collides with is never narrower
+     than what is drawn. 0 steps: its level's width. */
   const LOG_CUT_SHIFT = 25, LOG_CUT_MAX = 63, QUAD_CUT_UNITS = 1.6;
   const logCutOf = (v) => (v >>> LOG_CUT_SHIFT) & LOG_CUT_MAX;
   const quadReach = (v) => { const c = logCutOf(v); return c ? Math.max(8, 128 - c * QUAD_CUT_UNITS) / 128 : quadExtent(((v >> 8) & 255) >> 2); };

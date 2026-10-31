@@ -15,6 +15,8 @@ function _doPlace() {
   if (tryShearSheep()) { handPlaceSwing = true; return; }
   /* Using an ANIMAL beats using the world behind it: feeding, mounting and saddling all come
      before any block interaction, so a horse standing in front of a chest is still a horse. */
+  // a book on a creature not in it yet writes it in (player/creature-book.js)
+  if (typeof tryBookInteract === 'function' && tryBookInteract()) { handPlaceSwing = true; return; }
   // a bucket at a cow milks it, ahead of filling from water behind it
   if (typeof tryMilkCow === 'function' && tryMilkCow()) { handPlaceSwing = true; return; }
   // a hellhound: the mushroom that starts its taming, its food, its behaviour and stance (entities/hellhound.js)
@@ -23,6 +25,8 @@ function _doPlace() {
   if (typeof tryOtterInteract === 'function' && tryOtterInteract()) { handPlaceSwing = true; return; }
   // a meerkat: its stance, onto your shoulder and off it again (entities/meerkat.js)
   if (typeof tryMeerkatInteract === 'function' && tryMeerkatInteract()) { handPlaceSwing = true; return; }
+  // a tiger: raw meat from the hand (entities/tiger.js)
+  if (typeof tryTigerInteract === 'function' && tryTigerInteract()) { handPlaceSwing = true; return; }
   if (typeof tryTameInteract === 'function' && tryTameInteract()) { handPlaceSwing = true; return; }
   // the right button held on a fish takes it alive in both hands (player/fish-hold.js)
   if (typeof tryGrabFish === 'function' && tryGrabFish()) return;
@@ -32,6 +36,8 @@ function _doPlace() {
   if (!hit) return;
   // the wrench joins, parts and turns what it is used on, creative only (player/wrench.js)
   if (slotId(HOTBAR[hotbarSel]) === ITEM.WRENCH) { if (!(act && act.place)) useWrench(hit); handPlaceSwing = true; return; }
+  // a hatchet held on a log with its bark: the hold that strips it (woods/felling.js)
+  if (typeof tryStripLog === 'function' && tryStripLog(hit)) { handPlaceSwing = true; return; }
   // a clam: opened, shut, its pearl taken, a thing put in or taken out (blocks/clam.js)
   if (typeof tryUseClam === 'function' && tryUseClam(hit)) return;
   // shears carve a pumpkin, a torch lights a carved one
@@ -211,6 +217,15 @@ function _doPlace() {
       return;
     }
   }
+  // a ladder clicked with a ladder: the next one on the end of its column, up, or down while you look down (blocks/ladders.js)
+  // ...and one put into a slab's, stairs', a carpet's or a plant's cell lies in it, as a fence on a slab (tryLadderOver)
+  if (shaped && shaped.key === 'ladder') {
+    const r = tryExtendLadder(hit, paidMat) || tryLadderOver(hit, paidMat);
+    if (r) {
+      if (r === 'placed') { handPlaceSwing = true; spendHeld("placed"); chiselWear(); }
+      return;
+    }
+  }
   // filling a half, case 1: clicked the inner flat face of a half of this very block → complete THAT cell
   // (not one covers lie in: a whole block leaves them no room)
   if (halfFill && !overHit && !coversAt(hit.x, hit.y, hit.z)) {
@@ -243,6 +258,15 @@ function _doPlace() {
       const tv = getBlock(px, py, pz);
       if (slabHalfTakes(tv, heldMat) && _fillHalf(px, py, pz, heldMat)) return;
     }
+    // ...or a ladder or a vine of the held block there, this one going on the other wall of its corner (blocks/ladders.js)
+    const ladderHeld = !!shaped && shaped.key === 'ladder';
+    const paired = (ladderHeld || (!shaped && PROPS[heldId]?.model === 'wall')) && tryWallPair(hit, px, py, pz, paidMat, ladderHeld);
+    if (paired === true) {
+      handPlaceSwing = true;
+      spendHeld("placed");
+      if (ladderHeld) chiselWear();
+    }
+    if (paired) return;
     // ...or a layer stack the held block piles onto (a layer clicked from the side or below)
     if (shaped && shaped.key === 'carpet' && canStackLayer(getBlock(px, py, pz), heldId) && addLayer(px, py, pz, heldId)) {
       playBlockSound(heldId, 'place', px, py, pz);
@@ -284,6 +308,8 @@ function _doPlace() {
   // a glow vine only hangs on the SIDE of a solid block
   const vineWall = PROPS[id].model === 'wall';
   if (vineWall && (hit.ny !== 0 || !(hit.nx || hit.nz) || ontoPlant || !isSolid(hit.x, hit.y, hit.z))) return;
+  // ...and the jungle's vine never in water (a glow vine stands in it: blocks/waterlog.js)
+  if (id === B.VINE && isWaterVal(getBlock(px, py, pz))) { feedWarn('A vine does not grow in water'); return; }
   // flowers and grass plants require a grass block underneath (not any solid — no dirt/stone/etc.)
   // ...or an upright hollow log packed with dirt or grass, the planter
   if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER) {
@@ -353,9 +379,9 @@ function _doPlace() {
   if (!OVERHANG_OK.includes(id) && logOverhangsCell(px, py, pz)) return;
   // a pressure plate lies on a block's whole top (blocks/pressure-plates.js)
   if (shaped && shaped.key === 'plate' && !plateFloorAt(px, py - 1, pz)) return;
-  // don't place a solid inside yourself (a layer you wade through is fine, and a cover, a plate or a sign)
+  // don't place a solid inside yourself (a layer you wade through is fine, and a cover, a plate, a sign or a ladder)
   if (PROPS[id].solid && !(shaped && ((shaped.key === 'carpet' && PROPS[id].layerStack) || shaped.key === 'cover'
-                                      || shaped.key === 'plate' || shaped.key === 'sign'))) {
+                                      || shaped.key === 'plate' || shaped.key === 'sign' || shaped.key === 'ladder'))) {
     const p = player.pos, R = player.R;
     if (px + 1 > p.x - R && px < p.x + R && py + 1 > p.y && py < p.y + player.H &&
         pz + 1 > p.z - R && pz < p.z + R) return;
@@ -441,6 +467,11 @@ function _doPlace() {
   // a sign needs what it is put up on: the floor under it, the wall behind it, the ceiling over it (blocks/signs.js)
   const signShape = !!shaped && shaped.key === 'sign';
   if (signShape && !signSupported(px, py, pz, (id | (varb << 8)) >>> 0)) return;
+  // a ladder needs a block behind, under or over it, or a ladder over or under it to join (blocks/ladders.js)
+  if (shaped && shaped.key === 'ladder' && !ladderCanStand(px, py, pz, varb & 3)) {
+    feedWarn('A ladder needs a block behind, under or over it, or a ladder above or below');
+    return;
+  }
   // sugar cane: planted as a sprout that grows (on another cane a stage on); creative puts it down grown
   const caneSprout = id === B.SUGAR_CANE && !player.canFly;
   if (caneSprout) varb = (getBlock(px, py - 1, pz) & 255) === B.SUGAR_CANE ? CANE_STEPS - 1 : CANE_STEPS;

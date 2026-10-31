@@ -22,6 +22,7 @@ corePart('blocks', function () {
     const s = shapeOfVal(v);
     return !!s && (s !== 'layer' || !p.layerStack);
   }
-  // the chests, the ladder, and the two torches with no flame (a burning torch goes out in water)
-  for (const id of [B.CHEST, B.METAL_CHEST, B.LADDER, B.CRYSTAL_TORCH, B.TORCH_UNLIT]) PROPS[id].waterlog = true;
+  /* the chests, the old ladder, the glow vine (the jungle's vine never stands in water: player/place-block.js), and the two
+     torches with no flame (a burning torch goes out in water) */
+  for (const id of [B.CHEST, B.METAL_CHEST, B.LADDER, B.GLOW_VINE, B.CRYSTAL_TORCH, B.TORCH_UNLIT]) PROPS[id].waterlog = true;
 });

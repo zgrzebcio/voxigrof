@@ -53,8 +53,9 @@ function _recalcLevel() {
 function addXP(n, why) {
   if (!(n > 0)) return;
   if (typeof player !== 'undefined' && player.canFly) return;
-  // boss boost (entities/frozen-king.js): +20% a level on everything earned
-  const gain = Math.round(n * (typeof bossXpMul === 'function' ? bossXpMul() : 1));
+  // boss boost (entities/frozen-king.js): +20% a level on everything earned; the golden set's +10% (ARMOR_SET_BONUS)
+  const set = typeof armorSetBonus === 'function' ? armorSetBonus() : null;
+  const gain = Math.round(n * (typeof bossXpMul === 'function' ? bossXpMul() : 1) * (1 + ((set && set.xpBonus) || 0)));
   if (why && gain > 0 && typeof feedXP === 'function') feedXP(gain, why);
   playerXP += gain;
   // the last few gains and what for, shown under the XP bar's tooltip (xpTipHTML)
@@ -124,12 +125,14 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
    a base by kind (animals 200, villagers 300, monsters 400) plus the level since 0.791. */
 // ...a monster (a zombie, a skeleton: isNightMob) a flat XP_KILL_MONSTER plus the level
 const XP_KILL_MIN = 20, XP_KILL_MAX = 50, XP_KILL_HP_LO = 20, XP_KILL_HP_HI = 75, XP_KILL_PER_LEVEL = 50, XP_KILL_MONSTER = 300;
+// ...and all of it times XP_KILL_MUL: a kind written into the creature book pays far more (player/creature-book.js)
+const XP_KILL_MUL = 0.75;
 function mobKillXP(ent) {
-  if (!ent) return XP_KILL_MIN;
-  if (typeof isNightMob === 'function' && isNightMob(ent)) return XP_KILL_MONSTER + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
+  if (!ent) return Math.round(XP_KILL_MIN * XP_KILL_MUL);
+  if (typeof isNightMob === 'function' && isNightMob(ent)) return Math.round((XP_KILL_MONSTER + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0)) * XP_KILL_MUL);
   const hp = typeof entMaxHp === 'function' ? entMaxHp(ent) : XP_KILL_HP_LO;
   const f = Math.max(0, Math.min(1, (hp - XP_KILL_HP_LO) / (XP_KILL_HP_HI - XP_KILL_HP_LO)));
-  return Math.round(XP_KILL_MIN + (XP_KILL_MAX - XP_KILL_MIN) * f) + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0);
+  return Math.round((XP_KILL_MIN + (XP_KILL_MAX - XP_KILL_MIN) * f + XP_KILL_PER_LEVEL * Math.max(0, ent.level | 0)) * XP_KILL_MUL);
 }
 const XP_HARVEST = 2;              // a bush pickup that actually yielded something
 /* ...and since 0.8281 one more for every berry, wheat, melon or cantaloupe slice, flint and stone pebble it hands you
@@ -173,12 +176,16 @@ function flushOwedXP() {
 }
 // what a player has found once and for all: the biomes, the top and the bottom. Saved with the player.
 // ...and the bosses beaten, by kind (entities/frozen-king.js): each one a level of boss boost
-const restoreFeats = (r) => ({ biomes: new Set(r && Array.isArray(r.biomes) ? r.biomes.filter(b => typeof b === 'string') : []),
+// ...and the creatures written into their book, by key (bookKeyOf, player/creature-book.js)
+const _featNames = (r, k) => new Set(r && Array.isArray(r[k]) ? r[k].filter(b => typeof b === 'string') : []);
+const restoreFeats = (r) => ({ biomes: _featNames(r, 'biomes'),
                                top: !!(r && r.top), bottom: !!(r && r.bottom),
-                               bosses: new Set(r && Array.isArray(r.bosses) ? r.bosses.filter(b => typeof b === 'string') : []),
+                               bosses: _featNames(r, 'bosses'),
+                               mobs: _featNames(r, 'mobs'),
                                lootChests: r && r.loot > 0 ? r.loot | 0 : 0 });   // loot chests opened (awardLootXP)
 const serializeFeats = (p) => p._feats ? { biomes: [...p._feats.biomes], top: p._feats.top, bottom: p._feats.bottom,
-                                           bosses: [...(p._feats.bosses || [])], loot: p._feats.lootChests || 0 } : null;
+                                           bosses: [...(p._feats.bosses || [])], mobs: [...(p._feats.mobs || [])],
+                                           loot: p._feats.lootChests || 0 } : null;
 // smelting XP lives on each furnace recipe since 0.775 (SMELT_RECIPES, blocks/furnace.js), paid on taking the output
 
 /* Crafting XP moved out of here in 0.76: every recipe carries its own `xpToGive` next to its
@@ -282,7 +289,7 @@ function _queueXPPop(n) {
   if (!xpPopsEl || n <= 0) return;
   const el = document.createElement('div');
   el.className = 'xpPop';
-  el.textContent = '+' + n;
+  el.innerHTML = `<img class="fImg" src="textures/Gui/Effects/UI/experience.png" alt="">+${+n}`;   // the experience picture
   el.style.setProperty('--dy0', (_popSlot * XP_POP_STEP) + 'px');
   el.style.setProperty('--dx', ((_popSlot % 2) ? 7 : -3) + 'px');
   _popSlot = (_popSlot + 1) % XP_POP_SLOTS;

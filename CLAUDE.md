@@ -558,6 +558,133 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   cell's id has none (thatch's looks sit on hay's bar), so a mossy thatch gives its vine back.
   0.8527 (T 498-505): cracked looks, no need: adobe 5, obsidian 3, each sandstone 5 cracked and 6 cracked brick (their bars
   full). `cracked_slate.png` waits for a slate block; stone's look 3 'cracked brick' stays off the bar (no art of its own).
+- **0.853, slopes and ladders** (headers of blocks/ladders.js, blocks/slopes.js). Both share the last shape nibble 0xF0, told
+  apart by `SLOPE_BIT` 8 (shapeOfVal; mask `SHAPE_MASK | SLOPE_BIT` where a nibble test must tell them apart):
+  `SHAPE_LADDER` 0xF0 | side its back is on (0 -Z, 1 +Z, 2 -X, 3 +X, as the glow vine), `SHAPE_SLOPE` 0xF8 | stairs' facing
+  (low edge toward STAIR_DIR) | 4 upside down. No high nibble is left for a new shape. Ladder: `LADDER_BOX` (rails 1.5 px,
+  rungs 2 x 2.5 px standing out), no collision, solidVal false, crosshair one board `LADDER_PICK` (rayBoxesAt), climbable
+  (playerOnClimbable sets `player._climbSide`); a COLUMN is held by a solid block behind any of it, under its bottom or over
+  its top (`ladderColumnHeld`, `ladderCanStand` when placing, `ladderChanged` setBlock hook drops a whole unheld column),
+  `tryExtendLadder` (a ladder clicked with one). Slope: boxes are steps (`SLOPE_BOX` 8 for the ray, `SLOPE_COLL` 16 to stand
+  on), drawn as a wedge by `emitSlope` (chunks/mesher-models.js: laid out facing 0, TURNED never mirrored, upside down
+  corners reversed); `slopeDownOf(v)`. Sliding: `playerSlopeSlide` (`player._slide`, SLOPE_MAX past a sprint; a landing's
+  fall still counts), `entSlopeSlide` (entities/update.js), drops roll off (15-drops.js). SHAPE_BLOCKS.slope = stairs' blocks.
+  The old ladder block B.LADDER 121 is gone from play: migrateLegacyVal turns it into an oak planks ladder (121 no longer
+  reads as the pre-0.783 sandstone slab, which turned every saved ladder into a slab), legacyItemId 121 -> planks, mine
+  shafts write `B.PLANKS | SHAPE_LADDER` (TERRAIN_KEY 'terrain853:'), out of the creative palette; at LOD 2 a ladder is
+  left out (`_lodRank`). Climbing (player/tick.js): `_climbAnim` (up or sliding: both hands busy), `_climbHold` (still off
+  the ground: the left hand holds, offHandBusy), eased weights `_climbUpW` / `_climbSlideW` / `_climbHoldW` read by
+  player/hands.js and 40-shield.js; `clampClimbLook(dt, moving)` (player/movement.js) pulls the yaw back toward
+  `_CLIMB_FACE[side]` past CLIMB_LOOK_HOLD (CLIMB_LOOK_MOVE while moving). Hammer radial: slope on Simple (`wedge` preview
+  built in chiselShapeIcon), ladder on Advanced.
+  0.8531: the body climbs too (player/body.js `poseBodyClimb`, laid over animateHumanoid by the same three weights; its beat
+  is the first-person hands' `_climbT`). The body turns to `player._climbFace` (tick.js: the climbable's `_CLIMB_FACE`, or the
+  yaw on a wall climb, kept after letting go so the turn back eases) and the head turns back on it to the look (head order
+  'YXZ', `head.rotation.y` = -climbTurn).
+  0.8532: the wrench (player/wrench.js) turns slopes like stairs (`_wrenchSlant`: slant, risers or flat face = upside down,
+  back or ends = a quarter round; sneaking always turns) and ladders (`_wrenchLadder`: the whole column, sneaking the one
+  clicked, to the next side that leaves the column held; WRENCH_TURN is the same quarter for a ladder's sides).
+  0.8533: a ladder collides as a thin board at its back (`LADDER_COLL`, LADDER_COLL_T 3/16; `_entBlocked` tests it for
+  creatures, entities/physics.js; `ground1` counts a ladder board's top only under the body; `_ladderShove` puts a body
+  out in front when one is put down on it). CORNERS: variant bit 2 `WALL_PAIR` (blocks/glow-and-storage.js, BLOCK_CORE:
+  `WALL_NEXT`, `wallSides(va)`, `wallPairVar(a, b)`, `wallClip`) = a second ladder, vine or glow vine on the side a quarter
+  round, in one cell (WALL_VAR 4-7, LADDER_BOX/PICK/COLL 4-7 from `_ladderSet`: the second's rungs/plate cut back to the
+  first's front). Page (blocks/ladders.js): `wallPaired`, `wallSingle(v, k)`, `ladderSidesOf`, `tryWallPair` (place-block.js,
+  when the target cell holds one of the same block); mining and creative break take the one aimed at (bi), blockDrop of a
+  corner is two; vines (`_vineWalls`) and glow vines lose only the plate whose wall went; `_climbSideOf` picks the wall
+  faced. Test headless: scratchpad err-0.8533.js (not in the repo).
+  0.8534: a CORNER OF TWO DIFFERENT BLOCKS (shapes/boxes.js, header above WALL_MATES): the cell is one plate block; bits 25-29
+  `WALL_MATE_SHIFT` = the other's index in `WALL_MATES` (vine, glow vine, every ladder block; IN THE SAVES, append only;
+  0 = the same block), bit 30 `WALL_MATE_FIRST` = the other is on the first side; the other is always plain (the one with a
+  look is the cell's own; two with looks refused; else a glow vine, for its light, else the one already there).
+  `wallPairParts(v)` -> the two as values alone, `wallPairBoxes(v, kind)` (0 drawn, 1 pick, 2 collision), `wallMateOf`,
+  `isWallPlateVal`; the mesher's `emitWallPair` (mesher-models.js); page `wallParts` / `wallPartOff` / `ladderValAt` /
+  `hasLadder` / `ladderBoardsAt` (blocks/ladders.js). The ray's `id` on a corner is the part aimed at. Vines go by plate
+  (`_vineSettle`, woods/vines.js: a plate is held by its wall or a vine over the cell), glow vines too (block-access.js).
+  LADDERS IN ANOTHER BLOCK'S CELL ride RAIL_OVER (blocks/rails.js): `railHostOk` takes a ladder in a slab, stairs, a layer or
+  a plant (cross, not solid), `railOverBoxes` gives LADDER_BOX (railBoxesAt on the page LADDER_PICK / LADDER_COLL), lift 0,
+  `_joinCell` ignores it; `tryLadderOver` (after tryExtendLadder in _doPlace), setRailOver calls `ladderChanged`, columns
+  and climbing see it through `ladderValAt`. Wall bars (0.85342): posts `RAIL_W` 1.5 to the front, deep to the side (0.5 to `LADDER_DEPTH` 3.5, 0.85343), rungs `RUNG_T` 1 square dowels through the posts' sides at mid depth (`_rungZ`) and 1 past them; board 3.5; a corner's second ladder cut back whole, its corner post left out (_ladderSet drops a box cut to nothing; `_LADDER_HALVES` splits by the authored count).
+  Climbing works in water (onClimb no longer needs dry; glow vines take water, blocks/waterlog.js; the jungle's vine never: place-block.js and tryWallPair refuse it in water; biomeRev 46 `GLOW_WET`, worldgen/gen-setup.js: generated glow vines hang into still cave water too, WATERLOGGED, worldgen/underground.js); looking down
+  slides x(1 + `CLIMB_LOOK_DOWN` 0.5), the whole of it from `CLIMB_DOWN_FULL` 0.45 of the way down (about 40 degrees; blended
+  over the whole pitch it was hardly felt; x2.5 since 0.85344, CLIMB_LOOK_DOWN 1.5: the user felt x5 and chose this). Test headless: scratchpad err-0.8534.js.
+  0.85344: ladders and vines cost stamina: `player._ladderUse` (tick.js: 2 going up, 1 holding on off the ground, 0 sliding)
+  read by tickStats, `STAMINA_LADDER_PER_S` half the wall's, `STAMINA_LADDER_HOLD_PER_S` 1.5, both x skillClimbMul (Climber); out
+  of stamina (playerTired) the climb and the hold give way to the slide.
+- **0.8535, the tiger and effect pictures** (header of entities/tiger.js). Kind `tiger`, a `step` creature (updateTiger), model
+  js/models/tiger.js (from textures/Entity/Animals/tiger.json; the JSON may go), sheet tiger.png, sounds tigerSay / tigerHurt.
+  One alone in the Jungle (`rollTigers`, TIGER_BIOMES, TIGER.apart), held to TIGER.leash from home (`_homeward`). Stalks then
+  charges players in sight (`_tgChoose` every 0.4 s: whoever struck it, a player in sight, raw meat lying near, a creature
+  when hungry); its kill drops the victim's loot (`_entDropLoot`, unlike other creature kills) and it eats a raw meat there
+  (`_tgEatDrop`, TIGER_MEAT mutton/beef/pork). Raw meat in a player's main hand (`tigerBaited`): it comes TIGER.baitNear
+  close and watches, never bites. `tryTigerInteract` (place-block.js): feeds it once in TIGER.feedCd (`_fedCd`, saved `fc`),
+  `_peace` map by `_tgKey(p)` for the bond's time; effects `tigerFury` (`atkSpeed` 0.3, read by playerAtkSpeedMul in
+  stat-getters.js through `_effectSum`) and `tigerBond`. Fighting back: damageEntity sets `ent._struckBy = player` (aggroT
+  as for any non-grazer), creature table field `fightsBack` sets `_hurtBy` in damageEntityByMob. Effect pictures: EFFECT_DEFS `img` (a path under `EFFECT_ICON_DIR` textures/Gui/Effects/), `effectIconHTML(d, cls)`
+  on the bar (`.effImg`) and in the panel (`.effIco`); states added to `stateEffects` with their own `name`/`desc`:
+  otterScarf, meerkatShoulder (moved out of activeEffects), houndTaming, horseTaming, riding. Feed (ui/feed.js): UI
+  pictures `_feedImg` (experience for XP/level/quest/feat/skill points, unlocked for a skill, repair for a station's order,
+  alert for warnings, locked/unlocked/treasure by an info line's words, `_feedInfoIcon`); the XP pop carries experience.png.
+  The art folder names change: after a rename, check every `img` against textures/Gui/Effects (the curses were renamed
+  to `<season>_curse.png` during this step).
+- **0.8536, the world epoch** (10-workers.js above `workerEpoch`). A job still queued or running in a worker when another world
+  opened (or the title's backdrop was left) answered with the old world's land, which onWorkerMessage put into the new world's
+  chunk at the same place AND stored in its terrain cache: square columns of another land standing in a world, for good.
+  `workerEpoch` goes up in initWorkers; gen, prep (`_genSend`), mesh (dispatchMesh) and scan (postScanJob) jobs carry it as
+  `ep`, the worker sends it back on every answer (`_ep` in chunks/worker.js's postMessage wrapper), and onWorkerMessage drops
+  an answer from an older epoch. TERRAIN_KEY 'terrain8536:' throws away every cache that may hold such a chunk. A new kind of
+  worker job whose answer touches a chunk must carry `ep` too.
+- **0.8537.** A jungle giant's 2x2 trunk takes `QUAD_FELL_SWINGS` 100 cut swings after the bark (about half the ~200 logs it
+  drops; woods/felling.js). The cells keep CUT STEPS of `QUAD_SWINGS_PER_STEP` 2 swings (bits 25-30 hold 63 at most), the
+  odd swing between steps in `_QUAD_ODD` (by the height's first quarter, not saved); QUAD_LEVEL_SWINGS 20; drawn as before,
+  QUAD_CUT_UNITS a step. The Crafting effect's picture is UI/repair.png.
+  0.85371: feed pictures level_up (feedLevel, feedSkillPoints) and biomeDiscover (feedFeat's 3rd arg `icon`, a biome found in
+  _tickFeats); the crafting list and the furnace book show XP with UI/experience.png. A stone furnace takes 1 cobblestone
+  (VARIANT_DEFAULT_NEED); a tooltip says what the pick in hand takes as "On place: Requires 1 ..." (heldNeedOf, ui/tooltips.js).
+- **0.8538.** Golden armor, the middle tier (tier 2, armor 8/22/18/8 + gauntlets 5, chestplate durability 160, no slow, no set
+  bonus yet): `ITEM.GOLDEN_GLOVES` 436 (icon gold_gauntlets.png), recipes appended (gold + leather + one of `V_GEMS`, the crown
+  "Golden crown" gold + 3 pearls + cloth). The bench lists armor by `_RANK_ARMOR_MAT` (blocks/crafting-bench.js: steel, bronze,
+  iron, golden, leather, cloth). `ITEM.BOOK` 303 got its entry (materials.js) and recipe (5 paper, leather, string): no use yet,
+  it waits for the bookshelf (no art) and, after 0.9, a book of creatures met. Creature-table field `aggro` (seconds a
+  player's blow keeps it on them, damageEntity; tiger TIGER.aggro 25).
+- **0.8539.** The creature book (player/creature-book.js): `tryBookInteract` (first in _doPlace), `bookPrompt` (_interactText),
+  feats `mobs` (restoreFeats / serializeFeats, keys `bookKeyOf`: kind, 'fish:<species>', 'zombie:mummy'), XP_BOOK_MOB 5000 +
+  XP_BOOK_STEP 100 a kind written before; creature-table `book: false` (tumbleweed). `XP_KILL_MUL` 0.75 (mobKillXP).
+  `LOOT_BOOK_CHANCE` 0.25 in fillPendingLoot (every loot chest, whatever its table). Golden set `xpBonus` 0.10 (addXP);
+  golden recipes take bones. Beds: variant bit 6 `BED_FOREIGN` on every bed a structure lays (stampStructureSlice):
+  `isForeignBed`, blanket from `BED_PALE_BLANKETS` by a hash of the foot (`bedColorsOf`, set by registerBed and _bedPass),
+  no respawn point (trySleep), drops one wool (_blockDropOwn). Older worlds' village beds have no bit: they stay ordinary.
+  Station work: `_benchWork` makes mainHandBusy/offHandBusy; `_benchW` / `_benchT` (eased at the top of updateHands) pose
+  both first-person arms (`BENCH_ARM`, `BENCH_BEAT`; 40-shield.js mirrors it) and the body (`poseBodyWork`); a mortar grinds
+  (`benchWorkIsMortar`). Drop motes (49-particles.js `_fxDropMotes`): DROP_MOTE_RATE 2.6, rise ~1 block, all scaled by the time
+  left (`DROP_MOTE_LOW` at the end). The food balance plan: plans/FoodBalance.md (table maker `node toolsrc\food-table.js`).
+- **0.85391.** biomeRev 47 `CANE2` (worldgen/gen-setup.js): sugar cane on a sand/grass/dirt/gravel column whose top `h` equals a
+  side neighbour's water top (`H[n] < WLV[n] && WLV[n] === h`, and water there in the chunk's cells), any water but an oasis's
+  (its own pass, worldgen/ground-plants.js, same rule), standing from h + 1 (desert-and-shore-plants.js). Revs under 47 keep the
+  old rule (a column at WATER_LEVEL + 1, the cane taking its top block: the hole by the shore). Checked headless over 3 seeds
+  (scratchpad test-0.85391.js): every rev 47 stand on soil with flush water, none sunk, rev 46 unchanged.
+  0.85392: stripping by hand (woods/felling.js `tryStripLog` from _doPlace, `updateStripHold` from tickPlayer, `_stripProg` on the
+  ring): hatchet + right button held STRIP_HOLD_S 0.8 on a live log (placed ones too), `LOOT.barkStrip` [[1,1],[1,0.2]] a cell,
+  a 2x2 quarter strips its four (`_quadParts`, shared with _chopQuad), hatchet wear 1. An active shield takes the button; an
+  offhand torch does not (`_aimsToStrip` in placing.js keeps the main hand).
+  0.85393: the food numbers before the rework (plans/FoodBalance.md, its tables; items/food.js, FOOD_NUTRITION, blocks/mushrooms.js
+  `_grilled`). Raw food's nausea time is `foodEffectTime` per item. The user decided: the sandwich (stamina), the pie (its buff,
+  4.8 s), berries (fruit 6, 10 min), white and red berries, rotten flesh spoiling all stay; the rest waits for the 0.857 rework.
+  Also 0.85393: a food's `foodReturn` (bowl, bucket, bottle) goes into the emptied hand, else tryPickup, else thrown at your
+  feet (updateEating, player/eating.js). It took `HOTBAR.indexOf(null)`, which found the hidden slots past hotbarLen(): the item
+  vanished until an equipment change (syncBeltCapacity) spilled it. Anything that fills a hotbar slot counts to hotbarLen().
+- **0.85394, the world the workers make land for** (10-workers.js above `workerWorldId`). loadWorld sets currentWorld and then
+  awaits the save BEFORE resetWorld re-inits the workers: in that gap the stream still made the title backdrop's (or the last
+  world's) land with the same epoch, and onWorkerMessage stored it in the NEW world's terrain cache: backdrop columns near the
+  spawn, for good. Now initWorkers(seed, type, rev, worldId) keeps `workerWorldId` (resetWorld's 4th arg: loadWorld passes
+  w.id, the backdrop null); `genForWorld()` (chunks/stream.js) = it is the world shown; pump makes no chunk and
+  onWorkerMessage stores none unless it holds; updateBossLairs waits too. TERRAIN_KEY 'terrain85394:'; `terrainCachePurgeOld`
+  (16-worlds.js, 8 s after the database opens) deletes every 'terrain…' key of an older TERRAIN_KEY (each bump used to leave
+  them all, 256 KB a chunk). Anything new that sends land work to the workers checks genForWorld().
+- **0.85395.** The creature book is a hold: tryBookInteract starts `player._bookHold`, `updateBookHold` (tickPlayer, `_bookProg`
+  on the ring) writes after BOOK_HOLD_S 1 with the crosshair kept on it (`_bookWrite`). COW_BIOMES (0.85396): Plains, Warm
+  Plains, Savanna, Forest 1 (Deep Forest and the hills through _biomeWeight), Cold Plains 0.2.
+  0.85397: tigers `TIGER.chunkChance` 0.015, `TIGER.apart` 192 (entities/tiger.js).
 - **0.8484.** `ITEM.LOCK_PICK` 430 (useables.js; blocks/chest.js: useChest starts `player._unseal` with `pick`, updateChestUnseal
   takes `PICK_TIME_MUL` x as long, `_pickDone` rolls `PICK_OPEN` and `PICK_BREAK_WOOD` / `PICK_BREAK_METAL`; a seal picked is
   removed, a player's lock stays). `ITEM.JAM_SANDWICH` 431 (food.js; FOOD_NUTRITION fruit + `stamina`, now one of

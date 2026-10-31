@@ -123,7 +123,8 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               CARROT: 432,                         // off a ripe carrot plant (B.CARROT): vegetables, and a horse's best food
               COCOA_BEANS: 433,                    // out of a ripe cocoa pod on a jungle trunk (woods/cocoa.js)
               COCOA_POWDER: 434,                   // five cocoa beans ground at the mortar
-              WRENCH: 435 };                       // creative's debug stick: joins, turns, forces shapes (player/wrench.js)
+              WRENCH: 435,                         // creative's debug stick: joins, turns, forces shapes (player/wrench.js)
+              GOLDEN_GLOVES: 436 };                // the golden set's fifth piece (items/equipment.js)
 
 const ITEM_PROPS = {};
 // a group file's items into the table; each entry remembers its group

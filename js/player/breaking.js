@@ -126,6 +126,13 @@ function doBreak() {
     breakSlabMixHalf(hit.x, hit.y, hit.z, hit.bi ? 1 : 0);
     return;
   }
+  // ...and a corner's two ladders or vines the one aimed at (blocks/ladders.js)
+  const pv = getBlock(hit.x, hit.y, hit.z);
+  if (wallPaired(pv)) {
+    playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
+    setBlock(hit.x, hit.y, hit.z, wallSingle(pv, hit.bi ? 0 : 1));
+    return;
+  }
   const inf = layerBreakInfo(hit.x, hit.y, hit.z);
   playBlockSound(hit.id, 'break', hit.x, hit.y, hit.z);
   if (typeof fxBreak === 'function') fxBreak(hit.x, hit.y, hit.z, getBlock(hit.x, hit.y, hit.z));   // 0.8

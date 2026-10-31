@@ -183,6 +183,8 @@ const bossLairsInWorld = (boss) => { const K = lairKindOfBoss(boss); return !K |
    lair's boss put in his hall. */
 function updateBossLairs() {
   if (typeof mainGen === 'undefined' || !mainGen.rimeOpenAt) return;
+  // not while a world is opening: mainGen and the workers are still the last land's (genForWorld, chunks/stream.js)
+  if (typeof genForWorld === 'function' && !genForWorld()) return;
   const p = PLAYERS[0] && PLAYERS[0].spawned ? PLAYERS[0] : player;
   // a probe whose answer never came back: given up, its cell asks again
   for (const [id, pr] of _lairProbes)

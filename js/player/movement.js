@@ -66,29 +66,30 @@ function jumpTap() {
 }
 
 // standing on ground within 6cm below the feet? (box-aware: a slab's top counts)
-function ground1(x, y, z, feetY) {
+// (px, pz): the body's middle. A ladder's board counts only under the body: its top is at every block of a column, beside
+// whoever climbs in front of it (blocks/ladders.js)
+function ground1(x, y, z, feetY, px, pz) {
   const boxes = blockBoxes(x, y, z);
   if (!boxes) return false;
-  for (const b of boxes) if (Math.abs((y + b[4]) - feetY) < 0.08) return true;   // a box top near the feet
+  const R = player.R, board = !!ladderValAt(x, y, z);
+  for (const b of boxes)
+    if (Math.abs((y + b[4]) - feetY) < 0.08                                     // a box top near the feet
+        && (!board || (px - R < x + b[3] && px + R > x + b[0] && pz - R < z + b[5] && pz + R > z + b[2]))) return true;
   return false;
 }
 // ...and the cell below that too: a fence's collision stands 1.5 tall, so its top sits in the cell above
-const ground2 = (x, y, z, feetY) => ground1(x, y, z, feetY) || ground1(x, y - 1, z, feetY);
+const ground2 = (x, y, z, feetY, px, pz) => ground1(x, y, z, feetY, px, pz) || ground1(x, y - 1, z, feetY, px, pz);
 function onGround() {
-  const p = player.pos, R = player.R - 0.02, y = Math.floor(p.y - 0.06);
-  if (y < -1) return false;
-  return ground2(Math.floor(p.x - R), y, Math.floor(p.z - R), p.y) ||
-         ground2(Math.floor(p.x + R), y, Math.floor(p.z - R), p.y) ||
-         ground2(Math.floor(p.x - R), y, Math.floor(p.z + R), p.y) ||
-         ground2(Math.floor(p.x + R), y, Math.floor(p.z + R), p.y);
+  const p = player.pos;
+  return onGroundAt(p.x, p.y, p.z);
 }
 function onGroundAt(px, py, pz) {
   const R = player.R - 0.02, y = Math.floor(py - 0.06);
   if (y < -1) return false;
-  return ground2(Math.floor(px - R), y, Math.floor(pz - R), py) ||
-         ground2(Math.floor(px + R), y, Math.floor(pz - R), py) ||
-         ground2(Math.floor(px - R), y, Math.floor(pz + R), py) ||
-         ground2(Math.floor(px + R), y, Math.floor(pz + R), py);
+  return ground2(Math.floor(px - R), y, Math.floor(pz - R), py, px, pz) ||
+         ground2(Math.floor(px + R), y, Math.floor(pz - R), py, px, pz) ||
+         ground2(Math.floor(px - R), y, Math.floor(pz + R), py, px, pz) ||
+         ground2(Math.floor(px + R), y, Math.floor(pz + R), py, px, pz);
 }
 
 /* Soft-ground drag (per-layer since 0.696). Leaves, leaf litter and snow carpets are all
@@ -172,14 +173,43 @@ function playerInCobweb() {
   return false;
 }
 const CLIMB_SPEED = 2.6, CLIMB_SLIDE = 1.8;
-const CLIMB_LOOK_BONUS = 0.25;           // looking straight up/down: +25% climb/slide speed
+const CLIMB_LOOK_BONUS = 0.25;           // looking straight up: +25% climb speed
+// looking down, neither climbing nor holding on: the slide x(1 + CLIMB_LOOK_DOWN), all of it from CLIMB_DOWN_FULL of the
+// way down (about 40 degrees) and none level, so a glance down is enough
+const CLIMB_LOOK_DOWN = 1.5, CLIMB_DOWN_FROM = 0.1, CLIMB_DOWN_FULL = 0.45;   // x2.5: 4.5 blocks a second
+// on a climbable block (a vine) or a ladder (blocks/ladders.js)? `player._climbSide` keeps the side its back is on (bits 0-1)
 function playerOnClimbable() {
   const p = player.pos, R = player.R - 0.02;
   for (let y = Math.floor(p.y); y <= Math.floor(p.y + 1.2); y++)
     for (let z = Math.floor(p.z - R); z <= Math.floor(p.z + R); z++)
-      for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++)
-        if (PROPS[getBlock(x, y, z) & 255]?.climbable) return true;
+      for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++) {
+        const v = getBlock(x, y, z);
+        if (PROPS[v & 255]?.climbable || hasLadder(v)) { player._climbSide = _climbSideOf(v); return true; }
+        const r = railOverAt(x, y, z);                 // a ladder lying in a slab's or a plant's cell (blocks/rails.js)
+        if (r && isLadderVal(r)) { player._climbSide = ladderSideOf(r); return true; }
+      }
   return false;
+}
+// the side climbed: in a corner (two ladders or vines, blocks/ladders.js), the wall the player looks more toward
+function _climbSideOf(v) {
+  const sides = wallParts(v).map(p => (p >> 8) & 3);
+  if (sides.length < 2) return sides[0];
+  const off = (s) => { const d = player.yaw - _CLIMB_FACE[s]; return Math.abs(d - Math.round(d / (2 * Math.PI)) * 2 * Math.PI); };
+  return off(sides[0]) <= off(sides[1]) ? sides[0] : sides[1];
+}
+/* On a ladder or a vine, off the ground, the look is held toward it: turned further from facing it than CLIMB_LOOK_HOLD, or
+   CLIMB_LOOK_MOVE while climbing or sliding (`moving` 0..1 between them), it is pulled back, softly, CLIMB_LOOK_PULL a
+   second, so the mouse meets a give rather than a wall. */
+const CLIMB_LOOK_HOLD = 1.35, CLIMB_LOOK_MOVE = 0.8, CLIMB_LOOK_PULL = 12;
+const _CLIMB_FACE = [0, Math.PI, Math.PI / 2, -Math.PI / 2];   // the yaw looking at a side (0 -Z, 1 +Z, 2 -X, 3 +X)
+function clampClimbLook(dt, moving) {
+  const s = player._climbSide;
+  if (s == null) return;
+  const lim = CLIMB_LOOK_HOLD + (CLIMB_LOOK_MOVE - CLIMB_LOOK_HOLD) * moving;
+  let d = player.yaw - _CLIMB_FACE[s];
+  d -= Math.round(d / (2 * Math.PI)) * 2 * Math.PI;
+  const over = Math.abs(d) - lim;
+  if (over > 0) player.yaw -= Math.sign(d) * over * (1 - Math.exp(-CLIMB_LOOK_PULL * dt));
 }
 
 /* Wall climbing. In survival, jump and forward held against a wall pull you up it, at most
@@ -383,9 +413,10 @@ function raycastVoxel(origin, dir, maxDist) {
         const hit = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
         if (hit && hit.t <= tMax && (!best || hit.t < best.t)) { best = hit; bestI = bi; }
       }
-      // a mixed slab is the block of the half aimed at: its hardness, its sound, its name
+      // a mixed slab is the block of the half aimed at: its hardness, its sound, its name; a corner's ladder or vine the same
       const mix = typeof slabMixIdsAt === 'function' ? slabMixIdsAt(x, y, z, b) : null;
-      if (best && (!ph || best.t <= ph.t) && (!jh || best.t <= jh.t)) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: mix ? mix[bestI] & 255 : id, bi: bestI, t: best.t };
+      const hid = mix ? mix[bestI] & 255 : wallPaired(b) ? wallSingle(b, bestI) & 255 : id;
+      if (best && (!ph || best.t <= ph.t) && (!jh || best.t <= jh.t)) return { x, y, z, nx: best.nx, ny: best.ny, nz: best.nz, id: hid, bi: bestI, t: best.t };
       // no box hit in this cell -> keep traversing
     }
     if (ph && (!jh || ph.t <= jh.t)) return { x, y, z, nx: ph.nx, ny: ph.ny, nz: ph.nz, id: overValAt(x, y, z, phBi) & 255, bi: phBi, over: true, t: ph.t };

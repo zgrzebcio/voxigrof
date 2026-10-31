@@ -136,7 +136,9 @@ function buildCow(bodyHex = COW_COATS.holstein.body, spotHex = COW_COATS.holstei
 const COW_HP = 60;
 const COW_SPEED = 1.7, COW_FLEE_SPEED = 4.4;
 const COW_FLEE_TIME = 6;
-const COW_BIOMES = { 'Plains': 1, 'Cold Plains': 1, 'Savanna': 0.4 };   // flat land, mild to cool; a few on the Savanna's grass
+// the mild and the warm plains, the Savanna and the oak forests, now and then the cold plains (a Deep Forest and the hills
+// count as their own: _biomeWeight, entities/spawning.js)
+const COW_BIOMES = { 'Plains': 1, 'Warm Plains': 1, 'Savanna': 1, 'Forest': 1, 'Cold Plains': 0.2 };
 const COW_CHUNK_CHANCE = 0.010;          // a herd in about 1 new chunk in 100, before the biome's weight
 const COW_HERD_MIN = 2, COW_HERD_MAX = 4;
 

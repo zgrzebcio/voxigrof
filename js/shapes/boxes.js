@@ -21,10 +21,12 @@ corePart('blocks', function () {
   SHAPE_FAMILY[SHAPE_PLATE     >> 4] = 'plate';  // the pressure plate
   SHAPE_FAMILY[SHAPE_SIGN      >> 4] = 'sign';
   SHAPE_FAMILY[SHAPE_GATE      >> 4] = 'gate';   // a fence or a wall made a gate (blocks/gates.js)
+  SHAPE_FAMILY[SHAPE_LADDER    >> 4] = 'ladder'; // ...and the slope: the same nibble with SLOPE_BIT (below)
   function shapeOfVal(v) {
     const va = (v >> 8) & 255, p = PROPS[v & 255];
     if (!va || !p || !p.shapes) return null;
-    const fam = SHAPE_FAMILY[va >> 4];
+    let fam = SHAPE_FAMILY[va >> 4];
+    if (fam === 'ladder' && (va & SLOPE_BIT)) fam = 'slope';
     return fam && p.shapes[fam] ? fam : null;
   }
   const isDoorVal = (v) => shapeOfVal(v) === 'door';   // 0.842
@@ -118,7 +120,7 @@ corePart('blocks', function () {
     const n = g(x, y, z), s = shapeOfVal(n);
     if (!rl || s === 'fence' || s === 'wall' || s === 'gate') return [n, 0];
     const r = rl(x, y, z);
-    return r ? [r, railLift(n, r)] : [n, 0];
+    return r && isJoinFamily(shapeOfVal(r)) ? [r, railLift(n, r)] : [n, 0];   // a ladder lying there is not joined
   }
   /* WHAT A FENCE OR A WALL JOINS: { j: an arm on its own level toward each of FENCE_DIRS, steps: [[d, dy], ...] the straight
      sides it joins with a slope rising dy blocks over a block }. `lift`: how high it stands (a rail on a slab or a step).
@@ -321,19 +323,26 @@ corePart('blocks', function () {
        a fence in a top or a vertical slab          from the cell's floor, half of it inside the slab: posts under a top slab,
                                                     a half block with a fence's pattern on its face
        a wall in upright stairs                     along one side of them (WALL_BACK | facing toward it), RAIL_LIFT up
+       a ladder in a slab, stairs, a carpet or a layer stack, a plant   against its wall as anywhere, through what the cell
+                                                    holds (its boxes are a ladder's own: LADDER_BOX drawn, the page's crosshair
+                                                    and collision LADDER_PICK and LADDER_COLL, blocks/rails.js)
      railHostOk: may `host` hold the rail `rail`; railLift: how high it stands there. One from the floor is kept RAIL_EPS
      inside its cell (none of its faces on the slab's: they flickered), and collides no higher than its cell (it would stand
      up through the slab's top). */
   const RAIL_LIFT = 0.5, RAIL_EPS = 1 / 256;
   function railHostOk(host, rail) {
-    const hs = shapeOfVal(host), rs = shapeOfVal(rail), hva = (host >> 8) & 255;
+    const hs = shapeOfVal(host), rs = shapeOfVal(rail), hva = (host >> 8) & 255, hp = PROPS[host & 255];
     if (rs === 'fence') return hs === 'slab' || (hs === 'stairs' && !(hva & 4));
     if (rs === 'wall') return hs === 'stairs' && !(hva & 4);
+    if (rs === 'ladder') return !!hp && !!(host & 255) && (hs === 'slab' || hs === 'stairs' || hs === 'layer'
+                                                          || (!hs && hp.model === 'cross' && !hp.solid));
     return false;
   }
-  const railLift = (host, rail) => shapeOfVal(host) === 'slab' && (((host >> 8) & 255) & ROT_MASK) !== 0 ? 0 : RAIL_LIFT;
+  const railLift = (host, rail) => shapeOfVal(rail) === 'ladder' ? 0
+                                 : shapeOfVal(host) === 'slab' && (((host >> 8) & 255) & ROT_MASK) !== 0 ? 0 : RAIL_LIFT;
   function railOverBoxes(g, x, y, z, rail, coll, rl) {
     const s = shapeOfVal(rail), lift = railLift(g(x, y, z), rail);
+    if (s === 'ladder') return (coll ? LADDER_COLL : LADDER_BOX)[((rail >> 8) & 255) & 3];
     if (s !== 'fence' && s !== 'wall') return null;
     const bx = s === 'fence' ? joinBoxesAt(FENCE_SPEC, 'fence', SHAPE_FENCE, g, x, y, z, rail, coll && lift > 0, rl, lift)
                              : joinBoxesAt(WALL_SPEC, 'wall', SHAPE_WALL, g, x, y, z, rail, coll && lift > 0, rl, lift);
@@ -362,7 +371,7 @@ corePart('blocks', function () {
      more than the usual one, so a slab roof shades what is under it and a stack of layers darkens by its depth.
      The cell itself keeps the light that reached it, so a slab's own top still reads as lit. Glass, leaves and
      the like are see-through as full blocks and stay so as shapes. */
-  const SHAPE_DIM = { slab: 4, stairs: 6, pane: 2, fence: 1, wall: 2, cover: 2, gate: 1 };
+  const SHAPE_DIM = { slab: 4, stairs: 6, pane: 2, fence: 1, wall: 2, cover: 2, gate: 1, slope: 4 };
   const lightDim = (v) => {
     const va = (v >> 8) & 255;
     if (!va) return 0;
@@ -375,6 +384,95 @@ corePart('blocks', function () {
     const s = shapeOfVal(v);
     return s ? (SHAPE_DIM[s] || 0) : 0;
   };
+  /* LADDER: two rails and four rungs against the side its back is on (bits 0-1; authored here against -Z, side 0), like wall
+     bars: stout rails, thin round rungs. What collides is a thin board at its back, LADDER_COLL (a body
+     stands in front of it and climbs: player/movement.js; creatures too, entities/physics.js). The crosshair takes it as
+     one board, LADDER_PICK (rayBoxesAt, chunks/block-access.js), so a click between the rungs never reaches the block
+     behind. With WALL_PAIR (bit 2, blocks/glow-and-storage.js) a second ladder stands on the next side round, in the
+     corner: its rails and rungs stop at the first one's front, and its pick board is the second (bi 1). */
+  /* Wall bars: the two posts narrow to the front (RAIL_W) and deep to the side, from half a sixteenth off the wall out to
+     LADDER_DEPTH; the rungs thin dowels (RUNG_T square) through the posts' sides at the middle of their depth, out a
+     sixteenth past them on both sides (in 16ths; LADDER_COLL_T: the board a body runs into) */
+  const LADDER_DEPTH = 3.5, LADDER_COLL_T = 3.5, RUNG_T = 1, RAIL_W = 1.5;
+  const _rungZ = (0.5 + LADDER_DEPTH - RUNG_T) / 2;          // the rung's front-to-back place: the posts' middle
+  const _LADDER_AUTH = [[1.5, 0, 0.5, 1.5 + RAIL_W, 16, LADDER_DEPTH], [14.5 - RAIL_W, 0, 0.5, 14.5, 16, LADDER_DEPTH],
+                        ...[2, 6, 10, 14].map(y => [0.5, y, _rungZ, 15.5, y + RUNG_T, _rungZ + RUNG_T])];
+  const _ladderTurn = (b, s) => s === 0 ? b : s === 1 ? _mirZ(b) : s === 2 ? _swapXZ(b) : _mirX(_swapXZ(b));
+  /* the boxes of side s, and in a corner the second ladder's: `cut` = the ones cut back to the first one's front (one cut to
+     nothing, the second's post in the corner, is left out: the first's post stands there) */
+  const _ladderSet = (auth, cut) => {
+    const out = [];
+    for (let va = 0; va < 8; va++) {
+      const s = va & 3, one = auth.map(b => _ladderTurn(b, s));
+      if (va & WALL_PAIR) {
+        const n = WALL_NEXT[s];
+        auth.forEach((b, i) => {
+          const c = cut(i) ? wallClip(_ladderTurn(b, n), s, LADDER_DEPTH, 16) : _ladderTurn(b, n);
+          if (c[0] < c[3] && c[1] < c[4] && c[2] < c[5]) one.push(c);
+        });
+      }
+      out[va] = one.map(_s16);
+    }
+    return out;
+  };
+  const LADDER_BOX = _ladderSet(_LADDER_AUTH, () => true);   // the second's rails too: they would stand in the first's
+  const LADDER_PICK = _ladderSet([[0.5, 0, 0, 15.5, 16, LADDER_DEPTH]], () => true);
+  const LADDER_COLL = _ladderSet([[0, 0, 0, 16, 16, LADDER_COLL_T]], () => false);
+  /* A CORNER OF TWO DIFFERENT BLOCKS: an oak ladder and an iron one, a ladder and a vine, a vine and a glow vine. The cell is
+     the one block (its id, look, variant: a ladder's shape, or a vine's side, with WALL_PAIR); bits 25-29 (WALL_MATE_SHIFT)
+     name the other from WALL_MATES (0: the same block as the cell's, as above), always its plain block; bit 30
+     (WALL_MATE_FIRST) puts that other one on the corner's first side and the cell's own on the second. Nothing else in a
+     ladder's or a vine's cell uses those bits. WALL_MATES' numbers are in the saves: append only. A ladder beside a vine
+     never overlaps it, so only two ladders cut the second back (the halves of the corner sets above). */
+  const WALL_MATE_SHIFT = 25, WALL_MATE_FIRST = 1 << 30;
+  const WALL_MATES = [0, B.VINE, B.GLOW_VINE, B.PLANKS, B.BIRCH_PLANKS, B.SPRUCE_PLANKS, B.RIME_PLANKS, B.PALM_PLANKS,
+                      B.ACACIA_PLANKS, B.JUNGLE_PLANKS, B.IRON_BLOCK, B.STONE, B.COBBLE, B.GRANITE, B.MARBLE, B.LIMESTONE,
+                      B.DOLOMITE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE];
+  // a ladder or a vine plate (blocks/glow-and-storage.js) as a cell value
+  const isWallPlateVal = (v) => shapeOfVal(v) === 'ladder' || PROPS[v & 255]?.model === 'wall';
+  // the other block of a corner of two (its WALL_MATES number), 0 for none
+  const wallMateOf = (v) => isWallPlateVal(v) && (((v >> 8) & 255) & WALL_PAIR) ? (v >>> WALL_MATE_SHIFT) & 31 : 0;
+  // plate block `id` alone on `side`: a vine's (or glow vine's) side, or a ladder of that block
+  const wallPlateVal = (id, side) => (PROPS[id]?.model === 'wall' ? id | (side << 8) : id | ((SHAPE_LADDER | side) << 8)) >>> 0;
+  // a corner's two, each as a value alone, in side order (its first side, then the one a quarter round); the cell's own
+  // keeps its look, water and paid need
+  function wallPairParts(v) {
+    const s = (v >> 8) & 3, n = WALL_NEXT[s], m = (v >>> WALL_MATE_SHIFT) & 31;
+    const own = (v & ~(7 << 8) & ~(31 << WALL_MATE_SHIFT) & ~WALL_MATE_FIRST) >>> 0;
+    if (!m) return [(own | (s << 8)) >>> 0, (own | (n << 8)) >>> 0];
+    return (v & WALL_MATE_FIRST) ? [wallPlateVal(WALL_MATES[m], s), (own | (n << 8)) >>> 0]
+                                 : [(own | (s << 8)) >>> 0, wallPlateVal(WALL_MATES[m], n)];
+  }
+  // ...and their boxes, [first's, second's]: kind 0 drawn, 1 the crosshair's, 2 collision
+  // (the first ladder's boxes are all there, as many as authored; the rest are the second's)
+  const _LADDER_HALVES = [[LADDER_BOX, _LADDER_AUTH.length], [LADDER_PICK, 1], [LADDER_COLL, 1]].map(([set, h]) =>
+    [0, 1, 2, 3].map(s => { const all = set[WALL_PAIR | s]; return [all.slice(0, h), all.slice(h)]; }));
+  function wallPairBoxes(v, kind) {
+    const s = (v >> 8) & 3, n = WALL_NEXT[s], [a, b] = wallPairParts(v);
+    const la = shapeOfVal(a) === 'ladder', lb = shapeOfVal(b) === 'ladder', LS = [LADDER_BOX, LADDER_PICK, LADDER_COLL][kind];
+    if (la && lb) return _LADDER_HALVES[kind][s];
+    const vine = (k) => kind === 2 ? NO_BOXES : [WALL_VAR[WALL_PAIR | s][k]];   // two vines: the second cut back
+    if (!la && !lb) return [vine(0), vine(1)];
+    return [la ? LS[s] : kind === 2 ? NO_BOXES : WALL_VAR[s], lb ? LS[n] : kind === 2 ? NO_BOXES : WALL_VAR[n]];
+  }
+  /* SLOPE: a wedge (its slanted face is drawn by the mesher, emitSlope in chunks/mesher-models.js). As boxes it is steps,
+     SLOPE_STEPS of them for the crosshair and SLOPE_COLL_STEPS for what stands on it, each as high as the wedge at its
+     middle, rising away from its facing (stairs' way: facing 0 has its low edge at +Z); upside down they hang from the top. */
+  const SLOPE_STEPS = 8, SLOPE_COLL_STEPS = 16;
+  const _slopeBoxes = (va, n) => {
+    const f = va & 3, flip = va & 4, out = [];
+    for (let k = 0; k < n; k++) {
+      const a = k / n, b = (k + 1) / n, h = 1 - (k + 0.5) / n;   // a..b: from the high side down; h: the height there
+      const y0 = flip ? 1 - h : 0, y1 = flip ? 1 : h;
+      out.push(f === 0 ? [0, y0, a, 1, y1, b] : f === 1 ? [0, y0, 1 - b, 1, y1, 1 - a]
+             : f === 2 ? [a, y0, 0, b, y1, 1] : [1 - b, y0, 0, 1 - a, y1, 1]);
+    }
+    return out;
+  };
+  const SLOPE_BOX = [], SLOPE_COLL = [];
+  for (let r = 0; r < 8; r++) { SLOPE_BOX[r] = _slopeBoxes(r, SLOPE_STEPS); SLOPE_COLL[r] = _slopeBoxes(r, SLOPE_COLL_STEPS); }
+  // a slope's way down, unit [dx, dz] (its facing's: STAIR_DIR), or null: anything else, or one hung upside down
+  const slopeDownOf = (v) => { const va = (v >> 8) & 255; return shapeOfVal(v) === 'slope' && !(va & 4) ? STAIR_DIR[va & 3] : null; };
   // the boxes a shaped value fills — mesh, collision and raycast all ask here — or null when it is not shaped
   // coll: the collision set, where it differs (a fence stands 1.5 tall to anything walking into it)
   // rl: the rails lying in other cells (joinBoxesAt), for a fence's or a wall's joins
@@ -393,6 +491,11 @@ corePart('blocks', function () {
     if (s === 'door')  return doorBoxes(va);                                      // 0.842
     if (s === 'plate') return coll ? NO_BOXES : PLATE_BOX[va & PLATE_PRESSED];    // walked over, never into
     if (s === 'sign')  return coll ? NO_BOXES : (SIGN_BOX[(va >> 2) & 3] || SIGN_BOX[0])[va & 3];   // walked through
+    if (s === 'ladder') {                                                          // a thin board at its back collides
+      if (wallMateOf(v)) { const [a, b] = wallPairBoxes(v, coll ? 2 : 0); return a.concat(b); }   // a corner of two blocks
+      return (coll ? LADDER_COLL : LADDER_BOX)[va & 7];
+    }
+    if (s === 'slope')  return (coll ? SLOPE_COLL : SLOPE_BOX)[va & 7];
     return stairBoxesAt(g, x, y, z, v);
   }
   /* A PRESSURE PLATE LYING IN ANOTHER BLOCK'S CELL (the page keeps it beside the cell: PLATE_OVER, blocks/pressure-plates.js).

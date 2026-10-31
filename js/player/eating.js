@@ -101,24 +101,18 @@ function updateEating(dt, wantPlace) {
       slot.count--;
       if (slot.count <= 0) HOTBAR[hotbarSel] = null;
       if (typeof feedItem === 'function') feedItem(id, -1, 'eaten');
-      // give back container item (e.g. bowl from mushroom stew), as often as its foodReturnChance: a bowl half the time
+      /* give back container item (e.g. bowl from mushroom stew), as often as its foodReturnChance: a bowl half the time.
+         Into the hand that held the last one, else wherever a pickup goes (tryPickup: only the hotbar slots in use, never
+         the hidden ones past hotbarLen, where it sat unseen until an equipment change spilled it), else dropped at your feet. */
       const returnId = Math.random() < (fp.foodReturnChance ?? 1) ? fp.foodReturn : null;
       if (returnId != null) {
-        const cap = stackSize(returnId);
-        let placed = false;
-        for (let k = 0; k < hotbarLen() && !placed; k++) {
-          const s = HOTBAR[k]; if (s && s.id === returnId && s.count < cap) { s.count++; placed = true; }
+        if (!HOTBAR[hotbarSel]) {
+          HOTBAR[hotbarSel] = mkSlot(returnId, 1);
+          if (typeof feedItem === 'function') feedItem(returnId, 1, 'emptied');
+        } else if (!tryPickup(returnId, null, 'emptied')) {
+          throwFromPlayer(returnId, 1);
+          if (typeof feedWarn === 'function') feedWarn(`Inventory full: the ${(ITEM_PROPS[returnId]?.name || 'bowl').toLowerCase()} dropped`);
         }
-        if (!placed) for (let k = 0; k < invSlots.length && !placed; k++) {
-          const s = invSlots[k]; if (s && s.id === returnId && s.count < cap) { s.count++; placed = true; }
-        }
-        if (!placed) {
-          const fh = HOTBAR.indexOf(null), fi = invSlots.indexOf(null);
-          if (fh >= 0) HOTBAR[fh] = mkSlot(returnId, 1), placed = true;
-          else if (fi >= 0) invSlots[fi] = mkSlot(returnId, 1), placed = true;
-          else toast(`inventory full — ${(ITEM_PROPS[returnId]?.name || 'bowl').toLowerCase()} lost`);   // a bottle too
-        }
-        if (placed && typeof feedItem === 'function') feedItem(returnId, 1, 'emptied');
       }
       saveHotbar(); buildHotbar(); vitalsDirty = true;
     }

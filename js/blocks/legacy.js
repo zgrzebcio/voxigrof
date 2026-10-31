@@ -12,7 +12,7 @@ const LEGACY_SHAPE = {
   35: [_STONE_BRICK, 0], 36: [B.STONE, 0], 37: [0, 0], 38: [B.GLASS, 0],
   113: [B.STONE, 1], 114: [B.COBBLE, 1], 115: [B.BIRCH_PLANKS, 0], 116: [B.BIRCH_PLANKS, 1],
   117: [B.SPRUCE_PLANKS, 0], 118: [B.SPRUCE_PLANKS, 1], 119: [_STONE_BRICK, 1], 120: [B.GLASS, 1],
-  121: [B.SANDSTONE, 0], 122: [B.SANDSTONE, 1], 123: [B.RED_SANDSTONE, 0], 124: [B.RED_SANDSTONE, 1],
+  122: [B.SANDSTONE, 1], 123: [B.RED_SANDSTONE, 0], 124: [B.RED_SANDSTONE, 1],
 };
 function migrateLegacyVal(v) {
   /* the old oak door (B.DOOR, until 0.842; variant bits 0-3 as the door shape's, bit 4 hinged right) is an oak planks door
@@ -21,6 +21,11 @@ function migrateLegacyVal(v) {
     const va = (v >> 8) & 255;
     return (B.PLANKS | ((((va & 16) ? BLOCKS.SHAPE_DOOR_R : BLOCKS.SHAPE_DOOR) | (va & 15)) << 8)) >>> 0;
   }
+  /* the old ladder block (B.LADDER, until 0.853; variant bits 0-1 the side it hung on) is an oak planks ladder shape now, on
+     the same side. Its id was the sandstone slab's before 0.783, which was read here as one: a ladder of a save from the
+     years between came back as a slab, so the ladder wins */
+  if (typeof v === 'number' && (v & 255) === B.LADDER)
+    return ((B.PLANKS | ((SHAPE_LADDER | ((v >> 8) & 3)) << 8)) | (v & CORE.WATERLOGGED)) >>> 0;
   const m = typeof v === 'number' ? LEGACY_SHAPE[v & 255] : null;
   if (!m) return v;
   if (!m[0]) return 0;
@@ -65,7 +70,8 @@ function migrateBerryVal(v) {
 const migrateLookEntry = (e) => { const nv = CORE.LOOK_OF_OLD_ID[e & 255]; return nv == null ? e : stackEntry(nv); };
 // an old slab or stairs item in a slot: the full block it was made from (null for the cactus slab)
 // ...and since 0.794 a stone brick item (id 34) is plain stone: brick is a look you pick (blocks/variants.js), not an item
+// ...and since 0.853 an old ladder item is oak planks: a ladder is a hammer shape of its block now
 const legacyItemId = (id) => {
   if (typeof id === 'number' && id < 256 && LEGACY_SHAPE[id]) id = (LEGACY_SHAPE[id][0] & 255) || null;
-  return id === 34 ? B.STONE : id;
+  return id === 34 ? B.STONE : id === B.LADDER ? B.PLANKS : id;
 };

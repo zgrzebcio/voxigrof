@@ -47,7 +47,7 @@ const SKILLS = [
     desc: 'Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein' },   // hunger and oxygen until 0.828
   // wall climbing goes a block higher and costs 30% less stamina
   { id: 'climber',     cat: 'survival', name: 'Climber',        cost: 1, req: ['slowBurner'],
-    desc: 'Climb a bare wall one block higher, for 30% less stamina' },
+    desc: 'Climb a bare wall one block higher; climbing walls, ladders and vines takes 30% less stamina' },
   { id: 'canopy',      cat: 'survival', name: 'Canopy Forager', cost: 1, req: ['grassWeaver'],
     desc: '30% better chance of sticks, saplings and apples from leaves' },
   { id: 'timberShake', cat: 'survival', name: 'Timber Shaker',  cost: 1, req: ['canopy'],
@@ -141,7 +141,7 @@ const skillLeafMul   = () => hasSkill('canopy') ? 1.3 : 1;          // Canopy Fo
 const skillFiberMul  = () => hasSkill('grassWeaver') ? 1.4 : 1;     // Grass Weaver: fiber chances (1.3 until 0.8441)
 const skillHazardMul = () => hasSkill('hazardHide') ? 0.7 : 1;      // Hazard Hide: fall, cactus, fire, lava
 const skillSightMul  = () => hasSkill('clearEyes') ? 0.7 : 1;       // Clear Eyes: how strongly fog, blur, sway, shake work
-const skillClimbMul  = () => hasSkill('climber') ? 0.7 : 1;         // Climber: wall-climb stamina
+const skillClimbMul  = () => hasSkill('climber') ? 0.7 : 1;         // Climber: climbing stamina, a wall, a ladder or a vine
 const skillClimbExtra = () => hasSkill('climber') ? 1 : 0;          // ...and one block more of wall
 const ORE_BLOCKS = new Set([B.COAL_ORE, B.IRON_ORE, B.COPPER_ORE, B.TIN_ORE, B.GOLD_ORE, B.DIAMOND_ORE,
                             B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, B.TOPAZ_ORE]);

@@ -1,7 +1,8 @@
 'use strict';
 /* woods/vines.js: the jungle's vines. B.VINE (blocks/glow-and-storage.js) is a thin plate against what it hangs on, like the
-   glow vine: its variant bits 0-1 the side that is on (0 -Z, 1 +Z, 2 -X, 3 +X). Its look 1 (blocks/looks.js) is the half-cut
-   vine: shears stopped it, and it never grows again.
+   glow vine: its variant bits 0-1 the side that is on (0 -Z, 1 +Z, 2 -X, 3 +X), bit 2 (WALL_PAIR) a second one on the other
+   wall of a corner (tryWallPair, blocks/ladders.js). Its look 1 (blocks/looks.js) is the half-cut vine: shears stopped it,
+   and it never grows again.
    - Where: the world generator hangs strands on the giant jungle trees from biomeRev 45 (woods/jungle-trees.js: down the
      2x2 trunk's sides and from the edges of its leaves); a giant grown from a sapling gets them too. A player puts one on
      the side of a solid block, as the glow vine (player/place-block.js).
@@ -25,15 +26,25 @@ let _vineLookT = 0, _vineT = 0;
 const _vineKey = (x, y, z) => x + ',' + y + ',' + z;
 const _vineLife = () => VINE_GROW_DAYS * (0.7 + Math.random() * 0.6) * _dayLen();
 const isVineVal = (v) => (v & 255) === B.VINE;
-const _vineWall = (v) => (v >> 8) & 3;
+// a cell with a vine in it: its own, or one of a corner's two (the other a ladder or a vine: blocks/ladders.js)
+const _hasVine = (v) => wallParts(v).some(isVineVal);
 // a cell a vine can hang on: anything solid, a log of any width, leaves
 function _vineHolds(v) {
   const id = v & 255;
   return id !== B.AIR && id !== B.VINE && (CORE.solidVal(v) || LEAF_BLOCKS.has(id) || PROPS[id]?.model === 'log');
 }
-function vineHeld(x, y, z, v) {
-  const d = VINE_TO_WALL[_vineWall(v)];
-  return _vineHolds(getBlock(x + d[0], y, z + d[1])) || isVineVal(getBlock(x, y + 1, z));
+const _vineWallHolds = (x, y, z, w) => _vineHolds(getBlock(x + VINE_TO_WALL[w][0], y, z + VINE_TO_WALL[w][1]));
+// is the vine `p` (one alone, or a corner's one, as a value alone) held at (x, y, z)? By its wall, or a vine over it
+const _vinePartHeld = (x, y, z, p) => _vineWallHolds(x, y, z, (p >> 8) & 3) || _hasVine(getBlock(x, y + 1, z));
+/* the vines of the cell (x, y, z) that nothing holds come off, each alone (a corner's other one stays, a ladder beside one
+   too); true when one did */
+function _vineSettle(x, y, z) {
+  const v = getBlock(x, y, z), parts = wallParts(v);
+  const off = parts.map(p => isVineVal(p) && !_vinePartHeld(x, y, z, p));
+  if (!off.some(Boolean)) return false;
+  if (off.every(Boolean)) _vineDrop(x, y, z, v);
+  else { VINE_TIPS.delete(_vineKey(x, y, z)); wallPartOff(x, y, z, off.indexOf(true), true); }
+  return true;
 }
 // a growing tip: an uncut vine with air under it
 const _vineTip = (x, y, z, v) => isVineVal(v) && lookOf(v) !== VINE_CUT && (getBlock(x, y - 1, z) & 255) === B.AIR;
@@ -54,14 +65,15 @@ function vineChanged(x, y, z, oldVal, val) {
     VINE_TIPS.delete(_vineKey(x, y + 1, z));
     return;
   }
-  if (!(isVineVal(oldVal) || _vineHolds(oldVal)) || _vineHolds(val)) return;
+  if (!(_hasVine(oldVal) || _vineHolds(oldVal)) || _vineHolds(val)) return;
   VINE_TIPS.delete(_vineKey(x, y, z));
+  // the vines beside it whose wall this was, each alone (a corner's other one, or its ladder, stays)
   for (let w = 0; w < 4; w++) {
-    const d = VINE_TO_WALL[w], nx = x - d[0], nz = z - d[1], nv = getBlock(nx, y, nz);
-    if (isVineVal(nv) && _vineWall(nv) === w && !vineHeld(nx, y, nz, nv)) _vineDrop(nx, y, nz, nv);
+    const d = VINE_TO_WALL[w], nx = x - d[0], nz = z - d[1];
+    if (wallParts(getBlock(nx, y, nz)).some(p => isVineVal(p) && ((p >> 8) & 3) === w)) _vineSettle(nx, y, nz);
   }
-  const below = getBlock(x, y - 1, z);
-  if (isVineVal(below) && !vineHeld(x, y - 1, z, below)) _vineDrop(x, y - 1, z, below);
+  // ...and the ones under it it held
+  if (_hasVine(getBlock(x, y - 1, z)) && _vineSettle(x, y - 1, z)) { /* the strand under it comes down cell by cell */ }
   // a cell opened under a strand: its lowest vine grows again
   else if (y < WORLD_TOP && (val & 255) === B.AIR) {
     const above = getBlock(x, y + 1, z);
@@ -110,7 +122,9 @@ function updateVines(dt) {
     VINE_TIPS.delete(k);
     // a block over the ground at the least, and no longer than VINE_MAX
     if (y < 2 || (getBlock(x, y - 2, z) & 255) !== B.AIR || _vineLength(x, y, z) >= VINE_MAX) continue;
-    setBlock(x, y - 1, z, (B.VINE | (_vineWall(v) << 8)) >>> 0);   // vineChanged makes it the tip
+    // two vines in a corner grow on as two; one beside a ladder or a glow vine alone; vineChanged makes it the tip
+    const vs = wallParts(v).filter(isVineVal);
+    setBlock(x, y - 1, z, (B.VINE | ((vs.length > 1 ? (v >> 8) & 7 : (vs[0] >> 8) & 3) << 8)) >>> 0);
   }
 }
 /* Shears on a vine (from _doPlace, player/place-block.js): the cell turns half cut and stops growing; every vine hanging
@@ -121,6 +135,7 @@ function tryCutVine(hit) {
   if (held == null || held < 256 || ITEM_PROPS[held]?.tool !== 'shears') return false;
   if (act && act.place) return true;                          // one cut a press
   const { x, y, z } = hit, v = getBlock(x, y, z);
+  if (!isVineVal(v)) return false;                            // a vine beside a ladder in its cell: the plain one only
   if (lookOf(v) === VINE_CUT) return true;
   let bottom = y;
   while (bottom > 0 && isVineVal(getBlock(x, bottom - 1, z))) bottom--;

@@ -9,30 +9,18 @@ const PLAYER_EFFECTS = [];
    the home for genuine TIMED effects; nothing produces one yet. */
 function activeEffects() {
   const out = [];
-  // cold or hot first, then sneaking and climbing: they last as long as the state does
+  // cold or hot first, then sneaking and climbing, a creature worn, a taming, a ride: they last as long as the state does
   for (const s of stateEffects()) {
     const d = EFFECT_DEFS[s.id];
-    out.push({ name: d.name, time: Infinity, good: d.good, desc: s.desc || d.desc, lasts: d.lasts });
+    out.push({ id: s.id, name: s.name || d.name, time: Infinity, good: d.good, desc: s.desc || d.desc, lasts: d.lasts });
   }
   const b = armorSetBonus();
   if (b) out.push({ name: b.name, time: Infinity, good: b.good, desc: b.desc });
-  /* a creature worn, and what it gives by its level and its taming (entities/otter.js, entities/meerkat.js): listed here
-     for as long as it is worn, not on the effect bar by the hotbar (no icon) */
-  const _pc = (v) => (Math.round(v * 1000) / 10).toFixed(1) + '%';
-  const ot = player._wornOtter, mk = player._wornMeerkat;
-  if (ot && typeof otterScarfCold === 'function')
-    out.push({ name: `${ot.name} round your neck`, time: Infinity, good: true, lasts: 'Lasts while it is round your neck',
-               desc: `Cold resistance +${_pc(otterScarfCold())}: 10%, 0.2% a level (level ${ot.level || 1}), and up to 5% by ` +
-                     `its taming (effectiveness ${Math.round((ot.eff > 0 ? ot.eff : 1) * 100)}%).` });
-  if (mk && typeof meerkatReachBonus === 'function')
-    out.push({ name: `${mk.name} on your shoulder`, time: Infinity, good: true, lasts: 'Lasts while it is on your shoulder',
-               desc: `Item pickup range and foraging reach +${_pc(meerkatReachBonus(player))}: 10%, 0.3% a level (level ` +
-                     `${mk.level || 1}), and up to 5% by its taming (effectiveness ${Math.round((mk.eff > 0 ? mk.eff : 1) * 100)}%).` });
   /* boss boost (entities/frozen-king.js): for good, through death too. Listed here with what it gives; not on the effect
      bar by the hotbar, which is for what comes and goes */
   if (typeof bossBoostLevel === 'function' && bossBoostLevel() > 0) {
     const lv = bossBoostLevel(), d = EFFECT_DEFS.bossBoost;
-    out.push({ name: `${d.name} x${lv}`, time: Infinity, good: true, lasts: d.lasts,
+    out.push({ id: 'bossBoost', name: `${d.name} x${lv}`, time: Infinity, good: true, lasts: d.lasts,
                desc: `XP +${Math.round((bossXpMul() - 1) * 100)}% (x${bossXpMul().toFixed(1)}) on everything you earn. ` +
                      `${lv} stack${lv > 1 ? 's' : ''} of ${BOSS_BOOST_MAX}, +${Math.round(BOSS_BOOST_STEP * 100)}% each, one for each kind of boss defeated: ${bossBoostNames().join(', ')}.` });
   }
@@ -41,56 +29,70 @@ function activeEffects() {
     const d = EFFECT_DEFS[e.id];
     // an aura's effect (the Frozen King's curse) has no clock to read: it says what keeps it instead
     // ...and one in stacks (the summer curse) says how many, and what they come to
-    if (d) out.push({ name: d.name + (e.stacks > 1 ? ` x${e.stacks}` : ''), time: d.aura ? Infinity : Math.ceil(e.left), good: d.good,
+    if (d) out.push({ id: e.id, name: d.name + (e.stacks > 1 ? ` x${e.stacks}` : ''), time: d.aura ? Infinity : Math.ceil(e.left), good: d.good,
                       desc: d.stackDesc && e.stacks ? d.stackDesc(e.stacks) : d.desc, lasts: d.lasts });
   }
   return out;
+}
+/* AN EFFECT'S ICON: its `img`, a picture in EFFECT_ICON_DIR by folder (Animals, Boost, Curse, Debuff, Food, Skills,
+   Vitals, Weather...); one without keeps its `icon`, an emoji. `cls`: the element's class (the bar's, the panel's). */
+const EFFECT_ICON_DIR = 'textures/Gui/Effects/';
+const effectIconSrc = (d) => d && d.img ? EFFECT_ICON_DIR + encodeURI(d.img) : null;
+function effectIconHTML(d, cls = 'effImg') {
+  const src = effectIconSrc(d);
+  return src ? `<i class="${cls}" style="background-image:url('${src}')"></i>` : `<i>${(d && d.icon) || '✨'}</i>`;
 }
 /* Timed effects. They live on the player, so every split-screen seat has its own list; `left` is
    seconds remaining. A food with `foodEffect` starts one, and eating another restarts the clock rather
    than stacking a second copy. */
 const EFFECT_DEFS = {
-  // `icon`: what the effect bar beside the hotbar shows for it — an emoji until each has a sprite
-  rapidRegen:   { name: 'Rapid regen',   time: 20, good: true, regen: 0.5, icon: '💖',              // golden apple; 8s until 0.7992
+  // `img`: its picture on the effect bar and in the list (effectIconHTML, EFFECT_ICON_DIR); `icon`: the emoji for one without
+  rapidRegen:   { name: 'Rapid regen',   time: 20, good: true, regen: 0.5, img: 'Boost/heart_regen_boost.png', icon: '💖',              // golden apple; 8s until 0.7992
                   desc: 'Regen +50%: health heals half as fast again, and food heals and gives energy half as much again.' },   // +50% since 0.832 (x2 before)
   // cooked pumpkin pie: +20% crafting speed and +5% move speed
-  spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05, icon: '🌶️',
+  spicyPumpkin: { name: 'Spicy pumpkin', time: 10, good: true, craftSpeed: 0.20, moveSpeed: 0.05, img: 'Food/hot_pumpkin.png', icon: '🌶️',
                   desc: 'Crafting speed +20% and move speed +5%.' },
   // raw food, rotten flesh: hunger drains twice as fast and the view sways (22-main-loop.js)
-  nausea:       { name: 'Nausea',        time: 10, good: false, hungerMul: 2, sway: true, icon: '🤢',
+  nausea:       { name: 'Nausea',        time: 10, good: false, hungerMul: 2, sway: true, img: 'Debuff/nausea.png', icon: '🤢',
                   desc: 'Hunger drains twice as fast, and your view sways and drifts.' },
   /* yellow berries: 2.5 health a second, 25 over the whole of it (x5 in 0.82). A slow drip, so armor
      does not soak it (that needs 2.5 in one frame, player/hazards.js), and it stops at VITAL_K: poison alone
      never kills you. */
-  poison:       { name: 'Poison',        time: 10, good: false, poisonDps: 0.5 * VITAL_K, announce: 'You feel poisoned', icon: '☠️',
+  poison:       { name: 'Poison',        time: 10, good: false, poisonDps: 0.5 * VITAL_K, announce: 'You feel poisoned', img: 'Debuff/poison.png', icon: '☠️',
                   desc: 'You slowly lose health while it lasts. It cannot take your last 5 health.' },
   /* the temperature's four (cold and hot alone in 0.822): not timed — they last while the temperature does
      (tempStress); listed and on the bar. `hurts`: a cold or a heat that takes health as well */
-  chilly:       { name: 'Chilly', good: false, icon: '🌬️', lasts: 'Lasts while you are colder than 10°C' },
-  cold:         { name: 'Cold',   good: false, icon: '🥶', lasts: 'Lasts while you are colder than -5°C', hurts: 'froze to death' },
-  warm:         { name: 'Warm',   good: false, icon: '☀️', lasts: 'Lasts while you are warmer than 30°C' },
-  hot:          { name: 'Hot',    good: false, icon: '🥵', lasts: 'Lasts while you are warmer than 45°C', hurts: 'died of the heat' },
+  chilly:       { name: 'Chilly', good: false, img: 'Weather/cold.png', icon: '🌬️', lasts: 'Lasts while you are colder than 10°C' },
+  cold:         { name: 'Cold',   good: false, img: 'Weather/frozen.png', icon: '🥶', lasts: 'Lasts while you are colder than -5°C', hurts: 'froze to death' },
+  warm:         { name: 'Warm',   good: false, img: 'Weather/warm.png', icon: '☀️', lasts: 'Lasts while you are warmer than 30°C' },
+  hot:          { name: 'Hot',    good: false, img: 'Weather/hot.png', icon: '🥵', lasts: 'Lasts while you are warmer than 45°C', hurts: 'died of the heat' },
   /* the sun and the desert wind: shown while they last, with how far they have got */
-  heatstroke:   { name: 'Heatstroke', good: false, icon: '😵', lasts: 'Builds in hot sun. Goes down in shade or at night, faster under a roof, fastest in water' },
-  sandstorm:    { name: 'Sandstorm',  good: false, icon: '🌪️', lasts: 'Lasts while the storm reaches you: a roof or a cave stops it' },
-  exhausted:    { name: 'Exhausted', good: false, icon: '😫', lasts: `Lasts until your stamina is back to ${STAMINA_BACK}` },   // 0.82501
-  tired:        { name: 'Tired', good: false, icon: '🥱', lasts: `Lasts while your energy is ${TIRED_AT}% or less: sleep in a bed` },   // 0.832
+  heatstroke:   { name: 'Heatstroke', good: false, img: 'Debuff/hallucinating.png', icon: '😵', lasts: 'Builds in hot sun. Goes down in shade or at night, faster under a roof, fastest in water' },
+  sandstorm:    { name: 'Sandstorm',  good: false, img: 'Weather/sandstorm.png', icon: '🌪️', lasts: 'Lasts while the storm reaches you: a roof or a cave stops it' },
+  exhausted:    { name: 'Exhausted', good: false, img: 'Vitals/exhausted.png', icon: '😫', lasts: `Lasts until your stamina is back to ${STAMINA_BACK}` },   // 0.82501
+  tired:        { name: 'Tired', good: false, img: 'Vitals/tired.png', icon: '🥱', lasts: `Lasts while your energy is ${TIRED_AT}% or less: sleep in a bed` },   // 0.832
   // running low on a food group: shown with how much is left
-  proteinSick:  { name: 'Protein sickness', good: false, icon: '🍖', lasts: `Lasts while your protein is ${SICK_AT} or less: eat meat or fish`, hurts: 'wasted away' },
-  fruitSick:    { name: 'Fruit sickness',   good: false, icon: '🍎', lasts: `Lasts while your fruit is ${SICK_AT} or less: eat fruit or berries`, hurts: 'wasted away' },
-  vegSick:      { name: 'Vegetable sickness', good: false, icon: '🥕', lasts: `Lasts while your vegetables are ${SICK_AT} or less` },
-  wet:          { name: 'Wet', good: false, icon: '💧', lasts: 'Dries a second a second; faster near a fire, lava, a torch, in a desert or warm' },   // 0.8323
+  proteinSick:  { name: 'Protein sickness', good: false, img: 'Vitals/starving.png', icon: '🍖', lasts: `Lasts while your protein is ${SICK_AT} or less: eat meat or fish`, hurts: 'wasted away' },
+  fruitSick:    { name: 'Fruit sickness',   good: false, img: 'Vitals/dehydrated.png', icon: '🍎', lasts: `Lasts while your fruit is ${SICK_AT} or less: eat fruit or berries`, hurts: 'wasted away' },
+  vegSick:      { name: 'Vegetable sickness', good: false, img: 'Vitals/peckish.png', icon: '🥕', lasts: `Lasts while your vegetables are ${SICK_AT} or less` },
+  wet:          { name: 'Wet', good: false, img: 'Weather/soaked.png', icon: '💧', lasts: 'Dries a second a second; faster near a fire, lava, a torch, in a desert or warm' },   // 0.8323
   // head under water: shown with the oxygen left
-  underwater:   { name: 'Underwater', good: false, icon: '🫧', lasts: 'Lasts while your head is under water' },
+  underwater:   { name: 'Underwater', good: false, img: 'Vitals/drowing.png', icon: '🫧', lasts: 'Lasts while your head is under water' },
   // salt among your food: shown with how long the salt in use keeps it
-  salted:       { name: 'Salted', good: true, icon: '🧂', lasts: 'Lasts while the salt in use lasts; the next salt you carry goes in when it runs out' },
+  salted:       { name: 'Salted', good: true, img: 'Food/salt.png', icon: '🧂', lasts: 'Lasts while the salt in use lasts; the next salt you carry goes in when it runs out' },
   /* what you are doing: shown while it lasts, like the temperature (stateEffects) */
-  sneaking:     { name: 'Sneaking', good: true, icon: '🐾', lasts: 'Lasts while you sneak',
+  sneaking:     { name: 'Sneaking', good: true, img: 'Animals/tracking.png', icon: '🐾', lasts: 'Lasts while you sneak',
                   desc: "You do not step off an edge, and your stamina comes back 20% faster." },
   // your crafting queue running: shown, never lifted by milk nor shortened, gone when the last craft is done
-  crafting:     { name: 'Crafting', good: false, icon: '🔨', lasts: 'Lasts while your crafting queue runs: it ends when the last craft is done. Milk does not lift it.' },
-  climbing:     { name: 'Climbing', good: false, icon: '🧗', lasts: 'Lasts while you climb a wall',
+  crafting:     { name: 'Crafting', good: false, img: 'UI/repair.png', icon: '🔨', lasts: 'Lasts while your crafting queue runs: it ends when the last craft is done. Milk does not lift it.' },
+  climbing:     { name: 'Climbing', good: false, img: 'Skills/climber.png', icon: '🧗', lasts: 'Lasts while you climb a wall',
                   desc: `Climbing a bare wall costs ${STAMINA_CLIMB_PER_S} stamina a second, and energy with it. Run dry and you let go until it is back to ${STAMINA_BACK}.` },
+  // a creature worn, a taming under way, a ride (stateEffects: their name and what they give there)
+  otterScarf:   { name: 'Otter scarf', good: true, img: 'Animals/otter_scarf.png', icon: '🦦', lasts: 'Lasts while it is round your neck' },
+  meerkatShoulder: { name: 'Meerkat on your shoulder', good: true, img: 'Animals/meerkat_pickup_range.png', icon: '🐾', lasts: 'Lasts while it is on your shoulder' },
+  houndTaming:  { name: 'Taming a hellhound', good: true, img: 'Animals/hellhound_taming.png', icon: '🔥', lasts: 'Lasts until it is tamed or the taming is given up' },
+  horseTaming:  { name: 'Taming a horse', good: true, img: 'Animals/horse_taming.png', icon: '🐎', lasts: 'Lasts while you stay on it until it is tamed' },
+  riding:       { name: 'Riding', good: true, img: 'Animals/riding.png', icon: '🐎', lasts: 'Lasts while you ride' },
 };
 // the effects of what you are doing right now, as [{ id, desc? }]: the temperature, sneaking, climbing
 function stateEffects(p = player) {
@@ -137,6 +139,31 @@ function stateEffects(p = player) {
     desc: `Food you carry spoils ${Math.round(SALT_SLOW * 100)}% slower while it lasts (${Math.ceil(p._saltT / 60)} min).` });
   if (p.sneaking) out.push({ id: 'sneaking' });
   if (p._wallClimbing) out.push({ id: 'climbing' });
+  // a creature worn, and what it gives by its level and its taming (entities/otter.js, entities/meerkat.js)
+  const _pc = (v) => (Math.round(v * 1000) / 10).toFixed(1) + '%';
+  const ot = p._wornOtter, mk = p._wornMeerkat;
+  if (ot && typeof otterScarfCold === 'function')
+    out.push({ id: 'otterScarf', name: `${ot.name} round your neck`,
+               desc: `Cold resistance +${_pc(otterScarfCold())}: 10%, 0.2% a level (level ${ot.level || 1}), and up to 5% by ` +
+                     `its taming (effectiveness ${Math.round((ot.eff > 0 ? ot.eff : 1) * 100)}%).` });
+  if (mk && typeof meerkatReachBonus === 'function')
+    out.push({ id: 'meerkatShoulder', name: `${mk.name} on your shoulder`,
+               desc: `Item pickup range and foraging reach +${_pc(meerkatReachBonus(p))}: 10%, 0.3% a level (level ` +
+                     `${mk.level || 1}), and up to 5% by its taming (effectiveness ${Math.round((mk.eff > 0 ? mk.eff : 1) * 100)}%).` });
+  // a hellhound this player is taming (entities/hellhound.js), a horse being ridden tame (entities/taming.js), a ride
+  if (typeof houndOwner === 'function')
+    for (const e of ENTITIES) {
+      if (!e.taming || e.kind !== 'hellhound' || e.hp <= 0 || houndOwner(e) !== p) continue;
+      const t = e.taming, need = (k) => typeof _houndNeedOf === 'function' ? _houndNeedOf(t, k) : '?';
+      out.push({ id: 'houndTaming', name: `Taming ${e.name}`,
+                 desc: `It wants kills within a day awake: animals ${t.a | 0}/${need('a')}, monsters ${t.m | 0}/${need('m')}, villagers ${t.n | 0}/${need('n')}.` });
+      break;
+    }
+  const ride = p.riding;
+  if (ride && !ride.tame && (ride.tameProg || 0) < 1)
+    out.push({ id: 'horseTaming', label: Math.floor((ride.tameProg || 0) * 100) + '%',
+               desc: `Stay on it: ${Math.floor((ride.tameProg || 0) * 100)}% tamed. Letting go costs some of what the taming gives.` });
+  else if (ride) out.push({ id: 'riding', name: `Riding ${ride.name || 'a horse'}` });
   // the crafting queue (player/crafting.js): what it costs you while it runs, and how long it still has
   if (p === player && typeof playerIsCrafting === 'function' && playerIsCrafting()) {
     const s = typeof craftQueueLeft === 'function' ? craftQueueLeft() : 0;
@@ -256,7 +283,7 @@ function syncEffectBar() {
   const list = ((!player.canFly && !player.dead && player.effects) || []).map(e => ({ id: e.id,
     label: EFFECT_DEFS[e.id]?.aura ? EFFECT_DEFS[e.id].aura : e.stacks ? 'x' + e.stacks : t(e.left) }));
   // cold or hot first, showing the temperature instead of a clock; sneaking and climbing too
-  list.unshift(...stateEffects().map(s => ({ id: s.id, label: s.label || '' })));
+  list.unshift(...stateEffects().map(s => ({ id: s.id, label: s.label || '', name: s.name, desc: s.desc })));
   let bar = hotbarEl.querySelector(':scope > .effBar');
   if (!list.length) { if (bar) bar.remove(); return; }
   const chisel = !!hotbarEl.querySelector(':scope > .chiselSlot');   // it sits after the chisel's slot, if that is out
@@ -268,10 +295,11 @@ function syncEffectBar() {
   bar.innerHTML = list.map(e => {
     const d = EFFECT_DEFS[e.id];
     if (!d) return '';
-    // its name and what it does on hover (the name alone before)
-    const tip = (d.name + (d.desc ? ': ' + d.desc : d.lasts ? ': ' + d.lasts : '')).replace(/"/g, '&quot;');
+    // its name and what it does on hover (a state's own: whose otter, how far a taming has got)
+    const desc = e.desc || d.desc;
+    const tip = ((e.name || d.name) + (desc ? ': ' + desc : d.lasts ? ': ' + d.lasts : '')).replace(/"/g, '&quot;');
     return `<div class="effSlot${d.good === false ? ' bad' : ' good'}" title="${tip}">` +
-           `<i>${d.icon || '✨'}</i><b>${e.label}</b></div>`;
+           `${effectIconHTML(d)}<b>${e.label}</b></div>`;
   }).join('');
 }
 function effectTipHTML(i) {

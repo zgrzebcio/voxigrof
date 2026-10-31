@@ -1,5 +1,7 @@
 'use strict';
-/* blocks/rails.js: fences and walls lying in another block's cell, railings for stairs and slabs.
+/* blocks/rails.js: fences and walls lying in another block's cell, railings for stairs and slabs; and ladders lying in one
+   (a ladder up out of a slab, stairs, a carpet or a plant: put there by tryLadderOver and climbed, held and dropped like any
+   ladder, blocks/ladders.js; no joins).
 
    A fence put down on a bottom slab or on upright stairs goes INTO that cell and stands on the slab, or on the stair's lower
    step, RAIL_LIFT up; one put into a top or a vertical slab stands from the cell's floor, half of it in the slab (posts
@@ -34,10 +36,12 @@ const railLookup = () => _railOverN ? railOverAt : null;
 function setRailOver(x, y, z, v) {
   const cx = Math.floor(x / 16), cz = Math.floor(z / 16), ck = cx + ',' + cz, i = _plateCellI(x, y, z);
   let m = RAIL_OVER.get(ck);
-  const had = !!m && m.has(i);
+  const had = !!m && m.has(i), old = had ? m.get(i) : 0;
   if (!v && !had) return;
   if (v) { if (!m) RAIL_OVER.set(ck, m = new Map()); m.set(i, v >>> 0); if (!had) _railOverN++; }
   else { m.delete(i); _railOverN--; if (!m.size) RAIL_OVER.delete(ck); }
+  // a ladder put there or taken: what holds the ladders round it (blocks/ladders.js)
+  if (isLadderVal(old) || isLadderVal(v)) ladderChanged(x, y, z, old, v >>> 0);
   markDirty(getChunk(cx, cz));
   const lx = x & 15, lz = z & 15;
   if (lx === 0) markDirty(getChunk(cx - 1, cz));
@@ -50,6 +54,8 @@ function setRailOver(x, y, z, v) {
 function railBoxesAt(x, y, z, coll = false) {
   const rv = railOverAt(x, y, z);
   if (!rv) return null;
+  // a ladder: its board at the back, to bodies and to the crosshair (shapes/boxes.js)
+  if (isLadderVal(rv)) return (coll ? BLOCKS.LADDER_COLL : BLOCKS.LADDER_PICK)[ladderSideOf(rv)];
   const bx = BLOCKS.railOverBoxes(getBlock, x, y, z, rv, coll, railOverAt);
   if (coll || !bx) return bx;
   const pk = BLOCKS.joinPickBoxes(CORE.shapeOfVal(rv), getBlock, x, y, z, rv, railOverAt, BLOCKS.railLift(getBlock(x, y, z), rv));
@@ -167,7 +173,7 @@ function restoreRailOver(list) {
   for (const r of list) {
     if (!Array.isArray(r) || !r.slice(0, 4).every(Number.isInteger)) continue;
     const rv = r[3] >>> 0, s = CORE.shapeOfVal(rv);
-    if (s !== 'fence' && s !== 'wall') continue;
+    if (s !== 'fence' && s !== 'wall' && s !== 'ladder') continue;
     const ck = Math.floor(r[0] / 16) + ',' + Math.floor(r[2] / 16), i = _plateCellI(r[0], r[1], r[2]);
     let m = RAIL_OVER.get(ck);
     if (!m) RAIL_OVER.set(ck, m = new Map());

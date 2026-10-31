@@ -69,7 +69,8 @@ corePart('gen.chunk', function () {
             for (let yy = yb; yy < y; yy++)
               for (let a = -1; a <= 1; a++)
                 for (let b = -1; b <= 1; b++) clear(ex + dx * a + px * b, yy, ez + dz * a + pz * b);
-            const lx = ex + dx, lz = ez + dz, ladder = B.LADDER | ((dx > 0 ? 3 : dx < 0 ? 2 : dz > 0 ? 1 : 0) << 8);
+            // the ladder is the plank frames' own: a planks ladder shape, its back on the rock (shapes/shapes.js)
+            const lx = ex + dx, lz = ez + dz, ladder = B.PLANKS | ((SHAPE_LADDER | (dx > 0 ? 3 : dx < 0 ? 2 : dz > 0 ? 1 : 0)) << 8);
             for (let yy = yb; yy <= y; yy++) if (solidAt(lx + dx, yy, lz + dz)) set(lx, yy, lz, ladder);
             // the room at the bottom: 7x7 and 3 high, with a frame on each side of the ladder, and the side tunnel out of it
             for (let a = -3; a <= 3; a++)

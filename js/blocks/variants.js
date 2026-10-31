@@ -93,8 +93,9 @@ BLOCK_VARIANTS[B.METAL_CHEST] = CHEST_METALS.slice(1).map((m, i) => ({ id: B.MET
 VARIANT_DEFAULT_NAME[B.METAL_CHEST] = CHEST_METALS[0].name;
 // the bed's frame the same way, its wood in bits 4-5 (BED_WOOD_SHIFT in blocks/bed.js)
 BLOCK_VARIANTS[B.BED] = BED_WOODS.slice(1).map((name, i) => ({ id: B.BED, name, bits: (i + 1) << BED_WOOD_SHIFT, need: _woodPlanks(name) }));
+// a stone furnace is built of cobblestone: it takes a block of that, not of stone (its other rocks take their own)
 const VARIANT_DEFAULT_NEED = {
-  [B.FURNACE]: _rockBlock(FURNACE_ROCKS[0]), [B.CRAFTING_BENCH]: _woodPlanks(BENCH_WOODS[0]), [B.CHEST]: _woodPlanks(CHEST_WOODS[0]),
+  [B.FURNACE]: B.COBBLE, [B.CRAFTING_BENCH]: _woodPlanks(BENCH_WOODS[0]), [B.CHEST]: _woodPlanks(CHEST_WOODS[0]),
   [B.METAL_CHEST]: CHEST_METALS[0].block, [B.BED]: _woodPlanks(BED_WOODS[0]),
 };
 // every mossy look: a vine (the jungle's, woods/vines.js)

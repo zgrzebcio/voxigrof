@@ -316,9 +316,15 @@ function WORKER_MAIN() {
   // `bzk`: the same by kind of job (gen, mesh, scan, lbox, fstep...), finished jobs only
   let _bz = 0, _bzAt = 0;
   const _bzK = {};
+  // the world epoch of the job being answered (`ep`, 10-workers.js): sent back on whatever it answers, so the page can
+  // drop an answer to a world it has left
+  let _ep;
   const _postOut = self.postMessage.bind(self);
   self.postMessage = (msg, tr) => {
-    if (msg && typeof msg === 'object') { msg.bz = _bz + (_bzAt ? performance.now() - _bzAt : 0); msg.bzk = _bzK; }
+    if (msg && typeof msg === 'object') {
+      msg.bz = _bz + (_bzAt ? performance.now() - _bzAt : 0); msg.bzk = _bzK;
+      if (_ep !== undefined && msg.ep === undefined) msg.ep = _ep;
+    }
     _postOut(msg, tr);
   };
   const JOBS = { gen: 1, prep: 1, scan: 1, mesh: 1, probe: 1 };
@@ -348,6 +354,7 @@ function WORKER_MAIN() {
   };
   const handle = (m) => {
     _bzAt = performance.now();
+    _ep = m ? m.ep : undefined;
     try {
       if (m.type === 'init') {
         gen = CORE.makeGen(m.seed, m.terrainType, m.biomeRev | 0 || 1, m.cols || null);   // biome sizes by world; the shared column cache
@@ -400,7 +407,7 @@ function WORKER_MAIN() {
       const ms = performance.now() - _bzAt;
       _bz += ms;
       if (m && m.type) _bzK[m.type] = (_bzK[m.type] || 0) + ms;
-      _bzAt = 0;
+      _bzAt = 0; _ep = undefined;
     }
   };
 }

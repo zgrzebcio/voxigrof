@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.8527**.
+Current build: **alpha 0.85397**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -168,7 +168,7 @@ flat-topped **acacia** trees standing apart (acacia logs, planks and leaves; no 
 small or big. A hill keeps a few **termites**: workers chew the logs near it into hollow logs (a log house too), and
 soldiers bite whoever comes close to the hill or hits one of its termites. Breaking a hill (a shovel is quickest) lets
 1-3 termites out of a small one, 3-6 out of a big one, and gives clay bricks, dirt and wood bark. A termite drops a
-**chitin plate** a quarter of the time. Horses, and a few cows, graze the Savanna too.
+**chitin plate** a quarter of the time. Horses and cows graze the Savanna too.
 0.8461: an **acacia sapling** (from its leaves; it grows the flat-topped tree) and an **acacia chest** (variant bar).
 Grass comes in three sizes: **short grass** (new, the smallest; half the grass of new worlds), **grass** (the old
 short grass) and tall grass. Bare grass sprouts short grass, which grows into grass, then tall grass. A fiber off
@@ -785,7 +785,7 @@ The golden apple never spoils. It gives 15 energy (0.832) and 20 s of **Rapid re
 - **Sheep** like the cold: spruce forests and mountains, in flocks of 3–5. They drop raw mutton, and wool and
   string while woolly. Wool makes beds, string makes bows. A shorn sheep grows its wool back in 30 min, 5 min sooner for every patch of grass it eats (0.8324).
 - **Looking at an animal** shows its size by its name (0.8324), and under it a cow's milk (ready, or the time left) or a sheep's wool (ready, or growing back with the time left).
-- **Cows** graze flat plains and cold plains in herds of 2–4. They drop raw beef and leather. Leather makes the first armor set and the backpack. Use an
+- **Cows** graze the mild and warm plains, the Savanna and the oak forests (deep ones too) in herds of 2–4, and now and then the cold plains. They drop raw beef and leather. Leather makes the first armor set and the backpack. Use an
   empty bucket on a female cow for milk; each cow refills after 10 minutes.
 - **Pigs** live by ponds and lakes in plains and forests, in groups of up to three. They drop 1–3
   raw pork and up to 2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
@@ -813,9 +813,9 @@ works without a hammer.
 
 The wheel has two pages — turn them with the mouse wheel or a bumper:
 
-- **Simple:** block, slab, vertical slab, stairs, pane, fence, carpet, wall. Slope and bars are
-  named but still in development.
-- **Advanced:** cover, door, pressure plate, sign, with six slots waiting.
+- **Simple:** block, slab, vertical slab, stairs, pane, fence, slope, carpet, wall. Bars are named but still in
+  development.
+- **Advanced:** cover, door, pressure plate, sign, ladder, with five slots waiting.
 
 | Shape | Blocks that take it |
 |---|---|
@@ -828,6 +828,23 @@ The wheel has two pages — turn them with the mouse wheel or a bumper:
 | Pressure plate (a thin plate on a block's top, walked over) | All planks (pressed by players, creatures and dropped items), stone, cobblestone, granite, marble, limestone, dolomite, the sandstones (players and creatures), the iron, gold, copper and tin blocks and obsidian (players only) |
 
 | Sign (a board you write on, walked through) | All planks, stone, cobblestone, granite, marble, limestone, dolomite, the iron block |
+| Slope (a wedge; anything on it slides down) | Every block that takes stairs |
+| Ladder (rails and rungs, climbed) | All planks, the iron block, stone, cobblestone, granite, marble, limestone, dolomite, the sandstones |
+
+**Slopes and ladders (0.853).** A slope is placed like stairs, its low edge toward you, upside down from a ceiling.
+Nothing stays on one: you slide down faster than you can sprint and shoot a little past its foot, creatures are carried
+off it and dropped items roll off. A ladder goes on a block's side, or stands on a floor or hangs from a ceiling; ladders
+stacked up and down hold each other, so one fixed to a wall can carry a long run through open air, and a run nothing
+holds comes down. Clicking a ladder with a ladder puts the next one on its end (down when you look down). On a ladder
+or a vine your look is held toward it; keeping still, one hand holds on and the other is free; climbing, both hands go
+hand over hand; sliding down, both hold the rails. Old ladders become oak planks ladders, and mine shafts have them.
+Since 0.8533 a ladder's back is a thin board you and creatures cannot walk through. In an inside corner a second ladder
+(or vine, or glow vine) goes on the other wall into the same cell; each breaks on its own. Since 0.8534 the two may be different
+(an oak ladder and an iron one, a ladder and a vine); a ladder also goes into the cell of a slab, stairs, a carpet or a
+plant, like a fence on a slab. Ladders and glow vines in water are climbed (a jungle vine never goes in water; new worlds
+have glow vines in flooded caves too), and looking down you slide two and a half times as fast. Climbing a ladder or a vine costs
+stamina (half a bare wall's), holding on still a little; out of stamina you slide. Climber takes 30% off both. A ladder is wall bars: narrow,
+deep posts with thin rungs through them (0.85342).
 
 **Signs (0.8487).** Put on a floor, a sign stands on a post; on a wall it lies flat against it; on a ceiling it hangs
 from two short sticks. Floor and ceiling signs turn to face you. The writing box opens when you put one up, and using
@@ -893,7 +910,8 @@ the Jungle, the deserts and the Savanna.
   Right-click opens and shuts it. Alone it opens from the middle; two side by side open together like double doors. A
   pressure plate opens it too. Break it to have your fence back.
 - **Wrench** (creative): right-click a side of a fence or a wall to join or part it there, even to another block; its
-  top to turn a wall. It turns stairs, torches, single chests, furnaces, logs, slabs, panes, signs and gates. Sneak +
+  top to turn a wall. It turns stairs, slopes, ladders (a whole column), torches, single chests, furnaces, logs, slabs,
+  panes, signs and gates. Sneak +
   right-click: a fence or a wall joins by itself again, and stairs take their next corner shape, kept for good.
 
 **0.8511.** Gates swing open and shut like doors. Walls stand a sixteenth off the cell's edge (in stairs they no longer
@@ -942,6 +960,44 @@ gold ingots; placing it takes a block of its metal.
 planks (each takes a vine).
 
 **0.8527.** Cracked variants: adobe, obsidian, and each sandstone (plain and brick).
+
+**0.8535.** Tigers live alone in the Jungle. One stalks and charges you on sight and hunts any creature when hungry,
+eating the raw meat its kill leaves. With raw meat in your hand it comes close but never strikes; give it the meat (use)
+and it leaves you alone for 2 minutes (Tiger bond) and gives you Tiger fury (+30% attack speed for 20 s). It takes meat
+once every 10 minutes, and a blow always turns it on you. Effects now show their own pictures on the effect bar and in
+the list, also for an otter scarf, a meerkat on your shoulder, taming a hellhound or a horse, and riding; the feed and
+the XP numbers use the new UI pictures.
+
+**0.8538.** **Golden armor** can be made at the bench: crown, chestplate, leggings, boots and new gauntlets, between
+leather and iron (more armor than leather, less than iron, no slow). Each piece is gold lined with leather and set with
+one gem (diamond, emerald, ruby, sapphire or topaz); the crown takes 3 pearls instead. A **book** (5 paper, a leather and
+a string at the bench), for the bookshelf to come. A tiger you strike stays angry 25 s.
+
+**0.8539.** **The creature book**: use a book on a creature not yet in your book to write it in, for 5000 XP plus 100
+for every kind already written (the book is used up; each fish species and the mummy count apart). Books are also found
+in loot chests (1 in 4). Kills pay 25% less XP. The full golden set gives +10% XP, and golden armor takes bones too.
+Village beds have pale blankets in many colours; they are someone else's: you may sleep in one but it is never your
+respawn point, and broken it gives one wool. Your own beds are as before. At a bench or a mortar both hands put away what
+they hold and work (in third person too). Drops on the ground give more motes, rising higher, fading as their time runs out.
+
+**0.85391.** In new worlds sugar cane grows as in Minecraft: on sand, grass, dirt or gravel level with the water beside it
+(sea, rivers, lakes, oases), standing on top of it, never sunk in a hole by the shore. 0.85392: hold the right button with
+a hatchet on a log with bark (a tree's or one you placed) to strip it where it stands: one bark, sometimes two.
+0.85393, food: the mushroom stew fills more (55, 35 vegetables, heals 8) and a grilled mushroom less (10, 5 vegetables);
+raw meat and fish give about a quarter of cooked and turn your stomach for 20 s (meat 60%, fish 50%); a raw pumpkin pie
+gives little and always poisons for 5 s; the golden apple heals 20 (30 with its Rapid regen); a carrot fills a little more.
+Fixed: the bowl, bucket or bottle a food or drink gives back no longer vanishes into a hidden slot when your inventory is
+full: it goes into your hand when that emptied, else into your inventory, else it drops at your feet.
+0.85394: fixed squares of the title screen's land standing in a world near its spawn (stored while the world was opening);
+every world's land cache is made again once, and old caches are cleared from the browser's storage.
+0.85395: writing a creature into the book takes the use button held 1 s on it (the ring fills). Cows live on the mild and
+warm plains and in oak forests, deep ones too (no more on the cold plains or the Savanna).
+0.85396: cows graze the Savanna as often as the warm plains again, and the cold plains rarely.
+0.85397: tigers are about half as common and live farther apart.
+
+**0.853.** Two new hammer shapes: the slope (you slide down it) and the ladder (planks, iron block, stones). Climbing
+ladders and vines: the look is held toward them, and the hands hold on, climb or slide smoothly (see Shapes). 0.8531: the body
+climbs too in third person and in split screen, facing the ladder, the head turned to where you look.
 
 **0.8491.** A new quest before the last one: **defeat the Dead Pharaoh** (7500 XP). Both boss quests show a crown
 marker on the nearest boss of their kind or its lair (pyramid or castle). In a world made before the pyramids (or with
@@ -1147,8 +1203,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 - **Falling blocks.** Sand, red sand, gravel and fiber blocks fall when nothing is under them and land
   as a loose pile of 8 layers you can walk through. Deserts have dunes of 1–7 layers, exposed gravel has
   loose gravel on top, and gravel rarely lies scattered on other ground.
-- **Ladder.** Switched off for now: no recipe and not in creative. Ones already placed still work. Doors are a hammer
-  shape since 0.842 (see above).
+- **Ladder.** A hammer shape since 0.853, like doors since 0.842 (see above).
 - **Block recipes.** Snow, clay, glass, terracotta (from brick items), wool and the glow dust block take 5 of their material; hay bales,
   storage blocks and nuggets-to-ingot take 10.
 - **Mortar and pestle.** 20 granite, 1 bone, 2 flint and 1 fiber block at the crafting bench; breaks by

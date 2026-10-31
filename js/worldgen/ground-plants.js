@@ -230,8 +230,9 @@ corePart('gen.chunk', function () {
               data[idx(lx, h + 2, lz)] = B.DRY_TALL_UPPER;
             } else if (r < bCh + tCh + gCh) data[idx(lx, h + 1, lz)] = B.DRY_GRASS;
           }
-      /* ---- sugar cane by an oasis's water: its lake stands over the sea, so the shore pass below never sees it. In
-         stands on about a quarter of its shore, starting at the bank's top block as the sea's cane does. ---- */
+      /* ---- sugar cane by an oasis's water: its lake stands over the sea, so the shore pass (desert-and-shore-plants.js)
+         leaves it to this one. In stands on about a quarter of its shore. Rev 47 (CANE2): on a bank whose top is level with
+         the water, from the cell over it; before, a bank one block over the water, the cane taking its top block. ---- */
       if (DESERT2)
         for (let z = 0; z < CZ; z++)
           for (let x = 0; x < CX; x++) {
@@ -239,12 +240,14 @@ corePart('gen.chunk', function () {
             if (!OAS[gi] || h < WLV[gi] || h > CY - 4) continue;
             const top = data[idx(x, h, z)] & 255;
             if ((top !== B.GRASS && top !== B.SAND && top !== B.RED_SAND) || (data[idx(x, h + 1, z)] & 255) !== B.AIR) continue;
+            const level = CANE2 ? h : h - 1;                  // where the water beside it tops out
             let bank = false;
-            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && WLV[n] === h - 1) { bank = true; break; }
+            for (const n of [gi - 1, gi + 1, gi - 20, gi + 20]) if (H[n] < WLV[n] && WLV[n] === level) { bank = true; break; }
             if (!bank) continue;
             const wx = cx * 16 + x, wz = cz * 16 + z;
             if (smooth01(fbm(wx * 0.15 + 3131.7, wz * 0.15 - 1919.3, 2), 0.05, 0.25) * 0.8 < hash3(wx * 7 + 6200, 4545, wz * 5 - 6200)) continue;
             const tall = 1 + Math.floor(hash3(wx, 9393, wz) * 3);
-            for (let k = 0; k < tall; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
+            if (CANE2) { for (let k = 1; k <= tall && (data[idx(x, h + k, z)] & 255) === B.AIR; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE; }
+            else for (let k = 0; k < tall; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
           }
 });

@@ -88,7 +88,8 @@ function damageEntityByMob(ent, dmg, by) {
   ent.hurtT = 0.25;
   ent.flailT = ENT_FLAIL_TIME;
   if (ent.kind === 'polar_bear') { /* a bear stands its ground */ }
-  else if (ent.kind === 'hellhound') { if (by && by !== ent) { ent._hurtBy = by; ent._hurtByAt = performance.now(); } }   // it turns on what bit it
+  // it turns on what bit it: the hellhound, and a kind that `fightsBack` (the tiger)
+  else if (ent.kind === 'hellhound' || mobOf(ent).fightsBack) { if (by && by !== ent) { ent._hurtBy = by; ent._hurtByAt = performance.now(); } }
   else if (isGrazer(ent) || isFish(ent) || mobOf(ent).passive) _entBolt(ent, by ? by.x : ent.x, by ? by.z : ent.z);   // the rest bolt, for their kind's `fleeTime`
   // a monster or a villager fights back at a hellhound that bit it, as they do at each other
   else if (by && by !== ent && by.hp > 0 &&
@@ -120,6 +121,7 @@ const _entAimTarget = (f) => ({ pos: { x: f.x, y: f.y, z: f.z }, EYE: 1.62 });
 function damageEntity(ent, dmg, src = null) {
   if (ent._killedByMob) return false;          // already dead at another creature's hands
   if (ent.boss && typeof bossTakeHit === 'function') return bossTakeHit(ent, dmg, src);
+  if (!player.canFly) ent._struckBy = player;     // which player struck it, for one that fights back (the tiger)
   ent.hp -= dmg;
   _fxEntHurt(ent, dmg);
   mobSound(ent, 'hurt');                         // its own cry, when it has one (the creature table's `sounds`)
@@ -153,7 +155,7 @@ function damageEntity(ent, dmg, src = null) {
   }
   // Creative is a build mode: mobs never turn hostile and never leave loot behind.
   if (!player.canFly) {
-    ent.aggroT = ENT_AGGRO_TIME;               // neutral until provoked — this is the provocation
+    ent.aggroT = mobOf(ent).aggro || ENT_AGGRO_TIME;   // neutral until provoked — this is the provocation (its kind's `aggro` seconds)
     if (ent.state !== 'chase') ent.thinkT = ENT_THINK_TIME;   // beat of confusion before it reacts
     ent.state = 'chase';
   }

@@ -64,11 +64,14 @@ function onRecipeClick(r, all, n = 1) {
 /* ---- how useful a recipe is ----
    The number the recipe list sorts by, lowest first. Stations top the list because everything else is
    made at one; then the things you wear and carry; then tools and weapons, ordered bow, steel, bronze,
-   iron, stone, flint by the start of their icon's name (a hoe sits just under its own set); then armor, iron before leather; then
+   iron, stone, flint by the start of their icon's name (a hoe sits just under its own set); then armor, strongest first
+   (_RANK_ARMOR_MAT); then
    ingredients and food; and last the blocks you build and decorate with, with pressed ore blocks below
    them — they are storage, not something you need at hand. */
 const _RANK_STATION = new Set([B.CRAFTING_BENCH, B.FURNACE, B.MORTAR, B.CHEST, B.BED, B.TORCH, B.CRYSTAL_TORCH, B.LADDER, B.DOOR]);
 const _RANK_TOOL_MAT = { steel: 1, bronze: 2, iron: 3, golden: 4, stone: 5, flint: 6 };
+// armor by material, strongest first: gold between iron and leather
+const _RANK_ARMOR_MAT = { steel: 0, bronze: 1, iron: 2, golden: 3, leather: 4, cloth: 5 };
 function recipeRank(r) {
   const id = r.out && r.out[0];
   if (id == null) return 60;
@@ -85,7 +88,7 @@ function recipeRank(r) {
     const mat = Object.keys(_RANK_TOOL_MAT).find(m => p.icon && p.icon.startsWith(m));
     return 11 + (_RANK_TOOL_MAT[mat] || 7) + (p.tool === 'hoe' ? 0.5 : 0);
   }
-  if (p.armor) return 30 + (p.armorMat === 'iron' ? 0 : p.armorMat === 'leather' ? 1 : p.armorMat === 'cloth' ? 1.5 : 0.5);   // cloth 0.824
+  if (p.armor) return 30 + (_RANK_ARMOR_MAT[p.armorMat] ?? 2.5) * 0.25;
   if (p.food) return 50;
   return 40;                                                          // ingredients: ingots, string, paper...
 }

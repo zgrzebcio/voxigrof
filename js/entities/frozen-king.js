@@ -59,13 +59,13 @@ const BOSS_BAR_R = 48;                           // its health bar shows within 
 
 /* ---- effects (54's EFFECT_DEFS): read by the stats as any effect is ---- */
 /* `aura`: kept up by the king, not timed, so the bar shows this label and the Effects list its `lasts` */
-EFFECT_DEFS.frozenCurse = { name: 'Frozen curse', good: false, icon: '👑', miningSpeed: -1, coldResist: -0.3, aura: 'near',
+EFFECT_DEFS.frozenCurse = { name: 'Frozen curse', good: false, img: 'Curse/winter_curse.png', icon: '👑', miningSpeed: -1, coldResist: -0.3, aura: 'near',
   desc: 'Mining speed -100%: you cannot mine. Cold resistance -30%.',
   lasts: `Lasts while you are within ${FK.CURSE_R} blocks of the Frozen King. Milk lifts it, but he puts it back at once while you are near him.` };
-EFFECT_DEFS.iceDaze = { name: 'Ice daze', time: FK.SPIKE_DAZE_S, good: false, icon: '🧊', jumpStrength: -0.3, regen: -0.2,
+EFFECT_DEFS.iceDaze = { name: 'Ice daze', time: FK.SPIKE_DAZE_S, good: false, img: 'Debuff/stunned.png', icon: '🧊', jumpStrength: -0.3, regen: -0.2,
   desc: 'Jump height -30%. Regen -20%.',                                   // read like the curse's
   lasts: `${FK.SPIKE_DAZE_S} s from the hit of the Frozen King's ice spike. Milk lifts it.` };
-EFFECT_DEFS.bossBoost = { name: 'Boss boost', good: true, icon: '🏆',
+EFFECT_DEFS.bossBoost = { name: 'Boss boost', good: true, img: 'Boost/royalty.png', icon: '🏆',
   lasts: 'For good: every kind of boss you defeat adds a stack of +20% XP (up to 5). Death and milk do not take it.' };
 
 /* ---- boss boost ---- */

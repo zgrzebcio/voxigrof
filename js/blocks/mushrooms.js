@@ -29,8 +29,9 @@ corePart('blocks', function () {
   /* Grilled mushrooms: what a furnace makes of a mushroom (not the lava one). Food, drawn on their raw
      kind's model, never placed (`noPlace`); what they give besides food is FOOD_NUTRITION in player/stats.js. */
   // noCreative: not in the creative palette (player/placing.js), but carried and saved like any block
-  const _grilled = (name, kind) => _shroom(name, kind, { noPlace: true, noCreative: true, food: 15, foodSat: 10, foodSatFull: 5,
-    eatTime: 1.44, spoil: 3600, desc: '' });
+  // a snack: four of them are worth less than the stew they make (plans/FoodBalance.md)
+  const _grilled = (name, kind) => _shroom(name, kind, { noPlace: true, noCreative: true, food: 10, foodSat: 6, foodSatFull: 3,
+    eatTime: 1.2, spoil: 3600, desc: '' });
   PROPS[B.GRILLED_RED_MUSHROOM]    = _grilled('Grilled red mushroom', 7);
   PROPS[B.GRILLED_BROWN_MUSHROOM]  = _grilled('Grilled brown mushroom', 8);
   PROPS[B.GRILLED_BLUE_MUSHROOM]   = _grilled('Grilled blue mushroom', 9);

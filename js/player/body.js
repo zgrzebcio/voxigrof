@@ -80,6 +80,52 @@ function selfSwingPhase() {
   return _swingT >= 0 ? 1 - _swingT : 0;
 }
 
+/* Climbing, as everyone else sees it, laid over the pose animateHumanoid gave by the three weights (together at most 1):
+     up     hand over hand, both arms high, a knee lifting with the other hand: the beat is `_climbT`, the one the
+            first-person hands keep (player/hands.js, 40-shield.js), so a hand goes up in both views at once
+     slide  both hands out on the rails, rattling a little over the rungs, the legs together
+     hold   the left hand up on a rung, a foot a rung higher; the right arm stays as it was (free: it mines, places, holds) */
+const CLIMB_ARM_UP = -2.6, CLIMB_ARM_REACH = 0.35;     // an arm up the ladder, and how far each hand goes over the other
+const CLIMB_LEG_UP = -0.35, CLIMB_LEG_REACH = 0.35;    // a thigh lifted to a rung, and the step between the two
+const CLIMB_SLIDE_ARM = -2.0, CLIMB_SLIDE_OUT = 0.28;  // sliding: arms lower, out to the rails
+const CLIMB_HOLD_ARM = -2.5, CLIMB_HOLD_LEG = -0.3;
+function poseBodyClimb(m, up, slide, hold) {
+  const t = player._climbT || 0, s = Math.sin(t * 7), rattle = Math.sin(t * 46) * 0.03;
+  const sway = Math.sin(performance.now() * 0.0016) * 0.06;
+  const mix = (base, w, ...poses) => {           // poses as [value, weight]
+    let v = base * (1 - w);
+    for (const [p, k] of poses) v += p * k;
+    return v;
+  };
+  const all = up + slide + hold, both = up + slide;
+  // right: up and slide only (holding still it is free)
+  m.armR.rotation.x = mix(m.armR.rotation.x, both, [CLIMB_ARM_UP - CLIMB_ARM_REACH * s, up], [CLIMB_SLIDE_ARM + rattle, slide]);
+  m.armR.rotation.z = mix(m.armR.rotation.z, both, [0.12, up], [-CLIMB_SLIDE_OUT, slide]);
+  m.armR.rotation.y *= 1 - both;
+  m.armL.rotation.x = mix(m.armL.rotation.x, all, [CLIMB_ARM_UP + CLIMB_ARM_REACH * s, up], [CLIMB_SLIDE_ARM - rattle, slide],
+                          [CLIMB_HOLD_ARM + sway, hold]);
+  m.armL.rotation.z = mix(m.armL.rotation.z, all, [-0.12, up], [CLIMB_SLIDE_OUT, slide], [-0.1, hold]);
+  m.armL.rotation.y *= 1 - all;
+  // the left knee comes up with the right hand, and the other way round
+  m.legL.rotation.x = mix(m.legL.rotation.x, all, [CLIMB_LEG_UP - CLIMB_LEG_REACH * s, up], [-0.12, slide], [CLIMB_HOLD_LEG, hold]);
+  m.legR.rotation.x = mix(m.legR.rotation.x, all, [CLIMB_LEG_UP + CLIMB_LEG_REACH * s, up], [-0.12, slide], [0, hold]);
+}
+
+/* Working a station, as everyone else sees it (the first-person hands: BENCH_ARM, player/hands.js; same beat): both arms
+   forward and down over the work, w the eased weight `_benchW`. At a bench they beat in turn; at a mortar the right one
+   grinds round and the left holds the bowl. */
+const WORK_ARM = -0.95, WORK_BEAT = 0.3, WORK_IN = 0.18;
+function poseBodyWork(m, w) {
+  const t = (player._benchT || 0) * BENCH_BEAT, grind = benchWorkIsMortar(player);
+  const r = grind ? Math.sin(t * 0.7) * 0.12 : Math.sin(t) * WORK_BEAT, l = grind ? 0 : -Math.sin(t) * WORK_BEAT;
+  const mix = (a, b) => a + (b - a) * w;
+  m.armR.rotation.x = mix(m.armR.rotation.x, WORK_ARM + r);
+  m.armL.rotation.x = mix(m.armL.rotation.x, WORK_ARM + l);
+  m.armR.rotation.z = mix(m.armR.rotation.z, WORK_IN + (grind ? Math.cos(t * 0.7) * 0.1 : 0));
+  m.armL.rotation.z = mix(m.armL.rotation.z, -WORK_IN);
+  m.armR.rotation.y *= 1 - w; m.armL.rotation.y *= 1 - w;
+}
+
 function applyCameraView(dt) {
   const alive = !menuScene && player.spawned;
   _selfModel.root.visible = alive;
@@ -109,7 +155,18 @@ function applyCameraView(dt) {
       player.pos.y - 0.14 * _selfCrouch * (1 - lie) + 0.23 * lie, player.pos.z - bd[1] * half);   // the back of the head on the mattress
     const yawStand = player.yaw + Math.PI, yawBed = Math.atan2(bd[0], bd[1]) + Math.PI;   // model faces +Z, yaw 0 looks -Z
     const dyaw = Math.atan2(Math.sin(yawBed - yawStand), Math.cos(yawBed - yawStand));
-    _selfModel.root.rotation.y = yawStand + dyaw * lie;
+    /* On a ladder, a vine or a wall the body faces what it climbs and the head turns on it to where this player looks (the
+       look is held within CLIMB_LOOK_HOLD of it, player/movement.js). The three weights player/tick.js eases, 0..1 together. */
+    let cUp = player._climbUpW || 0, cSlide = player._climbSlideW || 0, cHold = player._climbHoldW || 0;
+    const cSum = cUp + cSlide + cHold;
+    if (cSum > 1) { cUp /= cSum; cSlide /= cSum; cHold /= cSum; }
+    const climbW = Math.min(1, cSum) * (1 - lie);
+    let climbTurn = 0;
+    if (climbW > 0.001 && player._climbFace != null) {
+      const want = player._climbFace + Math.PI - yawStand;
+      climbTurn = Math.atan2(Math.sin(want), Math.cos(want)) * climbW;
+    }
+    _selfModel.root.rotation.y = yawStand + dyaw * lie + climbTurn;
     _selfModel.root.rotation.x = -Math.PI / 2 * lie;     // onto its back, head toward the pillow
     _syncSelfHeld();
     _selfHeld.visible = !mainHandBusy(player);            // both hands at work: put away (player/hands.js)
@@ -145,6 +202,10 @@ function applyCameraView(dt) {
     if (typeof poseHeldFishOnBody === 'function') poseHeldFishOnBody(_selfModel, player);
     if (typeof poseOtterScarf === 'function') poseOtterScarf(_selfModel, player, dt);
     if (typeof poseMeerkatShoulder === 'function') poseMeerkatShoulder(_selfModel, player, dt);   // a meerkat on the shoulder (entities/meerkat.js)
+    _selfModel.head.rotation.order = 'YXZ';                // the head's turn first, then its nod, as the look
+    _selfModel.head.rotation.y = -climbTurn;
+    if (climbW > 0.001) poseBodyClimb(_selfModel, cUp * (1 - lie), cSlide * (1 - lie), cHold * (1 - lie));
+    if (player._benchW > 0.01) poseBodyWork(_selfModel, player._benchW * (1 - lie));   // working a bench or a mortar
     // arms tucked in at the sides while asleep, rather than hanging as if standing
     if (lie > 0.01) {
       _selfModel.armR.rotation.x *= (1 - lie); _selfModel.armL.rotation.x *= (1 - lie);

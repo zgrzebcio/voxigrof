@@ -44,6 +44,11 @@ corePart('blocks', function () {
     plate:  [..._ALL_PLANKS, B.STONE, B.COBBLE, ..._ROCKS, ..._SANDSTONES, ..._METALS, B.OBSIDIAN],
     // the sign: its words are blocks/signs.js'
     sign:   [..._ALL_PLANKS, B.STONE, B.COBBLE, ..._ROCKS, B.IRON_BLOCK],
+    // the ladder (held up by blocks/ladders.js) and the slope (slid down: blocks/slopes.js); every block with stairs slopes
+    ladder: [..._ALL_PLANKS, B.IRON_BLOCK, B.STONE, B.COBBLE, ..._ROCKS, ..._SANDSTONES],
+    slope:  [B.STONE, B.COBBLE, ..._ALL_PLANKS, B.BRICKS, B.GLASS, ..._SANDSTONES, B.ADOBE,
+             ..._ROCKS, B.OBSIDIAN, B.WOOL, B.SULFUR_BLOCK,
+             B.HAY, B.COPPER_BLOCK, B.DIRT, B.SANDY_DIRT, B.SNOW, B.ICE],
   };
   // a gate is made in the world from a fence or a wall (blocks/gates.js), so every block with either takes it
   SHAPE_BLOCKS.gate = [...new Set([...SHAPE_BLOCKS.fence, ...SHAPE_BLOCKS.wall])];

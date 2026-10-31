@@ -2,7 +2,8 @@
 /* player/spawn.js: a new world's reset, the height of the ground (surfaceY), and finding a safe place to spawn. */
 
 /* ---------------------------------- world reset (new seed) ---------------------------------- */
-function resetWorld(seed, terrainType, biomeRev = 1) {
+// worldId: the world this land is for (null: the title's backdrop), handed to the workers (initWorkers, 10-workers.js)
+function resetWorld(seed, terrainType, biomeRev = 1, worldId = null) {
   SEED = seed;
   TERRAIN_TYPE = terrainType || 'default';
   TERRAIN_BIOMES = biomeRev;                // 0.819
@@ -38,7 +39,7 @@ function resetWorld(seed, terrainType, biomeRev = 1) {
   clearBeds();
   clearChests();
   clearBenches();
-  initWorkers(seed, TERRAIN_TYPE, TERRAIN_BIOMES);
+  initWorkers(seed, TERRAIN_TYPE, TERRAIN_BIOMES, worldId);
   // every split-screen player restarts unspawned; the frame loop re-seats each of them
   for (const p of PLAYERS) {
     p.spawnPos = null; p.homeSpawn = null; p.spawnBedKey = null;

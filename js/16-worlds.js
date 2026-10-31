@@ -130,6 +130,18 @@ const idbGet = (id) => new Promise((res) => {
   } catch { res(undefined); }
 });
 const idbDel = (id) => { if (idb) try { idb.transaction('worlds', 'readwrite').objectStore('worlds').delete(id); } catch {} };
+/* Terrain caches of an older TERRAIN_KEY (chunks/stream.js) are deleted once a session, a little after the database opens:
+   a chunk is a quarter of a megabyte, and every bump of the key used to leave all the old ones lying there. Only keys
+   that start with "terrain" (a world's own id is a base-36 time stamp): the land in them is made again when needed. */
+function terrainCachePurgeOld() {
+  if (!idb) return;
+  try {
+    const st = idb.transaction('worlds', 'readwrite').objectStore('worlds');
+    st.delete(IDBKeyRange.bound('terrain', TERRAIN_KEY, false, true));
+    st.delete(IDBKeyRange.bound(TERRAIN_KEY + '￿', 'terrain￿', true, false));
+  } catch (e) { /* the next session tries again */ }
+}
+idbReady.then(() => setTimeout(terrainCachePurgeOld, 8000));
 
 /* THE SAVE WORKER (SAVE_WORKER in 00-config). Building the save and storing it
    used to happen in one go on the game's thread: every chunk's edits turned into [cell, value] pairs, then all of it
@@ -409,7 +421,7 @@ async function loadWorld(w) {
   player._chiselRad = null;
   // ...nor a fish in their hands or an otter round their neck: those are the world's, saved with its creatures (entities/save.js)
   player._heldFish = null; player._fishGrab = null; player._wornOtter = null; player._wornMeerkat = null; player._clamHold = null;
-  resetWorld(w.seed, w.terrain, w.biomeRev || 1);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
+  resetWorld(w.seed, w.terrain, w.biomeRev || 1, w.id);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
   /* a save without the stamp 3 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
      and only here, since those ids are free for new blocks (stamp 2 still held snow-ice brick, carved snow and ice, and the

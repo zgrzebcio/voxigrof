@@ -32,6 +32,9 @@ defineItems('materials', {
   [ITEM.GUNPOWDER]:     { name: 'Gunpowder',     stack: 79, icon: 'gunpowder', desc: 'Used as crafting ingredient' },
   [ITEM.SUGAR]:         { name: 'Sugar',         stack: 79, icon: 'sugar', desc: 'Used as crafting ingredient' },
   [ITEM.PAPER]:         { name: 'Paper',         stack: 79, icon: 'paper', desc: 'Used as crafting ingredient' },
+  /* five paper bound in leather and string, or found in loot chests (LOOT_BOOK_CHANCE, 34-structures.js). Used on a
+     creature it writes that kind into the player's creature book (player/creature-book.js); the bookshelf waits for art */
+  [ITEM.BOOK]:          { name: 'Book',          stack: 79, icon: 'book', desc: 'Use it on a creature not yet in your book to write it in, for XP. The book is used up' },
   [ITEM.FLOUR]:         { name: 'Flour',         stack: 79, icon: 'flour', desc: 'Used as crafting ingredient' },
   [ITEM.BRICK]:         { name: 'Brick',         stack: 79, icon: 'brick', desc: 'Used as crafting ingredient' },
   [ITEM.GLOW_DUST]:     { name: 'Glow dust',     stack: 79, icon: 'glow_dust', desc: 'Used as crafting ingredient' },

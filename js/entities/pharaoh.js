@@ -257,7 +257,7 @@ function pharaohPyramidPrefab() {
    simulated, each player within CURSE_R gets one more, up to CURSE_MAX; away from it one falls every CURSE_FADE s
    (`stackFade`, tickPlayerEffects). Each: mining speed -10% (none at all from 10), heat resistance -2%, damage reduction -1%
    (armorDamageMultiplier, player/equipment.js); and no TNT goes down (`noTnt`, player/place-block.js). */
-EFFECT_DEFS.summerCurse = { name: 'Summer curse', good: false, icon: '☀️', stackFade: PH.CURSE_FADE,
+EFFECT_DEFS.summerCurse = { name: 'Summer curse', good: false, img: 'Curse/summer_curse.png', icon: '☀️', stackFade: PH.CURSE_FADE,
   miningSpeed: -0.1, heatResist: -0.02, damageReduction: -0.01, noTnt: true,        // each stack
   desc: 'Each stack: mining speed -10%, heat resistance -2%, damage reduction -1%. TNT cannot be put down.',
   stackDesc: (n) => `${n} of ${PH.CURSE_MAX}: mining speed -${Math.min(100, n * 10)}%${n >= 10 ? ' (you cannot mine)' : ''}, ` +
@@ -266,7 +266,7 @@ EFFECT_DEFS.summerCurse = { name: 'Summer curse', good: false, icon: '☀️', s
          `falls every ${PH.CURSE_FADE} s. All gone when he dies.` };
 /* THE PHARAOH'S CURSE, from its rage: sand whirls round the eyes (`sandBlind`: the fog in 52-clouds.js applyMist, the grains
    fxCurseSand below) for BLIND_S. */
-EFFECT_DEFS.pharaohCurse = { name: "Pharaoh's curse", time: PH.BLIND_S, good: false, icon: '🏜️', sandBlind: true,
+EFFECT_DEFS.pharaohCurse = { name: "Pharaoh's curse", time: PH.BLIND_S, good: false, img: 'Debuff/blindness.png', icon: '🏜️', sandBlind: true,
   desc: 'Sand whirls round your eyes: you see only a few blocks.',
   lasts: `${PH.BLIND_S} s from the Dead Pharaoh's rage. Milk lifts it.` };
 function _phCursePulse(e) {

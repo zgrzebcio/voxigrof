@@ -62,6 +62,11 @@ corePart('blocks', function () {
            gateFamily, DIAG_RAILS, _cornerOut, joinDiagsAt, wallShift, joinPickBoxes,
            joinSlopesAt, slopeBoxesOf, GATE_RAILS, GATE_FOOT, GATE_TOP, _gatePanel, gateBoxes,
            RAIL_LIFT, railHostOk, railLift, railOverBoxes,
+           // the ladder and the slope (shapes/shapes.js, boxes.js)
+           SHAPE_LADDER, SHAPE_SLOPE, SLOPE_BIT, _LADDER_AUTH, _ladderTurn, LADDER_BOX, LADDER_PICK, LADDER_DEPTH, LADDER_COLL_T, RUNG_T, RAIL_W, _rungZ, _ladderSet, LADDER_COLL,
+           WALL_PAIR, WALL_NEXT, wallSides, wallPairVar, wallClip, WALL_MATE_SHIFT, WALL_MATE_FIRST, WALL_MATES, isWallPlateVal,
+           wallMateOf, wallPlateVal, wallPairParts, _LADDER_HALVES, wallPairBoxes,
+           SLOPE_STEPS, SLOPE_COLL_STEPS, _slopeBoxes, SLOPE_BOX, SLOPE_COLL, slopeDownOf,
            CLAM_BITS };                                                          // the clam's variant byte (blocks/torch-blocks.js; main thread: BLOCKS.CLAM_BITS)
 });
 

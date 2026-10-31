@@ -556,7 +556,11 @@ function updateDrops(dt) {
     }
     if (!inWater && d.grounded) {
       const supY = Math.floor(d.base - DROP_HALF - DROP_REST_LIFT - 0.1);
-      if (isSolid(Math.floor(p.x), supY, Math.floor(p.z))) {
+      const down = slopeDownAt(Math.floor(p.x), supY, Math.floor(p.z));
+      if (down) {                                    // on a slope: it rolls off (blocks/slopes.js)
+        d.grounded = false; d.vy = 0;
+        d.vx = down[0] * SLOPE_DROP_SPEED; d.vz = down[1] * SLOPE_DROP_SPEED;
+      } else if (isSolid(Math.floor(p.x), supY, Math.floor(p.z))) {
         p.y = d.base + Math.sin(d.age * DROP_HOP_HZ) * DROP_HOP_AMP;
       } else {
         d.grounded = false; d.vy = 0;                // ground was mined out from under it

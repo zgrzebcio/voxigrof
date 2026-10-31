@@ -185,7 +185,7 @@ function updateTumbleweeds(dt) {
 
 /* Its entry in the creature table (entities/mobs.js says what each line is for). Its other numbers stay in TUMBLE. */
 defineMob('tumbleweed', {
-  name: 'Tumbleweed', group: 'thing', step: updateTumbleweed, unsaved: true, passive: true, xp: 0,
+  name: 'Tumbleweed', group: 'thing', step: updateTumbleweed, unsaved: true, passive: true, xp: 0, book: false,
   hp: 1, box: [TUMBLE.r * 0.9, TUMBLE.r * 2], sized: false,
   make: makeTumbleweed, build: () => buildTumbleweed(),
   prompt: (e) => `${_esc(e.name)}<br><span style="opacity:.8;font-size:.9em">(hit it to see what it caught)</span>`,

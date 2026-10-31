@@ -21,6 +21,7 @@ corePart('voxel', function () {
   return { setTintSampler, setFastLeaves, B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
            SHAPE_PLATE, PLATE_PRESSED, PLATE_BURIED,                                                        // the pressure plate (shapes/shapes.js)
            SHAPE_SIGN, SIGN_STAND, SIGN_WALL, SIGN_HANG, SIGN_FRONT, SIGN_MID_Y,                            // the sign
+           SHAPE_LADDER, SHAPE_SLOPE, slopeDownOf,                                                          // the ladder and the slope
            makeFluidSim, flChunkKey, FLUID,                                                                  // fluids: the rules, and the table (fluids/kinds.js)
            SHAPE_MASK, ROT_MASK, shapeOfVal,
            HOLLOW_FILLS, opaqueVal, lightDim, shapeBoxesAt, stairBoxesAt, makeGen, meshChunk, idx,
@@ -40,7 +41,7 @@ const VOXEL_CORE = buildCore('voxel');
 
 const CORE = VOXEL_CORE();
 const { B, V, PROPS, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL, SHAPE_PLATE, PLATE_PRESSED, PLATE_BURIED,
-        SHAPE_SIGN, SIGN_STAND, SIGN_WALL, SIGN_HANG, SIGN_FRONT, SIGN_MID_Y,
+        SHAPE_SIGN, SIGN_STAND, SIGN_WALL, SIGN_HANG, SIGN_FRONT, SIGN_MID_Y, SHAPE_LADDER, SHAPE_SLOPE,
         SHAPE_MASK, ROT_MASK, HOLLOW_FILLS, logWidthOf, LOG_W_MIN, LOG_W_NORMAL } = CORE;
 
 const { SHAPE_LAYER, LAYER_MAX, BERRY_STAGE, berryStage, isBerryBush, BERRY_BUSHES, BERRY_STAGES, CANE_STEPS, ICE_FROM_WATER } = CORE;

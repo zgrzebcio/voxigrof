@@ -37,6 +37,8 @@ const V_BONE   = [ITEM.BONE, ITEM.SEASHELL];   // a seashell is bone enough: the
 const V_NUGGET = [ITEM.IRON_NUGGET, ITEM.TIN_NUGGET, ITEM.COPPER_NUGGET];
 // ...and a key's bit any metal at all
 const V_ANY_NUGGET = [ITEM.IRON_NUGGET, ITEM.TIN_NUGGET, ITEM.COPPER_NUGGET, ITEM.GOLD_NUGGET, ITEM.BRONZE_NUGGET];
+// golden armor is set with a gem, any of the five
+const V_GEMS = [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ];
 
 const RECIPES_BASIC = [
   { in: [[V_OLOG, 1]],                                                       out: [B.PLANKS, 3], timeToCraft: 1.2, xpToGive: 5 },
@@ -233,6 +235,15 @@ RECIPES_ADVANCED.push(
   // jungle planks, after the acacia's in the pocket list; five cocoa beans ground into cocoa powder at the mortar
   { in: [[V_JLOG, 1]],            out: [B.JUNGLE_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.ACACIA_PLANKS },
   { in: [[ITEM.COCOA_BEANS, 5]],  out: [ITEM.COCOA_POWDER, 1], station: 'mortar', timeToCraft: 4.5, xpToGive: 5 },
+  /* golden armor, at the bench: gold lined with leather, stiffened with bones by the piece's size, every piece set with one
+     gem of any kind (V_GEMS), the crown with three pearls instead. Fewer ingots than iron's, more work than leather's */
+  { in: [[ITEM.GOLD_INGOT, 8],  [ITEM.LEATHER, 1], [ITEM.BONE, 1], [V_GEMS, 1]],    out: [ITEM.GOLDEN_GLOVES, 1],     timeToCraft: 7,  xpToGive: 115 },
+  { in: [[ITEM.GOLD_INGOT, 12], [ITEM.LEATHER, 2], [ITEM.BONE, 2], [V_GEMS, 1]],    out: [ITEM.GOLDEN_BOOTS, 1],      timeToCraft: 8,  xpToGive: 125 },
+  { in: [[ITEM.GOLD_INGOT, 14], [ITEM.PEARL, 3],   [ITEM.BONE, 2], [ITEM.CLOTH, 1]], out: [ITEM.GOLDEN_HELMET, 1],     timeToCraft: 9,  xpToGive: 135 },
+  { in: [[ITEM.GOLD_INGOT, 20], [ITEM.LEATHER, 3], [ITEM.BONE, 3], [V_GEMS, 1]],    out: [ITEM.GOLDEN_LEGGINGS, 1],   timeToCraft: 10, xpToGive: 145 },
+  { in: [[ITEM.GOLD_INGOT, 26], [ITEM.LEATHER, 4], [ITEM.BONE, 4], [V_GEMS, 1]],    out: [ITEM.GOLDEN_CHESTPLATE, 1], timeToCraft: 11, xpToGive: 155 },
+  // a book: five paper bound in leather and string (for the bookshelf to come)
+  { in: [[ITEM.PAPER, 5], [ITEM.LEATHER, 1], [ITEM.STRING, 1]],      out: [ITEM.BOOK, 1], timeToCraft: 4, xpToGive: 20 },
 );
 // every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
 const CRAFT_XP_MUL = 1.5;

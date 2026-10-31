@@ -76,6 +76,8 @@ const STAMINA_JUMP         = 4.25;          // a jump; 60% of it out of a sprint
 // swimming, off the bottom: up (a jump in the water) a lot, swimming along a little, treading water a trickle
 const STAMINA_SWIM_UP_PER_S = 10, STAMINA_SWIM_PER_S = 1.5, STAMINA_TREAD_PER_S = 0.5;
 const STAMINA_CLIMB_PER_S  = 15;            // hands on a bare wall (player/movement.js)
+// on a ladder or a vine (player/tick.js `_ladderUse`): going up half a bare wall's, holding on still a trickle; sliding free
+const STAMINA_LADDER_PER_S = STAMINA_CLIMB_PER_S / 2, STAMINA_LADDER_HOLD_PER_S = 1.5;
 const STAMINA_REGEN_PER_S  = 12;
 /* the bar is 200, and everything that spends it spends a quarter more (sprint, jumps, climbing, swimming, a
    sandstorm). Mining costs a little too: about 1 point every 200 frames at 60 fps (MINING_STAMINA_PER_S). */
@@ -148,25 +150,26 @@ const FOOD_NUTRITION = {
   [ITEM.BLACKBERRIES]:     { fruit: 6, thirst: 5 },
   [ITEM.YELLOW_BERRIES]:   { fruit: 6, thirst: 5 },            // 0.827
   [ITEM.WHITE_BERRIES]:    { fruit: 6, thirst: -5 },           // takes thirst
-  [ITEM.PUMPKIN_PIE]:      { veg: 20 },
+  [ITEM.PUMPKIN_PIE]:      { veg: 10 },                          // raw: dough
   [ITEM.COOKED_PUMPKIN_PIE]: { veg: 35 },
-  [ITEM.MUSHROOM_STEW]:    { veg: 30, thirst: 20 },              // four mushrooms since 0.821
+  [ITEM.MUSHROOM_STEW]:    { veg: 35, thirst: 20 },              // four mushrooms: more than the four grilled (5 each)
   [ITEM.MILK_BUCKET]:      { thirst: 30 },                       // a container, not a food group
   [ITEM.WATER_BOTTLE]:     { thirst: 25 },                       // 0.845
   [ITEM.HALF_COCONUT]:     { thirst: 20, thirstFull: 10, fruit: 4 },   // thirstFull: what it gives when thirst is already full
   [ITEM.JAM_SANDWICH]:     { fruit: 10, stamina: 5 },
   [ITEM.CARROT]:           { veg: 25, vegFull: 5 },            // vegFull: what it gives when vegetables are already full
-  [ITEM.MUTTON]:  { protein: 10 }, [ITEM.COOKED_MUTTON]:  { protein: 25 },
-  [ITEM.BEEF]:    { protein: 12 }, [ITEM.COOKED_BEEF]:    { protein: 35 },
-  [ITEM.PORK]:    { protein: 12 }, [ITEM.COOKED_PORK]:    { protein: 30 },
-  [ITEM.COD]:     { protein: 8 },  [ITEM.COOKED_COD]:     { protein: 20 },
-  [ITEM.SALMON]:  { protein: 10 }, [ITEM.COOKED_SALMON]:  { protein: 22 },
-  [ITEM.PIKE]:    { protein: 10 }, [ITEM.COOKED_PIKE]:    { protein: 22 },
-  [ITEM.CATFISH]: { protein: 12 }, [ITEM.COOKED_CATFISH]: { protein: 25 },
+  // raw: about a quarter of the cooked one's protein
+  [ITEM.MUTTON]:  { protein: 6 },  [ITEM.COOKED_MUTTON]:  { protein: 25 },
+  [ITEM.BEEF]:    { protein: 7 },  [ITEM.COOKED_BEEF]:    { protein: 35 },
+  [ITEM.PORK]:    { protein: 7 },  [ITEM.COOKED_PORK]:    { protein: 30 },
+  [ITEM.COD]:     { protein: 5 },  [ITEM.COOKED_COD]:     { protein: 20 },
+  [ITEM.SALMON]:  { protein: 6 },  [ITEM.COOKED_SALMON]:  { protein: 22 },
+  [ITEM.PIKE]:    { protein: 6 },  [ITEM.COOKED_PIKE]:    { protein: 22 },
+  [ITEM.CATFISH]: { protein: 7 },  [ITEM.COOKED_CATFISH]: { protein: 25 },
 };
-// grilled mushrooms (blocks): vegetables, like the stew
+// grilled mushrooms (blocks): vegetables, a little (the stew of four is worth more)
 for (const id of [B.GRILLED_RED_MUSHROOM, B.GRILLED_BROWN_MUSHROOM, B.GRILLED_BLUE_MUSHROOM, B.GRILLED_BLACK_MUSHROOM,
-                  B.GRILLED_WHITE_MUSHROOM, B.GRILLED_YELLOW_MUSHROOM]) FOOD_NUTRITION[id] = { veg: 8 };
+                  B.GRILLED_WHITE_MUSHROOM, B.GRILLED_YELLOW_MUSHROOM]) FOOD_NUTRITION[id] = { veg: 5 };
 for (const id in FOOD_NUTRITION) {
   const p = id >= 256 ? ITEM_PROPS[id] : PROPS[id];
   if (p) Object.assign(p, FOOD_NUTRITION[id]);
@@ -333,6 +336,8 @@ function tickStats(dt) {
   if (inWater && !grounded && !p.flying)              // swimming: no rest in deep water
     used += (p._swimUp ? STAMINA_SWIM_UP_PER_S : moving ? STAMINA_SWIM_PER_S : STAMINA_TREAD_PER_S) * dt;
   if (p._wallClimbing) used += STAMINA_CLIMB_PER_S * dt * (typeof skillClimbMul === 'function' ? skillClimbMul() : 1);   // Climber
+  if (p._ladderUse) used += (p._ladderUse === 2 ? STAMINA_LADDER_PER_S : STAMINA_LADDER_HOLD_PER_S) * dt
+                          * (typeof skillClimbMul === 'function' ? skillClimbMul() : 1);                                  // ...on ladders too
   // a sandstorm wears you out, standing or walking
   if (p._sandFelt > 0.05) used += (moving ? SAND_STAMINA_MOVING_PER_S : SAND_STAMINA_PER_S) * p._sandFelt * dt;
   used *= STAMINA_USE_MUL;                         // a quarter more

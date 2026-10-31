@@ -19,7 +19,7 @@ const entH = (e) => { const d = mobOf(e); return (d.box || HUMAN_BOX)[1] * (d.si
 let _boxR = ENT_R, _boxH = ENT_H;
 function _useBox(e) { _boxR = e ? entR(e) : ENT_R; _boxH = e ? entH(e) : ENT_H; }
 
-// AABB test against solid voxels for a candidate position, using the installed box (_useBox)
+// AABB test against solid voxels (and ladders' boards) for a candidate position, using the installed box (_useBox)
 function _entBlocked(x, y, z) {
   const x0 = Math.floor(x - _boxR), x1 = Math.floor(x + _boxR);
   const z0 = Math.floor(z - _boxR), z1 = Math.floor(z + _boxR);
@@ -30,8 +30,18 @@ function _entBlocked(x, y, z) {
   const y0 = Math.floor(y), y1 = Math.floor(y + _boxH - 0.02);
   for (let yy = y0; yy <= y1; yy++)
     for (let zz = z0; zz <= z1; zz++)
-      for (let xx = x0; xx <= x1; xx++)
-        if (isSolid(xx, yy, zz)) return true;
+      for (let xx = x0; xx <= x1; xx++) {
+        const v = getBlock(xx, yy, zz);
+        if (CORE.solidVal(v)) return true;
+        /* a ladder is not solid, but the thin board at its back stops a body as it stops a player (blocks/ladders.js): its
+           own, a corner's (bits 25-29 name a corner's other block), or one lying in the cell (RAIL_OVER) */
+        if (((v >> 8) & 0xF8) === SHAPE_LADDER || ((v >>> 25) & 31) || _railOverN) {
+          const bx = ladderBoardsAt(xx, yy, zz, v);
+          if (bx) for (const b of bx)
+            if (x - _boxR < xx + b[3] && x + _boxR > xx + b[0] && y < yy + b[4] && y + _boxH > yy + b[1]
+                && z - _boxR < zz + b[5] && z + _boxR > zz + b[2]) return true;
+        }
+      }
   return false;
 }
 

@@ -336,6 +336,15 @@
   #hotbar .effSlot.good { border-color:rgba(126,230,58,.7); }
   #hotbar .effSlot.bad  { border-color:rgba(230,90,70,.8); }
   #hotbar .effSlot i { font-style:normal; font-size:18px; line-height:21px; }
+  /* an effect's picture (effectIconHTML, player/effects.js; textures/Gui/Effects), over the time under it */
+  #hotbar .effSlot i.effImg { display:block; width:24px; height:24px; margin-top:1px;
+                              background:center / contain no-repeat; }
+  #equipStats .effList .stRow.eff { justify-content:flex-start; gap:0; align-items:center; }
+  #equipStats .effList .effIco { display:inline-block; flex:0 0 14px; width:14px; height:14px; margin-right:4px; vertical-align:-3px;
+                                 background:center / contain no-repeat; font-style:normal; }
+  /* the feed's pictures (ui/feed.js: textures/Gui/Effects/UI) */
+  .feedRow .fIcon img.fImg { width:22px; height:22px; }
+  .xpPop img.fImg { width:13px; height:13px; vertical-align:-2px; margin-right:2px; }
   #hotbar .effSlot b { position:absolute; left:0; right:0; bottom:-1px; text-align:center; font:700 12px/1 system-ui,sans-serif;
                        color:#fff; text-shadow:0 0 2px #000, 1px 1px 0 #000; }
   #hotbar .variantBar.hold { border-color:rgba(255,255,255,.6); box-shadow:0 0 8px rgba(255,255,255,.3); }   /* bind held (0.7944) */

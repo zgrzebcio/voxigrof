@@ -87,7 +87,9 @@ function buildEquipPanel() {
     ? eff.map((e, i) =>
         // data-eff: its index in activeEffects(), read back by the tooltip; no time column since 0.8323 —
         // the effect bar by the hotbar shows each one's time
-        `<div class="stRow eff${e.good === false ? ' bad' : ''}" data-eff="${i}"><span>${e.name}</span></div>`).join('')
+        // ...its picture in front (effectIconHTML, player/effects.js)
+        `<div class="stRow eff${e.good === false ? ' bad' : ''}" data-eff="${i}">` +
+        `${e.id && EFFECT_DEFS[e.id] ? effectIconHTML(EFFECT_DEFS[e.id], 'effIco') : ''}<span>${e.name}</span></div>`).join('')
     : '<div class="stRow none"><span>no active effects</span></div>') + '</div>';
   // belt row: only present while a belt is worn, sized by that belt's slot count
   const cap = beltCapacity();

@@ -223,6 +223,9 @@ function rollLootExtra(slots, table) {
   return true;
 }
 const TREASURE_KEY_CHANCE = 0.025, TREASURE_KEYS = [ITEM.WOODEN_KEY, ITEM.COPPER_KEY, ITEM.IRON_KEY, ITEM.GOLDEN_KEY];   // Treasure Nose
+/* Any loot chest, whatever its table (a prefab ships its own), holds a book this often (the creature book,
+   player/creature-book.js), in a free slot. */
+const LOOT_BOOK_CHANCE = 0.25;
 function fillPendingLoot(x, y, z, slots) {
   const k = lootKey(x, y, z);
   const rec = PENDING_LOOT.get(k);
@@ -230,6 +233,11 @@ function fillPendingLoot(x, y, z, slots) {
   PENDING_LOOT.delete(k);
   const prefab = STRUCTURES.get(rec.struct), table = resolveLootTable(prefab, rec.table);
   rollLootInto(slots, table);
+  if (Math.random() < LOOT_BOOK_CHANCE) {
+    const free = [];
+    for (let i = 0; i < slots.length; i++) if (!slots[i]) free.push(i);
+    if (free.length) slots[free[Math.floor(Math.random() * free.length)]] = mkSlot(ITEM.BOOK, 1);
+  }
   /* Treasure Nose: one chest in four holds one item more. Chance ignored on the extra roll,
      the same way the empty-chest guarantee below ignores it — "one more" should mean one more. */
   if (typeof hasSkill === 'function' && hasSkill('treasureNose') && Math.random() < 0.25) rollLootExtra(slots, table);
@@ -607,7 +615,8 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     if (!Array.isArray(b) || b.length < 4) continue;
     const [dx, dy, dz, id0, variant0 = 0, look = 0, hi = 0] = b;
     const id = swap && swap[id0] != null ? swap[id0] : id0;
-    const variant = swap && swap.wood ? _swapWood(id, variant0, swap.wood) : variant0;
+    let variant = swap && swap.wood ? _swapWood(id, variant0, swap.wood) : variant0;
+    if (id === B.BED) variant |= BED_FOREIGN;        // a structure's bed is someone else's (blocks/bed.js)
     if (!PROPS[id]) continue;                       // prefab references a block this build lacks
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;

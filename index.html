@@ -6,7 +6,7 @@
 <title>voxiGrof</title>
 <!-- shared memory for the workers (0.8386): adds the isolation headers GitHub Pages cannot send; first visit reloads once -->
 <script src="coi-sw.js"></script>
-<link rel="stylesheet" href="css/style.css?v=0.852">
+<link rel="stylesheet" href="css/style.css?v=0.8535">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -18,7 +18,7 @@
 <div id="bootCover" style="position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none"></div>
 
 <div id="hud" class="mono"></div>
-<div id="version">alpha 0.8527</div>
+<div id="version">alpha 0.85397</div>
 <div id="quest"></div>
 <div id="crosshair"></div>
 <div id="progRing"></div>
@@ -549,6 +549,7 @@ window.THREE = THREE;
 <script defer src="js/models/termites.js"></script>
 <script defer src="js/models/otter.js"></script>
 <script defer src="js/models/meerkat.js"></script>
+<script defer src="js/models/tiger.js"></script>
 <script defer src="js/models/clam.js"></script>
 <script defer src="js/models/backpacks.js"></script>
 <script defer src="js/blocks/termite-hill.js"></script>
@@ -579,6 +580,8 @@ window.THREE = THREE;
 <script defer src="js/blocks/covers.js"></script>
 <script defer src="js/blocks/rails.js"></script>
 <script defer src="js/blocks/gates.js"></script>
+<script defer src="js/blocks/ladders.js"></script>
+<script defer src="js/blocks/slopes.js"></script>
 <script defer src="js/woods/saplings.js"></script>
 <script defer src="js/fluids/current.js"></script>
 <script defer src="js/ui/cpu-meter.js"></script>
@@ -658,6 +661,8 @@ window.THREE = THREE;
 <script defer src="js/entities/otter.js"></script>
 <script defer src="js/entities/tumbleweed.js"></script>
 <script defer src="js/entities/meerkat.js"></script>
+<script defer src="js/entities/tiger.js"></script>
+<script defer src="js/player/creature-book.js"></script>
 <script defer src="js/player/fish-hold.js"></script>
 <!-- last before boot: it snapshots the per-player globals every other file has just declared -->
 <script defer src="js/36-splitscreen.js"></script>

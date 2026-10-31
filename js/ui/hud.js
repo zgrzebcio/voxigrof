@@ -52,6 +52,8 @@ function interactProgress() {
   if (player._milkProg > 0) return player._milkProg;
   if (player._unsealProg > 0) return player._unsealProg;                // a sealed chest's key turning
   if (player._clamProg > 0) return player._clamProg;                    // a clam opening, its pearl taken (blocks/clam.js)
+  if (player._stripProg > 0) return player._stripProg;                  // a log's bark coming off (woods/felling.js)
+  if (player._bookProg > 0) return player._bookProg;                    // a creature being written into the book (player/creature-book.js)
   if (player._grabProg > 0) return player._grabProg;                    // a fish being taken in hand (player/fish-hold.js)
   if (player._fillProg > 0) return player._fillProg;                    // a bottle filling at water
   if (player._eatProg > 0) return player._eatProg;                      // a meal or a drink
@@ -121,6 +123,13 @@ function _interactText() {
       _promptShown();
       return;
     }
+  }
+  // a book aimed at a creature: whether it is in the book yet, and what writing it in pays (player/creature-book.js)
+  const book = typeof bookPrompt === 'function' ? bookPrompt() : '';
+  if (book) {
+    if (book !== _interactShown) { interactEl.innerHTML = book; _interactShown = book; }
+    _promptShown();
+    return;
   }
   /* An animal you can do something with speaks first: a tameable one under the crosshair
      reports what it is, what it is called and what the next step with it would be, because a

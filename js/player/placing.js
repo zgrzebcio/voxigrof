@@ -26,10 +26,19 @@ function _fillHalf(x, y, z, mat) {
      vertical slab   hugs the clicked wall; on a floor or ceiling it takes the half away from you
      pane            through the middle, its wide face toward you
      fence           a post; its rails follow the fences around it, so nothing to choose
-     wall            toward the side of its cell away from you; on or against a wall, as that wall stands */
+     wall            toward the side of its cell away from you; on or against a wall, as that wall stands
+     ladder          on a block's side, its back on that block; on a floor or a ceiling, on the side of a ladder under or
+                     over it, else its back away from you (blocks/ladders.js holds it up)
+     slope           as stairs: its low edge toward you; a ceiling click hangs it upside down */
 function _shapeVariantFor(key, hit, px, py, pz) {
   const ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5), alongX = Math.abs(ddx) > Math.abs(ddz);
   if (key === 'carpet') return SHAPE_LAYER;                 // one layer
+  if (key === 'ladder') {
+    if (hit.ny === 0 && (hit.nx || hit.nz)) return SHAPE_LADDER | (hit.nz === 1 ? 0 : hit.nz === -1 ? 1 : hit.nx === 1 ? 2 : 3);
+    for (const v of [ladderValAt(px, py - 1, pz), ladderValAt(px, py + 1, pz)]) if (v) return SHAPE_LADDER | ladderSidesOf(v)[0];
+    return SHAPE_LADDER | (alongX ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1));
+  }
+  if (key === 'slope') return SHAPE_SLOPE | (alongX ? (ddx > 0 ? 2 : 3) : (ddz > 0 ? 0 : 1)) | (hit.ny === -1 ? 4 : 0);
   /* a wall stands toward the side of its cell away from you (WALL_BACK, shapes/shapes.js); put on a wall, or against one, it
      stands as that one does (the one under it first). It joins its neighbours on its own */
   if (key === 'wall') {
@@ -160,6 +169,12 @@ function _aimsAtLockable() {
   const v = getBlock(hit.x, hit.y, hit.z);
   return BLOCKS.isDoorVal(v) || isChestId(v & 255);
 }
+// a hatchet in the main hand and the crosshair on a log with its bark (woods/felling.js)
+function _aimsToStrip() {
+  if (typeof _holdingAxe !== 'function' || !_holdingAxe()) return false;
+  const hit = currentRay();
+  return !!hit && !hit.over && isLiveLog(getBlock(hit.x, hit.y, hit.z) & 255);
+}
 function doPlace() {
   // a wand in hand builds or breaks a layer, whatever the off hand holds (breaking 0.8374)
   const wand = slotId(HOTBAR[hotbarSel]);
@@ -167,8 +182,9 @@ function doPlace() {
     return withPlayerPlacement(() => { const hit = currentRay(); if (hit) (wand === ITEM.BUILD_WAND ? wandBuild : wandBreak)(hit); });
   return withPlayerPlacement(() => {
     const off = _offhandPlaceable();
-    // a door or a chest answers to the main hand: its key is looked for there (useDoor, useChest), never the off hand's torch
-    if (!off || _aimsAtLockable()) return _doPlace();
+    // a door or a chest answers to the main hand: its key is looked for there (useDoor, useChest), never the off hand's torch;
+    // and so does a log with its bark when the main hand holds a hatchet: it strips (tryStripLog, woods/felling.js)
+    if (!off || _aimsAtLockable() || _aimsToStrip()) return _doPlace();
     const main = HOTBAR[hotbarSel], before = off.count;
     HOTBAR[hotbarSel] = off;
     try { return _doPlace(); }

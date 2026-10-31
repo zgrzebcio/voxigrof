@@ -8,7 +8,7 @@
    raycast so you can stand on it and mine it.
 
    variant byte: bits 0-1 facing (0:+Z 1:-Z 2:+X 3:-X), bit 3 (8) = this cell is the HEAD,
-   bits 4-5 the frame's wood (BED_WOOD_SHIFT; 0 oak, as every older bed is).
+   bits 4-5 the frame's wood (BED_WOOD_SHIFT; 0 oak, as every older bed is), bit 6 BED_FOREIGN = someone else's bed.
    The FOOT cell owns the mesh; the head is registered from it via the facing offset. */
 
 const BEDS = new Map();            // "x,y,z" of the FOOT cell -> {group, x, y, z, facing, wood, colors, mats, lastB}
@@ -46,6 +46,19 @@ const bedWoodOf = (va) => { const w = (va >> BED_WOOD_SHIFT) & 3; return w < BED
 /* The bedding's colours, sRGB hex. Every bed takes this set until colours come in (a later dye update): the whole
    pipeline already takes any set per bed (bedTexture, setBedLook). */
 const BED_COLORS_DEFAULT = { blanket: 0xe9e4da, sheet: 0xf7f6f2, pillow: 0xffffff };
+/* SOMEONE ELSE'S BED: every bed a structure lays (a village's) carries BED_FOREIGN (stampStructureSlice, 34-structures.js).
+   Its blanket is one of BED_PALE_BLANKETS, as pale as the plain one, picked by where its foot lies (so the same every
+   load, nothing saved); it may be slept in but is never a respawn point (trySleep), and broken it gives one wool and
+   no bed (blockDrop, 50-loottable.js). A bed a player places has no such bit and none of this. */
+const BED_FOREIGN = 64;
+const isForeignBed = (val) => (val & 255) === B.BED && !!((val >> 8) & BED_FOREIGN);
+const BED_PALE_BLANKETS = [0xe9e4da, 0xd6e2ee, 0xdbe8d4, 0xeed8dc, 0xeee6c8, 0xe0d8ec, 0xf0dccb, 0xd3e8e4, 0xead2d0]
+  .map(blanket => ({ blanket, sheet: BED_COLORS_DEFAULT.sheet, pillow: BED_COLORS_DEFAULT.pillow }));
+function bedColorsOf(x, y, z, val) {
+  if (!isForeignBed(val)) return BED_COLORS_DEFAULT;
+  const h = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) >>> 0;
+  return BED_PALE_BLANKETS[h % BED_PALE_BLANKETS.length];
+}
 
 // the mean colour (0..1) of an image's opaque pixels, from row y0 down (the frame: its sides only, see _bedTint)
 function _bedMean(img, y0 = 0) {
@@ -285,9 +298,10 @@ const bedKey = (x, y, z) => x + ',' + y + ',' + z;
 function registerBed(x, y, z, facing, wood = null) {
   const k = bedKey(x, y, z);
   if (BEDS.has(k)) return;
-  if (wood == null) wood = bedWoodOf((getBlock(x, y, z) >> 8) & 255);
+  const val = getBlock(x, y, z);
+  if (wood == null) wood = bedWoodOf((val >> 8) & 255);
   const group = new THREE.Group();
-  const colors = BED_COLORS_DEFAULT;
+  const colors = bedColorsOf(x, y, z, val);   // its land not in yet: the plain set, put right by _bedPass
   const m = bedMesh(wood, colors);
   group.add(m.mesh);
   // geometry is authored along +Z; rotate the whole group onto the actual facing
@@ -494,11 +508,15 @@ function trySleep(x, y, z) {
   if (typeof playSound === 'function') playSound('wool', { gain: 0.6, rate: 0.85, pos: { x: pose.x, y: pose.y, z: pose.z } });
   /* Sleeping here makes this your respawn point, and the bed is REMEMBERED — break it
      and you go back to where the world first put you, rather than respawning at a bed that is no
-     longer there. `homeSpawn` is that original point, captured the first time anyone spawns. */
-  if (!player.homeSpawn) player.homeSpawn = (player.spawnPos || player.pos).clone();
-  player.spawnPos = new THREE.Vector3(foot.x + 0.5, y, foot.z + 0.5);
-  player.spawnBedKey = bedKey(foot.x, foot.y, foot.z);
-  toast('respawn point set');
+     longer there. `homeSpawn` is that original point, captured the first time anyone spawns.
+     Someone else's bed (a village's, BED_FOREIGN) sleeps the night away but is never your respawn point. */
+  if (isForeignBed(getBlock(foot.x, foot.y, foot.z))) toast("someone else's bed: your respawn point stays where it was");
+  else {
+    if (!player.homeSpawn) player.homeSpawn = (player.spawnPos || player.pos).clone();
+    player.spawnPos = new THREE.Vector3(foot.x + 0.5, y, foot.z + 0.5);
+    player.spawnBedKey = bedKey(foot.x, foot.y, foot.z);
+    toast('respawn point set');
+  }
   const waiting = PLAYERS.filter(p => p.spawned && !isSleeping(p)).length;
   if (waiting) toast(waiting === 1 ? 'waiting for 1 more player to sleep'
                                    : `waiting for ${waiting} more players to sleep`);
@@ -577,9 +595,9 @@ function _bedPass() {
     const bv = getBlock(b.x, b.y, b.z);
     if ((bv & 255) !== B.BED) { removeBedMesh(k); continue; }
     b.group.visible = true;
-    // the cell's wood (a bed registered before its chunk was in reads oak), and art that arrived late
-    const w = bedWoodOf((bv >> 8) & 255);
-    if (w !== b.wood) setBedLook(k, w, null);
+    // the cell's wood and bedding (a bed registered before its chunk was in reads oak and plain), and art that arrived late
+    const w = bedWoodOf((bv >> 8) & 255), cols = bedColorsOf(b.x, b.y, b.z, bv);
+    if (w !== b.wood || cols !== b.colors) setBedLook(k, w, cols);
     else if (!b.mats[0].map.image) bedTexture(b.wood, b.colors);
     // tint by world light at the bed cell (same approximation the doors use)
     const bl = getLightWorld(b.x, b.y, b.z) / 15;

@@ -41,7 +41,8 @@ const playerCraftSpeedMul = () => Math.max(0, 1 + _equipSum('craftSpeed') + _eff
   - SICK_FRUIT_CRAFT * sickness('fruit'));                                // fruit sickness
 function playerCraftSpeedPct() { return Math.round(playerCraftSpeedMul() * 100); }
 // multiplier on swing rate — >1 swings faster, so it DIVIDES the cooldown
-const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed') - SICK_PROTEIN_ATK * sickness('protein'));   // protein sickness
+// gear, a running effect's `atkSpeed` (Tiger fury, entities/tiger.js), protein sickness
+const playerAtkSpeedMul = () => Math.max(0.25, 1 + _equipSum('atkSpeed') + _effectSum('atkSpeed') - SICK_PROTEIN_ATK * sickness('protein'));
 /* Environmental resistances. No item grants either yet and nothing reads them for damage
    — they are stat lines the panel reserves, so the gear that will carry them has somewhere to
    show up. Summed as a fraction (0.15 = 15% resisted) and clamped to 100%. */

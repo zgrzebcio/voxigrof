@@ -647,6 +647,7 @@ const ITEM_TEXTURES = {
   golden_chestplate:  'textures/Items/Equipments/Golden/gold_chestplate.png',
   golden_leggings:    'textures/Items/Equipments/Golden/gold_leggings.png',
   golden_boots:       'textures/Items/Equipments/Golden/gold_boots.png',
+  golden_gloves:      'textures/Items/Equipments/Golden/gold_gauntlets.png',
   steel_helmet:       'textures/Items/Equipments/Steel/steel_helmet.png',
   steel_chestplate:   'textures/Items/Equipments/Steel/steel_chestplate.png',
   steel_leggings:     'textures/Items/Equipments/Steel/steel_leggings.png',

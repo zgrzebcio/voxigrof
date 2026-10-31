@@ -125,6 +125,62 @@ corePart('mesh.chunk', function () {
       for (const d of joinDiagsAt(fam, gb, x, y, z, v, railAt, lift))
         emitDiagRails(x, y, z, d, DIAG_RAILS[fam], facesOfVal(v), _shapePass(v & 255), lift, sh);
     }
+    /* A slope (SHAPE_SLOPE, shapes/shapes.js): a wedge. Its floor and the side it rises to are whole faces, two triangles
+       close its ends and the slanted face runs from the top of that side down to the floor's far edge. Laid out with its
+       low edge toward +Z (facing 0) and TURNED to its facing, never mirrored, so every face keeps its winding; upside down
+       it is mirrored in y, so its corners are written the other way round. UVs as emitBoxFaces' for a face looking the same
+       way; the slanted face takes the picture of the side it looks toward (bricks and planks stay level), in the top's art. */
+    const _SLOPE_TURN = [(a, c) => [a, c], (a, c) => [1 - a, 1 - c], (a, c) => [c, 1 - a], (a, c) => [1 - c, a]];
+    const _SLOPE_LOW = [[0, 1], [0, -1], [1, 0], [-1, 0]], _SLOPE_END = [[1, 0], [-1, 0], [0, -1], [0, 1]];
+    // a face's UV at a corner (px, py, pz in its cell) for a face looking along [dx, dy, dz], as emitBoxFaces maps it
+    const _slopeUV = (d, p) => d[1] ? [p[0], p[2]] : d[0] > 0 ? [1 - p[2], p[1]] : d[0] < 0 ? [p[2], p[1]]
+                             : d[2] > 0 ? [p[0], p[1]] : [1 - p[0], p[1]];
+    // its tile in a block's six [+X, -X, top, bottom, +Z, -Z] for a face looking along d
+    const _slopeTile = (f, d) => d[1] > 0 ? f[2] : d[1] < 0 ? f[3] : d[0] > 0 ? f[0] : d[0] < 0 ? f[1] : d[2] > 0 ? f[4] : f[5];
+    function emitSlope(x, y, z, v) {
+      const va = (v >> 8) & 255, r = va & 3, flip = !!(va & 4), turn = _SLOPE_TURN[r], f = facesOfVal(v), ps = _shapePass(v & 255);
+      const low = _SLOPE_LOW[r], end = _SLOPE_END[r], up = flip ? -1 : 1;
+      const op = (xx, yy, zz) => { const nv = gb(xx, yy, zz); return opaqueVal(nv) || fastLeaf(nv); };
+      // a corner from its laid-out place: a across, h up, c along the fall (0 the high side)
+      const at = (a, h, c) => { const q = turn(a, c); return [q[0], flip ? 1 - h : h, q[1]]; };
+      // one face: its corners laid out in emitBoxFaces' order, the way it looks (d), its UVs from `uvd`, its shade and light
+      const face = (pts, d, uvd, tile, shade, L) => {
+        const cs = pts.map(p => at(p[0], p[1], p[2]));
+        if (flip) cs.reverse();
+        const w = cs.map(c => [x + c[0], y + c[1], z + c[2]]), uv = cs.map(c => _slopeUV(uvd, c));
+        quad(ps, w[0], w[1], w[2], w[3], uv[0], uv[1], uv[2], uv[3], tile, shade, L);
+      };
+      const base = [0, -up, 0], back = [-low[0], 0, -low[1]];
+      const sideShade = (d) => d[0] ? 178 : 216;
+      // the floor (or, upside down, the roof): first, so a see-through slope blends its faces bottom to top
+      if (!flip && !op(x, y - 1, z))
+        face([[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], base, base, _slopeTile(f, base), 140, gl(x, y - 1, z));
+      // the slanted face, upside down: it faces down, so it goes before the sides too
+      const slant = [low[0], up, low[1]];
+      if (flip) face([[0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 0]], slant, [low[0], 0, low[1]], f[3], 140 + 38, gl(x, y - 1, z));
+      // the whole side it rises to
+      if (!op(x + back[0], y, z + back[2]))
+        face([[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], back, back, _slopeTile(f, back), sideShade(back), gl(x + back[0], y, z + back[2]));
+      // its two ends, triangles (the last corner repeated)
+      const e1 = [end[0], 0, end[1]], e0 = [-end[0], 0, -end[1]];
+      if (!op(x + e1[0], y, z + e1[2]))
+        face([[1, 0, 0], [1, 1, 0], [1, 0, 1], [1, 0, 1]], e1, e1, _slopeTile(f, e1), sideShade(e1), gl(x + e1[0], y, z + e1[2]));
+      if (!op(x + e0[0], y, z + e0[2]))
+        face([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 0]], e0, e0, _slopeTile(f, e0), sideShade(e0), gl(x + e0[0], y, z + e0[2]));
+      if (flip) { if (!op(x, y + 1, z)) face([[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], [0, 1, 0], [0, 1, 0], f[2], 255, gl(x, y + 1, z)); }
+      // the slanted face, last: it is the top
+      else face([[0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 0]], slant, [low[0], 0, low[1]], f[2], low[0] ? 216 : 236, gl(x, y + 1, z));
+    }
+    /* a corner of two different blocks (wallMateOf, shapes/boxes.js): each in its own art, a ladder as its shape is drawn,
+       a vine as a plate lit by its cell */
+    function emitWallPair(x, y, z, v) {
+      const parts = wallPairParts(v), boxes = wallPairBoxes(v, 0);
+      for (let k = 0; k < 2; k++) {
+        const p = parts[k], f = facesOfVal(p);
+        if (shapeOfVal(p) === 'ladder') for (const bx of boxes[k]) emitBoxFaces(x, y, z, bx, f, false, 0, 0, bx, _shapePass(p & 255));
+        else for (const bx of boxes[k]) emitBoxFaces(x, y, z, bx, f, true);
+      }
+    }
     // `skip`: faces left out, a bit each in the order below (top 1, bottom 2, +X 4, -X 8, +Z 16, -Z 32)
     function emitBoxFaces(x, y, z, b, f, own, sw = 0, glow = 0, u = b, ps = 0, skip = 0) {
       const x0 = x+b[0], y0 = y+b[1], z0 = z+b[2], x1 = x+b[3], y1 = y+b[4], z1 = z+b[5];
@@ -189,8 +245,10 @@ corePart('mesh.chunk', function () {
             }
           }
           else if (shapeBoxes) {
-            for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, facesOfVal(val), false, 0, 0, bx, _shapePass(vid));
             const fam = shapeOfVal(val);
+            if (fam === 'slope') emitSlope(x, y, z, val);         // a wedge, not its steps
+            else if (fam === 'ladder' && wallMateOf(val)) emitWallPair(x, y, z, val);
+            else for (const bx of shapeBoxes) emitBoxFaces(x, y, z, bx, facesOfVal(val), false, 0, 0, bx, _shapePass(vid));
             if ((fam === 'fence' || fam === 'wall') && lod < 2) { emitSlopes(x, y, z, val, fam, 0); emitDiags(x, y, z, val, fam, 0); }   // its steps and corner joins
           }
           else if (slabMixed(val)) {                     // two slabs of different blocks: each half in its own art
@@ -207,6 +265,7 @@ corePart('mesh.chunk', function () {
           }
           else if (PROPS[vid].model === 'hollow')      // a hollow log: bark shell and its filling, lit from inside
             for (const [bx, f, sw] of hollowParts(val)) emitBoxFaces(x, y, z, bx, f, true, sw);
+          else if (PROPS[vid].model === 'wall' && wallMateOf(val)) emitWallPair(x, y, z, val);   // a vine with a ladder or another vine
           else if (PROPS[vid].model === 'carpet' || PROPS[vid].model === 'wall') {   // a wall plate is an upright carpet
             const va = (val >> 8) & 255;
             const boxes = PROPS[vid].boxesByVar[va] || PROPS[vid].boxesByVar[0];

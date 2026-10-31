@@ -56,6 +56,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
     if (!sim && isNightMob(e) && isBurningDaylight()) { _mobDropHeld(e); _removeEntity(i); continue; }
     if (!sim) { e.active = false; continue; }
     e.active = true;
+    entSlopeSlide(e, dt);                              // nothing stands on a slope (blocks/slopes.js)
     // hunger drains for every simulating entity; only the horse acts on it (see _updateGrazer)
     // ...and a hellhound, whose food is out of 120 and whose thirst is its fire (it starts on its own numbers)
     e.hunger = Math.max(0, entHunger(e) - ENT_HUNGER_DECAY * (mobOf(e).hungerMul ?? 1) * dt);   // slower for the tamable kinds

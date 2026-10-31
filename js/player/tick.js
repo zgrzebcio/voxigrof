@@ -63,7 +63,8 @@ function tickPlayer(dt, now, slot) {
   if (player.sneaking) player.fast = false;
   if (!player.flying && (fwd || str) && fwd <= 0.1) player.fast = false;
   const fast = player.fast;
-  const onClimb = !player.flying && !inWater && player.spawned && !menuScene && playerOnClimbable();   // 0.765
+  // a ladder or a vine standing in water is climbed, not swum (a cell holding both: blocks/waterlog.js)
+  const onClimb = !player.flying && player.spawned && !menuScene && playerOnClimbable();
   // up a bare wall (player/movement.js); at its lip a last heave carries you over the edge
   const wallClimb = !onClimb && player.spawned && !menuScene && !joining && !benching && !lying
                     && wallClimbWanted(upHeld, fwd, grounded, inWater);
@@ -77,7 +78,7 @@ function tickPlayer(dt, now, slot) {
     player.vy = 0;
     if (dnHeld && grounded) player.flying = false;  // sneak onto a block top -> land & walk
   } else {
-    if (inWater) {                          // swim: jump = up, shift = fast sink, else slow sink
+    if (inWater && !onClimb) {              // swim: jump = up, shift = fast sink, else slow sink
       // sprint-swim: passive float/sink 95% weaker AND vy damped hard so the player
       // glides at near-constant depth (no drift up or down)
       const sprintSwim = fast && fwd > 0.1;
@@ -105,12 +106,15 @@ function tickPlayer(dt, now, slot) {
       }
     } else if (onClimb) {
       // on a glow vine: forward or jump climbs, sneak holds on, otherwise a slow slide down
-      /* Where you look sets the pace: straight up climbs CLIMB_LOOK_BONUS faster, straight down
-         slides that much faster, blending smoothly in between; level ground is the normal speed. */
+      /* Where you look sets the pace: straight up climbs CLIMB_LOOK_BONUS faster, blending smoothly in between; looking down
+         slides CLIMB_LOOK_DOWN faster, all of it from CLIMB_DOWN_FULL down (player/movement.js); level is the normal speed. */
       const look = Math.max(-1, Math.min(1, player.pitch / (Math.PI / 2)));
-      if (upHeld || fwd > 0.1) player.vy = CLIMB_SPEED * (1 + CLIMB_LOOK_BONUS * Math.max(0, look));
-      else if (dnHeld) player.vy = 0;
-      else player.vy = Math.max(player.vy - 27 * dt, -CLIMB_SLIDE * (1 + CLIMB_LOOK_BONUS * Math.max(0, -look)));
+      const down = Math.max(0, Math.min(1, (-look - CLIMB_DOWN_FROM) / (CLIMB_DOWN_FULL - CLIMB_DOWN_FROM)));
+      // climbing and holding on take stamina (tickStats, player/stats.js): out of it, the hands only slide
+      const spent = playerTired();
+      if ((upHeld || fwd > 0.1) && !spent) player.vy = CLIMB_SPEED * (1 + CLIMB_LOOK_BONUS * Math.max(0, look));
+      else if (dnHeld && !spent) player.vy = 0;
+      else player.vy = Math.max(player.vy - 27 * dt, -CLIMB_SLIDE * (1 + CLIMB_LOOK_DOWN * down));
       player.fallStart = null;                  // a climb is never a fall
     } else if (wallClimb) {
       player.vy = WALL_CLIMB_SPEED;             // hand over hand up the wall
@@ -134,13 +138,30 @@ function tickPlayer(dt, now, slot) {
            * (playerIsCrafting() ? craftMoveMul() : 1);  // crafting queue running (0.76; Walk and Work 0.79)
   }
   if (!player.spawned) { player.vy = 0; dy = 0; }   // hold still until the spawn chunk exists
-  // hands on a wall, or on a ladder going somewhere: the climbing arms play and the hands are busy
-  player._climbAnim = wallClimb || (onClimb && Math.abs(player.vy) > 0.2);
+  /* hands on a wall, or on a ladder or a vine: going up (both hands climb), sliding down (both on the rails), or still off the
+     ground (the left hand holds on, the right is free). `_climbAnim`: both hands busy, nothing mined or placed. The three
+     weights ease toward the state, so the arms (player/hands.js, 40-shield.js) blend from one pose into the next. */
+  const climbUp = wallClimb || (onClimb && player.vy > 0.2), climbDown = onClimb && !grounded && player.vy < -0.2;
+  const climbHold = onClimb && !grounded && !climbUp && !climbDown && !lying;
+  player._climbAnim = climbUp || climbDown;
+  player._climbHold = climbHold;
+  // what a ladder or a vine costs this frame (tickStats, player/stats.js): 2 going up, 1 holding on, 0 sliding or none
+  player._ladderUse = onClimb && !wallClimb && !player.canFly ? (climbUp ? 2 : climbHold ? 1 : 0) : 0;
+  const cEase = 1 - Math.exp(-8 * dt);
+  player._climbUpW = (player._climbUpW || 0) + ((climbUp ? 1 : 0) - (player._climbUpW || 0)) * cEase;
+  player._climbSlideW = (player._climbSlideW || 0) + ((climbDown ? 1 : 0) - (player._climbSlideW || 0)) * cEase;
+  player._climbHoldW = (player._climbHoldW || 0) + ((climbHold ? 1 : 0) - (player._climbHoldW || 0)) * cEase;
+  /* the yaw that looks at what is climbed: the ladder's or the vine's wall, or the wall in front. Kept after letting go, so
+     the body (player/body.js) turns back from it as the weights ease out. */
+  if (onClimb) player._climbFace = _CLIMB_FACE[player._climbSide];
+  else if (wallClimb) player._climbFace = player.yaw;
+  // ...and the look is held toward the ladder or the vine (player/movement.js)
+  if (onClimb && !wallClimb && (climbUp || !grounded) && !lying && !joining) clampClimbLook(dt, player._climbUpW + player._climbSlideW);
   if (joining || benching) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // ...and until the whole neighbourhood does
   if (player._drinkProg > 0) { fwd = 0; str = 0; dy = 0; }               // drinking: both hands to the water, you stand still
   if (menuScene) { fwd = 0; str = 0; dy = 0; player.vy = 0; }   // title camera: rotation only
   if (lying) {                                  // asleep: pinned to the mattress, look only
-    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0; player._climbAnim = false;
+    fwd = 0; str = 0; dy = 0; player.vy = 0; player.sneaking = false; player._movingH = 0; player._climbAnim = false; player._climbHold = false; player._ladderUse = 0;
     const s = player.sleepingAt, d = BED_DIR[s.facing & 3];
     player.pos.set(s.x + 0.5 + d[0] * 0.5, s.y + BED_H, s.z + 0.5 + d[1] * 0.5);
   }
@@ -181,6 +202,9 @@ function tickPlayer(dt, now, slot) {
     const got2 = (player.pos.x - x0) ** 2 + (player.pos.z - z0) ** 2;
     if (player.fast && want2 > 1e-8 && got2 < want2 * 0.04) player.fast = false;
   }
+  // a slope carries whoever stands on it down and off (blocks/slopes.js)
+  if (!player.flying && player.spawned && !menuScene && !joining && !benching && !lying && !player.riding && !inWater && !onClimb)
+    playerSlopeSlide(dt);
   // water current pushes the player (walking mode only; flying ignores it)
   if (!player.flying && player.spawned && !menuScene && !joining && inWater) {
     if (waterFlowVec(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4), Math.floor(player.pos.z), _flowV))
@@ -365,6 +389,9 @@ function tickPlayer(dt, now, slot) {
   player._unsealProg = typeof updateChestUnseal === 'function' ? updateChestUnseal(dt, _rmbRaw) : 0;
   // a clam held open, its pearl held to take (blocks/clam.js); a fish held to take in hand, and one in hand wriggling (player/fish-hold.js)
   player._clamProg = typeof updateClamHold === 'function' ? updateClamHold(dt, _rmbRaw) : 0;
+  // a log's bark held off with a hatchet (woods/felling.js); a creature being written into the book (player/creature-book.js)
+  player._stripProg = typeof updateStripHold === 'function' ? updateStripHold(dt, _rmbRaw) : 0;
+  player._bookProg = typeof updateBookHold === 'function' ? updateBookHold(dt, _rmbRaw) : 0;
   player._grabProg = typeof updateFishGrab === 'function' ? updateFishGrab(dt, _rmbRaw) : 0;
   if (typeof updateHeldFish === 'function') updateHeldFish(dt);
   // a glass bottle held on water fills (player/stats.js)
@@ -451,7 +478,8 @@ function tickPlayer(dt, now, slot) {
         if (stage > 0 && typeof fxHit === 'function') fxHit(hit.x, hit.y, hit.z, hit.over ? overValAt(hit.x, hit.y, hit.z, hit.bi) : getBlock(hit.x, hit.y, hit.z), hit.nx, hit.ny, hit.nz);
       }
       let cboxes = hit.over ? overBoxesAt(hit.x, hit.y, hit.z, hit.bi) : rayBoxesAt(hit.x, hit.y, hit.z);
-      if (cboxes && !hit.over && CORE.slabMixed(getBlock(hit.x, hit.y, hit.z))) cboxes = [cboxes[hit.bi || 0]];   // only the half being dug
+      // only the half being dug, or the one of a corner's two ladders or vines
+      if (cboxes && !hit.over && (CORE.slabMixed(getBlock(hit.x, hit.y, hit.z)) || wallPaired(getBlock(hit.x, hit.y, hit.z)))) cboxes = [cboxes[hit.bi || 0]];
       if (cboxes && cboxes.length) {
         let x0=1,y0=1,z0=1,x1=0,y1=0,z1=0;
         for (const b of cboxes) { x0=Math.min(x0,b[0]); y0=Math.min(y0,b[1]); z0=Math.min(z0,b[2]);
@@ -469,7 +497,9 @@ function tickPlayer(dt, now, slot) {
         const overV = overValAt(mx, my, mz, mbi);
         const mval = overV || getBlock(mx, my, mz);
         // a mixed slab: it is the half you were aiming at that breaks, and that block that counts
-        const mix = overV ? null : slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] & 255 : mval & 255;
+        // ...and a corner's two ladders or vines the one aimed at (blocks/ladders.js)
+        const pair = !overV && wallPaired(mval) ? wallSingle(mval, mbi ? 1 : 0) : 0;
+        const mix = overV ? null : slabMixIdsAt(mx, my, mz, mval), minedId = mix ? mix[mbi ? 1 : 0] & 255 : pair ? pair & 255 : mval & 255;
         resetMining();
         // axe on a log: strip it, or fell the tree if it is already stripped. It performs its own
         // block edit and drops, so the ordinary break path is skipped when it claims the hit.
@@ -477,7 +507,7 @@ function tickPlayer(dt, now, slot) {
         const chopped = !overV && tryChopLog(mx, my, mz);
         if (!chopped) playBlockSound(minedId, 'break', mx, my, mz);
         // the block bursts into bits of itself; a log the axe only notched sheds a few chips (0.8)
-        if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, mval); }
+        if (typeof fxBreak === 'function') { if (chopped) fxHit(mx, my, mz, mval, 0, 1, 0); else fxBreak(mx, my, mz, pair || mval); }
         // the wrong tool for the job (a pickaxe on dirt): double wear below, and no experience
         const wrongTool = isWrongTool(heldUseId(), mix ? minedId : mval);
         // tier gate: wrong/too-weak tool still breaks the block but yields no drops
@@ -501,6 +531,10 @@ function tickPlayer(dt, now, slot) {
         } else if (mix) {
           breakSlabMixHalf(mx, my, mz, mbi ? 1 : 0, mval);   // the other half stays as a slab of its own
           if (dropsOk) for (const drop of blockDrop(stackVal(mix[mbi ? 1 : 0]), false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
+        } else if (pair) {
+          // a corner's two ladders or vines: the one aimed at comes off, the other stays (blocks/ladders.js)
+          setBlock(mx, my, mz, wallSingle(mval, mbi ? 0 : 1));
+          if (dropsOk) for (const drop of blockDrop(pair, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, mx, my, mz);
         } else if (stack) {
           setBlock(mx, my, mz, B.AIR);
           if (dropsOk) _dropStackLayers(stack, mx, my, mz);
