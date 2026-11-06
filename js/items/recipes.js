@@ -31,13 +31,14 @@ const V_JLOG   = woodLogs('jungle');
 const V_STONE  = [B.COBBLE, B.STONE, B.MARBLE, B.LIMESTONE, B.GRANITE, B.DOLOMITE];   // dolomite 0.809          // anything that takes cobble takes stone too
 const V_COAL   = [ITEM.COAL, ITEM.CHARCOAL];
 const V_BERRIES = [ITEM.BERRIES, ITEM.BLUE_BERRIES, ITEM.BLACKBERRIES, ITEM.YELLOW_BERRIES, ITEM.WHITE_BERRIES];   // any berry, mixed
-const V_BONE   = [ITEM.BONE, ITEM.SEASHELL];   // a seashell is bone enough: the mortar grinds it to bone ash, ten press into a bone block
+const V_BONE   = [ITEM.BONE, ITEM.SEASHELL];   // a seashell is bone enough: ten press into a bone block
+const V_SHELL_BONE = [ITEM.SEASHELL, B.BONE_BLOCK];   // what the mortar is made with and what it grinds to bone ash (a loose bone does neither)
 
 // leather gear is riveted, not forged: any soft-metal nugget does the job
 const V_NUGGET = [ITEM.IRON_NUGGET, ITEM.TIN_NUGGET, ITEM.COPPER_NUGGET];
 // ...and a key's bit any metal at all
 const V_ANY_NUGGET = [ITEM.IRON_NUGGET, ITEM.TIN_NUGGET, ITEM.COPPER_NUGGET, ITEM.GOLD_NUGGET, ITEM.BRONZE_NUGGET];
-// golden armor is set with a gem, any of the five
+// golden tools and armor are set with a gem, any of the five
 const V_GEMS = [ITEM.DIAMOND, ITEM.EMERALD, ITEM.RUBY, ITEM.SAPPHIRE, ITEM.TOPAZ];
 
 const RECIPES_BASIC = [
@@ -63,7 +64,7 @@ const RECIPES_BASIC = [
   { in: [[ITEM.FLINT, 5], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_PICKAXE, 1], timeToCraft: 5, xpToGive: 15 },
   { in: [[ITEM.FLINT, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                 out: [ITEM.FLINT_HATCHET, 1], timeToCraft: 5, xpToGive: 15 },
   { in: [[ITEM.FLINT, 2], [ITEM.STICK, 3], [ITEM.FIBER, 8]],                 out: [ITEM.FLINT_HOE, 1], timeToCraft: 4, xpToGive: 15 },
-  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6], [ITEM.ASHES, 1]], out: [ITEM.ARROW, 2], timeToCraft: 2.5, xpToGive: 8 },
+  { in: [[ITEM.FLINT, 1], [ITEM.STICK, 2], [ITEM.FIBER, 6], [ITEM.ASHES, 1], [ITEM.FEATHER, 1]], out: [ITEM.ARROW, 2], timeToCraft: 2.5, xpToGive: 8 },
   // the cold crystal torch: twice the fire torch's time, last so saved queues keep their places
   { in: [[ITEM.GLOW_CRYSTAL, 1], [ITEM.FIBER, 2], [ITEM.STICK, 1]],          out: [B.CRYSTAL_TORCH, 5], timeToCraft: 3.5, xpToGive: 5 },
 ];
@@ -92,11 +93,11 @@ const RECIPES_ADVANCED = [
   { in: [[ITEM.BRONZE_INGOT, 10], [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_PICKAXE, 1], timeToCraft: 6.5, xpToGive: 350 },
   { in: [[ITEM.BRONZE_INGOT, 8],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_HATCHET, 1], timeToCraft: 6,   xpToGive: 350 },
   { in: [[ITEM.BRONZE_INGOT, 4],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.CHITIN_PLATE, 1]], out: [ITEM.BRONZE_HOE, 1],     timeToCraft: 5.5, xpToGive: 350 },
-  { in: [[ITEM.GOLD_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SWORD, 1], timeToCraft: 3, xpToGive: 120 },
-  { in: [[ITEM.GOLD_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_SHOVEL, 1], timeToCraft: 3, xpToGive: 120 },
-  { in: [[ITEM.GOLD_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_PICKAXE, 1], timeToCraft: 4, xpToGive: 120 },
-  { in: [[ITEM.GOLD_INGOT, 4], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HATCHET, 1], timeToCraft: 3.5, xpToGive: 120 },
-  { in: [[ITEM.GOLD_INGOT, 2], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.GOLDEN_HOE, 1], timeToCraft: 3, xpToGive: 120 },
+  { in: [[ITEM.GOLD_INGOT, 6],  [ITEM.STICK, 2], [ITEM.CLOTH, 1], [ITEM.FEATHER, 3], [V_GEMS, 1]], out: [ITEM.GOLDEN_SWORD, 1], timeToCraft: 3, xpToGive: 120 },
+  { in: [[ITEM.GOLD_INGOT, 2],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.FEATHER, 1], [V_GEMS, 1]], out: [ITEM.GOLDEN_SHOVEL, 1], timeToCraft: 3, xpToGive: 120 },
+  { in: [[ITEM.GOLD_INGOT, 10], [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.FEATHER, 5], [V_GEMS, 1]], out: [ITEM.GOLDEN_PICKAXE, 1], timeToCraft: 4, xpToGive: 120 },
+  { in: [[ITEM.GOLD_INGOT, 8],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.FEATHER, 4], [V_GEMS, 1]], out: [ITEM.GOLDEN_HATCHET, 1], timeToCraft: 3.5, xpToGive: 120 },
+  { in: [[ITEM.GOLD_INGOT, 4],  [ITEM.STICK, 3], [ITEM.CLOTH, 1], [ITEM.FEATHER, 2], [V_GEMS, 1]], out: [ITEM.GOLDEN_HOE, 1], timeToCraft: 3, xpToGive: 120 },
   { in: [[ITEM.IRON_INGOT, 3], [ITEM.STICK, 2], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SWORD, 1], timeToCraft: 3, xpToGive: 75 },
   { in: [[ITEM.IRON_INGOT, 1], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_SHOVEL, 1], timeToCraft: 3, xpToGive: 75 },
   { in: [[ITEM.IRON_INGOT, 5], [ITEM.STICK, 3], [ITEM.CLOTH, 1]],            out: [ITEM.IRON_PICKAXE, 1], timeToCraft: 4, xpToGive: 75 },
@@ -111,8 +112,8 @@ const RECIPES_ADVANCED = [
   { in: [[V_STONE, 4], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HATCHET, 1], timeToCraft: 4, xpToGive: 30 },
   { in: [[V_STONE, 2], [ITEM.STICK, 3], [ITEM.FIBER, 10]],                    out: [ITEM.STONE_HOE, 1], timeToCraft: 3, xpToGive: 30 },
   { in: [[ITEM.IRON_INGOT, 3]],                                              out: [ITEM.BUCKET, 1], timeToCraft: 5, xpToGive: 50 },
-  { in: [[ITEM.WHEAT, 3]],                                                   out: [ITEM.FLOUR, 1], station: 'mortar', timeToCraft: 2, xpToGive: 15 },
-  { in: [[ITEM.FLOUR, 3], [B.PUMPKIN, 1], [ITEM.SUGAR, 2]],                 out: [ITEM.PUMPKIN_PIE, 1], timeToCraft: 8, xpToGive: 70 },
+  { in: [[ITEM.WHEAT, 2]],                                                   out: [ITEM.FLOUR, 1], station: 'mortar', timeToCraft: 2, xpToGive: 15 },
+  { in: [[ITEM.DOUGH, 1], [B.PUMPKIN, 1], [ITEM.SUGAR, 2]],                 out: [ITEM.PUMPKIN_PIE, 1], timeToCraft: 8, xpToGive: 70 },
   { in: [[ITEM.CHARCOAL, 1], [ITEM.SULFUR, 2], [ITEM.FLINT, 1], [ITEM.ASHES, 1]], out: [ITEM.GUNPOWDER, 2], station: 'mortar', timeToCraft: 4.5, xpToGive: 20 },
   { in: [[ITEM.GUNPOWDER, 7], [B.SAND, 10]],                                 out: [B.TNT, 1], timeToCraft: 10, xpToGive: 5 },
   { in: [[ITEM.BARK, 4]],                                                    out: [ITEM.PAPER, 1], timeToCraft: 2.5, xpToGive: 15 },
@@ -151,7 +152,7 @@ RECIPES_ADVANCED.push(
   { in: [[B.FIBER_BLOCK, 1]], out: [ITEM.FIBER, 10],     timeToCraft: 1,   xpToGive: 1 },
   // mortar and pestle (0.77; carved from granite with a bone pestle since 0.771)
   // any stone carves a mortar since 0.7992; which rock the bowl LOOKS like is a variant you pick (blocks/variants.js)
-  { in: [[V_STONE, 20], [V_BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 10, xpToGive: 150 },
+  { in: [[V_STONE, 20], [V_SHELL_BONE, 1], [ITEM.FLINT, 2], [B.FIBER_BLOCK, 1]], out: [B.MORTAR, 1], timeToCraft: 10, xpToGive: 150 },
   /* 0.773, at the mortar: grinding doubles ore. A raw ore gives 2 powder; a raw ore block (ten ores) gives
      20 and takes ten times as long. Each powder smelts into one ingot (blocks/furnace.js). */
   { in: [[ITEM.RAW_IRON, 1]],        out: [ITEM.IRON_POWDER, 2],    station: 'mortar', timeToCraft: 2,  xpToGive: 2 },
@@ -199,7 +200,7 @@ RECIPES_ADVANCED.push(
   { in: [[V_RLOG, 1]],        out: [B.RIME_PLANKS, 3], timeToCraft: 1.5, xpToGive: 3, basic: true, after: B.SPRUCE_PLANKS },
   // 0.84, appended for the saved indices like the rime planks: palm planks, and bone ash ground at the mortar
   { in: [[V_PLOG, 1]],        out: [B.PALM_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.RIME_PLANKS },
-  { in: [[V_BONE, 1]],        out: [ITEM.BONE_ASH, 2], station: 'mortar', timeToCraft: 2.5, xpToGive: 3 },
+  { in: [[V_SHELL_BONE, 1]],  out: [ITEM.BONE_ASH, 1], station: 'mortar', timeToCraft: 2.5, xpToGive: 3 },
   // a wooden key, at the bench: 4 planks of any wood and a nugget of any metal for its bit
   { in: [[V_PLANKS, 4], [V_ANY_NUGGET, 1]], out: [ITEM.WOODEN_KEY, 1], timeToCraft: 3, xpToGive: 10 },
   // a glass bottle from 4 glass, at the bench (appended: recipe indices are saved)
@@ -236,14 +237,18 @@ RECIPES_ADVANCED.push(
   { in: [[V_JLOG, 1]],            out: [B.JUNGLE_PLANKS, 3], timeToCraft: 1.2, xpToGive: 2, basic: true, after: B.ACACIA_PLANKS },
   { in: [[ITEM.COCOA_BEANS, 5]],  out: [ITEM.COCOA_POWDER, 1], station: 'mortar', timeToCraft: 4.5, xpToGive: 5 },
   /* golden armor, at the bench: gold lined with leather, stiffened with bones by the piece's size, every piece set with one
-     gem of any kind (V_GEMS), the crown with three pearls instead. Fewer ingots than iron's, more work than leather's */
-  { in: [[ITEM.GOLD_INGOT, 8],  [ITEM.LEATHER, 1], [ITEM.BONE, 1], [V_GEMS, 1]],    out: [ITEM.GOLDEN_GLOVES, 1],     timeToCraft: 7,  xpToGive: 115 },
-  { in: [[ITEM.GOLD_INGOT, 12], [ITEM.LEATHER, 2], [ITEM.BONE, 2], [V_GEMS, 1]],    out: [ITEM.GOLDEN_BOOTS, 1],      timeToCraft: 8,  xpToGive: 125 },
-  { in: [[ITEM.GOLD_INGOT, 14], [ITEM.PEARL, 3],   [ITEM.BONE, 2], [ITEM.CLOTH, 1]], out: [ITEM.GOLDEN_HELMET, 1],     timeToCraft: 9,  xpToGive: 135 },
-  { in: [[ITEM.GOLD_INGOT, 20], [ITEM.LEATHER, 3], [ITEM.BONE, 3], [V_GEMS, 1]],    out: [ITEM.GOLDEN_LEGGINGS, 1],   timeToCraft: 10, xpToGive: 145 },
-  { in: [[ITEM.GOLD_INGOT, 26], [ITEM.LEATHER, 4], [ITEM.BONE, 4], [V_GEMS, 1]],    out: [ITEM.GOLDEN_CHESTPLATE, 1], timeToCraft: 11, xpToGive: 155 },
+     gem of any kind (V_GEMS), the crown with three pearls instead. More ingots than iron's, more work than leather's */
+  { in: [[ITEM.GOLD_INGOT, 16], [ITEM.LEATHER, 1], [ITEM.BONE, 1], [V_GEMS, 1]],    out: [ITEM.GOLDEN_GLOVES, 1],     timeToCraft: 7,  xpToGive: 115 },
+  { in: [[ITEM.GOLD_INGOT, 24], [ITEM.LEATHER, 2], [ITEM.BONE, 2], [V_GEMS, 1]],    out: [ITEM.GOLDEN_BOOTS, 1],      timeToCraft: 8,  xpToGive: 125 },
+  { in: [[ITEM.GOLD_INGOT, 28], [ITEM.PEARL, 3],   [ITEM.BONE, 2], [ITEM.CLOTH, 1]], out: [ITEM.GOLDEN_HELMET, 1],     timeToCraft: 9,  xpToGive: 135 },
+  { in: [[ITEM.GOLD_INGOT, 40], [ITEM.LEATHER, 3], [ITEM.BONE, 3], [V_GEMS, 1]],    out: [ITEM.GOLDEN_LEGGINGS, 1],   timeToCraft: 10, xpToGive: 145 },
+  { in: [[ITEM.GOLD_INGOT, 52], [ITEM.LEATHER, 4], [ITEM.BONE, 4], [V_GEMS, 1]],    out: [ITEM.GOLDEN_CHESTPLATE, 1], timeToCraft: 11, xpToGive: 155 },
   // a book: five paper bound in leather and string (for the bookshelf to come)
   { in: [[ITEM.PAPER, 5], [ITEM.LEATHER, 1], [ITEM.STRING, 1]],      out: [ITEM.BOOK, 1], timeToCraft: 4, xpToGive: 20 },
+  // raw cookies, in the pocket list after the jam sandwich; a furnace bakes them (blocks/furnace.js)
+  { in: [[ITEM.DOUGH, 1], [ITEM.COCOA_BEANS, 3]], out: [ITEM.RAW_COOKIE, 2], timeToCraft: 2, xpToGive: 4, basic: true, after: ITEM.JAM_SANDWICH },
+  // dough, in the pocket list just before the cookies: what bread (blocks/furnace.js), pies and cookies are made from
+  { in: [[ITEM.FLOUR, 2], [ITEM.SALT, 1], [ITEM.EGG, 1]], out: [ITEM.DOUGH, 1], timeToCraft: 3, xpToGive: 6, basic: true, after: ITEM.JAM_SANDWICH },
 );
 // every recipe worth more than 1 XP pays a quarter more (rounded); the 1s stay 1
 const CRAFT_XP_MUL = 1.5;

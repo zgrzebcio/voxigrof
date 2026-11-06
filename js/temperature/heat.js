@@ -9,7 +9,7 @@
    are, half as fast away from a desert, and resistance takes its share off (a hat 25%, the cloth set 40%). Anywhere
    else it goes down: slowly in shade or at night (HS_COOL_OUT_S from full), faster under a roof (HS_COOL_ROOF_S),
    fastest in water (HS_COOL_WATER_S). What it does as it climbs:
-     20%  thirst and fruit drain faster           30%  food, vegetables and protein do too
+     20%  thirst and fruit drain faster           30%  food, veggies and protein do too
      40%  the view blurs, more as it climbs        50%  energy drains fast, stamina barely comes back
      70%  a slow loss of health                    90%  mirages: water on the ground ahead (player/hazards.js)
      100% you collapse and die. */
@@ -34,7 +34,7 @@ function heatstrokeMuls(hs) {
   const ramp = (at, lo, hi) => hs < at ? 1 : lo + (hi - lo) * (hs - at) / (100 - at);
   return {
     thirst: ramp(HS_THIRST_AT, 1.25, 2),                // thirst and fruit
-    food: ramp(HS_FOOD_AT, 1.2, 1.75),                  // food, vegetables and protein
+    food: ramp(HS_FOOD_AT, 1.2, 1.75),                  // food, veggies and protein
     energy: hs < HS_TIRED_AT ? 0 : 3 + 4 * (hs - HS_TIRED_AT) / (100 - HS_TIRED_AT),
     stamina: hs < HS_TIRED_AT ? 1 : 0.25,
     dps: hs < HS_HURT_AT ? 0 : HS_HURT_DPS + (HS_HURT_DPS_MAX - HS_HURT_DPS) * (hs - HS_HURT_AT) / (100 - HS_HURT_AT),
@@ -83,7 +83,7 @@ function _hsDesc(p) {
   const hs = p.heatstroke || 0, m = heatstrokeMuls(hs), pc = (x) => Math.round((x - 1) * 100) + '%';
   const out = [];
   if (hs >= HS_THIRST_AT) out.push(`thirst and fruit drain ${pc(m.thirst)} faster`);
-  if (hs >= HS_FOOD_AT) out.push(`food, vegetables and protein ${pc(m.food)} faster`);
+  if (hs >= HS_FOOD_AT) out.push(`food, veggies and protein ${pc(m.food)} faster`);
   if (hs >= HS_BLUR_AT) out.push('your sight blurs');
   if (hs >= HS_TIRED_AT) out.push('energy drains fast and stamina barely comes back');
   if (hs >= HS_HURT_AT) out.push(`you lose ${m.dps.toFixed(1)} health a second`);

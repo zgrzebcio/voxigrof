@@ -25,6 +25,8 @@ function _doPlace() {
   if (typeof tryOtterInteract === 'function' && tryOtterInteract()) { handPlaceSwing = true; return; }
   // a meerkat: its stance, onto your shoulder and off it again (entities/meerkat.js)
   if (typeof tryMeerkatInteract === 'function' && tryMeerkatInteract()) { handPlaceSwing = true; return; }
+  // a parrot: its stance, a cookie, onto your left shoulder and off it again (entities/parrot.js)
+  if (typeof tryParrotInteract === 'function' && tryParrotInteract()) { handPlaceSwing = true; return; }
   // a tiger: raw meat from the hand (entities/tiger.js)
   if (typeof tryTigerInteract === 'function' && tryTigerInteract()) { handPlaceSwing = true; return; }
   if (typeof tryTameInteract === 'function' && tryTameInteract()) { handPlaceSwing = true; return; }
@@ -152,9 +154,25 @@ function _doPlace() {
     chiselWear();
     return;
   }
+  // ...and into a plant's cell: a falling carpet lies among the plant, which stays (chunks/layer-stacks.js)
+  if (layerShape && layerShape.key === 'carpet' && (!overHit || overBuried) && tryCarpetAmongPlant(hit, heldId)) {
+    playBlockSound(heldId, 'place', hit.x, hit.y, hit.z);
+    handPlaceSwing = true;
+    spendHeld("placed");
+    chiselWear();
+    return;
+  }
+  // ...and at the foot of a fence, a wall or a ladder: under it, which goes on standing there (blocks/rails.js)
+  if (layerShape && layerShape.key === 'carpet' && tryCarpetUnderRail(hit, heldId, typeof heldLookOf === 'function' ? heldLookOf(slotId(HOTBAR[hotbarSel])) : 0)) {
+    playBlockSound(heldId, 'place', hit.x, hit.y, hit.z);
+    handPlaceSwing = true;
+    spendHeld("placed");
+    chiselWear();
+    return;
+  }
   // grass on grass -> grow a 2-block tall grass (lower + upper), if there's headroom
-  // ...and dry grass on dry grass a tall dry grass
-  const tallOf = heldId === B.TALLGRASS ? B.TALL_LOWER : heldId === B.DRY_GRASS ? B.DRY_TALL_LOWER : 0;
+  // ...and dry grass on dry grass a tall dry grass, a fern on a fern a tall fern
+  const tallOf = heldId === B.TALLGRASS ? B.TALL_LOWER : heldId === B.DRY_GRASS ? B.DRY_TALL_LOWER : heldId === B.FERN ? B.TALL_FERN_LOWER : 0;
   if (tallOf && hit.id === heldId && !overHit && (getBlock(hit.x, hit.y + 1, hit.z) & 255) === B.AIR) {
     setBlock(hit.x, hit.y, hit.z, tallOf);
     setBlock(hit.x, hit.y + 1, hit.z, TALL_UPPER_OF[tallOf]);
@@ -250,6 +268,7 @@ function _doPlace() {
   // a cell a plate lies in takes nothing else: no slab made a double under it, no layer piled up, the plant left be
   // ...nor one covers lie in (blocks/covers.js)
   if (plateOverAt(px, py, pz) || coversAt(px, py, pz) || railOverAt(px, py, pz)) return;   // ...nor one a rail stands in
+  if (CORE.carpetCount(getBlock(px, py, pz))) return;      // ...nor a plant with a carpet among it, as a stack takes no block (chunks/layer-stacks.js)
   // The plant itself is free ground for this placement — the clearPlantAt calls further down do
   // the mowing, so a click that ends up placing nothing (empty hand, no headroom) leaves it be.
   if (!isPlaceableInto(cur) && !(ontoPlant && isNoTargetPlant(cur))) {   // only into air/water/lava/grass...
@@ -310,11 +329,20 @@ function _doPlace() {
   if (vineWall && (hit.ny !== 0 || !(hit.nx || hit.nz) || ontoPlant || !isSolid(hit.x, hit.y, hit.z))) return;
   // ...and the jungle's vine never in water (a glow vine stands in it: blocks/waterlog.js)
   if (id === B.VINE && isWaterVal(getBlock(px, py, pz))) { feedWarn('A vine does not grow in water'); return; }
+  // a falling carpet breaks on water (blocks/falling.js): none goes down in it or on it
+  if (shaped && shaped.key === 'carpet' && PROPS[id].layerStack && (isWaterVal(getBlock(px, py, pz)) || isWaterVal(getBlock(px, py - 1, pz)))) return;
   // flowers and grass plants require a grass block underneath (not any solid — no dirt/stone/etc.)
   // ...or an upright hollow log packed with dirt or grass, the planter
-  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER) {
+  // ...the same for the bush, the ferns and the clover
+  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.POPPY || id === B.ORCHID || id === B.TALL_LOWER
+      || id === B.BUSH || id === B.FERN || id === B.TALL_FERN_LOWER || id === B.CLOVER) {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;
+  }
+  // thornweed on grass or dirt; frost grass on those or snow
+  if (id === B.THORNWEED || id === B.FROST_GRASS) {
+    const bv = getBlock(px, py - 1, pz), b = bv & 255;
+    if (b !== B.GRASS && b !== B.DIRT && !potSoil(bv) && !(id === B.FROST_GRASS && b === B.SNOW)) return;
   }
   // saplings require grass underneath (same rule as flowers), but for a wood whose `saplingOn` is 'sandy_dirt' (the
   // palm: the woods table, woods/woods.js)
@@ -330,9 +358,9 @@ function _doPlace() {
     const bv = getBlock(px, py - 1, pz);
     if ((bv & 255) !== B.GRASS && !potSoil(bv)) return;                  // a planter works too
   }
-  /* the dry plants take grass, dirt, sand or red sand (a planter of soil or sand too); not pink sand, that is the warm
-     beach's */
-  if (id === B.DRY_GRASS || id === B.DRY_BUSH || id === B.DRY_TALL_LOWER) {
+  /* the dry plants and the desert scrub take grass, dirt, sand or red sand (a planter of soil or sand too); not pink sand,
+     that is the warm beach's */
+  if (id === B.DRY_GRASS || id === B.DRY_BUSH || id === B.DRY_TALL_LOWER || id === B.DESERT_SCRUB) {
     const bv = getBlock(px, py - 1, pz), b = bv & 255;
     if (CORE.layerCount(bv) || (b !== B.GRASS && b !== B.DIRT && b !== B.SAND && b !== B.RED_SAND && !potSoil(bv) && !potSand(bv))) return;
   }

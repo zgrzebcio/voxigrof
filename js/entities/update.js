@@ -19,6 +19,8 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
   if ((!pick || pick === _entIsDue) && typeof otterWorldTick === 'function') otterWorldTick(dtAll);
   // ...and meerkats the same: back on a shoulder, or come to a following owner (entities/meerkat.js)
   if ((!pick || pick === _entIsDue) && typeof meerkatWorldTick === 'function') meerkatWorldTick(dtAll);
+  // ...and parrots, and each player's parrot calling out monsters near (entities/parrot.js)
+  if ((!pick || pick === _entIsDue) && typeof parrotWorldTick === 'function') parrotWorldTick(dtAll);
 
   for (let i = ENTITIES.length - 1; i >= 0; i--) {
     const e = ENTITIES[i];
@@ -124,8 +126,8 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
       }
       if (_zombieBurnTick(e, dt)) { _fxEntGone(e, true); _removeEntity(i); continue; }
       if (e.burnT > 0) e.burnT -= dt;
-      // Always hostile inside the hunting radius; creative flight and death call it off.
-      if (!tp.canFly && !tp.dead && distXZ <= ZOMBIE_CHASE_RANGE) e.state = 'chase';
+      // Always hostile inside the hunting radius (shorter for one hidden by a parrot, entities/parrot.js); creative flight and death call it off.
+      if (!tp.canFly && !tp.dead && distXZ <= ZOMBIE_CHASE_RANGE * hideSightMul(tp)) e.state = 'chase';
       else if (e.state === 'chase') e.state = 'wander';
       // a skeleton shows what it is holding the moment it is out of the ground
       if (e.kind === 'skeleton')
@@ -226,7 +228,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
           else {
             const blocked = typeof shieldBlock === 'function' && shieldBlock(tp, e.x, e.z, SKEL_DMG_HANDS);
             if (!blocked) {
-              tp.hp -= SKEL_DMG_HANDS;             // out of 100 on both sides since 0.823
+              tp.hp -= SKEL_DMG_HANDS * crowOmenHitMul(tp);   // out of 100 on both sides since 0.823; softer under the crows' omen (entities/crow.js)
               tp._dmgCause = `was slain by a ${e.name}`;
             }
             tp._hitBy = e; tp._hitByAt = performance.now();   // 0.845
@@ -265,7 +267,7 @@ function updateEntities(dtAll, pick = null, frameJobs = true) {
         // a raised shield facing the blow stops it outright (40-shield.js)
         const blocked = typeof shieldBlock === 'function' && shieldBlock(tp, e.x, e.z, e.dmg || ENT_ATTACK_DMG);
         if (!blocked) {
-          tp.hp -= (e.dmg || ENT_ATTACK_DMG);   // out of 100 on both sides since 0.823
+          tp.hp -= (e.dmg || ENT_ATTACK_DMG) * (isNightMob(e) ? crowOmenHitMul(tp) : 1);   // out of 100 on both sides since 0.823; a monster's softer under the crows' omen
           tp._dmgCause = `was slain by a ${e.name}`;
         }
         tp._hitBy = e; tp._hitByAt = performance.now();   // 0.845

@@ -8,7 +8,7 @@ corePart('blocks', function () {
      rock: each is a cluster of crystal spikes growing out of a stone face in a cave — floor, ceiling or wall —
      drawn in its gem block's texture. Same ids, so drops, tool tiers, XP and Prospector are unchanged. The
      variant byte (0-5) is the way it points: up, down, +X, -X, +Z, -Z (CLUSTER_DIRS); the block it grows from
-     is the cell behind it, and when that goes the cluster drops as an item (chunks/chunks.js). Nothing collides
+     is the cell behind it, and when that goes the cluster breaks and gives nothing (setBlock, chunks/block-access.js). Nothing collides
      with it. Worldgen puts them in caves (genChunk, after the sulfur). */
   const CLUSTER_DIRS = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
   /* THE LOOK (five straight spikes in 0.7945). A low uneven bed of the gem's ore rock, and six to

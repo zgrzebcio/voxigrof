@@ -396,7 +396,7 @@ function applyMist(cam) {
   if (st.curse < 0.003) st.curse = 0;
   // above the cloud layer the air is clear, whatever the weather below
   // ...and Clear Eyes takes 30% off fog and sand alike (player/skills.js)
-  const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // vegetable sickness too
+  const sm = typeof playerSightMul === 'function' ? playerSightMul() : 1;   // veggie sickness too
   const sky = 1 - cloudsBelow(cam.position.y), clear = sky * sm, dense = st.dense * clear, light = st.light * clear, sand = st.sand * clear;
   // under a roof the rain and snow are outside: a third of their haze (a blizzard's has its own roof distance)
   const roof = 1 - 0.65 * st.sandIn, rain = st.rain * clear * roof, snow = st.snow * clear * roof, bliz = st.bliz * clear;

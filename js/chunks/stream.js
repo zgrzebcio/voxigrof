@@ -376,12 +376,13 @@ const genFinishQueue = [];
 
 /* A block the page draws itself (PROPS `pageModel`) or keeps an eye on (`pageSeen`), met in a chunk coming in: its own file
    is told. The termite hill (blocks/termite-hill.js) and the clam (blocks/clam.js), drawn from then on; the cocoa pod
-   (woods/cocoa.js), grown and checked for its trunk. */
+   (woods/cocoa.js), grown and checked for its trunk; an egg (blocks/egg.js), for the hens to find. */
 function pageModelSeen(x, y, z, v) {
   const id = v & 255;
   if (id === B.TERMITE_HILL) { if (typeof termiteHillSeen === 'function') termiteHillSeen(x, y, z, v); }
   else if (id === B.CLAM) { if (typeof clamSeen === 'function') clamSeen(x, y, z, v); }
   else if (id === B.COCOA) { if (typeof cocoaSeen === 'function') cocoaSeen(x, y, z, v); }
+  else if (id === B.EGG) eggSeen(x, y, z);
 }
 
 function finishChunkGen(c) {

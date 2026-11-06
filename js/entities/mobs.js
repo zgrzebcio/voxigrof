@@ -7,7 +7,7 @@
 
    Each creature's own file adds its entry with defineMob, at its end (sheep.js, cow.js, pig.js, horse.js,
    polar-bear.js, fish.js, night-mobs.js, villager.js, hellhound.js, frozen-king.js, termite.js, otter.js, tumbleweed.js,
-   meerkat.js, tiger.js). A creature's numbers, what the
+   meerkat.js, tiger.js, parrot.js, owl.js, crow.js, chicken.js; the birds' flight is shared, birds.js). A creature's numbers, what the
    save keeps of it, what it drops and where it lives are all in that one entry: the files named below read them
    from here, so none of them lists the kinds itself.
 
@@ -42,7 +42,8 @@
        fightsBack true: a creature's blow sets it on that creature (`_hurtBy`, entities/combat.js), as a player's sets it
                   on the player (`_struckBy`, aggroT): the tiger
        aggro      seconds a player's blow keeps it on that player (aggroT, damageEntity); missing = ENT_AGGRO_TIME
-       xp         0: killing it pays nothing and is not told as a kill (a tumbleweed). Not given: mobKillXP
+       xp         0: killing it pays nothing and is not told as a kill (a tumbleweed), or (e) => 0 for the ones that do not
+                  (a chick; mobPaysKill). Not given: mobKillXP
        book       false: no creature to write into the creature book (player/creature-book.js; the tumbleweed)
        chase      a humanoid's speed after its target (entities/update.js)
        reach      how far its blow reaches, edge to edge. Not given: MONSTER_MELEE_REACH (entAttackRange)
@@ -148,6 +149,8 @@ const isGrazer   = (e) => mobOf(e).body === 'grazer';   // sheep, cow, pig, hors
 const isFish     = (e) => mobOf(e).body === 'fish';
 const isNightMob = (e) => mobOf(e).night === true;       // zombie, skeleton
 const isAnimal   = (e) => mobOf(e).group === 'animal';   // sheep, cow, pig, horse, polar bear
+// whether killing this one pays XP (its kind's `xp`)
+const mobPaysKill = (e) => { const x = mobOf(e).xp; return (typeof x === 'function' ? x(e) : x) !== 0; };
 // "killed a polar bear": the line a kill's XP is paid under
 const mobKillText = (e) => 'killed a ' + mobOf(e).name.toLowerCase();
 // one of a creature's own sounds (its entry's `sounds`), at it, pitched by its rate; false when its kind has none

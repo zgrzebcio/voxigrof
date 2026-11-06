@@ -3,7 +3,7 @@
    A group of the item table (items/items.js says what each field of an entry is for, and holds every item's id). */
 defineItems('food', {
 // Consumables. food, foodSat (over-food), foodSatFull and foodHeal are out of 100 since 0.82 (x5; they were out of 20);
-// what each also gives in thirst, fruit, vegetables and protein is FOOD_NUTRITION in player/stats.js.
+// what each also gives in thirst, fruit, veggies and protein is FOOD_NUTRITION in player/stats.js.
 // Every eatTime is 20% longer since 0.821.
   [ITEM.APPLE]:         { name: 'Apple',          stack: 79, icon: 'apple',         foodSatFull: 15, food: 25,  foodSat: 40,  eatTime: 1.8, spoil: 3600, desc: '' },   // an hour since 0.7992
   /* the coconut, off a palm (woods/coconuts.js): not eaten whole, it is OPENED, the right button held `open.time` with it in
@@ -36,7 +36,11 @@ defineItems('food', {
   [ITEM.BREAD]:         { name: 'Bread',          stack: 79, icon: 'bread',         foodSatFull: 20, food: 30,  foodSat: 40,  eatTime: 2.04, spoil: 14400, desc: '' },
   // five berries of any kind on a bread make two (items/recipes.js): food, or over-food when full; fruit and stamina (FOOD_NUTRITION)
   [ITEM.JAM_SANDWICH]:  { name: 'Jam sandwich',   stack: 30, icon: 'jam_sandwich',  foodSatFull: 20, food: 25, eatTime: 2.16, spoil: 14400, desc: 'Berry jam on bread' },
-  // a carrot: a snack like a melon slice and a lot of vegetables (less when they are full: FOOD_NUTRITION's vegFull); a horse's best food
+  /* cookies: two flour and three cocoa beans make two raw ones (items/recipes.js), a furnace bakes each. Raw is dough like the
+     raw pie (a little food, poison 5 s); baked, a quick snack: food, or over-food when full. Tames a parrot (entities/parrot.js) */
+  [ITEM.RAW_COOKIE]:    { name: 'Raw cookie',     stack: 79, icon: 'raw_cookie',    foodSatFull: 0, food: 2, eatTime: 0.4, foodEffect: 'poison', foodEffectTime: 5, spoil: 3600, desc: 'Bake it in a furnace' },
+  [ITEM.COOKIE]:        { name: 'Cookie',         stack: 79, icon: 'cookie',        foodSatFull: 2, food: 5, eatTime: 0.4, spoil: 14400, desc: 'A parrot loves it' },
+  // a carrot: a snack like a melon slice and a lot of veggies (less when they are full: FOOD_NUTRITION's vegFull); a horse's best food
   [ITEM.CARROT]:        { name: 'Carrot',         stack: 79, icon: 'carrot',        foodSatFull: 2, food: 8, foodSat: 5, eatTime: 1.0, spoil: 10800, desc: 'A horse loves it' },
   // its heal lands after its Rapid regen, so 20 heals 30
   [ITEM.GOLDEN_APPLE]:  { name: 'Golden apple',   stack: 20, icon: 'golden_apple',  foodSatFull: 40, food: 25,  foodSat: 75,  eatTime: 2.4, foodHeal: 20, foodEffect: 'rapidRegen', desc: '' },
@@ -51,6 +55,11 @@ defineItems('food', {
   // pork: a shade under beef cooked, and it spoils faster than any other meat raw
   [ITEM.PORK]:          { name: 'Raw pork',       stack: 79, icon: 'pork',          foodSatFull: 5, food: 10,  foodSat: 10,  eatTime: 2.28, foodEffect: 'nausea', foodEffectChance: 0.6, foodEffectTime: 20, spoil: 2600, desc: '' },
   [ITEM.COOKED_PORK]:   { name: 'Cooked pork',    stack: 79, icon: 'cooked_pork',   foodSatFull: 20, food: 35,  foodSat: 45,  eatTime: 2.52, spoil: 22400, desc: '' },
+  // chicken: a light meat, and half the time a bone is left in your hand (foodReturn)
+  [ITEM.CHICKEN]:        { name: 'Raw chicken',    stack: 79, icon: 'chicken',        foodSatFull: 5, food: 5,  foodSat: 5,  eatTime: 1.92, foodEffect: 'nausea', foodEffectChance: 0.6, foodEffectTime: 20, spoil: 1800, foodReturn: ITEM.BONE, foodReturnChance: 0.5, desc: '' },
+  [ITEM.COOKED_CHICKEN]: { name: 'Cooked chicken', stack: 79, icon: 'cooked_chicken', foodSatFull: 15, food: 25, foodSat: 30, eatTime: 2.16, spoil: 14400, foodReturn: ITEM.BONE, foodReturnChance: 0.5, desc: '' },
+  // a fried egg: a quick small meal from a furnace, between a carrot and cooked chicken
+  [ITEM.FRIED_EGG]:      { name: 'Fried egg',      stack: 79, icon: 'fried_egg',      foodSatFull: 10, food: 15, foodSat: 20, eatTime: 1.2, spoil: 14400, desc: '' },
   // fish: lighter than meat and quicker to eat; the bigger the fish, the more it fills. Raw as raw meat (above), half the time
   [ITEM.COD]:            { name: 'Raw cod',        stack: 79, icon: 'cod',            foodSatFull: 5, food: 5, foodSat: 5, eatTime: 1.68, foodEffect: 'nausea', foodEffectChance: 0.5, foodEffectTime: 20, spoil: 1800, desc: '' },
   [ITEM.COOKED_COD]:     { name: 'Cooked cod',     stack: 79, icon: 'cooked_cod',     foodSatFull: 15, food: 25, foodSat: 30, eatTime: 1.92, spoil: 14400, desc: '' },

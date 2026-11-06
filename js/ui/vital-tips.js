@@ -12,7 +12,7 @@ const VITAL_INFO = {
   stamina: ['Stamina',    'Sprinting, jumping, climbing and swimming use it (swimming up a lot, treading water a little). It comes back 3 s after you last used it, faster the longer you rest and the emptier it is, 20% faster sneaking, costing food and thirst. Run dry and you are exhausted: it waits 5 s, and you cannot sprint, jump or climb until it is back to 20.'],
   energy:  ['Energy',     'Drops over time, faster when you use stamina or get hurt. A night in bed fills it.'],
   fruit:   ['Fruit',      'Drops over time. Apples, berries and melons fill it.'],
-  veg:     ['Vegetables', 'Drops over time. Pumpkin pie and mushroom stew fill it.'],
+  veg:     ['Veggies', 'Drops over time. Pumpkin pie and mushroom stew fill it.'],
   protein: ['Protein',    'Drops over time. Meat, fish and milk fill it.'],
   air:     ['Oxygen',     'Runs out while your head is under water. At 0 you drown.'],
   temp:    ['Temperature', 'The season, the hour, the biome, height, weather, water and fire around you all move it. Under 10°C you are chilly and under -5°C cold: food and protein drain faster. Over 30°C you are warm and over 45°C hot: thirst and fruit do. Cold and hot also cost health. Over 35°C in a sunny or clear day\'s sun you build up heatstroke.'],
@@ -45,7 +45,8 @@ function vitalModifiers(key) {
     if (hasSkill('thickSkin')) out.push(['Thick Skin', `+${THICK_SKIN_HP} health`]);   // health only since 0.8446
     const rm = playerRegenMul();
     if (Math.abs(rm - 1) > 0.005) out.push(['regen', `heals at ${Math.round(rm * 100)}%`]);   // the regen stat
-    if (playerHasEffect('poisonDps')) out.push(['Poison', 'no healing, loses health']);
+    const drip = (player.effects || []).find(e => EFFECT_DEFS[e.id]?.poisonDps);   // poison, thorns
+    if (drip) out.push([EFFECT_DEFS[drip.id].name, 'no healing, loses health']);
     if (st && st.dps > 0) out.push([stName, `-${st.dps.toFixed(1)} a second`]);
     if (hsm.dps > 0) out.push(['Heatstroke', `-${hsm.dps.toFixed(1)} a second`]);
     if (p._exhaustT >= EXHAUST_HURT_AFTER) out.push(['Exhausted', `-${EXHAUST_HURT_DPS} a second`]);

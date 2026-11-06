@@ -144,8 +144,9 @@ function _interactText() {
   }
   // a coconut or a cocoa pod under the crosshair: how far grown it is (woods/coconuts.js, woods/cocoa.js); a vine with
   // shears in hand: what cutting it does (woods/vines.js)
+  // ...and an egg hens have started on: how far hatched (blocks/egg.js)
   const coco = (typeof coconutPrompt === 'function' ? coconutPrompt() : '') || (typeof cocoaPrompt === 'function' ? cocoaPrompt() : '')
-            || (typeof vinePrompt === 'function' ? vinePrompt() : '');
+            || (typeof vinePrompt === 'function' ? vinePrompt() : '') || (typeof eggPrompt === 'function' ? eggPrompt() : '');
   if (coco) {
     if (coco !== _interactShown) { interactEl.innerHTML = coco; _interactShown = coco; }
     _promptShown();

@@ -132,6 +132,11 @@ corePart('blocks', function () {
   // cracked looks (blocks/looks.js): adobe, obsidian, each sandstone and its brick
   Object.assign(T, { CRACKED_ADOBE:498, CRACKED_OBSIDIAN:499, CRACKED_SANDSTONE:500, CRACKED_RED_SANDSTONE:501, CRACKED_PINK_SANDSTONE:502,
                      CRACKED_SANDSTONE_BRICKS:503, CRACKED_RED_SANDSTONE_BRICKS:504, CRACKED_PINK_SANDSTONE_BRICKS:505 });
+  Object.assign(T, { EGG_SIDE:506, EGG_TOP:507 });                         // the egg's model art
+  // the wild plants (blocks/wild-plants.js): those tinted like the grass have a warm and a cold tile, built at atlas build (03-atlas.js)
+  Object.assign(T, { DESERT_SCRUB:508, BUSH_PLANT:509, BUSH_PLANT_WARM:510, BUSH_PLANT_COLD:511, FERN:512, FERN_WARM:513, FERN_COLD:514,
+                     BIG_FERN_BOT:515, BIG_FERN_BOT_WARM:516, BIG_FERN_BOT_COLD:517, BIG_FERN_TOP:518, BIG_FERN_TOP_WARM:519, BIG_FERN_TOP_COLD:520,
+                     CLOVER:521, CLOVER_WARM:522, CLOVER_COLD:523, THORNWEED:524, FROST_GRASS:525 });
   /* Ice that froze from water carries ICE_FROM_WATER in its variant: only that ice breaks or melts back into water
      and thaws in spring. Ice a player or a structure put down breaks into nothing and stays. */
   const ICE_FROM_WATER = 1;
@@ -221,9 +226,12 @@ corePart('blocks', function () {
               THATCH:249,                                                              // hay's look of its own: it does not fall
               SANDY_DIRT:254,                                                          // where sand meets turf on a deep beach, and under every palm
               SEASHELL:255,                                                            // lies on the sea's beaches, picked up by hand
+              EGG:208,                                                                 // what a hen lays and sits on (blocks/egg.js); a retired look's id
+              // the wild plants (blocks/wild-plants.js); retired looks' ids
+              DESERT_SCRUB:206, BUSH:200, FERN:199, TALL_FERN_LOWER:195, TALL_FERN_UPPER:194, CLOVER:193, THORNWEED:192, FROST_GRASS:191,
             };
   /* RETIRED IDS. Every other look lives in the cell's bits 16-23 since 0.84691 (blocks/looks.js); the ids those looks
-     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block, 241 the rime sapling, 242 the hollow palm log, 243 the clam, 244 the carrot, 245-248 and 250-252 jungle wood and the cocoa pod, 253 the vine) are converted on load
+     had (34, 128-137, 139-143, 145-154, 156-160, 166-176, 189-195, 199, 200, 206, 208, 238-248, 250-253; 238 is the coconut now, 239 the seashell block, 240 the bone ash block, 241 the rime sapling, 242 the hollow palm log, 243 the clam, 244 the carrot, 245-248 and 250-252 jungle wood and the cocoa pod, 253 the vine, 208 the egg, 191-195, 199, 200 and 206 the wild plants) are converted on load
      (LOOK_OF_OLD_ID) in any save or prefab without the `cells: 3` stamp. Free again, but reuse one only when that
      conversion is gated by the stamp everywhere (it is: worlds in 16-worlds.js, prefabs in 34-structures.js). */
   /* ids 12, 28, 29, 31, 32, 35-38 and 113-124 were slabs and stairs until 0.783, when shapes became variants

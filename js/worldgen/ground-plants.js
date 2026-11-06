@@ -250,4 +250,84 @@ corePart('gen.chunk', function () {
             if (CANE2) { for (let k = 1; k <= tall && (data[idx(x, h + k, z)] & 255) === B.AIR; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE; }
             else for (let k = 0; k < tall; k++) data[idx(x, h + k, z)] = B.SUGAR_CANE;
           }
+      /* ---- rev 48 (SNOWPLANTS): the snow biomes' grass and pebbles, which the passes above leave out (SNO). Grass on the snowy turf,
+         thinner than on the plains; flint and stone pebbles as often as anywhere, stone on snow blocks too. Each stands in the snow
+         carpet of its cell (withCarpet: the cell holds both, shapes/chimney-mixed.js), or in a bare spot of it: a pebble under a carpet is
+         hidden, so half of them lie bare. Short grass only where the carpet leaves it showing. Never in a whole snow block. ---- */
+      if (SNOWPLANTS) (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+        const GRASS_CH = 0.07, TALL_CH = 0.008, FLINT_CH = 0.002, PEBBLE_CH = 0.004, BARE_PLANT = 0.25, BARE_PEBBLE = 0.5, SHORT_UNDER = 3;
+        for (let lz = 0; lz < CZ; lz++)
+          for (let lx = 0; lx < CX; lx++) {
+            const gi = (lx + 2) + (lz + 2) * 20, h = H[gi];
+            if (!SNO[gi] || h < 99 || h > CY - 3 || h < WLV[gi]) continue;
+            const cap = data[idx(lx, h + 1, lz)], deep = layerCount(cap);
+            if (cap !== B.AIR && ((cap & 255) !== B.SNOW || !deep || deep > CARPET_MAX)) continue;
+            const top = data[idx(lx, h, lz)] & 255, turf = top === B.GRASS;
+            const r = hash3(cx * 101 + lx + 9100, 59, cz * 103 + lz + 9100);
+            let v = 0, pebble = true;
+            if (turf && r < FLINT_CH) v = B.FLINT_ROCK;
+            else if ((turf || top === B.DIRT || top === B.STONE || top === B.GRAVEL || top === B.SNOW) && r < FLINT_CH + PEBBLE_CH) v = B.STONE_PEBBLE;
+            else if (turf) {
+              pebble = false;
+              const k = 1 - Math.min(1, Math.max(0, (h - 100) / 100)) * 0.75, g = r - FLINT_CH - PEBBLE_CH;   // thinner with altitude
+              if (g < TALL_CH * k && data[idx(lx, h + 2, lz)] === B.AIR) v = B.TALL_LOWER;
+              else if (g < (TALL_CH + GRASS_CH) * k) v = deep < SHORT_UNDER && hash3(cx * 61 + lx + 9300, 83, cz * 67 + lz + 9300) < 0.5 ? B.SHORT_GRASS : B.TALLGRASS;
+            }
+            if (!v) continue;
+            const bare = hash3(cx * 107 + lx + 9200, 61, cz * 109 + lz + 9200) < (pebble ? BARE_PEBBLE : BARE_PLANT);
+            data[idx(lx, h + 1, lz)] = deep && !bare ? withCarpet(v, B.SNOW, deep) : v;
+            if (v === B.TALL_LOWER) data[idx(lx, h + 2, lz)] = B.TALL_UPPER;
+          }
+      })();
+      /* ---- rev 49 (WILDPLANTS): the wild plants (blocks/wild-plants.js), in the cells the passes above left empty. One roll a column,
+         shared out by what the place is: desert scrub on the desert's open sand and in the Dryland; a bush on any grass; ferns on grass, a few
+         on mild land, many in the cold and in the snow, a quarter of them tall; a lone clover now and then on mild grass; thornweed on the cold
+         plains and in spruce forests; frost grass in the deepest snow that still has grass under it (not the Coldest Deep Snow or the Ice Spikes,
+         which have none). In the snow one stands in the cell's snow carpet up to WILD_DEEP layers (frost grass FROST_DEEP), or a quarter of the
+         time in a bare spot of it; frost grass also on a whole snow block over the grass. ---- */
+      if (WILDPLANTS) (() => {   // own function: see SPEED in worldgen/gen-chunk.js
+        const SCRUB_CH = 0.012, SCRUB_DEEP_CH = 0.004, SCRUB_DRY_CH = 0.015, BUSH_CH = 0.004, FERN_MILD_CH = 0.004, FERN_COLD_CH = 0.03, FERN_SNOW_CH = 0.02,
+              CLOVER_CH = 0.0008, THORN_CH = 0.006, FROST_CH = 0.05, WOOD_MUL = 1.5, OPEN_MUL = 0.7, FERN_TALL = 0.25, WILD_BARE = 0.25, WILD_DEEP = 4, FROST_DEEP = 6;
+        for (let lz = 0; lz < CZ; lz++)
+          for (let lx = 0; lx < CX; lx++) {
+            const gi = (lx + 2) + (lz + 2) * 20, h = H[gi];
+            if (h < 99 || h > CY - 4 || h < WLV[gi]) continue;
+            const top = data[idx(lx, h, lz)] & 255, turf = top === B.GRASS, snowy = SNO[gi], lvl = Math.round(LVL[gi]);
+            const k = (1 - Math.min(1, Math.max(0, (h - 100) / 100)) * 0.75) * (TREE[gi] >= 0.5 ? WOOD_MUL : OPEN_MUL);   // thinner with altitude and in the open
+            const scrubCh = DES[gi] && !DBC[gi] && (top === B.SAND || top === B.RED_SAND) ? (DDS[gi] ? SCRUB_DEEP_CH : SCRUB_CH)
+                          : (turf || top === B.DIRT) && DRYF[gi] > 0.5 ? SCRUB_DRY_CH : 0;
+            const bushCh = turf ? BUSH_CH * k : 0;
+            const fernCh = !turf ? 0 : (snowy ? FERN_SNOW_CH : lvl === 0 ? FERN_MILD_CH : lvl < 0 ? FERN_COLD_CH : 0) * k;
+            const cloverCh = turf && !snowy && lvl === 0 ? CLOVER_CH : 0;
+            const thornCh = turf && !snowy && TAIGA[gi] && lvl < 0 ? THORN_CH : 0;
+            const frostCh = snowy && DSNO[gi] && turf ? FROST_CH : 0;
+            const r = hash3(cx * 113 + lx + 9500, 67, cz * 127 + lz + 9500);
+            let v = 0;
+            if (r < scrubCh) v = B.DESERT_SCRUB;
+            else if (r < scrubCh + bushCh) v = B.BUSH;
+            else if (r < scrubCh + bushCh + fernCh) v = B.FERN;
+            else if (r < scrubCh + bushCh + fernCh + cloverCh) v = B.CLOVER;
+            else if (r < scrubCh + bushCh + fernCh + cloverCh + thornCh) v = B.THORNWEED;
+            else if (r < scrubCh + bushCh + fernCh + cloverCh + thornCh + frostCh) v = B.FROST_GRASS;
+            else continue;
+            let at = h + 1, deep = 0;
+            const cap = data[idx(lx, at, lz)];
+            if (cap !== B.AIR) {
+              if ((cap & 255) !== B.SNOW) continue;
+              deep = layerCount(cap);
+              if (!deep) {                                     // a whole snow block
+                if (v !== B.FROST_GRASS || data[idx(lx, h + 2, lz)] !== B.AIR) continue;
+                at = h + 2;
+              } else if (deep > (v === B.FROST_GRASS ? FROST_DEEP : WILD_DEEP)) continue;
+            }
+            const wx = cx * 16 + lx, wz = cz * 16 + lz;
+            // not on a dune: the dunes pass below piles sand where this says, and a plant there would stand in a pit
+            if (v === B.DESERT_SCRUB && DES[gi] && Math.floor((fbm(wx * 0.035 + 811.3, wz * 0.035 - 377.9, 2) + (hash2(wx * 13 + 71, wz * 7 - 19) - 0.5) * 0.06 - 0.08) * 16) >= 1) continue;
+            if (v === B.FERN && hash3(cx * 131 + lx + 9600, 73, cz * 137 + lz + 9600) < FERN_TALL && data[idx(lx, at + 1, lz)] === B.AIR) {
+              v = B.TALL_FERN_LOWER;
+              data[idx(lx, at + 1, lz)] = B.TALL_FERN_UPPER;
+            }
+            data[idx(lx, at, lz)] = deep && hash3(cx * 139 + lx + 9700, 79, cz * 149 + lz + 9700) >= WILD_BARE ? withCarpet(v, B.SNOW, deep) : v;
+          }
+      })();
 });

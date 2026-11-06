@@ -12,7 +12,17 @@ const _fallOpen = (id) => id === B.AIR || PROPS[id]?.model === 'cross';
 const _fullPile = (v) => CORE.layerCount(v) === LAYER_MAX && !CORE.layerMixed(v) && LOOSE_LAYER_BLOCKS.has(v & 255);
 const _fallsWhole = (v) => (!CORE.layerCount(v) && CORE.opaqueVal(v)) || _fullPile(v);
 const _asWhole = (v) => _fullPile(v) ? ((v & 255) | (lookOf(v) << 16)) >>> 0 : v;
-const _fallOpenFor = (x, y, z, v) => _fallOpen(getBlock(x, y, z) & 255) || (_fallsWhole(v) && doorTakesFall(x, y, z));
+/* ...and water: a whole sand or gravel block (or a full pile of one) sinks through it and rests on the bottom, whole, in the water's
+   place (_landBlocks). A carpet come down on water breaks instead, and so does a pebble, a shell, an egg or a gourd (_breakOnWater);
+   any other whole block lies on the surface. */
+const _SINK_WHOLE = new Set([B.SAND, B.RED_SAND, B.PINK_SAND, B.GRAVEL]);
+const _sinks = (v) => _SINK_WHOLE.has(v) || (_fullPile(v) && _SINK_WHOLE.has(v & 255));
+/* ...and a stack falls into the cell of whatever it can cover (carpetHost: a torch, a pebble, a gourd...), and lies over it there
+   (chunks/layer-stacks.js). A whole block stops on those and comes down as a pile, which buries them. */
+const _fallOpenFor = (x, y, z, v) => {
+  const cell = getBlock(x, y, z), id = cell & 255;
+  return _fallOpen(id) || (id === B.WATER && _sinks(v)) || (CORE.layerCount(v) > 0 && CORE.carpetHost(cell)) || (_fallsWhole(v) && doorTakesFall(x, y, z));
+};
 // Carpets fall too — snow and leaf litter both need ground under them, and digging out that
 // ground used to leave a sheet of snow hanging in the air. Since 0.785 that is any stack of layers you
 // wade through (snow, leaves, sand, gravel, fiber); solid layers (stone, planks, ...) stay put. By VALUE.
@@ -25,14 +35,16 @@ const _fallsUnderGravity = (v) => {
   if (CORE.layerCount(v)) return !!PROPS[id]?.layerStack;
   return LOOSE_LAYER_BLOCKS.has(v) || FALL_WHOLE_BLOCKS.has(v) || PROPS[id]?.model === 'carpet';   // a whole sand, gravel or fiber block
 };
+// what breaks when it comes down on water: a stack of layers, and the small things on the carpet model
+const _breaksOnWater = (v) => CORE.layerCount(v) > 0 || PROPS[v & 255]?.model === 'carpet';
 function scheduleFall(x, y, z) {
   if (y < 1 || y > WORLD_TOP) return;
   const val = getBlock(x, y, z);
   if (!_fallsUnderGravity(val)) return;
   // billboards don't hold up a falling block — they get crushed, so they count as empty here
-  // ...and a stack resting on a stack that takes it is queued too: processFalling pours it in
+  // ...and a stack resting on a stack that takes it is queued too: processFalling pours it in; what is on water breaks there
   const below = getBlock(x, y - 1, z);
-  if (!_fallOpenFor(x, y - 1, z, val) && !(CORE.layerCount(val) && canStackLayer(below, val & 255))) return;
+  if (!_fallOpenFor(x, y - 1, z, val) && !(CORE.layerCount(val) && canStackLayer(below, val & 255)) && !(isWaterVal(below) && _breaksOnWater(val))) return;
   fallingBlocks.set(`${x},${y},${z}`, val);        // keep the variant: carpets carry layer count
 }
 /* 0.8444. Gravity blocks only ever fell when something beside them was edited, so sand or gravel the world made over a
@@ -118,6 +130,7 @@ function _landBlocks(list) {
       if ((val & 255) === B.COCONUT && typeof coconutLanded === 'function') { coconutLanded(x, y, z, val); continue; }   // it cracks open (woods/coconuts.js)
       // in a doorway it rests whole beside the door (blocks/doors.js)
       if (_fallsWhole(val) && doorTakesFall(x, y, z)) { doorFillLand(x, y, z, val); continue; }
+      if ((getBlock(x, y, z) & 255) === B.WATER && _sinks(val)) { setBlock(x, y, z, _asWhole(val)); continue; }   // sunk to the bottom
       if (!_fallOpen(getBlock(x, y, z) & 255)) {                    // nowhere to go: it breaks
         if (!player.canFly) for (const d of blockDrop(val)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
         continue;
@@ -196,6 +209,17 @@ function _updateFallBlocks(dt) {
   }
   if (landed.length) _landBlocks(landed);
 }
+/* Come down on water, it breaks and the current carries off what it leaves: a carpet what digging it by hand leaves; a pebble, a
+   shell, an egg or a gourd its own drop, and that of any carpet over it. */
+function _breakOnWater(x, y, z, val) {
+  const ids = layerIdsAt(x, y, z, val);
+  playBlockSound(val & 255, 'break', x, y, z);
+  if (typeof fxBreak === 'function') fxBreak(x, y, z, val);
+  setBlockBare(x, y, z, B.AIR);
+  if (ids) layersBreak(ids, x, y, z);
+  if (!CORE.layerCount(val) && !player.canFly) for (const d of blockDrop(val & 255)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
+  _fallWakeBeside(x, y, z);
+}
 function clearFallBlocks() {
   for (const f of FALL_BLOCKS) scene.remove(f.group);
   FALL_BLOCKS.length = 0;
@@ -206,15 +230,21 @@ function processFalling(dt) {
   _fallTimer += dt;
   if (_fallTimer < 0.08) return;
   _fallTimer -= 0.08;
-  const todo = [], starts = [], settle = [];
+  const todo = [], starts = [], settle = [], broke = [];
   const most = typeof streamBehind !== 'undefined' && streamBehind ? FALL_MAX_BEHIND : FALL_MAX_PER_TICK;
   let scanned = 0;
   for (const [k, val] of fallingBlocks) {         // deleting during iteration is safe on a Map
-    if (todo.length + starts.length >= most || ++scanned > FALL_SCAN_LIMIT) break;
+    if (todo.length + starts.length + broke.length >= most || ++scanned > FALL_SCAN_LIMIT) break;
     const [x, y, z] = k.split(',').map(Number);
     if (!inSimRange(x, z)) continue;              // frozen out of range — keep it queued
     if (getBlock(x, y, z) !== val) { fallingBlocks.delete(k); continue; }        // stale
     const below = getBlock(x, y - 1, z);
+    // a carpet or a small thing come down on water breaks (a full pile of sand or gravel finds it open, and sinks below)
+    if (isWaterVal(below) && _breaksOnWater(val) && !_fallOpenFor(x, y - 1, z, val)) {
+      fallingBlocks.delete(k);
+      broke.push([x, y, z, val]);
+      continue;
+    }
     if (!_fallOpenFor(x, y - 1, z, val)) {        // landed
       fallingBlocks.delete(k);
       if (BLOCKS.isDoorVal(below)) continue;      // on a door shut again (or one filled): it stays a whole block, not a pile
@@ -224,19 +254,33 @@ function processFalling(dt) {
       continue;
     }
     fallingBlocks.delete(k);
-    // a full pile over an open door (no air under it, only the doorway) drops in as its block, whole
-    if (_fullPile(val) && !_fallOpen(below & 255)) starts.push([x, y, z, _asWhole(val)]);
+    // a full pile over an open door or over water (no air under it) goes on as its block, whole; over a torch or a gourd it steps down and buries it
+    if (_fullPile(val) && !_fallOpen(below & 255) && !CORE.carpetHost(below)) starts.push([x, y, z, _asWhole(val)]);
     // a see-through stack steps down a cell; a whole block takes to the air
     else if (CORE.layerCount(val) || !CORE.opaqueVal(val)) todo.push([x, y, z, val]);
     else starts.push([x, y, z, val]);
   }
+  for (const [x, y, z, val] of broke) _breakOnWater(x, y, z, val);
   for (const [x, y, z, val] of todo) {
-    // a mixed stack carries its list of blocks down with it
-    const ids = CORE.layerMixed(val) ? layerIdsAt(x, y, z, val) : null;
-    crushBillboard(x, y - 1, z);                 // torch/flower in the way is destroyed + dropped
-    setBlock(x, y, z, B.AIR);
-    if (ids) setLayerStack(x, y - 1, z, ids);
-    else setBlock(x, y - 1, z, val);             // variant travels with it
+    // a stack carries its list of blocks down with it
+    const ids = CORE.layerCount(val) ? layerIdsAt(x, y, z, val) : null;
+    // ...past a plant's upper parts to its foot, and lies over what is there if it can (chunks/layer-stacks.js)
+    let ty = y - 1;
+    if (ids) while (ty > 1 && (PROPS[getBlock(x, ty, z) & 255]?.model === 'cross' || CORE.carpetHost(getBlock(x, ty, z))) && _fallOpenFor(x, ty - 1, z, val)) ty--;
+    const foot = getBlock(x, ty, z);
+    setBlockBare(x, y, z, B.AIR);                // (a pebble falling takes the carpet over it along)
+    if (ids && carpetFits(x, ty, z, foot)) {
+      const all = (layerIdsAt(x, ty, z, foot) || []).concat(ids);
+      setLayerStack(x, ty, z, all);
+      if (all.length > LAYER_MAX) setLayerStack(x, ty + 1, z, all.slice(LAYER_MAX));   // what the cell had no room for
+    } else {
+      crushBillboard(x, ty, z);                  // a torch in the way is destroyed + dropped
+      if (ids) setLayerStack(x, ty, z, ids);
+      else {
+        setBlock(x, ty, z, val);                 // variant travels with it
+        scheduleFall(x, ty, z);                  // ...and on down: unlike a stack, nothing else wakes a pebble or a gourd in the air
+      }
+    }
     _fallWakeBeside(x, y, z);                    // 0.8444
   }
   if (starts.length) {

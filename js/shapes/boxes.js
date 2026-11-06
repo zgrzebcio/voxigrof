@@ -326,26 +326,30 @@ corePart('blocks', function () {
        a ladder in a slab, stairs, a carpet or a layer stack, a plant   against its wall as anywhere, through what the cell
                                                     holds (its boxes are a ladder's own: LADDER_BOX drawn, the page's crosshair
                                                     and collision LADDER_PICK and LADDER_COLL, blocks/rails.js)
-     railHostOk: may `host` hold the rail `rail`; railLift: how high it stands there. One from the floor is kept RAIL_EPS
-     inside its cell (none of its faces on the slab's: they flickered), and collides no higher than its cell (it would stand
-     up through the slab's top). */
+       a fence or a wall in a carpet or a layer stack  from the floor as one alone does, the carpet round its foot, and as tall to
+                                                    collide with (a carpet in the way of its cell: tryCarpetUnderRail, blocks/rails.js)
+     railHostOk: may `host` hold the rail `rail`; railLift: how high it stands there. One from the floor of a slab is kept
+     RAIL_EPS inside its cell (none of its faces on the slab's: they flickered), and collides no higher than its cell (it
+     would stand up through the slab's top). */
   const RAIL_LIFT = 0.5, RAIL_EPS = 1 / 256;
   function railHostOk(host, rail) {
     const hs = shapeOfVal(host), rs = shapeOfVal(rail), hva = (host >> 8) & 255, hp = PROPS[host & 255];
-    if (rs === 'fence') return hs === 'slab' || (hs === 'stairs' && !(hva & 4));
-    if (rs === 'wall') return hs === 'stairs' && !(hva & 4);
+    if (rs === 'fence') return hs === 'slab' || hs === 'layer' || (hs === 'stairs' && !(hva & 4));
+    if (rs === 'wall') return hs === 'layer' || (hs === 'stairs' && !(hva & 4));
     if (rs === 'ladder') return !!hp && !!(host & 255) && (hs === 'slab' || hs === 'stairs' || hs === 'layer'
-                                                          || (!hs && hp.model === 'cross' && !hp.solid));
+                                                          || (!hs && hp.model === 'cross' && !hp.solid && !carpetCount(host)));
     return false;
   }
-  const railLift = (host, rail) => shapeOfVal(rail) === 'ladder' ? 0
+  const railLift = (host, rail) => shapeOfVal(rail) === 'ladder' || shapeOfVal(host) === 'layer' ? 0
                                  : shapeOfVal(host) === 'slab' && (((host >> 8) & 255) & ROT_MASK) !== 0 ? 0 : RAIL_LIFT;
   function railOverBoxes(g, x, y, z, rail, coll, rl) {
-    const s = shapeOfVal(rail), lift = railLift(g(x, y, z), rail);
+    const s = shapeOfVal(rail), host = g(x, y, z), lift = railLift(host, rail), onCarpet = shapeOfVal(host) === 'layer';
     if (s === 'ladder') return (coll ? LADDER_COLL : LADDER_BOX)[((rail >> 8) & 255) & 3];
     if (s !== 'fence' && s !== 'wall') return null;
-    const bx = s === 'fence' ? joinBoxesAt(FENCE_SPEC, 'fence', SHAPE_FENCE, g, x, y, z, rail, coll && lift > 0, rl, lift)
-                             : joinBoxesAt(WALL_SPEC, 'wall', SHAPE_WALL, g, x, y, z, rail, coll && lift > 0, rl, lift);
+    const tall = coll && (lift > 0 || onCarpet);
+    const bx = s === 'fence' ? joinBoxesAt(FENCE_SPEC, 'fence', SHAPE_FENCE, g, x, y, z, rail, tall, rl, lift)
+                             : joinBoxesAt(WALL_SPEC, 'wall', SHAPE_WALL, g, x, y, z, rail, tall, rl, lift);
+    if (onCarpet) return bx;
     if (!lift) return bx.map(b => b.map(n => Math.min(1 - RAIL_EPS, Math.max(RAIL_EPS, n))));
     return bx.map(b => [b[0], b[1] + lift, b[2], b[3], b[4] + lift, b[5]]);
   }
@@ -518,7 +522,7 @@ corePart('blocks', function () {
     const lie = (h) => [[pb[0], h, pb[2], pb[3], h + th, pb[5]]];
     const s = shapeOfVal(host), va = (host >> 8) & 255;
     if ((plate >> 8) & PLATE_BURIED) return s === 'layer' && p.layerStack ? lie(0) : null;
-    if (!s) return p.model === 'cross' && !p.solid ? lie(0) : null;
+    if (!s) return p.model === 'cross' && !p.solid && !carpetCount(host) ? lie(0) : null;
     if (s === 'layer') { const n = layerCount(host); return n < LAYER_MAX ? lie(n / LAYER_MAX) : null; }
     if (s === 'slab') return (va & ROT_MASK) === 0 ? lie(0.5) : null;
     if (s !== 'stairs' || (va & 4)) return null;
@@ -547,7 +551,7 @@ corePart('blocks', function () {
   const COVER_AXIS = [1, 1, 0, 0, 2, 2], COVER_UV = [[1, 2], [0, 2], [0, 1]];   // a side's thin axis; the face's two
   function coverHostBoxes(g, x, y, z, host) {
     const id = host & 255, p = PROPS[id];
-    if (!id || !p) return null;
+    if (!id || !p || carpetCount(host)) return null;
     const s = shapeOfVal(host);
     if (s) return s === 'door' ? null : shapeBoxesAt(g, x, y, z, host);
     if (slabMixed(host)) return null;

@@ -14,7 +14,11 @@ function _openTop(x, z, y0) {
    on it stopped it working until it was swept off. Falling snow and the snowline's cover both leave them bare. */
 const NO_SNOW_ON = new Set([B.CRAFTING_BENCH, B.MORTAR, B.FURNACE, B.CHEST, B.METAL_CHEST]);
 function _laySnow(x, y, z, v, ids, max) {
+  // over a plant, a torch, a pebble... it lies in that cell (chunks/layer-stacks.js), but not on another carpet there: that would bury it; a tall plant: at its foot
+  if (TALL_LOWER_OF[v & 255]) { y--; v = getBlock(x, y, z); ids = layerIdsAt(x, y, z, v); }
+  if (CORE.carpetCount(v) && CORE.carpetId(v) !== B.SNOW) return;
   if (ids) { if (ids.length < Math.min(max, LAYER_MAX - 1)) setLayerStack(x, y, z, [...ids, B.SNOW]); return; }
+  if (CORE.carpetHost(v)) { if (carpetFits(x, y, z, v) && isSolid(x, y - 1, z)) setLayerStack(x, y, z, [B.SNOW]); return; }
   if (NO_SNOW_ON.has(v & 255)) return;
   if (y >= WORLD_TOP - 1 || !CORE.solidVal(v) || CORE.shapeOfVal(v) || !PROPS[v & 255]?.opaque) return;   // whole, solid, opaque tops only
   if (!getBlock(x, y + 1, z)) setBlock(x, y + 1, z, CORE.layerVal(B.SNOW, 1));

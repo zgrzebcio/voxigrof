@@ -656,7 +656,7 @@ function _bedSleep(dt) {
   if (typeof furnaceCatchUp === 'function') furnaceCatchUp(step * DAY_LEN);
   if (_lapse.left <= 1e-6) {
     // a night's rest: energy full (the rest banked as over-energy), a little health; it costs a little food, thirst,
-    // fruit, vegetables and protein, never below 10 (wakeRested in player/stats.js)
+    // fruit, veggies and protein, never below 10 (wakeRested in player/stats.js)
     for (const p of live) wakeRested(p);
     /* Nobody is stood up: they stay lying, and the vignette fades back out over the sleeper still on the
        mattress. Sneak is what gets you up. */

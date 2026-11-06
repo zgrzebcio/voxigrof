@@ -88,7 +88,7 @@ function explodeAt(cx, cy, cz, R) {
         if (_doorFillN && doorFillAt(x, y, z)) breakDoorFill(x, y, z, survival && Math.random() < 0.5, true);
         // ...and a fence or a wall lying on its slab or stairs (blocks/rails.js)
         if (_railOverN && railOverAt(x, y, z)) breakRail(x, y, z, survival && Math.random() < 0.5, true);
-        setBlock(x, y, z, B.AIR);
+        setBlockBare(x, y, z, B.AIR);                 // (a carpet among a plant goes with the plant)
         queueWaterAround(x, y, z);
         queueLavaAround(x, y, z);
       }

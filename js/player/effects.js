@@ -60,6 +60,9 @@ const EFFECT_DEFS = {
      never kills you. */
   poison:       { name: 'Poison',        time: 10, good: false, poisonDps: 0.5 * VITAL_K, announce: 'You feel poisoned', img: 'Debuff/poison.png', icon: '☠️',
                   desc: 'You slowly lose health while it lasts. It cannot take your last 5 health.' },
+  // thornweed (_thornweedTick, player/hazards.js): renewed at every prick, a smaller drip of the same kind for a moment after you are out of it
+  thorns:       { name: 'Thorns',        time: 3, good: false, poisonDps: 0.3 * VITAL_K, img: 'Debuff/thorns.png', icon: '🌿',
+                  desc: 'Thornweed tore you: you slowly lose health while it lasts. It cannot take your last 5 health.' },
   /* the temperature's four (cold and hot alone in 0.822): not timed — they last while the temperature does
      (tempStress); listed and on the bar. `hurts`: a cold or a heat that takes health as well */
   chilly:       { name: 'Chilly', good: false, img: 'Weather/cold.png', icon: '🌬️', lasts: 'Lasts while you are colder than 10°C' },
@@ -74,7 +77,7 @@ const EFFECT_DEFS = {
   // running low on a food group: shown with how much is left
   proteinSick:  { name: 'Protein sickness', good: false, img: 'Vitals/starving.png', icon: '🍖', lasts: `Lasts while your protein is ${SICK_AT} or less: eat meat or fish`, hurts: 'wasted away' },
   fruitSick:    { name: 'Fruit sickness',   good: false, img: 'Vitals/dehydrated.png', icon: '🍎', lasts: `Lasts while your fruit is ${SICK_AT} or less: eat fruit or berries`, hurts: 'wasted away' },
-  vegSick:      { name: 'Vegetable sickness', good: false, img: 'Vitals/peckish.png', icon: '🥕', lasts: `Lasts while your vegetables are ${SICK_AT} or less` },
+  vegSick:      { name: 'Veggie sickness', good: false, img: 'Vitals/peckish.png', icon: '🥕', lasts: `Lasts while your veggies are ${SICK_AT} or less` },
   wet:          { name: 'Wet', good: false, img: 'Weather/soaked.png', icon: '💧', lasts: 'Dries a second a second; faster near a fire, lava, a torch, in a desert or warm' },   // 0.8323
   // head under water: shown with the oxygen left
   underwater:   { name: 'Underwater', good: false, img: 'Vitals/drowing.png', icon: '🫧', lasts: 'Lasts while your head is under water' },
@@ -90,6 +93,8 @@ const EFFECT_DEFS = {
   // a creature worn, a taming under way, a ride (stateEffects: their name and what they give there)
   otterScarf:   { name: 'Otter scarf', good: true, img: 'Animals/otter_scarf.png', icon: '🦦', lasts: 'Lasts while it is round your neck' },
   meerkatShoulder: { name: 'Meerkat on your shoulder', good: true, img: 'Animals/meerkat_pickup_range.png', icon: '🐾', lasts: 'Lasts while it is on your shoulder' },
+  parrotHide:   { name: 'Parrot: hiding', good: true, img: 'Animals/parrot_hiding.png', icon: '🦜', lasts: 'Lasts while it is on your shoulder' },
+  parrotAlert:  { name: 'Parrot: danger sense', good: true, img: 'Animals/parrot_danger_sense.png', icon: '🦜', lasts: 'Lasts while it is on your shoulder' },
   houndTaming:  { name: 'Taming a hellhound', good: true, img: 'Animals/hellhound_taming.png', icon: '🔥', lasts: 'Lasts until it is tamed or the taming is given up' },
   horseTaming:  { name: 'Taming a horse', good: true, img: 'Animals/horse_taming.png', icon: '🐎', lasts: 'Lasts while you stay on it until it is tamed' },
   riding:       { name: 'Riding', good: true, img: 'Animals/riding.png', icon: '🐎', lasts: 'Lasts while you ride' },
@@ -113,7 +118,7 @@ function stateEffects(p = player) {
   const tr = tiredness(p);
   if (tr > 0) out.push({ id: 'tired', label: Math.round(p.energy) + '', desc: `Regen ${Math.round(TIRED_REGEN * tr * 100)}% slower, ` +
     `every bar drains ${Math.round(TIRED_DEPLETION * tr * 100)}% faster and you move ${Math.round(TIRED_SLOW * tr * 100)}% slower.` });
-  // low on a food group: protein, fruit (vegetables when switched on)
+  // low on a food group: protein, fruit (veggies when switched on)
   const sickLine = (k, name) => {
     const f = sickness(k, p);
     return `${name}: regen ${Math.round(SICK_REGEN * f * 100)}% less, every bar drains ${Math.round(SICK_DEPLETION * f * 100)}% faster, ` +
@@ -124,7 +129,7 @@ function stateEffects(p = player) {
   if (sickness('fruit', p) > 0) out.push({ id: 'fruitSick', label: Math.round(p.fruit) + '',
     desc: sickLine('fruit', 'Low fruit') + `; thirst drains ${Math.round(SICK_FRUIT_THIRST * sickness('fruit', p) * 100)}% faster and crafting is ${Math.round(SICK_FRUIT_CRAFT * sickness('fruit', p) * 100)}% slower.` });
   if (sickness('veg', p) > 0) out.push({ id: 'vegSick', label: Math.round(p.veg) + '',
-    desc: `Low vegetables: fog and sand cloud your sight ${Math.round(SICK_VEG_SIGHT * sickness('veg', p) * 100)}% more, and you mine ${Math.round(SICK_VEG_MINING * sickness('veg', p) * 100)}% slower.` });
+    desc: `Low veggies: fog and sand cloud your sight ${Math.round(SICK_VEG_SIGHT * sickness('veg', p) * 100)}% more, and you mine ${Math.round(SICK_VEG_MINING * sickness('veg', p) * 100)}% slower.` });
   // wet: its time left
   // ...its time once soaked through, else how soaked it is
   if (playerWet(p)) { const w = wetness(p); out.push({ id: 'wet',
@@ -150,6 +155,17 @@ function stateEffects(p = player) {
     out.push({ id: 'meerkatShoulder', name: `${mk.name} on your shoulder`,
                desc: `Item pickup range and foraging reach +${_pc(meerkatReachBonus(p))}: 10%, 0.3% a level (level ` +
                      `${mk.level || 1}), and up to 5% by its taming (effectiveness ${Math.round((mk.eff > 0 ? mk.eff : 1) * 100)}%).` });
+  // a parrot on the left shoulder: hiding, and its danger sense with the nearest monster it hears (entities/parrot.js)
+  const pr = p._wornParrot;
+  if (pr && typeof parrotHide === 'function') {
+    out.push({ id: 'parrotHide', name: `${pr.name}: hiding`,
+               desc: `Hostile creatures see you, and shy ones flee from you, ${_pc(parrotHide(p))} less far: 20%, 0.2% a level (level ` +
+                     `${pr.level || 1}), and up to 5% by its taming (effectiveness ${Math.round((pr.eff > 0 ? pr.eff : 1) * 100)}%).` });
+    const al = p._prAlert;
+    out.push({ id: 'parrotAlert', name: `${pr.name}: danger sense`, ...(al ? { label: Math.round(al.d) + 'm' } : {}),
+               desc: `It mimics a zombie or a skeleton within ${PARROT.alertR} blocks: the nearer it is, the louder and the more often.` +
+                     (al ? ` A ${al.kind} ${Math.round(al.d)} blocks away.` : ' None near now.') });
+  }
   // a hellhound this player is taming (entities/hellhound.js), a horse being ridden tame (entities/taming.js), a ride
   if (typeof houndOwner === 'function')
     for (const e of ENTITIES) {
@@ -214,7 +230,7 @@ const playerHasEffect = (field) => (player.effects || []).some(e => EFFECT_DEFS[
 // multiplier on hunger and over-food drain: 2 while nauseous
 const playerHungerMul = () => (player.effects || []).reduce((m, e) => m * (EFFECT_DEFS[e.id]?.hungerMul || 1), 1);   // Slow Burner left it for the stats depletion
 /* STATS DEPLETION: one multiplier on how fast EVERY bar drains — food, thirst, stamina used, oxygen, energy,
-   fruit, vegetables, protein. Slow Burner takes 5% off; gear may carry a depletion field later (-0.05 = 5% slower). */
+   fruit, veggies, protein. Slow Burner takes 5% off; gear may carry a depletion field later (-0.05 = 5% slower). */
 const SLOW_BURNER_MUL = 0.95;
 const playerDepletionMul = () => Math.max(0.25, ((typeof hasSkill === 'function' && hasSkill('slowBurner')) ? SLOW_BURNER_MUL : 1)
   + (typeof _equipSum === 'function' ? _equipSum('depletion') : 0)) * (1 + TIRED_DEPLETION * tiredness())   // tired

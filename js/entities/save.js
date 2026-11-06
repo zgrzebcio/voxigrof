@@ -26,10 +26,12 @@ function serializeEntities() {
   }
   /* What players carry is out of the world but saved as creatures where they stand: a live fish in hand
      (player/fish-hold.js, a fish on the ground when the world is joined again), an otter round the neck (entities/otter.js,
-     its save marks it worn and it goes back on), a meerkat on the shoulder (entities/meerkat.js, the same). */
+     its save marks it worn and it goes back on), a meerkat on the shoulder (entities/meerkat.js, the same), a parrot on the
+     left one (entities/parrot.js, the same). */
   for (const p of PLAYERS) {
     if (p._wornOtter) out.push(_entSaveRow(p._wornOtter, p.pos));
     if (p._wornMeerkat) out.push(_entSaveRow(p._wornMeerkat, p.pos));
+    if (p._wornParrot) out.push(_entSaveRow(p._wornParrot, p.pos));   // a parrot on the left shoulder (entities/parrot.js)
     if (p._heldFish && typeof heldFishCreature === 'function') out.push(_entSaveRow(heldFishCreature(p), p.pos));
   }
   return out;

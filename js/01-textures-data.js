@@ -153,6 +153,14 @@ const TEXTURES = {
   poppy:                'textures/Billboards/Plants/Flowers/poppy.png',
   orchid:               'textures/Billboards/Plants/Flowers/blue_orchid.png',
   tallgrass:            'textures/Billboards/Plants/Grass/tall_grass.png',
+  // the wild plants (blocks/wild-plants.js); big_fern is one 2-tall sprite, split like the tall grass (03-atlas.js)
+  bush:                 'textures/Billboards/Plants/Grass/bush.png',
+  fern:                 'textures/Billboards/Plants/Grass/fern.png',
+  big_fern:             'textures/Billboards/Plants/Grass/big_fern.png',
+  clover:               'textures/Billboards/Plants/Grass/clover.png',
+  thornweed:            'textures/Billboards/Plants/Cold/thornweed.png',
+  frost_grass:          'textures/Billboards/Plants/Cold/frost_grass.png',
+  desert_scrub:         'textures/Billboards/Plants/Warm/desert_scrub.png',
   tin_ore:              'textures/Blocks/Ores/tin_ore.png',
   copper_ore:           'textures/Blocks/Ores/copper_ore.png',
   gold_ore:             'textures/Blocks/Ores/gold_ore.png',
@@ -216,20 +224,13 @@ const TEXTURES = {
   dry_bush:                 'textures/Billboards/Plants/Warm/dry_bush.png',
   pincushions:              'textures/Billboards/Plants/Flowers/pincushions.png',
   structure_block:          'textures/Blocks/Interactables/Structure_block.png',
-  /* Berry bush: FOUR growth stages and two fruit colours, all one block driven by its variant
-     byte. Small and empty carry no fruit, so red and blue share those two sheets; only the ripe
-     stage differs. Art moved into its own folder in 0.733. */
-  berry_bush_small:         'textures/Billboards/Plants/Berry_bush/berry_bush_small.png',
-  berry_bush_empty:         'textures/Billboards/Plants/Berry_bush/empty_berry_bush_.png',
-  berry_bush_fruitling:     'textures/Billboards/Plants/Berry_bush/fruitling_berry_bush_.png',
-  berry_bush_red:           'textures/Billboards/Plants/Berry_bush/redberry_bush.png',
-  berry_bush_blue:          'textures/Billboards/Plants/Berry_bush/blueberry_bush.png',
-  berry_bush_yellow:        'textures/Billboards/Plants/Berry_bush/blackberry_bush.png',   // 0.7947, from the red one
   // the flint pebble's model art (its boxes: blocks/plants.js); the seashell's beside it
   flint_rock:               'textures/Blocks/Models/flint_pebble/flint_pebble_side.png',
   flint_rock_top:           'textures/Blocks/Models/flint_pebble/flint_pebble_top.png',
   seashell_side:            'textures/Blocks/Models/seashell/seashell_side.png',
   seashell_top:             'textures/Blocks/Models/seashell/seashell_top.png',
+  egg_side:                 'textures/Blocks/Models/egg/egg_side.png',
+  egg_top:                  'textures/Blocks/Models/egg/egg_top.png',
   coconut_side:             'textures/Blocks/Plants/coconut_block_side.png',   // its green look is built from these (03-atlas.js)
   coconut_top:              'textures/Blocks/Plants/coconut_block_top.png',
   cocoa_side:               'textures/Blocks/Plants/cocoa_block_side.png',     // its green look is built from these too
@@ -497,14 +498,15 @@ const ITEM_TEXTURES = {
   bronze_powder: 'textures/Items/Ores/bronze_powder.png',
   steel_powder:  'textures/Items/Ores/steel_powder.png',
   ashes:         'textures/Items/Materials/ash.png',             // 0.775, from the furnace
-  iron_chisel:   'textures/Items/Tools/iron_chisel.png',
-  iron_hammer:   'textures/Items/Tools/iron_hammer.png',
+  iron_chisel:   'textures/Items/Equipments/Belts equipments/iron_chisel.png',
+  iron_hammer:   'textures/Items/Equipments/Belts equipments/iron_hammer.png',
   bronze_nugget: 'textures/Items/Ores/bronze_nugget.png',          // 0.774
   bronze_ingot:  'textures/Items/Ores/bronze_ingot.png',           // 0.774, recoloured from the iron ingot
   apple:       'textures/Items/Consumables/Fruits/apple.png',
   flint:       'textures/Items/Materials/flint.png',
   stone_pebble: 'textures/Items/Materials/stone_pebble.png',     // 0.8095
   seashell:     'textures/Items/Materials/seashell.png',
+  egg:          'textures/Items/Materials/egg.png',
   pearl:        'textures/Items/Materials/pearl.png',
   fur:          'textures/Items/Materials/fur.png',
   coconut:      'textures/Items/Consumables/Fruits/coconut.png',
@@ -514,7 +516,7 @@ const ITEM_TEXTURES = {
   clay_ball:   'textures/Items/Materials/clay_ball.png',
   snowball:      'textures/Items/Useables/snowball.png',
   bowl:          'textures/Items/Container/wooden_bowl.png',
-  mushroom_stew: 'textures/Items/Consumables/Vege/mushroom_stew.png',
+  mushroom_stew: 'textures/Items/Consumables/Veggie/mushroom_stew.png',
   glass_shard:   'textures/Items/Materials/glass_shard.png',
   iron_ingot:    'textures/Items/Ores/iron_ingot.png',
   gold_ingot:    'textures/Items/Ores/gold_ingot.png',
@@ -532,14 +534,14 @@ const ITEM_TEXTURES = {
   whiteberries:  'textures/Items/Consumables/Fruits/whiteberries.png',    // 0.827
   brick:         'textures/Items/Materials/brick.png',
   potato:        'textures/Items/Plants/potato.png',
-  potato_bake:   'textures/Items/Consumables/Vege/baked_potato.png',
+  potato_bake:   'textures/Items/Consumables/Veggie/baked_potato.png',
   bucket:        'textures/Items/Container/iron_bucket.png',
   water_bucket:  'textures/Items/Container/bucket_normal_water.png',
   lava_bucket:   'textures/Items/Container/bucket_lava.png',
   glass_bottle:  'textures/Items/Container/glass_bottle.png',            // 0.845
   water_bottle:  'textures/Items/Container/bottle_normal_water.png',     // 0.845
   fire:          'textures/Items/Useables/fire.png',                     // 0.845
-  carrot:        'textures/Items/Consumables/Vege/carrot.png',
+  carrot:        'textures/Items/Consumables/Veggie/carrot.png',
   wheat:         'textures/Items/Plants/wheat.png',
   iron_shovel:   'textures/Items/Tools/iron_shovel.png',
   iron_pickaxe:  'textures/Items/Tools/iron_pickaxe.png',
@@ -566,8 +568,8 @@ const ITEM_TEXTURES = {
   steel_pickaxe:   'textures/Items/Tools/steel_pickaxe.png',
   steel_hatchet:   'textures/Items/Tools/steel_hatchet.png',
   steel_hoe:       'textures/Items/Tools/steel_hoe.png',
-  pumpkin_pie:     'textures/Items/Consumables/Vege/raw_pumpkin_pie.png',      // the raw pie since 0.761
-  cooked_pumpkin_pie: 'textures/Items/Consumables/Vege/cooked_pumpkin_pie.png',
+  pumpkin_pie:     'textures/Items/Consumables/Veggie/raw_pumpkin_pie.png',      // the raw pie since 0.761
+  cooked_pumpkin_pie: 'textures/Items/Consumables/Veggie/cooked_pumpkin_pie.png',
   gunpowder:       'textures/Items/Materials/gunpowder.png',
   charcoal:        'textures/Items/Materials/charcoal.png',
   sulfur:          'textures/Items/Materials/sulfur.png',
@@ -576,6 +578,7 @@ const ITEM_TEXTURES = {
   paper:           'textures/Items/Materials/paper.png',
   book:            'textures/Items/Materials/book.png',
   flour:           'textures/Items/Materials/flour.png',
+  dough:           'textures/Items/Materials/dough.png',
   bread:           'textures/Items/Consumables/Others/bread.png',
   golden_apple:    'textures/Items/Consumables/Fruits/golden_apple.png',
   glow_dust:       'textures/Items/Materials/glow_dust.png',
@@ -599,6 +602,11 @@ const ITEM_TEXTURES = {
   copper_key:      'textures/Items/Useables/copper_key.png',
   lockpick:        'textures/Items/Useables/lockpick.png',
   jam_sandwich:    'textures/Items/Consumables/Fruits/jam_sandwich.png',
+  raw_cookie:      'textures/Items/Consumables/Others/raw_cookie.png',
+  cookie:          'textures/Items/Consumables/Others/cookie.png',
+  chicken:         'textures/Items/Consumables/Protein/chicken.png',
+  cooked_chicken:  'textures/Items/Consumables/Protein/cooked_chicken.png',
+  fried_egg:       'textures/Items/Consumables/Protein/fried_egg.png',
   string:          'textures/Items/Materials/string.png',
   fiber:           'textures/Items/Materials/fiber.png',
   cloth:           'textures/Items/Materials/cloth.png',

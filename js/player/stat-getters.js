@@ -71,10 +71,10 @@ const STAT_TIPS = {
   'toughness':       'How well you stand your ground. It takes that much off every knockback; at 100% nothing moves you.',
   'hunger depletion': 'How fast you get hungry. 200% means food and over-food drain twice as fast.',
   'oxygen depletion': 'How fast your breath runs out under water. 95% means it lasts a little longer.',
-  'stats depletion': 'How fast every bar drains: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein. Slow Burner makes it 95%.',   // 0.828
+  'stats depletion': 'How fast every bar drains: food, thirst, stamina, oxygen, energy, fruit, veggies and protein. Slow Burner makes it 95%.',   // 0.828
   'hazard reduction': 'How much less damage falls, lava and cactus do to you.',
   'regen':           'How fast your health heals and your breath comes back, and how much energy and healing food gives you. Rapid regen adds 50%; being tired (energy 20 or less) takes up to 70% off, protein or fruit sickness up to 20% each. Never under 0%.',   // 0.832; oxygen 0.8321; 0.8323
-  'mining speed':    'How fast you break blocks with any tool or your hand. Vegetable sickness will take up to 25% off.',   // 0.8323
+  'mining speed':    'How fast you break blocks with any tool or your hand. Veggie sickness will take up to 25% off.',   // 0.8323
   'item pickup range': 'How far away things lying on the ground are picked up. A tamed meerkat on your shoulder adds 10% to 30%, by its level and its taming.',
   'foraging reach':  'How far round you E reaches grass, bushes, flint and pebbles. A tamed meerkat on your shoulder adds 10% to 30%, by its level and its taming.',
   'spoil speed':     'How fast the food you carry spoils. Preserver takes 10% off, salt in use 25% (both: 65%). Lower is better.',   // 0.832; salt 25% since 0.8321

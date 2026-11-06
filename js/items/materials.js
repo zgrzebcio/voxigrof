@@ -36,6 +36,7 @@ defineItems('materials', {
      creature it writes that kind into the player's creature book (player/creature-book.js); the bookshelf waits for art */
   [ITEM.BOOK]:          { name: 'Book',          stack: 79, icon: 'book', desc: 'Use it on a creature not yet in your book to write it in, for XP. The book is used up' },
   [ITEM.FLOUR]:         { name: 'Flour',         stack: 79, icon: 'flour', desc: 'Used as crafting ingredient' },
+  [ITEM.DOUGH]:         { name: 'Dough',         stack: 79, icon: 'dough', desc: 'Bakes into bread in the furnace. Used as crafting ingredient' },
   [ITEM.BRICK]:         { name: 'Brick',         stack: 79, icon: 'brick', desc: 'Used as crafting ingredient' },
   [ITEM.GLOW_DUST]:     { name: 'Glow dust',     stack: 79, icon: 'glow_dust', desc: 'Used as crafting ingredient' },
   [ITEM.STRING]:        { name: 'String',        stack: 79, icon: 'string', desc: 'Used as crafting ingredient' },
@@ -44,7 +45,7 @@ defineItems('materials', {
   [ITEM.CLOTH]:         { name: 'Cloth',         stack: 79, icon: 'cloth', desc: 'Used as crafting ingredient' },
   [ITEM.LEATHER]:       { name: 'Leather',       stack: 79, icon: 'leather', desc: 'Used as crafting ingredient' },
   [ITEM.BONE]:          { name: 'Bone',          stack: 79, icon: 'bone', desc: 'Used as crafting ingredient' },
-  [ITEM.BONE_ASH]:      { name: 'Bone ash',      stack: 79, icon: 'bone_ash', desc: 'A bone ground at the mortar makes two. Used as crafting ingredient' },   // 0.84
+  [ITEM.BONE_ASH]:      { name: 'Bone ash',      stack: 79, icon: 'bone_ash', desc: 'A seashell or a bone block ground at the mortar makes one. Used as crafting ingredient' },
   [ITEM.LEATHER_STRIP]: { name: 'Leather strip', stack: 79, icon: 'leather_strip', desc: 'Three are cut from a leather at the bench. Used for belts and backpacks' },
   [ITEM.CHITIN_PLATE]:  { name: 'Chitin plate',  stack: 79, icon: 'chitin_plate', desc: 'A hard plate of a termite\'s shell, from the Savanna' },
 // ores
@@ -73,6 +74,7 @@ defineItems('materials', {
   [ITEM.STONE_PEBBLE]: { name: 'Stone pebble', stack: 50, icon: 'stone_pebble', desc: 'Five make a cobblestone block' },   // 0.8095; cobblestone 0.826
   [ITEM.SEASHELL]:     { name: 'Seashell', stack: 79, icon: 'seashell', desc: 'Found on the sea\'s beaches' },
   [ITEM.PEARL]:        { name: 'Pearl', stack: 79, icon: 'pearl', desc: 'Grown from sand in a clam on a warm sea floor' },
+  [ITEM.EGG]:          { name: 'Egg', stack: 79, icon: 'egg', desc: 'Laid by a hen. A furnace fries it' },
   [ITEM.FUR]:          { name: 'Fur', stack: 79, icon: 'fur', desc: 'Soft, thick fur, from otters and polar bears. Lines bronze armor' },
   // five rotten flesh pressed into one, which a bench works into leather (player/crafting.js)
   [ITEM.COMPRESSED_ROTTEN_FLESH]: { name: 'Compressed rotten flesh', stack: 50, icon: 'compressed_rotten_flesh', desc: 'Five rotten flesh pressed together. A bench works it into leather' },

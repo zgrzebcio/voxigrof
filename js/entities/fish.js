@@ -169,7 +169,7 @@ function _fishScare(e, dt) {
   const now = performance.now();
   let from = null;
   for (const p of PLAYERS)
-    if (p._splashAt && now - p._splashAt < FISH_SPLASH_MS && Math.hypot(p.pos.x - e.x, p.pos.z - e.z) < FISH_SPLASH_R) { from = p.pos; break; }
+    if (p._splashAt && now - p._splashAt < FISH_SPLASH_MS && Math.hypot(p.pos.x - e.x, p.pos.z - e.z) < FISH_SPLASH_R * hideSightMul(p)) { from = p.pos; break; }   // a parrot hides you
   if (!from)
     for (const o of ENTITIES)
       if (o.kind === 'otter' && o.active !== false && Math.abs(o.x - e.x) < FISH_OTTER_R && Math.abs(o.z - e.z) < FISH_OTTER_R

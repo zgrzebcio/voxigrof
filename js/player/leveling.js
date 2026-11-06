@@ -102,6 +102,7 @@ const XP_GEM_ORE = 250;            // diamond and every gem ore
   set(B.SHORT_GRASS, 0); set(B.TALLGRASS, 0); set(B.TALL_LOWER, 0); set(B.TALL_UPPER, 0);
   for (const id of woodBlocks('leaves')) set(id, 0);                   // every wood's leaves (the woods table, woods/woods.js)
   set(B.DRY_GRASS, 0); set(B.DRY_TALL_LOWER, 0); set(B.DRY_TALL_UPPER, 0); set(B.DRY_BUSH, 0);
+  for (const id of WILD_PLANTS) set(id, 0);
   set(B.VINE, 0);                                                       // a vine grows back: no grinding it
   // a log that pays its own XP: a wood's `xp.log` in the woods table (rime 3, palm 2; the rest pay what any block pays)
   for (const w of woodList()) if (w.log != null && w.xp && w.xp.log != null) set(w.log, w.xp.log);

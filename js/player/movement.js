@@ -106,6 +106,9 @@ for (const id of woodBlocks('leaves', isTreeWood)) DRAG_PER_LAYER[id] = DRAG_PER
 function _cellDrag(val, feetOff, x, y, z) {
   const id = val & 255, n = CORE.layerCount(val);
   if (!n) {
+    // a falling carpet among a plant drags as the same stack would (chunks/layer-stacks.js)
+    const cpn = CORE.carpetCount(val);
+    if (cpn) return feetOff >= cpn / LAYER_MAX ? 1 : Math.max(DRAG_FLOOR, 1 - cpn * (DRAG_PER_LAYER[CORE.carpetId(val)] || 0));
     // a leaf block is a full cell of foliage: the whole LAYER_MAX worth of leaf layers
     if (LEAF_DRAG_IDS.has(id)) return Math.max(DRAG_FLOOR, 1 - DRAG_PER_LEAF * LAYER_MAX);
     if (id === B.COBWEB) return COBWEB_DRAG;           // caught in a web
@@ -153,7 +156,7 @@ function snowJumpMul() {
     for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++) {
       const val = getBlock(x, y, z);
       let n = 0;
-      if (CORE.layerCount(val)) for (const b of layerIdsAt(x, y, z, val)) if ((b & 255) === B.SNOW) n++;
+      for (const b of layerIdsAt(x, y, z, val) || []) if ((b & 255) === B.SNOW) n++;
       if (n > most) most = n;
     }
   return Math.max(0, 1 - JUMP_PER_SNOW * most);
@@ -392,6 +395,12 @@ function raycastVoxel(origin, dir, maxDist) {
     if (rbx) for (const bb of rbx) {
       const h = rayBox(origin, dir, x+bb[0], y+bb[1], z+bb[2], x+bb[3], y+bb[4], z+bb[5]);
       if (h && h.t <= tOut && (!ph || h.t < ph.t)) { ph = h; phBi = RAIL_OVER_BI; }
+    }
+    // ...and a falling carpet lying among a plant (chunks/layer-stacks.js): bi CARPET_OVER_BI
+    const cpn = b >>> 29 ? CORE.carpetCount(b) : 0;
+    if (cpn) {
+      const h = rayBox(origin, dir, x, y, z, x + 1, y + cpn / LAYER_MAX, z + 1);
+      if (h && h.t <= maxDist && (!ph || h.t < ph.t)) { ph = h; phBi = CARPET_OVER_BI; }
     }
     // ...and a fence's or a wall's step reaching into it from the cell over or under (a hit on that cell)
     const jh = _joinReachHit(origin, dir, x, y, z, tEnter, tOut);

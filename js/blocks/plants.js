@@ -90,6 +90,19 @@ corePart('blocks', function () {
   PROPS[B.SEASHELL] = { ...PROPS[B.FLINT_ROCK], name:'Seashell', hardness:0.3, boxes:SEASHELL_BOX[0], boxesByVar:SEASHELL_BOX,
                         faces:SEASHELL_FACES, partFaces:[SEASHELL_FACES, SEASHELL_FACES, Array(6).fill(T.SEASHELL_SIDE)],
                         desc: 'Found on sea beaches. Pick it up by hand' };
+  /* Egg: what a hen lays and sits on (blocks/egg.js, entities/chicken.js); nothing else makes one. Its model (egg.json:
+     the steps of an egg, the tip's top in its own art), EGG_SMALL its size round the middle of the floor so a sitting hen covers
+     it. The crosshair stops on it, one blow breaks it, E picks it up, flowing water carries it off (`washes`, from the pebble).
+     It only ever comes as the egg item (blockDrop), so it is not in the palette. */
+  const EGG_SMALL = 0.55;
+  const _eggBox = (x0, y0, z0, x1, y1, z1) => { const m = (v) => 8 + (v - 8) * EGG_SMALL;
+    return _m16(m(x0), y0 * EGG_SMALL, m(z0), m(x1), y1 * EGG_SMALL, m(z1)); };
+  const EGG_BOX = [[_eggBox(6, 0, 6, 10, 0.8, 10), _eggBox(5.3, 0.8, 5.3, 10.7, 4, 10.7), _eggBox(5.8, 4, 5.8, 10.2, 6, 10.2), _eggBox(6.6, 6, 6.6, 9.4, 7, 9.4)]];
+  const EGG_FACES = Array(6).fill(T.EGG_SIDE);
+  PROPS[B.EGG] = { ...PROPS[B.FLINT_ROCK], name:'Egg', noTarget:false, noInv:true, pageSeen:true, hardness:0, type:'glass',
+                   boxes:EGG_BOX[0], boxesByVar:EGG_BOX, faces:EGG_FACES,
+                   partFaces:[EGG_FACES, EGG_FACES, EGG_FACES, [T.EGG_SIDE, T.EGG_SIDE, T.EGG_TOP, T.EGG_TOP, T.EGG_SIDE, T.EGG_SIDE]],
+                   desc: 'A hen sitting on it hatches it' };
   /* Coconut: hangs under a palm's crown, the top of its box against the frond's rib above it (woods/coconuts.js sprouts and
      grows it); with variant bit 3 (COCO_RESTING) it sits on the block under it instead, the same box from its floor up (put on top
      of a block in creative: player/place-block.js). Variant bits 0-2 its stage, 0 a sprout .. COCO_RIPE ripe: the box grows from 3/16 to 8/16 across, green

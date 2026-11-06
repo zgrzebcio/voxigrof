@@ -32,6 +32,8 @@ corePart('mesh.chunk', function () {
       const a = clim[i] + (clim[i + 1] - clim[i]) * fx, b = clim[i + 17] + (clim[i + 18] - clim[i + 17]) * fx;
       return Math.round((a + (b - a) * fz) * 127);
     }
+    // ...and a tinted plant's: taken in the same scale (plantClim, chunks/voxel-shared.js)
+    const plantClimOf = (x, z) => Math.round(plantClim(climOf(x, z) / 127) * 127);
     /* The Dryland's dryness at the same corners, 0..255 (DRY_TILE above); null where the chunk has none, which
        is nearly every chunk: nine corners are looked at first, and the field is far too slow to hide between them. */
     let dry = null;
@@ -120,7 +122,8 @@ corePart('mesh.chunk', function () {
     const passes = [null, null, null, null, null].map(() => ({ pos: [], uv: [], tile: [], shade: [], lite: [], clim: [], dark: [], index: [], v: 0 }));
     let minY = CY, maxY = 0;
     function pushClim(g, tile, c0, c1, c2, c3) {
-      if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
+      if (clim && PLANT_TILE[tile]) g.clim.push(plantClimOf(c0[0], c0[2]), plantClimOf(c1[0], c1[2]), plantClimOf(c2[0], c2[2]), plantClimOf(c3[0], c3[2]));
+      else if (clim && TINTED[tile]) g.clim.push(climOf(c0[0], c0[2]), climOf(c1[0], c1[2]), climOf(c2[0], c2[2]), climOf(c3[0], c3[2]));
       else g.clim.push(0, 0, 0, 0);
       // a grass face's dryness at its corners, in `dark`, padded with 0 up to here as quadW does
       if (dry && DRY_TILE[tile]) {

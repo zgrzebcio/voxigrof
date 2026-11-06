@@ -23,6 +23,20 @@ corePart('blocks', function () {
   const layerMixed = (v) => ((((v >> 8) & 255) & SHAPE_MASK) === SHAPE_LAYER_MIX) && layerCount(v) > 0;
   const layerVal = (id, n, mixed) =>
     (id | (((mixed ? SHAPE_LAYER_MIX : SHAPE_LAYER) + Math.max(1, Math.min(LAYER_MAX, n)) - 1) << 8)) >>> 0;
+  /* A FALLING CARPET OVER WHAT LIES ON THE GROUND. A stack you wade through can lie in the cell of a thing it falls on or is put
+     down on: a plant (grass, a flower, a bush, a crop, a sapling, a mushroom, sugar cane), a torch, or a small thing on the ground
+     (`takesCarpet`: the pebbles, the seashell, the egg, the gourds). That thing stays the cell's block and the carpet rides
+     in the cell's high bits, 25-28 its block (its place in LAYER_STACKING: IN THE SAVES, append only, 16 at most, and all 16
+     are taken) and 29-31 how many layers, 1 to CARPET_MAX. Those bits mean other things on other blocks: read them only through
+     carpetCount. One kind at a time, no looks; the 8th layer or a second kind buries the thing. What the page does with one
+     is in chunks/layer-stacks.js. */
+  const CARPET_MAX = LAYER_MAX - 1;
+  for (const id of [B.COBWEB, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TALL_UPPER, B.DRY_TALL_UPPER, B.TALL_FERN_UPPER]) PROPS[id].noCarpet = true;
+  for (const id of [B.FLINT_ROCK, B.STONE_PEBBLE, B.SEASHELL, B.EGG, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CARVED_PUMPKIN, B.JACK_O_LANTERN]) PROPS[id].takesCarpet = true;
+  const carpetHost = (v) => { const p = PROPS[v & 255]; return !!p && !p.noCarpet && (p.takesCarpet || (p.model === 'cross' && !p.solid)); };
+  const carpetCount = (v) => { const n = v >>> 29; return n && carpetHost(v) ? n : 0; };
+  const carpetId = (v) => LAYER_STACKING[(v >>> 25) & 15];
+  const withCarpet = (v, id, n) => ((v & 0x1FFFFFF) | ((n > 0 ? LAYER_STACKING.indexOf(id & 255) : 0) << 25) | ((n > 0 ? n : 0) << 29)) >>> 0;
   /* MIXED SLABS: two halves of DIFFERENT blocks in one cell, kept the way a mixed carpet stack is. The variant
      byte is SHAPE_SLAB_MIX + the low half's rotation (0, 2 or 4: bottom, -X, -Z), and the two ids, low then high, live
      beside the chunk in the same list a mixed stack uses (LAYER_STACKS, chunks/chunks.js). To everything but the mesher,

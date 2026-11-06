@@ -62,11 +62,12 @@ function tryCarvePumpkin(hit) {
 
 /* Blocks a placement simply overwrites, the way air does. Only the grass billboards qualify —
    flowers, saplings and torches are deliberate placements and must not be silently destroyed. */
-const PLANT_REPLACE = [B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER];   // dry 0.84
+const PLANT_REPLACE = [B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER,   // dry 0.84
+                       B.FERN, B.TALL_FERN_LOWER, B.TALL_FERN_UPPER, B.CLOVER, B.FROST_GRASS];
 const isPlantReplaceable = (id) => PLANT_REPLACE.includes(id & 255);
 // the two-cell plants (0.84: the dry one too): lower half -> upper half, and back
-const TALL_UPPER_OF = { [B.TALL_LOWER]: B.TALL_UPPER, [B.DRY_TALL_LOWER]: B.DRY_TALL_UPPER };
-const TALL_LOWER_OF = { [B.TALL_UPPER]: B.TALL_LOWER, [B.DRY_TALL_UPPER]: B.DRY_TALL_LOWER };
+const TALL_UPPER_OF = { [B.TALL_LOWER]: B.TALL_UPPER, [B.DRY_TALL_LOWER]: B.DRY_TALL_UPPER, [B.TALL_FERN_LOWER]: B.TALL_FERN_UPPER };
+const TALL_LOWER_OF = { [B.TALL_UPPER]: B.TALL_LOWER, [B.DRY_TALL_UPPER]: B.DRY_TALL_LOWER, [B.TALL_FERN_UPPER]: B.TALL_FERN_LOWER };
 const isPlaceableInto = (id) =>
   id === B.AIR || id === B.WATER || id === B.LAVA || isPlantReplaceable(id);
 // clear a plant out of a cell before building there; tall grass is 2 cells, so take both halves.

@@ -202,6 +202,7 @@ function applyCameraView(dt) {
     if (typeof poseHeldFishOnBody === 'function') poseHeldFishOnBody(_selfModel, player);
     if (typeof poseOtterScarf === 'function') poseOtterScarf(_selfModel, player, dt);
     if (typeof poseMeerkatShoulder === 'function') poseMeerkatShoulder(_selfModel, player, dt);   // a meerkat on the shoulder (entities/meerkat.js)
+    if (typeof poseParrotShoulder === 'function') poseParrotShoulder(_selfModel, player, dt);     // a parrot on the left one (entities/parrot.js)
     _selfModel.head.rotation.order = 'YXZ';                // the head's turn first, then its nod, as the look
     _selfModel.head.rotation.y = -climbTurn;
     if (climbW > 0.001) poseBodyClimb(_selfModel, cUp * (1 - lie), cSlide * (1 - lie), cHold * (1 - lie));

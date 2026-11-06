@@ -3,6 +3,10 @@
    (a ladder up out of a slab, stairs, a carpet or a plant: put there by tryLadderOver and climbed, held and dropped like any
    ladder, blocks/ladders.js; no joins).
 
+   A CARPET and a fence, a wall or a ladder share a cell the same way: the carpet is the cell's block and the other stands in it
+   from the floor. Either may come first: a fence put on a carpet goes in here (tryRailOver), a carpet put at the foot of a fence
+   moves the fence here (tryCarpetUnderRail). A falling carpet is free to fall or melt away: what stood in it stays as the cell's block.
+
    A fence put down on a bottom slab or on upright stairs goes INTO that cell and stands on the slab, or on the stair's lower
    step, RAIL_LIFT up; one put into a top or a vertical slab stands from the cell's floor, half of it in the slab (posts
    under a top slab; a half block with a fence on its face). A wall put on upright stairs runs along one side of them, the
@@ -93,7 +97,8 @@ function tryRailOver(hit, mat, key) {
   for (const [x, y, z] of [inner ? [hit.x, hit.y, hit.z] : [hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz]]) {
     const host = getBlock(x, y, z);
     let rv = ((mat & 0xFF00FF) | (mat & NEED_PAID) | (SHAPE_FENCE << 8)) >>> 0;
-    if (fam === 'wall') {
+    if (fam === 'wall' && CORE.shapeOfVal(host) === 'layer') rv = ((mat & 0xFF00FF) | (mat & NEED_PAID) | ((_shapeVariantFor('wall', hit, x, y, z) & 255) << 8)) >>> 0;   // as anywhere
+    else if (fam === 'wall') {
       // along the side of the stairs nearer the click: their climb runs along the axis of their facing
       const f = ((host >> 8) & 255) & 3, px = o.x + _dir.x * hit.t - x, pz = o.z + _dir.z * hit.t - z;
       const side = f < 2 ? (px < 0.5 ? 3 : 2) : (pz < 0.5 ? 1 : 0);
@@ -106,6 +111,27 @@ function tryRailOver(hit, mat, key) {
     return 'placed';
   }
   return null;
+}
+/* A carpet in hand (place-block.js), clicked on the side of a fence, a wall or a ladder, or on what lies beside its foot: the
+   cell becomes the carpet and what stood there goes on standing in it. Clicked on its top, the carpet goes on top as on any
+   block. A corner of two ladders or vines is left alone (a cell holds one here). `look`: the held pick's. True: it went down. */
+const _carpetGoesUnder = (v) => {
+  const s = CORE.shapeOfVal(v);
+  return (s === 'fence' || s === 'wall' || s === 'ladder') && !wallPaired(v);
+};
+function tryCarpetUnderRail(hit, id, look) {
+  if (hit.over) return false;
+  let { x, y, z } = hit, v = getBlock(x, y, z);
+  if (!_carpetGoesUnder(v) || hit.ny === 1) { x += hit.nx; y += hit.ny; z += hit.nz; v = getBlock(x, y, z); }
+  if (!_carpetGoesUnder(v) || railOverAt(x, y, z) || plateOverAt(x, y, z) || coversAt(x, y, z)) return false;
+  // a falling carpet wants a floor, and none on water (blocks/falling.js)
+  if (PROPS[id & 255]?.layerStack) {
+    const under = getBlock(x, y - 1, z);
+    if (isWaterVal(v) || isWaterVal(under) || _fallOpen(under & 255)) return false;
+  }
+  setRailOver(x, y, z, (v & ~WATERLOGGED) >>> 0);            // first: the column of a ladder stays held all along
+  setBlock(x, y, z, withLook(CORE.layerVal(id & 255, 1), look));
+  return true;
 }
 // broken by a player or a blast: `drops` its block back; `quiet` when the caller made the sound
 function breakRail(x, y, z, drops, quiet) {
@@ -124,9 +150,15 @@ function railChanged(x, y, z, oldVal, val) {
   if (!_railOverN) return;
   const rv = railOverAt(x, y, z);
   if (!rv || BLOCKS.railHostOk(val, rv)) return;
+  // emptied (the slab, the stairs or the carpet gone): it stays, as the cell's own block. A ladder never left its column, so
+  // the ladders over it are not asked what holds them in between
+  if (!(val & 255)) {
+    const asking = _ladderDropping;
+    _ladderDropping = true;
+    try { setRailOver(x, y, z, 0); setBlock(x, y, z, rv); } finally { _ladderDropping = asking; }
+    return;
+  }
   setRailOver(x, y, z, 0);
-  // emptied (the slab or the stairs broken): it stays, as the cell's own block; else it comes off as its block
-  if (!(val & 255)) { setBlock(x, y, z, rv); return; }
   if (!player.canFly) for (const d of blockDrop(rv)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
 }
 

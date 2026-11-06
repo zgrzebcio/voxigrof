@@ -652,8 +652,9 @@ function tryOtterInteract() {
 function otterPutOn(p, e, quiet) {
   const i = ENTITIES.indexOf(e);
   if (i < 0 || p._wornOtter) return false;
-  // one creature worn at a time: a meerkat on the shoulder comes down for it (entities/meerkat.js)
+  // one creature worn at a time: a meerkat or a parrot on the shoulder comes down for it (entities/meerkat.js, parrot.js)
   if (p._wornMeerkat && typeof meerkatTakeOff === 'function') meerkatTakeOff(p, false);
+  if (p._wornParrot && typeof parrotTakeOff === 'function') parrotTakeOff(p, false);   // ...and a parrot (entities/parrot.js)
   ENTITIES.splice(i, 1);
   scene.remove(e.model.root);
   e._worn = true; e._wearOn = false;
@@ -731,7 +732,7 @@ function otterWorldTick(dt) {
     if (e.kind !== 'otter' || !e.tame) continue;
     const owner = houndOwner(e);
     if (!owner || !owner.spawned || owner.dead) continue;
-    if (e._wearOn) { if (!owner._wornOtter && !owner._wornMeerkat) otterPutOn(owner, e, true); e._wearOn = false; continue; }
+    if (e._wearOn) { if (!owner._wornOtter && !owner._wornMeerkat && !owner._wornParrot) otterPutOn(owner, e, true); e._wearOn = false; continue; }
     if (e.stance !== 'follow') continue;
     const dx = owner.pos.x - e.x, dz = owner.pos.z - e.z;
     if (e.active !== false && dx * dx + dz * dz < OTTER.teleport * OTTER.teleport && Math.abs(owner.pos.y - e.y) < 24) continue;

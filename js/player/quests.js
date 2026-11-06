@@ -56,10 +56,13 @@ const QUESTS = [
     reqs: [_req(ITEM.WATER_BOTTLE)], xp: 800, added: 2 },
   { name: 'Leather and cloth',      hint: 'Leather comes off cows, cloth is woven from fiber',
     reqs: [_req(ITEM.LEATHER, 10), _req(ITEM.CLOTH, 10)], xp: 1200 },
-  { name: 'Build a mortar',         hint: '20 granite, a bone, 2 flint and a fiber block', reqs: [_req(B.MORTAR)], xp: 1500 },
-  { name: 'Wheat and flour',        hint: 'Grind 3 wheat into each flour in the mortar', reqs: [_req(ITEM.WHEAT, 5), _req(ITEM.FLOUR, 3)], xp: 1350 },
+  { name: 'Make a piece of armor',  hint: 'Any piece of any kind, at the bench: cloth or leather will do',
+    reqs: [_reqAny((id) => id >= 256 && ITEM_PROPS[id]?.armor > 0, 1, 'a piece of armor')], xp: 1250, added: 6 },
+  { name: 'Make a bed',             hint: '4 wool, 4 planks, 5 cloth and 10 fiber, at the bench. Sleep in it to come back there when you die', reqs: [_req(B.BED)], xp: 1300, added: 5 },
+  { name: 'Build a mortar',         hint: '20 stone or granite, a seashell or a bone block, 2 flint and a fiber block', reqs: [_req(B.MORTAR)], xp: 1500 },
+  { name: 'Wheat and flour',        hint: 'Grind 2 wheat into each flour in the mortar', reqs: [_req(ITEM.WHEAT, 5), _req(ITEM.FLOUR, 3)], xp: 1350 },
   // 3 bread, or one baked pie that counts as 3 (an unbaked one does not count)
-  { name: 'Bake bread or a pie',    hint: '3 bread, or a pumpkin pie baked in the furnace',
+  { name: 'Bake bread or a pie',    hint: 'Dough is 2 flour, a salt and an egg: it bakes into bread in the furnace. 3 bread, or a pumpkin pie baked there',
     reqs: [{ ..._reqAny((id) => id === ITEM.BREAD || id === ITEM.COOKED_PUMPKIN_PIE, 3, 'bread, or a baked pie (counts 3)'),
              weight: (id) => id === ITEM.COOKED_PUMPKIN_PIE ? 3 : 1 }], xp: 2500 },
   // the belt in the backpack's old place (round 3); the backpack, needing bronze now, comes after the bronze pickaxe
@@ -165,7 +168,7 @@ function _questReqName(r) {
 /* a second round (the bottle of water, `added: 2`). The save's mark now counts the rounds: a place saved in
    round 1 (`added: true`) is counted along the quests of round 1 and before, so the round-2 quests ahead of
    it are skipped the same way. A later round: its quests get `added: 3` and QUEST_SAVE_GEN goes to 3. */
-const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 4;   // round 3: the backpack after the bronze pickaxe; round 4: the Dead Pharaoh
+const QUEST_SAVE_MARK = 1000, QUEST_SAVE_GEN = 6;   // round 3: the backpack after the bronze pickaxe; round 4: the Dead Pharaoh; round 5: the bed; round 6: a piece of armor
 const serializeQuests = (p) => ((p && p.questIdx) | 0) + QUEST_SAVE_MARK * QUEST_SAVE_GEN;
 const _questGen = (q) => q.added === true ? 1 : (q.added | 0);
 function restoreQuests(v) {

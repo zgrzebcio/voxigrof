@@ -75,7 +75,7 @@ function updateEating(dt, wantPlace) {
         const fullSat = fp.foodSatFull != null ? fp.foodSatFull * OVER_FOOD_GAIN : foodSat;
         player.saturation = Math.min(MAX_SATURATION, player.saturation + fullSat);
       }
-      // ...and thirst, fruit, vegetables, protein (0.82, FOOD_NUTRITION in player/stats.js)
+      // ...and thirst, fruit, veggies, protein (0.82, FOOD_NUTRITION in player/stats.js)
       if (typeof eatNutrition === 'function') eatNutrition(player, fp);
       /* What the food does beyond filling you. Its effect lands FIRST, so the heal it carries is
          already boosted by it: a golden apple starts Rapid regen, then its 2 health arrive doubled as 4. */

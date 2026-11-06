@@ -29,6 +29,7 @@
                      (TOOL_BLOCKS, blocks/mining-rules.js)
      tier            0 bare hand, 1 flint, 2 stone, 3 iron and gold, 4 bronze, 5 steel: what it may mine (MINE_REQ)
      toolSpeed       how many times faster it mines its blocks
+     stripS          a hatchet: seconds of the right button held to strip a log's bark (woods/felling.js)
      damage, attackSpeed
      ranged, ammo    a bow ('bow') and what it shoots ('arrow'): 38-ranged.js
      shield          true: raised with the right button (40-shield.js)
@@ -120,11 +121,16 @@ const ITEM = { STICK: 256, COAL: 257, COAL_CHUNK: 258, RAW_IRON: 259, DIAMOND: 2
               FUR: 429,                            // off an otter or a polar bear
               LOCK_PICK: 430,                      // opens a locked chest, sometimes (blocks/chest.js)
               JAM_SANDWICH: 431,                   // berries and bread
-              CARROT: 432,                         // off a ripe carrot plant (B.CARROT): vegetables, and a horse's best food
+              CARROT: 432,                         // off a ripe carrot plant (B.CARROT): veggies, and a horse's best food
               COCOA_BEANS: 433,                    // out of a ripe cocoa pod on a jungle trunk (woods/cocoa.js)
               COCOA_POWDER: 434,                   // five cocoa beans ground at the mortar
               WRENCH: 435,                         // creative's debug stick: joins, turns, forces shapes (player/wrench.js)
-              GOLDEN_GLOVES: 436 };                // the golden set's fifth piece (items/equipment.js)
+              GOLDEN_GLOVES: 436,                  // the golden set's fifth piece (items/equipment.js)
+              RAW_COOKIE: 437, COOKIE: 438,        // flour and cocoa beans, baked; a parrot's treat (entities/parrot.js)
+              CHICKEN: 439, COOKED_CHICKEN: 440,   // from a grown chicken (entities/chicken.js)
+              EGG: 441,                            // what a hen lays, taken up (the block B.EGG, blocks/egg.js); not placed
+              FRIED_EGG: 442,                      // an egg from the furnace
+              DOUGH: 443 };                        // flour, salt and an egg: what bread, pies and cookies are made of
 
 const ITEM_PROPS = {};
 // a group file's items into the table; each entry remembers its group

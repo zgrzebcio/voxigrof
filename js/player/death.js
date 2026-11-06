@@ -50,7 +50,7 @@ function showDeathScreen(cause) {
   if (player === PLAYERS[0] && document.pointerLockElement) document.exitPointerLock();
 }
 /* Back from a death: health, stamina and oxygen full, every other bar — food, thirst, energy, fruit,
-   vegetables, protein — at 75% (half before), and no over-stats. Only here: a new world and a first spawn still start full. */
+   veggies, protein — at 75% (half before), and no over-stats. Only here: a new world and a first spawn still start full. */
 const RESPAWN_BAR_SHARE = 0.75,   /* 75% since 0.833 (half until): a bar and its over-stat run to 150 */ RESPAWN_FULL = new Set(['stamina']);
 function respawnPlayer() {
   fillVitals(player, false);                     // every bar full, no over-stats...

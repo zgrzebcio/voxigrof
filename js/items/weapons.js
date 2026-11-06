@@ -19,8 +19,8 @@ defineItems('weapons', {
   [ITEM.FLINT_SWORD]:   { name: 'Flint sword',    stack: 1, icon: 'flint_sword',   tool: 'sword',   tier: 1, toolSpeed: 1,    damage: 20,   attackSpeed: 1.8,   durability: 20, desc: '' },
   [ITEM.STONE_SWORD]:    { name: 'Stone sword',     stack: 1, icon: 'stone_sword',    tool: 'sword',   tier: 2, toolSpeed: 2,    damage: 25,   attackSpeed: 1.7,   durability: 50, desc: '' },
   [ITEM.IRON_SWORD]:     { name: 'Iron sword',      stack: 1, icon: 'iron_sword',     tool: 'sword',   tier: 3, toolSpeed: 3,    damage: 30,   attackSpeed: 1.9,   durability: 150, desc: '' },
-  [ITEM.GOLDEN_SWORD]:   { name: 'Golden sword',    stack: 1, icon: 'golden_sword',   tool: 'sword',   tier: 3, toolSpeed: 8,    damage: 25,   attackSpeed: 2.8,   durability: 30, desc: '' },
-  [ITEM.BRONZE_SWORD]:   { name: 'Bronze sword',    stack: 1, icon: 'bronze_sword',   tool: 'sword',   tier: 4, toolSpeed: 4,    damage: 32.5, attackSpeed: 1.95,  durability: 300, desc: '' },
+  [ITEM.GOLDEN_SWORD]:   { name: 'Golden sword',    stack: 1, icon: 'golden_sword',   tool: 'sword',   tier: 3, toolSpeed: 6,    damage: 25,   attackSpeed: 2.8,   durability: 30, desc: '' },
+  [ITEM.BRONZE_SWORD]:   { name: 'Bronze sword',    stack: 1, icon: 'bronze_sword',   tool: 'sword',   tier: 4, toolSpeed: 4.5,  damage: 32.5, attackSpeed: 1.95,  durability: 300, desc: '' },
   // the steel sword took the diamond sword's place, numbers and id
-  [ITEM.STEEL_SWORD]:    { name: 'Steel sword',     stack: 1, icon: 'steel_sword',    tool: 'sword',   tier: 5, toolSpeed: 5,    damage: 35,   attackSpeed: 2.0,   durability: 500, desc: '' },
+  [ITEM.STEEL_SWORD]:    { name: 'Steel sword',     stack: 1, icon: 'steel_sword',    tool: 'sword',   tier: 5, toolSpeed: 7,    damage: 35,   attackSpeed: 2.0,   durability: 500, desc: '' },
 });

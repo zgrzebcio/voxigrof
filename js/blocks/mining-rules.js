@@ -11,6 +11,8 @@ PROPS[B.PUMPKIN].noPlace = true;
 // flowers cannot be planted in survival either: picked, they come apart into fiber (FLOWER_BLOCKS, 50-loottable.js)
 for (const id of [B.POPPY, B.ORCHID, B.PINCUSHION]) PROPS[id].noPlace = true;
 
+// the wild plants (blocks/wild-plants.js), every cell of them
+const WILD_PLANTS = [B.DESERT_SCRUB, B.BUSH, B.FERN, B.TALL_FERN_LOWER, B.TALL_FERN_UPPER, B.CLOVER, B.THORNWEED, B.FROST_GRASS];
 // blocks that only DROP when broken with the right tool type at (or above) a tier.
 // Not listed = always drops. Block still breaks either way, just yields nothing.
 const MINE_REQ = {
@@ -18,6 +20,7 @@ const MINE_REQ = {
   [B.COBBLE]:      { tool: 'pick', tier: 1 },
   [B.BRICKS]:      { tool: 'pick', tier: 1 },
   [B.FURNACE]:     { tool: 'pick', tier: 1 },
+  [B.MORTAR]:      { tool: 'pick', tier: 1 },
   [B.COAL_ORE]:    { tool: 'pick', tier: 2 },     // stone pickaxe and up, like stone itself
   [B.COPPER_ORE]:  { tool: 'pick', tier: 2 },     // 0.829
   [B.IRON_ORE]:    { tool: 'pick', tier: 2 },
@@ -72,7 +75,7 @@ const TOOL_BLOCKS = {
                    B.SULFUR_BLOCK, B.SULFUR_DOWN_TIP, B.SULFUR_UP_TIP, B.TIN_ORE, B.COPPER_ORE, B.GOLD_ORE,
                    B.EMERALD_ORE, B.RUBY_ORE, B.SAPPHIRE_ORE, ...STORAGE_BLOCK_IDS,
                    B.TOPAZ_ORE, B.SANDSTONE, B.RED_SANDSTONE, B.PINK_SANDSTONE,   // pink 0.822
-                   B.METAL_CHEST, B.SEASHELL_BLOCK, B.CLAM]),                       // 0.843
+                   B.METAL_CHEST, B.SEASHELL_BLOCK, B.CLAM, B.MORTAR]),             // 0.843
   // every wood's log, stripped log and planks come from the woods table (woods/woods.js); hollow logs join below
   hatchet: new Set([...woodBlocks('log'), ...woodBlocks('stripped'), ...woodBlocks('planks'),
                     B.MELON, B.PUMPKIN, B.CANTALOUPE, B.CRAFTING_BENCH, B.CACTUS, B.CHEST, B.BED,
@@ -80,13 +83,13 @@ const TOOL_BLOCKS = {
   hoe:    new Set([...woodBlocks('leaves'), B.HAY]),          // every wood's leaves, the dry bush's too
   // shears are the wool tool; they also snip plant matter cleanly
   shears: new Set([B.WOOL, ...woodBlocks('leaves'), B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER,
-                   B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH, B.VINE]),
+                   B.POPPY, B.ORCHID, B.SUGAR_CANE, B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH, B.VINE, ...WILD_PLANTS]),
   // a blade cuts soft, fibrous things fast — plants, leaves, saplings, melons, cane and webbing-like props
   sword:  new Set([B.COBWEB, ...woodBlocks('leaves'), ...woodBlocks('sapling'), B.HAY, B.MELON, B.PUMPKIN, B.CANTALOUPE, B.SUGAR_CANE,
                    B.BLACK_MUSHROOM, B.WHITE_TALL_MUSHROOM, B.LAVA_MUSHROOM, B.YELLOW_MUSHROOM,
                    B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.TALL_UPPER, B.POPPY, B.ORCHID,
                    B.DRY_GRASS, B.DRY_TALL_LOWER, B.DRY_TALL_UPPER, B.DRY_BUSH,
-                   B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS, B.VINE]),
+                   B.PINCUSHION, B.RED_MUSHROOM, B.BROWN_MUSHROOM, B.BLUE_MUSHROOM, B.CACTUS, B.VINE, ...WILD_PLANTS]),
 };
 // a look in the cell's bits IS its block; the looks that are still ids mine exactly like the block each plays like
 for (const [id, like] of CORE.VARIANT_BLOCKS) {
@@ -172,9 +175,10 @@ function handMineFactor(id) {
 /* FURNITURE comes apart by hand too. A bench, a chest, a bed and a hay bale are things
    you built or stacked, not ground you dig — needing an axe to move your own bed was a chore, and
    the flint gate is about the WORLD, not your furniture. They also pay no XP (see XP_BLOCK in
-   player/leveling.js), so hand-breaking them is housekeeping and never a grind. */
+   player/leveling.js), so hand-breaking them is housekeeping and never a grind. What is stone (the mortar, the
+   furnace) is not on this list: it takes a pickaxe, and MINE_REQ keeps its drop from any other tool. */
 const HAND_BREAK_BLOCKS = new Set([B.CRAFTING_BENCH, B.CHEST, B.BED, B.HAY, B.THATCH, B.FIBER_BLOCK, B.LADDER,   // + fiber block, ladder
-                                   B.MORTAR, B.CLAM]);                                                 // + mortar; the clam
+                                   B.CLAM]);                                                           // + the clam
 // takes a VALUE since 0.785: a stack of snow, leaves or sand comes away by hand, a stone layer does not
 function handBreakable(id) {
   const p = PROPS[id & 255];

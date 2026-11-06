@@ -54,7 +54,7 @@ function _entFoe(e, tp, distXZ, dt) {
   const f = e._foe;
   if (!f) return null;
   // a monster still goes for the PLAYER when the player is the nearer of the two
-  if (monster && !tp.canFly && !tp.dead && distXZ <= ZOMBIE_CHASE_RANGE && distXZ < dist(f)) return null;
+  if (monster && !tp.canFly && !tp.dead && distXZ <= ZOMBIE_CHASE_RANGE * hideSightMul(tp) && distXZ < dist(f)) return null;
   return f;
 }
 /* A creature hurting a creature: a monster's blow or arrow, a villager's swing. Unlike damageEntity it
@@ -145,8 +145,8 @@ function damageEntity(ent, dmg, src = null) {
     else if (ent.kind === 'hellhound') { if (!player.canFly && typeof houndStruckByPlayer === 'function') houndStruckByPlayer(ent, player); }
     else if (!player.canFly) _entBolt(ent, src ? src.x : player.pos.x, src ? src.z : player.pos.z);   // its kind's `fleeTime` (the creature table)
     if (ent.hp <= 0) {
-      // killed by the player; a kind whose `xp` is 0 (a tumbleweed) pays nothing and is not told as a kill
-      if (!player.canFly) { _entDropLoot(ent, true); if (mobOf(ent).xp !== 0) addXP(mobKillXP(ent), mobKillText(ent)); }
+      // killed by the player; one whose kind's `xp` says 0 (a tumbleweed, a chick) pays nothing and is not told as a kill
+      if (!player.canFly) { _entDropLoot(ent, true); if (mobPaysKill(ent)) addXP(mobKillXP(ent), mobKillText(ent)); }
       const i = ENTITIES.indexOf(ent);
       if (i >= 0) _removeEntity(i);
       return true;

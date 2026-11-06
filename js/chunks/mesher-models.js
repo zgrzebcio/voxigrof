@@ -227,6 +227,9 @@ corePart('mesh.chunk', function () {
             const k = chimneyHeight(gb, x, y, z);
             if (y + 1 + k < CY && !opaqueVal(gb(x, y + 1 + k, z))) emitChimney(x, y + 1 + k, z, FURNACE_T[furnaceRockOf((val >> 8) & 255)]);
           }
+          // a falling carpet over a plant, a torch, a pebble... (shapes/chimney-mixed.js): what it covers is drawn as ever
+          const cc = carpetCount(val);
+          if (cc) { const cid = carpetId(val), bx = [0, 0, 0, 1, cc / LAYER_MAX, 1]; emitBoxFaces(x, y, z, bx, facesOfVal(cid), false, 0, 0, bx, _shapePass(cid)); }
           // a far chunk leaves out the small models: pebbles, gourds, salt, vines, the mortar, clusters
           if (lod) { const md = PROPS[vid].model; if (md === 'carpet' || md === 'wall' || md === 'voxel' || md === 'cluster') continue; }
           if (lc) {

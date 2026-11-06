@@ -400,13 +400,17 @@ function tickPlayer(dt, now, slot) {
   const _otterFed = fishInHands && typeof otterGiveFish === 'function' && otterGiveFish(_eHeld && !player._benchAim);
   // ...and crouched with a chitin plate on a wild meerkat, E gives it the plate (entities/meerkat.js)
   const _meerkatFed = !fishInHands && typeof meerkatGiveChitin === 'function' && meerkatGiveChitin(_eHeld && !player._benchAim);
+  // ...and on a parrot not tame yet: a cookie, or a pat while its taming waits for one (entities/parrot.js)
+  const _parrotE = !fishInHands && typeof parrotE === 'function' && parrotE(_eHeld && !player._benchAim);
+  // ...and crouched with a cocoa bean on an owl: it fetches from the leaves (entities/owl.js)
+  const _owlFed = !fishInHands && typeof owlGiveBean === 'function' && owlGiveBean(_eHeld && !player._benchAim);
   // drinking: crosshair on water, empty hand, E held — it takes E from the bushes around you while it runs
-  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim && !fishInHands);
+  player._drinkProg = updateDrinking(dt, _eHeld && !player._benchAim && !fishInHands && !_parrotE && !_owlFed);
   // E on an animal you tamed pets it (entities/taming.js); while you look at one, E is its and not the bushes'
-  const _petting = typeof updatePetting === 'function' && updatePetting(dt, _eHeld && !player._benchAim && !_otterFed && !_meerkatFed);
+  const _petting = typeof updatePetting === 'function' && updatePetting(dt, _eHeld && !player._benchAim && !_otterFed && !_meerkatFed && !_parrotE && !_owlFed);
   // bush pickup: held on KeyE or pad North, repeating on its own short cooldown
   // ...and not while eating or drawing a bow: both take two hands, and foraging needs them free (a fish in them too)
-  updateBushPickup(dt, _eHeld && !_petting && !_meerkatFed && !fishInHands && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
+  updateBushPickup(dt, _eHeld && !_petting && !_meerkatFed && !_parrotE && !_owlFed && !fishInHands && !player._benchAim && !(player._drinkProg > 0) && !(player._eatProg > 0) && !(player._drawProg > 0));
 
   // Single-press throw (edge: was not held last frame). Must run before doPlace calls.
   const _didThrow = (wantPlace && !act.place && !fishInHands) ? tryThrow() : false;

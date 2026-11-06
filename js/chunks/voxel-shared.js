@@ -25,7 +25,7 @@ corePart('voxel', function () {
           LOOK_SHIFT, LOOK_MASK, LOOKS, LOOK_OF_OLD_ID, defineLook, lookOf, withLook, lookEntryOf, facesOfVal, WEB_EDGES, webCornerEdge, WATERLOGGED, isWaterlogged, isWaterVal, canWaterlog,
           pillarOfVal, nameOfVal, matKey, stackEntry, stackVal, _ROCK_LOOK_IDS,
           _SANDSTONES, _GLOWS, _NO_COVER, _METALS, _GEM_COAL, SHAPE_BLOCKS, LAYER_STACKING, VARIANT_FAMILIES,
-          CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal, SHAPE_SLAB_MIX,
+          CHIMNEY_MAX, CHIMNEY_ROCKS, chimneyWall, chimneyHeight, layerCount, layerMixed, layerVal, CARPET_MAX, carpetHost, carpetCount, carpetId, withCarpet, SHAPE_SLAB_MIX,
           SLAB_MIX_SEE, SLAB_MIX_HIGH, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, LAYER_BOX,
           NO_BOXES, solidVal, SHAPE_FAMILY, shapeOfVal, PANE_BOX, _s16, _mirX, _mirZ, _swapXZ, FENCE_POST,
           FENCE_POST_COLL, FENCE_ARM, FENCE_DIAG, FENCE_ARM_COLL, FENCE_DIAG_COLL, FENCE_DIRS, _fenceArm,
@@ -49,7 +49,21 @@ corePart('voxel', function () {
      vertex, -1 cold .. 0 usual .. 1 warm (the 'clim' attribute). The fragment shader mixes in the warm or cold tile
      above, or tints the water (04, row 1 of TILE_LAYER in 03). TINTED: the tiles that take it. */
   const TINTED = new Uint8Array(1024);
-  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.SHORT_GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL]) TINTED[t] = 1;
+  for (const t of [T.GRASS_TOP, T.GRASS_SIDE, T.GRASS_PLANT, T.SHORT_GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.WATER, T.WATER_FLOW, T.WATER_FLOW_FAST, T.WATER_FALL,
+                   T.BUSH_PLANT, T.FERN, T.BIG_FERN_BOT, T.BIG_FERN_TOP, T.CLOVER]) TINTED[t] = 1;
+  /* Tinted plants take the cold late. Their cold tile is a pale white blue for the snow (03-atlas.js), and the plain mix would carry them half way
+     there on the cold plains and in spruce forests, far too pale. PLANT_TILE marks them; plantClim eases what the mesher gives them on the cold side:
+     up to PLANT_COLD_TOUCH of it as far as PLANT_COLD_FROM, the whole by PLANT_COLD_FULL, where the snow has begun. The warm side is as it comes. */
+  const PLANT_TILE = new Uint8Array(1024);
+  for (const t of [T.GRASS_PLANT, T.SHORT_GRASS_PLANT, T.TALL_BOT, T.TALL_TOP, T.BUSH_PLANT, T.FERN, T.BIG_FERN_BOT, T.BIG_FERN_TOP, T.CLOVER]) PLANT_TILE[t] = 1;
+  const PLANT_COLD_FROM = 0.6, PLANT_COLD_FULL = 0.9, PLANT_COLD_TOUCH = 0.15;
+  const plantClim = (c) => {
+    if (c >= 0) return c;
+    const a = -c;
+    if (a <= PLANT_COLD_FROM) return -a / PLANT_COLD_FROM * PLANT_COLD_TOUCH;
+    const t = Math.min(1, (a - PLANT_COLD_FROM) / (PLANT_COLD_FULL - PLANT_COLD_FROM));
+    return -(PLANT_COLD_TOUCH + (1 - PLANT_COLD_TOUCH) * t * t * (3 - 2 * t));
+  };
   // the climate sampler (climAt, biomes/biomes.js): the worker sets it from its world's generator; icons have none
   let _climAt = null, _dryAt = null;
   /* The Dryland's dry grass: the grass block's top and sides fade to their pale dry look (T.GRASS_TOP_DRY,

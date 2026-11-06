@@ -80,6 +80,8 @@ function setBlock(x, y, z, val) {
   editRushing = !fluidApplying;                        // a fluid's flowing is no player edit
   const lx = x & 15, lz = z & 15;
   const i = lx + (lz << 4) + (y << 8);
+  // a carpet lying among a plant stays with it, and stays when it goes (chunks/layer-stacks.js)
+  val = carpetValue(c.data[i], val);
   // a block standing in still water keeps it, and leaves it when it goes (fluids/waterlog.js)
   val = waterlogValue(c.data[i], val);
   if (c.data[i] === val) return;
@@ -128,8 +130,8 @@ function setBlock(x, y, z, val) {
   }
   // snow-on-grass: the grass directly under a snow block wears snowy sides (variant), and reverts
   // to plain grass when the snow is removed. Recursive setBlock is safe (grass fires no snow hook).
-  // A stack of snow layers is the snow block's own id, so it counts; a stack topped with leaves does not.
-  const _snowy = (v) => (v & 255) === B.SNOW;
+  // A stack of snow layers is the snow block's own id, so it counts; a stack topped with leaves does not. Snow among a plant counts.
+  const _snowy = (v) => (v & 255) === B.SNOW || (CORE.carpetCount(v) > 0 && CORE.carpetId(v) === B.SNOW);
   if (_snowy(val) && !_snowy(oldVal) && getBlock(x, y - 1, z) === B.GRASS)
     setBlock(x, y - 1, z, B.GRASS | (V.GRASS_SNOWY << 8));
   if (_snowy(oldVal) && !_snowy(val)) {
@@ -173,6 +175,8 @@ function setBlock(x, y, z, val) {
   if (y < WORLD_TOP && typeof termiteHillFloor === 'function' && !termiteHillFloor(val) && (getBlock(x, y + 1, z) & 255) === B.TERMITE_HILL) termiteHillUnder(x, y, z, val);
   // a clam put down, opened, shut, filled or broken (blocks/clam.js: its model, and what was put in it falls out)
   if ((oldId === B.CLAM || newId === B.CLAM) && typeof clamChanged === 'function') clamChanged(x, y, z, oldVal, val);
+  // an egg put down or gone (blocks/egg.js)
+  if (oldId === B.EGG || newId === B.EGG) eggChanged(x, y, z, newId === B.EGG);
   // a pressure plate down broken (what it held lets go), or the block under one gone (it comes off) (blocks/pressure-plates.js)
   if (typeof plateChanged === 'function') plateChanged(x, y, z, oldVal, val);
   // a sign gone takes its words; the block a sign was put up on gone lets the sign down (blocks/signs.js)
@@ -197,10 +201,8 @@ function setBlock(x, y, z, val) {
           for (const d of blockDrop(B.CACTUS)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, nx, y, nz);
       }
     }
-  // tall grass: breaking the UPPER half removes the lower half too (whole plant goes)
-  if (newId === B.AIR && oldId === B.TALL_UPPER && (getBlock(x, y - 1, z) & 255) === B.TALL_LOWER)
-    setBlock(x, y - 1, z, B.AIR);
-  if (newId === B.AIR && oldId === B.DRY_TALL_UPPER && (getBlock(x, y - 1, z) & 255) === B.DRY_TALL_LOWER)   // the dry one
+  // a two-cell plant: breaking the UPPER half removes the lower half too (whole plant goes)
+  if (newId === B.AIR && TALL_LOWER_OF[oldId] && (getBlock(x, y - 1, z) & 255) === TALL_LOWER_OF[oldId])
     setBlock(x, y - 1, z, B.AIR);
   /* Door / bed support: both need solid ground under them, so digging out any ONE of the cells
      they stand on drops the whole thing. Each block's own break hook then takes its other half,
@@ -245,12 +247,13 @@ function setBlock(x, y, z, val) {
   if ((((oldVal & 255) === B.JUNGLE_LOG || (oldVal & 255) === B.STRIPPED_JUNGLE_LOG) && (val & 255) !== B.JUNGLE_LOG
        && (val & 255) !== B.STRIPPED_JUNGLE_LOG) && typeof cocoaLostHold === 'function') cocoaLostHold(x, y, z);
   // billboard support: breaking the block under a cross-model block (torch, mushroom) pops it off
-  if (newId === B.AIR && y + 1 <= WORLD_TOP) {
+  // ...and a plant with a carpet among it gone, the carpet left in its cell holds up no upper half
+  if ((newId === B.AIR || (oldId !== newId && CORE.carpetCount(oldVal))) && y + 1 <= WORLD_TOP) {
     const aboveVal = getBlock(x, y + 1, z), above = aboveVal & 255;
     // ...unless it is a WALL torch, whose support is the wall behind it, not the floor
     const wallTorch = !!PROPS[above]?.torch && ((aboveVal >> 8) & 7) !== 0;
     // a cobweb needs no floor under it
-    if ((PROPS[above]?.model === 'cross' && !wallTorch && above !== B.COBWEB) || above === B.CACTUS) {   // cactus columns chain-break upward
+    if ((PROPS[above]?.model === 'cross' && !wallTorch && above !== B.COBWEB) || above === B.CACTUS || above === B.EGG) {   // cactus columns chain-break upward
       setBlock(x, y + 1, z, B.AIR);
       if (!player.canFly)
         for (const d of blockDrop(above)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y + 1, z);
@@ -279,19 +282,19 @@ function setBlock(x, y, z, val) {
         for (const d of blockDrop(B.SULFUR_UP_TIP)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y - 1, z);
     }
   }
-  /* A gem cluster grows out of the block behind it: take that block away and the cluster comes off
-     as an ITEM, not as gems — so breaking the stone behind it with a poor pickaxe cannot skip the tier a
-     cluster needs. It sits at this cell + CLUSTER_DIRS[o], pointing along that same direction. */
+  /* A gem cluster grows out of the block behind it: take that block away and the cluster breaks, giving nothing, so
+     digging out the stone behind it cannot skip the tier a cluster needs. It sits at this cell + CLUSTER_DIRS[o],
+     pointing along that same direction. */
   if (newId === B.AIR)
     for (let o = 0; o < 6; o++) {
       const [dx, dy, dz] = CORE.CLUSTER_DIRS[o];
       const nv = getBlock(x + dx, y + dy, z + dz);
       if (PROPS[nv & 255]?.model !== 'cluster' || ((nv >> 8) & 7) !== o) continue;
       setBlock(x + dx, y + dy, z + dz, B.AIR);
-      if (!player.canFly) spawnDrop(nv & 255, x + dx, y + dy, z + dz);   // whatever its bed, the gem's own cluster item
     }
   // gravity: clear below a gravity block → it falls; gravity block placed above air → also falls
-  if (newId === B.AIR && y + 1 <= WORLD_TOP) scheduleFall(x, y + 1, z);
+  // ...water come under one wakes it too: a whole sand block sinks, a carpet breaks (blocks/falling.js)
+  if ((newId === B.AIR || newId === B.WATER) && y + 1 <= WORLD_TOP) scheduleFall(x, y + 1, z);
   // a stack of snow, leaves, sand, gravel or fiber falls too
   // ...and a stack that comes to rest on a stack with room for it pours down into it (ash from a burnt tree,
   // or any stack stepping down, stopped a cell short and stood on top as a stack of its own)
@@ -299,7 +302,7 @@ function setBlock(x, y, z, val) {
        || (PROPS[newId]?.layerStack && CORE.layerCount(val)))                                     // fiber falls since 0.786
       && y > 0) {
     const below = getBlock(x, y - 1, z);
-    if ((below & 255) === B.AIR || (CORE.layerCount(val) && canStackLayer(below, newId))) scheduleFall(x, y, z);
+    if (_fallOpen(below & 255) || isWaterVal(below) || (CORE.layerCount(val) && (canStackLayer(below, newId) || CORE.carpetHost(below)))) scheduleFall(x, y, z);   // (a plant is open, and a stack covers a pebble)
   }
   /* a player's edit: its re-mesh goes to a worker now, not when a worker next answers or the frame comes round.
      Only while a player is digging or building (notePlayerEdit, from tickPlayer): the world's own changes (growth,

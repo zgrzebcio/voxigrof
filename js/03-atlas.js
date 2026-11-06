@@ -242,7 +242,15 @@ const ATLAS_TILES = ['grass_block_top', 'grass_block_side', 'dirt', 'stone', 'sa
                      ,'mossy_palm_plank_bricks', 'mossy_acacia_plank_bricks', 'mossy_jungle_plank_bricks'
                      // cracked looks (T 498-505): adobe, obsidian, each sandstone, each sandstone's brick
                      ,'cracked_adobe', 'cracked_obsidian', 'cracked_sandstone', 'cracked_red_sandstone', 'cracked_pink_sandstone'
-                     ,'cracked_sandstone_bricks', 'cracked_red_sandstone_bricks', 'cracked_pink_sandstone_bricks'];
+                     ,'cracked_sandstone_bricks', 'cracked_red_sandstone_bricks', 'cracked_pink_sandstone_bricks'
+                     // the egg's model art (T 506-507)
+                     ,'egg_side', 'egg_top'
+                     // the wild plants (T 508-525); the _warm, _cold and big_fern_ tiles built below
+                     ,'desert_scrub', 'bush', 'bush_warm', 'bush_cold', 'fern', 'fern_warm', 'fern_cold'
+                     ,'big_fern_bottom', 'big_fern_bottom_warm', 'big_fern_bottom_cold', 'big_fern_top', 'big_fern_top_warm', 'big_fern_top_cold'
+                     ,'clover', 'clover_warm', 'clover_cold', 'thornweed', 'frost_grass'];
+// the wild plants drawn in grey and tinted like the grass, each with a warm and a cold tile for the climate
+const TINTED_PLANT_TILES = ['bush', 'fern', 'big_fern_bottom', 'big_fern_top', 'clover'];
 // tiles drawn at their own size in a layer's corner, 8 texels per model pixel, not stretched
 const MUSHROOM_NATIVE = new Set(MUSHROOM_KINDS.flatMap(k => mushroomPartsOf(k).map(p => mushroomTileName(k, p))));
 const IMAGES = {}; // name -> HTMLImageElement (also reused for hotbar / radial icons)
@@ -470,12 +478,12 @@ for (let id = 0; id < PROPS.length; id++) {
   const p = PROPS[id];
   if (!p || p.model !== 'cross' || p.shroom != null) continue;
   if (p.torch || id === B.COBWEB || id === B.SULFUR_UP_TIP || id === B.SULFUR_DOWN_TIP) continue;   // every torch
-  const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER || id === B.DRY_TALL_UPPER ? 3 : 1;   // dry 0.84
+  const kind = id === B.SUGAR_CANE ? 2 : id === B.TALL_UPPER || id === B.DRY_TALL_UPPER || id === B.TALL_FERN_UPPER ? 3 : 1;   // dry 0.84
   for (const t of [...(p.faces || []), ...(p.tilesByVar || []), ...(p.segTiles || [])])   // cane pieces 0.829
     if (t != null && ATLAS_TILES[t]) SWAY_TILES[ATLAS_TILES[t]] = kind;
 }
 // the warm and cold grass plants sway as their usual selves do
-for (const n of ['grass', 'short_grass', 'tallgrass_bottom', 'tallgrass_top'])
+for (const n of ['grass', 'short_grass', 'tallgrass_bottom', 'tallgrass_top', ...TINTED_PLANT_TILES])
   if (SWAY_TILES[n]) SWAY_TILES[n + '_warm'] = SWAY_TILES[n + '_cold'] = SWAY_TILES[n];
 /* The water's colours: the art is grey, drawn in the usual blue below; the shader moves it toward the cold
    or the warm one by the mesh's climate value (04-materials.js). */
@@ -489,7 +497,7 @@ const TILE_LAYER = (() => {
   /* Row 1, the climate colour: 1 = mix toward the warm tile (.g) or the cold one (.b), 2 = water, tinted.
      Only tiles the mesher gives a climate value (TINTED in chunks/voxel-shared.js) ever read it. */
   const R1 = N * 4;
-  for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass', 'short_grass']) {
+  for (const n of ['grass_block_top', 'grass_block_side', 'tallgrass_bottom', 'tallgrass_top', 'grass', 'short_grass', ...TINTED_PLANT_TILES]) {
     const i = ATLAS_TILES.indexOf(n), w = ATLAS_TILES.indexOf(n + '_warm'), c = ATLAS_TILES.indexOf(n + '_cold');
     if (i >= 0 && w >= 0 && c >= 0) { d[R1 + i * 4] = 1; d[R1 + i * 4 + 1] = w; d[R1 + i * 4 + 2] = c; }
   }
@@ -580,8 +588,9 @@ async function buildAtlas() {
 
   // tall_grass.png is one 2-tall sprite (e.g. 60x120): split it into a top and bottom half so
   // each of the two stacked blocks samples the correct portion instead of the whole squished image
-  // ...and the tall dry grass the same way
-  for (const [sheet, bot, top] of [['tallgrass', 'tallgrass_bottom', 'tallgrass_top'], ['dry_tall_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top']]) {
+  // ...and the tall dry grass and the tall fern the same way
+  for (const [sheet, bot, top] of [['tallgrass', 'tallgrass_bottom', 'tallgrass_top'], ['dry_tall_grass', 'dry_tall_grass_bottom', 'dry_tall_grass_top'],
+                                   ['big_fern', 'big_fern_bottom', 'big_fern_top']]) {
     if (!IMAGES[sheet]) continue;
     const src = IMAGES[sheet], hw = src.width, hh = src.height / 2;
     for (const [name, sy] of [[bot, hh], [top, 0]]) {
@@ -629,6 +638,11 @@ async function buildAtlas() {
   const warmRGB = mixRGB(grassRGB, [196, 188, 104], 0.6), coldRGB = mixRGB(grassRGB, [52, 112, 98], 0.5);
   const rgbStr = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
   const warmTint = rgbStr(warmRGB), coldTint = rgbStr(coldRGB);
+  // the wild plants' warm tile, far paler than the grass's: half way to it on the warm plains, all of it in the desert (vClim, 04-materials.js)
+  const plantWarmTint = rgbStr(mixRGB(grassRGB, [228, 216, 124], 0.92));
+  /* every tinted plant's cold tile, the grass plants' too: a pale white blue to fit the snow, half way to it on the cold plains, all of it in the snow.
+     The art is mid grey, so a multiply alone leaves it a dull grey: `screen` with plantColdLift raises it and keeps its shading. */
+  const plantColdTint = rgbStr([222, 238, 250]), plantColdLift = rgbStr([96, 116, 136]);
   if (IMAGES.grass_side_base && IMAGES.grass_side_overlay) {
     IMAGES.grass_block_side_warm = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', warmRGB);
     IMAGES.grass_block_side_cold = _composite(IMAGES.grass_side_base, IMAGES.grass_side_overlay, 'grass', coldRGB);
@@ -649,6 +663,7 @@ async function buildAtlas() {
   IMAGES.tallgrass_top_warm = IMAGES.tallgrass_top_cold = IMAGES.tallgrass_top;
   IMAGES.grass_warm = IMAGES.grass_cold = IMAGES.grass;   // the grass plant: the same grey art, each tinted below
   IMAGES.short_grass_warm = IMAGES.short_grass_cold = IMAGES.short_grass;   // ...and the short grass
+  for (const n of TINTED_PLANT_TILES) IMAGES[n + '_warm'] = IMAGES[n + '_cold'] = IMAGES[n];   // ...and the wild plants
   /* A burnt-out glow block is its own picture in grey and darker: no art of its own. Pixel by pixel, so it
      works where a canvas filter does not. */
   const greyed = (src) => {
@@ -722,14 +737,15 @@ async function buildAtlas() {
      is tinted on the source image, where one multiply and one alpha restore do it: the grass colour, and its
      warm and cold ones. The oak, birch and palm leaves are grey art too and take their own leaf greens the
      same way. */
-  for (const [name, col] of [['tallgrass_bottom', tint], ['tallgrass_top', tint], ['oak_leaves', OAK_LEAF_TINT],
-                             ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', coldTint],
-                             ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', coldTint],
-                             ['grass', tint], ['grass_warm', warmTint], ['grass_cold', coldTint],
-                             ['short_grass', tint], ['short_grass_warm', warmTint], ['short_grass_cold', coldTint],
+  for (const [name, col, lift] of [['tallgrass_bottom', tint], ['tallgrass_top', tint], ['oak_leaves', OAK_LEAF_TINT],
+                             ['tallgrass_bottom_warm', warmTint], ['tallgrass_bottom_cold', plantColdTint, plantColdLift],
+                             ['tallgrass_top_warm', warmTint], ['tallgrass_top_cold', plantColdTint, plantColdLift],
+                             ['grass', tint], ['grass_warm', warmTint], ['grass_cold', plantColdTint, plantColdLift],
+                             ['short_grass', tint], ['short_grass_warm', warmTint], ['short_grass_cold', plantColdTint, plantColdLift],
                              ['birch_leaves', BIRCH_LEAF_TINT], ['dry_leaves', DRY_LEAF_TINT],     // dry 0.8411
                              ['palm_leaves', PALM_LEAF_TINT],                                     // palm 0.8445
-                             ['acacia_leaves', ACACIA_LEAF_TINT], ['jungle_leaves', JUNGLE_LEAF_TINT]]) {
+                             ['acacia_leaves', ACACIA_LEAF_TINT], ['jungle_leaves', JUNGLE_LEAF_TINT],
+                             ...TINTED_PLANT_TILES.flatMap(n => [[n, tint], [n + '_warm', plantWarmTint], [n + '_cold', plantColdTint, plantColdLift]])]) {
     const src = IMAGES[name];
     if (!src) continue;
     const c = document.createElement('canvas');
@@ -740,6 +756,11 @@ async function buildAtlas() {
     g2.globalCompositeOperation = 'multiply';          // keeps the blade shading, colours it
     g2.fillStyle = col;
     g2.fillRect(0, 0, c.width, c.height);
+    if (lift) {                                        // brighter than a multiply can make it
+      g2.globalCompositeOperation = 'screen';
+      g2.fillStyle = lift;
+      g2.fillRect(0, 0, c.width, c.height);
+    }
     g2.globalCompositeOperation = 'destination-in';    // the fill also painted the gaps — undo that
     g2.drawImage(src, 0, 0);
     IMAGES[name] = c;

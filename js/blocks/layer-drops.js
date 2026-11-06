@@ -19,8 +19,8 @@ function _dropLayer(L, x, y, z) {
   } else if (L === B.GRAVEL) {
     // a gravel layer gives no gravel, but its flint as often as a gravel block does
     if (Math.random() < GRAVEL_FLINT_CHANCE) spawnDrop(ITEM.FLINT, x, y, z);
-  } else if (L === B.SALT_CRUST) {
-    // each salt layer rolls its salt like a whole crust does
+  } else if (L === B.SALT_CRUST || L === B.HAY) {
+    // each salt layer rolls its salt like a whole crust does, each hay layer its wheat like a bale
     for (const drop of blockDrop(L, false)) for (let i = 0; i < drop.count; i++) spawnDrop(drop.id, x, y, z);
   } else if (L === B.ASH) {
     if (rollLoot(LOOT.ashLayer)) spawnDrop(ITEM.ASHES, x, y, z);   // an ash carpet: ashes half the time

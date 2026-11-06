@@ -14,8 +14,8 @@ corePart('gen.chunk', function () {
         const clear = (x, y, z) => {
           const b = get(x, y, z), t = b & 255;
           if (b < 0 || t === B.WATER || t === B.LAVA || t === B.BEDROCK) return;
-          if (t === B.DRY_TALL_LOWER || t === B.TALL_LOWER) set(x, y + 1, z, B.AIR);
-          if (t === B.DRY_TALL_UPPER || t === B.TALL_UPPER) set(x, y - 1, z, B.AIR);
+          if (t === B.DRY_TALL_LOWER || t === B.TALL_LOWER || t === B.TALL_FERN_LOWER) set(x, y + 1, z, B.AIR);
+          if (t === B.DRY_TALL_UPPER || t === B.TALL_UPPER || t === B.TALL_FERN_UPPER) set(x, y - 1, z, B.AIR);
           set(x, y, z, B.AIR);
         };
         const solidAt = (x, y, z) => { const b = get(x, y, z); return b > 0 && solidVal(b); };

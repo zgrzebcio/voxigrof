@@ -526,25 +526,31 @@ function _updateFires(dt) {
    two, but it always comes. Decided once a night, at dusk; the night of the last one is saved with the world. */
 const BLOOD_FIRST = [7, 20], BLOOD_GAP = [15, 21];            // days
 const BLOOD_WEATHER = new Set(['clear', 'sunny', 'cloudy', 'darky']);
-let bloodMoonLast = -1, _bloodChecked = null;
-function restoreBloodMoon(v) { bloodMoonLast = typeof v === 'number' ? v : -1; _bloodChecked = null; skyBlood = 0; }
+/* It rises BLOOD_RISE_EARLY (a share of a day) before full dark, but the night is decided BLOOD_SIGN_S seconds before that,
+   so the crows have time to call it (bloodMoonComing, entities/crow.js). */
+const BLOOD_RISE_EARLY = 0.02, BLOOD_SIGN_S = 90, BLOOD_SIGN_EARLY = BLOOD_RISE_EARLY + BLOOD_SIGN_S / DAY_LEN;
+let bloodMoonLast = -1, _bloodChecked = null, _bloodTold = -1;
+function restoreBloodMoon(v) { bloodMoonLast = typeof v === 'number' ? v : -1; _bloodTold = bloodMoonLast; _bloodChecked = null; skyBlood = 0; }
 // the night a moment belongs to: the day whose evening it began on (the day count turns over at 06:00)
 const _nightIndex = () => (worldTime >= 0.25 ? worldDay : worldDay - 1);
 function bloodMoonDue() {
   const r = (a, lo, hi) => lo + Math.floor(sHash(a, 2, 3, 81) * (hi - lo + 1));
   return bloodMoonLast < 0 ? r(-1, BLOOD_FIRST[0], BLOOD_FIRST[1]) : bloodMoonLast + r(bloodMoonLast, BLOOD_GAP[0], BLOOD_GAP[1]);
 }
-const isBloodMoon = () => bloodMoonLast >= 0 && _nightIndex() === bloodMoonLast && isDarkTime(worldTime, 0.02);
+const isBloodMoon = () => bloodMoonLast >= 0 && _nightIndex() === bloodMoonLast && isDarkTime(worldTime, BLOOD_RISE_EARLY);
+// tonight's is decided and has not risen yet (from noon on: the morning after still counts as its night)
+const bloodMoonComing = () => bloodMoonLast >= 0 && worldTime >= 0.25 && _nightIndex() === bloodMoonLast && !isDarkTime(worldTime, BLOOD_RISE_EARLY);
 function _updateBloodMoon(dt) {
   const night = _nightIndex();
-  if (isDarkTime(worldTime, 0.02) && _bloodChecked !== night) {
+  if (isDarkTime(worldTime, BLOOD_SIGN_EARLY) && _bloodChecked !== night) {
     _bloodChecked = night;
     const p = PLAYERS[0] || player, w = p && p.pos ? weatherAt(p.pos.x, p.pos.z) : null;
-    if (night >= BLOOD_FIRST[0] && night !== bloodMoonLast && night >= bloodMoonDue() && w && BLOOD_WEATHER.has(w.type)) {
-      bloodMoonLast = night;
-      if (typeof feedWarn === 'function') feedWarn('A blood moon rises: the dead walk in numbers tonight');
-      if (typeof playSound === 'function') playSound('thunderLong', { gain: 0.45, rate: 0.8 });
-    }
+    if (night >= BLOOD_FIRST[0] && night !== bloodMoonLast && night >= bloodMoonDue() && w && BLOOD_WEATHER.has(w.type)) bloodMoonLast = night;
+  }
+  if (isBloodMoon() && _bloodTold !== night) {
+    _bloodTold = night;
+    if (typeof feedWarn === 'function') feedWarn('A blood moon rises: the dead walk in numbers tonight');
+    if (typeof playSound === 'function') playSound('thunderLong', { gain: 0.45, rate: 0.8 });
   }
   // the sky turns over a few seconds (07-sky.js reads skyBlood)
   skyBlood += ((isBloodMoon() ? 1 : 0) - skyBlood) * Math.min(1, dt / 5);

@@ -18,7 +18,7 @@
    The worker's own entry point is chunks/worker.js. */
 
 corePart('voxel', function () {
-  return { setTintSampler, setFastLeaves, B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
+  return { setTintSampler, plantClim, setFastLeaves, B, T, V, PROPS, VARIANT_BLOCKS, CLUSTER_DIRS, CLUSTER_BED_SHIFT, SHAPE_SLAB, SHAPE_STAIRS, SHAPE_PANE, SHAPE_FENCE, SHAPE_COVER, SHAPE_WALL,
            SHAPE_PLATE, PLATE_PRESSED, PLATE_BURIED,                                                        // the pressure plate (shapes/shapes.js)
            SHAPE_SIGN, SIGN_STAND, SIGN_WALL, SIGN_HANG, SIGN_FRONT, SIGN_MID_Y,                            // the sign
            SHAPE_LADDER, SHAPE_SLOPE, slopeDownOf,                                                          // the ladder and the slope
@@ -28,7 +28,7 @@ corePart('voxel', function () {
            logWidthOf, logWidthPx, LOG_W_MIN, LOG_W_MAX, LOG_W_NORMAL, LOG_W_BLOCK, LOG_W_QUAD, isQuadW,
            QUAD_LEVELS, QUAD_WIDTHS, quadOf, quadLevel, quadW, quadExtent, LOG_CUT_SHIFT, LOG_CUT_MAX, logCutOf, quadReach,   // the 2x2 trunk's quarters cut in (blocks/basic.js)
            COCOA_BITS, jungleTree, JUNGLE_TREE, jungleKindOf,                                                // the cocoa pod's bits; the jungle's trees (woods/jungle-trees.js)
-           SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, solidVal,
+           SHAPE_LAYER, SHAPE_LAYER_MIX, LAYER_MAX, layerCount, layerMixed, layerVal, CARPET_MAX, carpetHost, carpetCount, carpetId, withCarpet, solidVal,
            SHAPE_SLAB_MIX, slabMixed, slabMixVal, slabsMix, slabMixBoxes, sideListed, VARIANT_FAMILIES,   // 0.8263
            BERRY_BUSHES, BERRY_STAGES, chimneyHeight, CHIMNEY_MAX,                                          // 0.827
            BERRY_STAGE, berryStage, isBerryBush, CANE_STEPS, ICE_FROM_WATER,                               // cane 0.829; ice 0.833

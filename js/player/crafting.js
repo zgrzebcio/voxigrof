@@ -337,15 +337,17 @@ function restoreCraftQueue(list) {
   }
   return out;
 }
-// death: what the queue was holding falls with everything else you carried
-function dropCraftQueueAt(x, y, z) {
+// death: what the queue was holding falls with everything else you carried; `halved`: under the crows' omen, half of it (entities/crow.js)
+function dropCraftQueueAt(x, y, z, halved = false) {
   for (const e of player.craftQueue || []) {
     if (e.rep)                                       // a tool being repaired falls as it went in: broken
       spawnDrop(e.rep.id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
                 ITEM_PROPS[e.rep.id]?.durability ? 0 : null, e.rep.meta);
     for (const u of e.units)
-      for (const [id, c] of u)                       // one stack each
-        spawnDrop(id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2, null, null, 0, c);
+      for (const [id, c] of u) {                     // one stack each
+        const left = halved ? crowOmenKeep(id, c) : c;
+        if (left > 0) spawnDrop(id, x, y, z, { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2, null, null, 0, left);
+      }
   }
   player.craftQueue = [];
 }

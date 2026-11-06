@@ -10,9 +10,9 @@
    outside hazards (falls, cactus, lava, fire), the armor soak and dying stay in player/hazards.js; the equipment
    panel that lists the stat getters is player/equipment.js.
 
-   VITALS. Health, food, thirst, stamina, energy, fruit, vegetables, protein and oxygen all run 0..100.
+   VITALS. Health, food, thirst, stamina, energy, fruit, veggies, protein and oxygen all run 0..100.
    Health and food were out of 20 (ten hearts) until 0.82: VITAL_K is that step, and every hit and heal is
-   written in the new scale. Food, thirst, energy, fruit, vegetables and protein each carry an OVER-STAT of up
+   written in the new scale. Food, thirst, energy, fruit, veggies and protein each carry an OVER-STAT of up
    to MAX_OVER on top of the bar: a buffer that drains first, 1.5 times as fast (3 until 0.8441) — what food's saturation
    always was (food's keeps the name `saturation`, so saves and callers still read it).
      - Sprinting, jumping and climbing a wall use STAMINA, not food. It comes back while you rest (20% faster
@@ -22,7 +22,7 @@
      - Thirst drops over time and hurts at 0 like hunger. Drink by looking at water with an empty hand and
        holding E (updateDrinking), or from juicy food (FOOD_NUTRITION).
      - Energy drops over time, faster when stamina is used or you get hurt; a night in bed fills it.
-     - Fruit, vegetables and protein only drop over time and come from food, for now.
+     - Fruit, veggies and protein only drop over time and come from food, for now.
      - TEMPERATURE, in °C, follows the season, the hour, the biome, height, weather, shelter, water and heat
        around you (ambientTemp). Nothing reads it yet but the HUD.
 
@@ -107,13 +107,13 @@ const ENERGY_PER_HP      = 0.035;           // per point of health lost (0.1 unt
 const TIRED_AT = 20, TIRED_REGEN = 0.7, TIRED_DEPLETION = 0.4, TIRED_SLOW = 0.25;   // regen 0.9 until 0.8323
 const tiredness = (p = player) => (!p || p.canFly || p.dead) ? 0
   : Math.max(0, Math.min(1, (TIRED_AT - (p.energy ?? MAX_ENERGY)) / TIRED_AT));
-// fruit, vegetables, protein: 70 min from full (35 until 0.8323, 40 in 0.82)
+// fruit, veggies, protein: 70 min from full (35 until 0.8323, 40 in 0.82)
 const NUTRIENT_PER_S = 1 / 42;
 /* SICKNESS: protein or fruit at SICK_AT (20) or less makes you sick, the more so the emptier (0..1 from 20 down
    to 0). Each: regen up to 20% less, every bar's depletion up to 10% more, move speed up to 5% less, and at 0 a health
    every 5 s (SICK_HP_PER_S). Protein's also takes up to 30% attack speed and 10 strength; fruit's drains thirst up to
-   30% faster and takes up to 30% crafting speed. Vegetables have one defined (sight and mining speed up to 25% less)
-   but it is off (VEG_SICK_ON): there is too little vegetable food yet. */
+   30% faster and takes up to 30% crafting speed. Veggies have one defined (sight and mining speed up to 25% less)
+   but it is off (VEG_SICK_ON): there is too little veggie food yet. */
 const SICK_AT = 20, SICK_REGEN = 0.2, SICK_DEPLETION = 0.1, SICK_SLOW = 0.05, SICK_HP_PER_S = 0.2;
 const SICK_PROTEIN_ATK = 0.3, SICK_PROTEIN_STR = 10, SICK_FRUIT_THIRST = 0.3, SICK_FRUIT_CRAFT = 0.3;
 const VEG_SICK_ON = false, SICK_VEG_SIGHT = 0.25, SICK_VEG_MINING = 0.25;
@@ -137,7 +137,7 @@ const DROWN_DMG_BASE = 10, DROWN_DMG_STEP = 5;
 const AIR_REGEN_EMPTY = 30, AIR_REGEN_FULL = 6;   // points a second back when empty, easing to this near full
 
 /* What each food gives besides food itself. 0.821 follows the folders its picture sits in
-   (textures/Items/Consumables/<Fruits|Vege|Protein|Others>): fruit gives fruit, vegetables vegetables, meat and
+   (textures/Items/Consumables/<Fruits|Veggie|Protein|Others>): fruit gives fruit, veggies veggies, meat and
    fish protein, and "Others" (bread, cantaloupe, rotten flesh) none of the three; juicy food gives thirst too.
    Merged into the item's (or, for a grilled mushroom, the block's) props, so tooltips read it as well. */
 const FOOD_NUTRITION = {
@@ -157,17 +157,19 @@ const FOOD_NUTRITION = {
   [ITEM.WATER_BOTTLE]:     { thirst: 25 },                       // 0.845
   [ITEM.HALF_COCONUT]:     { thirst: 20, thirstFull: 10, fruit: 4 },   // thirstFull: what it gives when thirst is already full
   [ITEM.JAM_SANDWICH]:     { fruit: 10, stamina: 5 },
-  [ITEM.CARROT]:           { veg: 25, vegFull: 5 },            // vegFull: what it gives when vegetables are already full
+  [ITEM.CARROT]:           { veg: 25, vegFull: 5 },            // vegFull: what it gives when veggies are already full
   // raw: about a quarter of the cooked one's protein
   [ITEM.MUTTON]:  { protein: 6 },  [ITEM.COOKED_MUTTON]:  { protein: 25 },
   [ITEM.BEEF]:    { protein: 7 },  [ITEM.COOKED_BEEF]:    { protein: 35 },
   [ITEM.PORK]:    { protein: 7 },  [ITEM.COOKED_PORK]:    { protein: 30 },
+  [ITEM.CHICKEN]: { protein: 5 },  [ITEM.COOKED_CHICKEN]: { protein: 20 },
+  [ITEM.FRIED_EGG]: { protein: 12 },
   [ITEM.COD]:     { protein: 5 },  [ITEM.COOKED_COD]:     { protein: 20 },
   [ITEM.SALMON]:  { protein: 6 },  [ITEM.COOKED_SALMON]:  { protein: 22 },
   [ITEM.PIKE]:    { protein: 6 },  [ITEM.COOKED_PIKE]:    { protein: 22 },
   [ITEM.CATFISH]: { protein: 7 },  [ITEM.COOKED_CATFISH]: { protein: 25 },
 };
-// grilled mushrooms (blocks): vegetables, a little (the stew of four is worth more)
+// grilled mushrooms (blocks): veggies, a little (the stew of four is worth more)
 for (const id of [B.GRILLED_RED_MUSHROOM, B.GRILLED_BROWN_MUSHROOM, B.GRILLED_BLUE_MUSHROOM, B.GRILLED_BLACK_MUSHROOM,
                   B.GRILLED_WHITE_MUSHROOM, B.GRILLED_YELLOW_MUSHROOM]) FOOD_NUTRITION[id] = { veg: 5 };
 for (const id in FOOD_NUTRITION) {
@@ -395,7 +397,7 @@ function tickStats(dt) {
     p._stressKind = stSig;
     if (invOpen && typeof buildEquipPanel === 'function') buildEquipPanel();
   }
-  // ...and heatstroke: thirst and fruit from 20%, food, vegetables and protein from 30%, energy from 50%
+  // ...and heatstroke: thirst and fruit from 20%, food, veggies and protein from 30%, energy from 50%
   // ...and every bar by the stats depletion (Slow Burner: 5% slower)
   drainStat(p, 'food', foodCost * playerHungerMul() * cold * hsm.food * dep);
   drainStat(p, 'thirst', thirstCost * hot * hsm.thirst * dep * (1 + SICK_FRUIT_THIRST * sickness('fruit', p)));   // fruit sickness
@@ -503,14 +505,14 @@ function _tickWet(p, dt) {
   else if (pct > 0) p._wetP = Math.max(0, pct - WET_DRY_PCT * dt * dry);      // ...then the % dries off
 }
 /* MINING SPEED, a stat: how fast you break blocks, 100% to start; effects and gear may carry `miningSpeed`,
-   vegetable sickness takes up to 25% (off for now). Never under 0. */
+   veggie sickness takes up to 25% (off for now). Never under 0. */
 const playerMiningSpeedMul = () => Math.max(0, 1 + _effectSum('miningSpeed') + (typeof _equipSum === 'function' ? _equipSum('miningSpeed') : 0)
   - SICK_VEG_MINING * sickness('veg')) * (playerUnderwater() ? 1 - UNDERWATER_MINING : 1);
 /* UNDER WATER: with your head under (the same test as the oxygen, _tickOxygen) you break blocks
    UNDERWATER_MINING slower. Shown as the Underwater effect while it lasts (stateEffects) and in the mining speed stat. */
 const UNDERWATER_MINING = 0.75;
 const playerUnderwater = (p = player) => !!p._eyeUnder && !p.flying && !p.canFly && !p.dead;
-// how strongly fog and sand cloud your sight: Clear Eyes 30% less, vegetable sickness up to 25% more (off)
+// how strongly fog and sand cloud your sight: Clear Eyes 30% less, veggie sickness up to 25% more (off)
 const playerSightMul = () => (typeof skillSightMul === 'function' ? skillSightMul() : 1) * (1 + SICK_VEG_SIGHT * sickness('veg'));
 
 /* Oxygen. Eyes under water drain it at AIR_DRAIN_PER_S (5% slower with Slow Burner); at 0 you drown, each hit

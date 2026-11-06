@@ -1026,9 +1026,16 @@ _FX_BERRY_COL[B.YELLOWBERRY_BUSH] = [0.95, 0.8, 0.2];   // 0.827
 _FX_BERRY_COL[B.WHITEBERRY_BUSH] = [0.92, 0.92, 0.86];
 const _FX_LEAF_DARK = [0.2, 0.38, 0.14], _FX_WHEAT = [0.88, 0.76, 0.36];
 const _FX_DRY = [0.8, 0.68, 0.42], _FX_DRY_BUSH = [0.52, 0.4, 0.26];   // 0.84
+const _FX_SCRUB = [0.56, 0.55, 0.36], _FX_FROST = [0.74, 0.86, 0.94];
 function _fxGrassCol() {
   const t = sharedUniforms.uTintColor && sharedUniforms.uTintColor.value;
   return t ? [t.r, t.g, t.b] : [0.36, 0.62, 0.24];
+}
+// a tinted plant's bits at (x, z): the grass colour, going pale blue in the cold as the plant itself does (plantColdTint, 03-atlas.js)
+const _FX_PLANT_COLD = [0.7, 0.76, 0.81];
+function _fxPlantCol(x, z) {
+  const k = Math.max(0, -CORE.plantClim(mainGen.climAt(x, z)));
+  return _fxGrassCol().map((v, i) => v + (_FX_PLANT_COLD[i] - v) * k);
 }
 function _fxPlantBits(x, y, z, rgb, n, L) {
   for (let k = 0; k < n; k++) {
@@ -1044,7 +1051,7 @@ function _fxPlantBits(x, y, z, rgb, n, L) {
 . False when `val` is not one of these plants. */
 function _fxPlantBurst(x, y, z, val, L) {
   const id = val & 255;
-  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxGrassCol(), _fxN(8), L); return true; }
+  if (id === B.SHORT_GRASS || id === B.TALLGRASS || id === B.TALL_LOWER || id === B.TALL_UPPER) { _fxPlantBits(x, y, z, _fxPlantCol(x, z), _fxN(8), L); return true; }
   if (id === B.WHEAT) { _fxPlantBits(x, y, z, _FX_WHEAT, _fxN(8), L); return true; }
   // a carrot's green top, and orange bits when a ripe one comes up
   if (id === B.CARROT) {
@@ -1055,6 +1062,11 @@ function _fxPlantBurst(x, y, z, val, L) {
   // the desert's dry plants: straw-coloured bits, a dry bush's twigs browner
   if (id === B.DRY_GRASS || id === B.DRY_TALL_LOWER || id === B.DRY_TALL_UPPER) { _fxPlantBits(x, y, z, _FX_DRY, _fxN(8), L); return true; }
   if (id === B.DRY_BUSH) { _fxPlantBits(x, y, z, _FX_DRY_BUSH, _fxN(7), L); return true; }
+  // the wild plants: those tinted like the grass in its colour, the others in their own
+  if (id === B.BUSH || id === B.FERN || id === B.TALL_FERN_LOWER || id === B.TALL_FERN_UPPER || id === B.CLOVER) { _fxPlantBits(x, y, z, _fxPlantCol(x, z), _fxN(8), L); return true; }
+  if (id === B.DESERT_SCRUB) { _fxPlantBits(x, y, z, _FX_SCRUB, _fxN(7), L); return true; }
+  if (id === B.THORNWEED) { _fxPlantBits(x, y, z, _FX_LEAF_DARK, _fxN(7), L); return true; }
+  if (id === B.FROST_GRASS) { _fxPlantBits(x, y, z, _FX_FROST, _fxN(8), L); return true; }
   if (_FX_BERRY_COL[id]) {
     const ripe = typeof berryStage === 'function' && berryStage((val >> 8) & 255) === BERRY_STAGE.GROWN;
     if (ripe) _fxPlantBits(x, y, z, _FX_BERRY_COL[id], _fxN(6), L);

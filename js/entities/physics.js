@@ -33,6 +33,7 @@ function _entBlocked(x, y, z) {
       for (let xx = x0; xx <= x1; xx++) {
         const v = getBlock(xx, yy, zz);
         if (CORE.solidVal(v)) return true;
+        if (_railOverN && CORE.solidVal(railOverAt(xx, yy, zz))) return true;   // a fence or a wall standing in a carpet you wade through
         /* a ladder is not solid, but the thin board at its back stops a body as it stops a player (blocks/ladders.js): its
            own, a corner's (bits 25-29 name a corner's other block), or one lying in the cell (RAIL_OVER) */
         if (((v >> 8) & 0xF8) === SHAPE_LADDER || ((v >>> 25) & 31) || _railOverN) {

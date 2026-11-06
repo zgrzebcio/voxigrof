@@ -1,7 +1,7 @@
 # voxiGrof
 
 A voxel survival sandbox that runs in the browser: plain JavaScript and three.js, no build step.
-Current build: **alpha 0.85397**.
+Current build: **alpha 0.85571**.
 
 Create a profile, press **Play**, and create a world. Untick **structures** on
 the create screen for a world without villages and dungeons.
@@ -15,7 +15,7 @@ doors, chests and beds (the crafting bench is the dark one).
 
 **0.8485.** **Carrots** grow wild in small patches on the mild plains and the flowery meadows (not the warm or the cold
 ones; new worlds). Like wheat they grow through stages; hold E on a ripe one for a carrot (Lucky Hands: one more, 20% of
-the time) and its top stays to grow again. Eaten: 5 food and 25 vegetables (5 when your vegetables are full), in 1.1 s;
+the time) and its top stays to grow again. Eaten: 5 food and 25 veggies (5 when your veggies are full), in 1.1 s;
 a carrot keeps 3 hours. A horse's food: carrot 60, apple 40, sugar 20. A jam sandwich keeps 4 hours. Creative has the
 carrot plant at any stage on the variant bar.
 
@@ -527,19 +527,19 @@ anything else 5.
 
 **Vitals (0.82).** Every bar is out of 100 (stamina and oxygen 200 since 0.831), five icons each: health and armor left of the hotbar, food and
 thirst right, the temperature dial in the middle with stamina and oxygen over it (those two only while not
-full, or stamina while it is being used). With the inventory open you also see energy, vegetables, fruit and protein, and
-hovering a bar shows its numbers and everything changing it right now (skills, effects, temperature, heatstroke). Food, thirst, stamina, energy, fruit, vegetables and protein can go past full into an
+full, or stamina while it is being used). With the inventory open you also see energy, veggies, fruit and protein, and
+hovering a bar shows its numbers and everything changing it right now (skills, effects, temperature, heatstroke). Food, thirst, stamina, energy, fruit, veggies and protein can go past full into an
 **over-stat** (up to 50, the white outline) that is used up first, at 1.5 times the bar's rate (3 times until 0.8441);
 you start (and respawn) with every one full. From full, food lasts 40 minutes, thirst 20, energy 150 (75 until 0.8441;
-over seven days without sleep) and fruit, vegetables and protein 70 (35 until 0.8323). Health heals while food is above 30 and thirst above 20; the food and thirst it costs follow how fast it heals (0.8323).
+over seven days without sleep) and fruit, veggies and protein 70 (35 until 0.8323). Health heals while food is above 30 and thirst above 20; the food and thirst it costs follow how fast it heals (0.8323).
 Eating takes 20% longer than it used to.
 - **Stamina** pays for sprinting, jumping, wall climbing and swimming (swimming up a lot, along a little, treading water a trickle; no rest off the bottom). Since 0.831 everything that uses it uses a quarter more, and mining takes a little (about 1 point every 3 s). It comes back 3 s after you last used it (5 s once exhausted; 20% faster
   sneaking), faster the longer you rest (after 2 s, up to +50% over the next 6 s, 0.8321) and the emptier it is, using food and thirst (more thirst since 0.829). Oxygen lasts 24 s under water and comes back faster the longer you breathe (after 2 s, up to double over the next 4 s) and by your regen. Empty, you are **Exhausted** until it is back to 20: no sprint, jump or climb,
   20% slower (40% in a full sandstorm), and after 10 s of it you lose 0.3 health a second.
 - **Thirst** drops over time and hurts at 0. Look at water with an empty hand and hold `E` to drink to
   full; berries, melons, apples, cantaloupe, milk and stew help too.
-- **Energy** drops over time, faster when you use stamina or get hurt (all of it slower since 0.831, half again since 0.8441). A night in bed fills it, and costs a little food (10), thirst (15), fruit, vegetables and protein (4 each), never taking one under 10 (0.8321). At 20 or less you are **Tired** (0.832), the more so the emptier it gets: down to 0 your regen falls by up to 70% (never under 0), every bar drains up to 40% faster and you move up to 25% slower.
-- **Fruit, vegetables, protein** drop over time and come from food. At 20 or less protein or fruit makes you **sick** (0.8323), more so the emptier: regen up to 20% less, every bar drains up to 10% faster, you move up to 5% slower, and at 0 you lose a health every 5 s. Protein sickness also takes up to 30% attack speed and 10 strength; fruit sickness drains thirst up to 30% faster and slows crafting up to 30%. (Vegetable sickness is planned: sight and mining speed.)
+- **Energy** drops over time, faster when you use stamina or get hurt (all of it slower since 0.831, half again since 0.8441). A night in bed fills it, and costs a little food (10), thirst (15), fruit, veggies and protein (4 each), never taking one under 10 (0.8321). At 20 or less you are **Tired** (0.832), the more so the emptier it gets: down to 0 your regen falls by up to 70% (never under 0), every bar drains up to 40% faster and you move up to 25% slower.
+- **Fruit, veggies, protein** drop over time and come from food. At 20 or less protein or fruit makes you **sick** (0.8323), more so the emptier: regen up to 20% less, every bar drains up to 10% faster, you move up to 5% slower, and at 0 you lose a health every 5 s. Protein sickness also takes up to 30% attack speed and 10 strength; fruit sickness drains thirst up to 30% faster and slows crafting up to 30%. (Veggie sickness is planned: sight and mining speed.)
 - **Wet (0.8323).** Rain, falling snow or water first soaks you from 0 to 100% (water in 5 s, rain slower, snow slower still); only then does staying in it keep you wet longer, 5 s up to 5 min (0.8324). Out of it that time runs down, then the % dries off, faster near a torch, a fire, lava, a lit furnace, in a desert or with a warm body. By how soaked you are: jump up to 5% lower, good effects up to 20% shorter, cold resistance up to 50% less.
 - **Stats** (the Equipment tab) list everything that changes you, each with a tooltip. Since 0.832 also **regen** (how
   fast health heals and breath comes back and how much energy and healing food gives), **spoil speed** (Preserver, salt) and **effect
@@ -557,7 +557,7 @@ Eating takes 20% longer than it used to.
   away until you surface. The bars fill sideways.
 - **Heatstroke (0.825)** builds while your body is over 35°C in a sunny or clear day's sun under open sky: 0 to
   100% in 4 minutes in a desert at midday, slower when cooler, half as fast outside deserts. It goes down in shade or
-  at night, faster under a roof, fastest in water. From 20% thirst and fruit drain faster, 30% food, vegetables and
+  at night, faster under a roof, fastest in water. From 20% thirst and fruit drain faster, 30% food, veggies and
   protein too, 40% your sight blurs, 50% energy drains fast and stamina barely comes back, 70% you lose health,
   90% you see mirages, and at 100% you die. A hat (cloth bandana or leather cap) slows it 25% and lets you get 5°C
   hotter first; the full cloth set slows it 40% more.
@@ -607,7 +607,7 @@ learn it. A bar fills across it while you hold, and there is no way to unlearn o
 |---|---|---|---|
 | Thick Skin | 1 | — | +10 health (no damage reduction since 0.8446) |
 | Grass Weaver | 1 | — | 40% better chance of fiber from grass, wheat and bushes (30% until 0.8441) |
-| Slow Burner | 1 | Thick Skin | Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables, protein (the stats depletion) |
+| Slow Burner | 1 | Thick Skin | Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, veggies, protein (the stats depletion) |
 | Climber | 1 | Slow Burner | Climb a bare wall one block higher, for 30% less stamina |
 | Canopy Forager | 1 | Grass Weaver | 30% better chance of sticks, saplings and apples from leaves |
 | Timber Shaker | 2 | Canopy Forager | Every swing that cuts a log shakes the tree: each leaf on it has a 2% chance to fall and drop its loot |
@@ -680,7 +680,7 @@ The smelting book above the furnace (always open since 0.832) lists every smelt 
 | Raw mutton / raw beef | Cooked mutton / steak | 9 s |
 | Raw pork | Cooked pork | 7 s |
 | Raw pumpkin pie | Pumpkin pie | 15 s |
-| Flour | Bread | 7 s |
+| Dough | Bread | 7 s |
 | Rotten flesh | Leather | 7 s |
 | Any mushroom but lava | Grilled mushroom (food) | 4 s |
 | Sand | Glass | 5 s |
@@ -733,7 +733,7 @@ in the dark. **Prospector** gives a 20% chance of one more of the ore from every
 
 **Gems grow as clusters.** Diamond, ruby, topaz, sapphire and emerald are not buried in the rock: they
 grow, rarely, as crystal clusters on cave floors, ceilings and walls in their depth range, on a bed of the rock they grow from (stone, granite, marble or limestone; their own ore stone on anything else) (emerald also on
-open mountain rock). Break the block a cluster grows from and the cluster drops as an item, not as gems,
+open mountain rock). Break the block a cluster grows from and the cluster breaks and gives nothing,
 so you still need a bronze pickaxe. A cluster item can be placed on any face.
 
 Marble, granite, limestone and dolomite come as big patches in stone — granite below y 60, marble and
@@ -790,6 +790,11 @@ The golden apple never spoils. It gives 15 energy (0.832) and 20 s of **Rapid re
 - **Pigs** live by ponds and lakes in plains and forests, in groups of up to three. They drop 1–3
   raw pork and up to 2 fat; fat burns in a furnace. Their coats vary — pink, spotted, hampshire, duroc,
   berkshire and tamworth.
+- **Chickens** live on grass in the cold, mild and warm land, 2–5 together: hens, roosters and chicks. A grown one drops
+  1–2 raw chicken and maybe a feather; a chick drops nothing and pays no XP. Eating chicken leaves a bone half the time.
+  A hen lays an egg every 20 minutes unless another hen is sitting on one nearby, and sits on any free egg near her:
+  after 10–12 minutes of sitting it hatches into a half-size chick that is grown 20 minutes later. Take an egg with E or a
+  blow (water carries it off too); it cannot be put back down, but a furnace fries it.
 - **Horses** (mild plains and forests, 1–4 together) can be tamed, then ridden with a saddle.
 - Herds of different animals start at least 40 blocks apart (0.8241), and animals and players are as dark as the
   ground around them at night.
@@ -973,6 +978,44 @@ leather and iron (more armor than leather, less than iron, no slow). Each piece 
 one gem (diamond, emerald, ruby, sapphire or topaz); the crown takes 3 pearls instead. A **book** (5 paper, a leather and
 a string at the bench), for the bookshelf to come. A tiger you strike stays angry 25 s.
 
+**0.854.** **Cookies**: 2 flour and 3 cocoa beans make 2 raw cookies (pocket crafting); a furnace bakes each into a
+cookie: 5 food (1 over-food when full), eaten in 0.4 s. A raw one is dough (poison 5 s).
+**Parrots** live in small flocks in the Jungle, sitting on the trees and flying from perch to perch; they fly off if
+you come near, unless you hold a cookie: then they come down and hover in front of you. To tame one: E with a cookie.
+It flies round you for 30 s (20 s with Gentle Hand), then comes down to your face: pet it (E with an empty hand) and
+give it the next cookie with E within 3 s, or it flies off (-5% effectiveness) and comes back to circle again. It takes
+1 cookie, up to 3 at level 50; raw cookies do not work. Tamed: use for follow / stay, use with a cookie feeds it, sneak +
+use puts it on your left shoulder (one worn creature at a time). On the shoulder it **hides** you: hostile creatures
+see you and shy ones flee from you 20% less far (+10% at level 50, +5% by its taming); and its **danger sense**
+mimics a zombie or skeleton within 24 blocks, louder and more often the nearer it is.
+0.8541: birds stand on leaves (parrots sit in the canopy now). **Owls** live alone on trees in the mild land (plains,
+forests, mountains). At night an owl sits on its tree; by day it flies about the trees round it and comes back at dusk.
+It flies off when you come near, unless you hold cocoa beans: then it comes and hovers in front of you. Crouch + E with a
+cocoa bean: it flies to trees at least 10 blocks away, tears off top leaves until one gives a stick (12 at most), and
+brings back what they gave (sticks, apples, saplings; Canopy Forager counts) to where you gave it the bean.
+0.8542: **crows** in flocks of 3-6 in the cold and the mild land (cold plains, spruce forests, plains, forests,
+mountains). A flock does everything together: circles high over a place near home, comes down to peck at the ground, or
+sits in a tree; at night it roosts in the trees at home. Walk up to it and the whole flock flies off; crouch and you can
+come right up to it.
+0.85421: the **crow omen**. On the evening before a blood moon every flock circles over its home crying out. Hear three
+cries (within 24 blocks) and you carry the omen for 2 minutes: zombies and skeletons hit you 10% softer, but die with it
+and half of everything you carry that stacks (blocks, food, materials) is gone for good; tools and armor are safe.
+0.8545: **chickens and eggs** (see Animals and mobs). Crows now have a wing sound.
+0.8546: eggs can no longer be placed. A furnace fries one into a **fried egg**.
+0.855: **carpets among plants.** Carpets that fall (snow, leaves, sand, gravel, fiber, salt, ash) now lie in the same cell as grass, flowers,
+bushes, crops, saplings and mushrooms, up to 7 layers, and the plant keeps growing. The 8th layer or a second kind buries the plant. Snowfall and
+felled leaves lie among plants too. A carpet that falls onto water breaks, and none can be placed in or on water. A whole sand or gravel block sinks and rests on
+the bottom.
+0.8551: falling carpets also cover torches, pebbles, seashells, eggs and gourds, which stay underneath until the 8th layer.
+0.85511: pebbles, seashells and gourds with the ground dug out from under them fall all the way down; onto water they break.
+0.8552: in new worlds grass and pebbles grow in the snow biomes, in the snow carpet or in a bare spot of it. A carpet goes under a fence, a wall or a ladder: click its side or the ground at its foot; a fence or wall put on a carpet stands in it too. A gem cluster whose block is broken breaks and gives nothing.
+0.8553: a termite hill is never left empty: with few termites near, one comes out even while others rest inside. New quest: make a bed, after leather and cloth. A pickaxe breaks the mortar faster. The mortar is made with a seashell or a bone block, and at the mortar one seashell or bone block grinds into 1 bone ash (a bone no longer grinds). Stripping a log takes as long as the hatchet says: flint 2 s, stone 1.5 s, iron 1 s, bronze 0.6 s, steel 0.3 s, gold 0.25 s. Arrows take a feather. Golden tools take twice the gold and feathers (pickaxe 10 gold, 5 feathers), golden gauntlets 16 gold.
+0.8554: steel is the fastest tool: speeds bronze 9, gold 12, steel 14 (swords half), and stripping gold 0.3 s, steel 0.25 s. New quest: make a piece of armor, any kind, before the bed. Golden tools also take a gem, and the other golden armor twice the gold (boots 24, helmet 28, leggings 40, chestplate 52). The mortar now needs a pickaxe, like the furnace: a hand does not break it, another tool breaks it for nothing. **Dough**: 3 flour, a salt and an egg, in the pocket list; bread, the pumpkin pie and cookies are made from it instead of flour. A broken hay bale gives wheat (1, 50% a second, 20% a third), not itself. Vegetables are called veggies now.
+0.8555, in new worlds: **wild plants**. Desert scrub in deserts and the Dryland, bushes on any grass, ferns and tall ferns (a few on mild land, many in the cold, in the snow too), now and then a lone clover on mild grass, thornweed on the cold plains and in spruce forests, frost grass in the deep snow. Bushes, ferns and clover take the grass's colour by the climate. Hold E on one to pick it: scrub, bushes and thornweed give sticks, the rest a fiber now and then; a tall fern is cut down to a fern. Flour now takes 2 wheat, and dough 2 flour.
+0.8556: thornweed hurts: walking through it pricks you (3 health a second, less with armor) and gives the Thorns effect for 3 s, which drips a little more. Bushes and ferns go pale in warm land, the warmer the paler. In new worlds frost grass grows on the grass of the deepest snow that has any (Deep Snow and the hills and mountains in it), no longer in the Coldest Deep Snow.
+0.8557: grass plants, bushes, ferns and clover turn a pale white blue in the snow. The grass block keeps its colour.
+0.85571: on the cold plains and in spruce forests they stay nearly green, going pale only where the snow begins.
+
 **0.8539.** **The creature book**: use a book on a creature not yet in your book to write it in, for 5000 XP plus 100
 for every kind already written (the book is used up; each fish species and the mummy count apart). Books are also found
 in loot chests (1 in 4). Kills pay 25% less XP. The full golden set gives +10% XP, and golden armor takes bones too.
@@ -983,7 +1026,7 @@ they hold and work (in third person too). Drops on the ground give more motes, r
 **0.85391.** In new worlds sugar cane grows as in Minecraft: on sand, grass, dirt or gravel level with the water beside it
 (sea, rivers, lakes, oases), standing on top of it, never sunk in a hole by the shore. 0.85392: hold the right button with
 a hatchet on a log with bark (a tree's or one you placed) to strip it where it stands: one bark, sometimes two.
-0.85393, food: the mushroom stew fills more (55, 35 vegetables, heals 8) and a grilled mushroom less (10, 5 vegetables);
+0.85393, food: the mushroom stew fills more (55, 35 veggies, heals 8) and a grilled mushroom less (10, 5 veggies);
 raw meat and fish give about a quarter of cooked and turn your stomach for 20 s (meat 60%, fish 50%); a raw pumpkin pie
 gives little and always poisons for 5 s; the golden apple heals 20 (30 with its Rapid regen); a carrot fills a little more.
 Fixed: the bowl, bucket or bottle a food or drink gives back no longer vanishes into a hidden slot when your inventory is
@@ -1206,8 +1249,8 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 - **Ladder.** A hammer shape since 0.853, like doors since 0.842 (see above).
 - **Block recipes.** Snow, clay, glass, terracotta (from brick items), wool and the glow dust block take 5 of their material; hay bales,
   storage blocks and nuggets-to-ingot take 10.
-- **Mortar and pestle.** 20 granite, 1 bone, 2 flint and 1 fiber block at the crafting bench; breaks by
-  hand. It works like a crafting bench (pick a recipe, hold `E` to grind, tap `E` to take) but only
+- **Mortar and pestle.** 20 granite, 1 seashell or bone block, 2 flint and 1 fiber block at the crafting bench; breaks by
+  pickaxe only. It works like a crafting bench (pick a recipe, hold `E` to grind, tap `E` to take) but only
   makes powders: glow dust, gunpowder, flour and sugar are made here and nowhere else. The pestle
   circles the bowl while you grind.
 - **Bronze.** At the mortar, 2 copper powder and 1 tin powder make 2 bronze powder, which smelts into
@@ -1231,7 +1274,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 | Chest | 10 planks, 1 iron ingot, 10 fiber | Bench |
 | Bed | 4 wool, 4 planks, 5 cloth, 10 fiber | Bench |
 | Basic bow | 10 string, 5 sticks, 12 fiber | Bench |
-| Arrows ×2 | 1 flint, 2 sticks, 6 fiber | Inventory |
+| Arrows ×2 | 1 flint, 2 sticks, 6 fiber, 1 ashes, 1 feather | Inventory |
 | Leather backpack | 14 leather, 10 cloth, 8 fiber, 6 copper nuggets | Bench |
 | Iron hammer | 1 iron block, 8 copper nuggets, 4 sticks, 2 fiber blocks, 10 string | Bench |
 
@@ -1239,7 +1282,7 @@ bends grass and leaves, and from 25 km/h the wind speeds you up walking with it 
 **leather backpack** adds four more rows of carrying space, a **leather belt** two hotbar slots. Both show on
 your body: the pack on your back with its straps over the chest, the belt round your waist.
 
-After a death you come back with full health, stamina and oxygen, but food, thirst, energy, fruit, vegetables and protein at 75% (0.833; half in 0.8324). Sleeping in a bed sets your respawn point and, once everyone is in bed, runs the night past as a 10 s time-lapse to sunrise (0.8323; getting up stops it). Stuck? The pause menu's **Respawn** (keep the cursor on it 1 s, then click) kills you on the spot, once every 20 minutes. Hold `Shift` in the crafting list to
+After a death you come back with full health, stamina and oxygen, but food, thirst, energy, fruit, veggies and protein at 75% (0.833; half in 0.8324). Sleeping in a bed sets your respawn point and, once everyone is in bed, runs the night past as a 10 s time-lapse to sunrise (0.8323; getting up stops it). Stuck? The pause menu's **Respawn** (keep the cursor on it 1 s, then click) kills you on the spot, once every 20 minutes. Hold `Shift` in the crafting list to
 craft as many as you can afford in one click.
 
 **Chests** hold 2 rows; a double chest 5. A metal chest 4, a double 9 (0.84825; anything past that falls out when you

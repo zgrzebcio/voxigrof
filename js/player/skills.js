@@ -44,7 +44,7 @@ const SKILLS = [
   { id: 'grassWeaver', cat: 'survival', name: 'Grass Weaver',   cost: 1, req: [],
     desc: '40% better chance of fiber from grass, wheat and bushes' },     // 30% until 0.8441
   { id: 'slowBurner',  cat: 'survival', name: 'Slow Burner',    cost: 1, req: ['thickSkin'],
-    desc: 'Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, vegetables and protein' },   // hunger and oxygen until 0.828
+    desc: 'Every bar drains 5% slower: food, thirst, stamina, oxygen, energy, fruit, veggies and protein' },   // hunger and oxygen until 0.828
   // wall climbing goes a block higher and costs 30% less stamina
   { id: 'climber',     cat: 'survival', name: 'Climber',        cost: 1, req: ['slowBurner'],
     desc: 'Climb a bare wall one block higher; climbing walls, ladders and vines takes 30% less stamina' },

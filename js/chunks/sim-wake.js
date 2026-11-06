@@ -99,10 +99,10 @@ function _scanWakeSlice(budget) {
   // the chunk may have unloaded (or been rebuilt) since the cursor was opened
   const c = getChunk(w.cx, w.cz);
   if (!c || c.data !== d) { _wake = null; return budget; }
+  // (what a stack can cover counts as open: scheduleFall asks again by what is falling)
   const openAt = (lx, y, lz) => {
-    if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 0 && y < CHUNK_Y)
-      return _fallOpen(d[lx + (lz << 4) + (y << 8)] & 255);
-    return _fallOpen(getBlock(wx0 + lx, y, wz0 + lz) & 255);
+    const v = lx >= 0 && lx < 16 && lz >= 0 && lz < 16 && y >= 0 && y < CHUNK_Y ? d[lx + (lz << 4) + (y << 8)] : getBlock(wx0 + lx, y, wz0 + lz);
+    return _fallOpen(v & 255) || CORE.carpetHost(v);
   };
   let used = 0;
   while (w.y < CHUNK_Y && used < budget) {

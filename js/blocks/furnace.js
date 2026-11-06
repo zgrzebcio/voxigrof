@@ -36,15 +36,18 @@ const SMELT_RECIPES = [
   { in: ITEM.CLAY_BALL,     out: ITEM.BRICK,         time: 5, xp: 2, cat: 'materials' },
   // cured hide: the second leather source, beside cows — gives zombie drops a use
   { in: ITEM.COMPRESSED_ROTTEN_FLESH,  out: ITEM.LEATHER,       time: 7, xp: 5, cat: 'materials' },
-  { in: ITEM.FLOUR,         out: ITEM.BREAD,         time: 7, xp: 10, cat: 'food' },
+  { in: ITEM.DOUGH,         out: ITEM.BREAD,         time: 7, xp: 10, cat: 'food' },
   { in: ITEM.MUTTON,        out: ITEM.COOKED_MUTTON, time: 9, xp: 20, cat: 'food' },
   { in: ITEM.BEEF,          out: ITEM.COOKED_BEEF,   time: 9, xp: 20, cat: 'food' },
   { in: ITEM.PORK,          out: ITEM.COOKED_PORK,   time: 7, xp: 15, cat: 'food' },        // 0.789
+  { in: ITEM.CHICKEN,       out: ITEM.COOKED_CHICKEN, time: 6, xp: 10, cat: 'food' },
+  { in: ITEM.EGG,           out: ITEM.FRIED_EGG,     time: 4, xp: 5, cat: 'food' },
   { in: ITEM.COD,           out: ITEM.COOKED_COD,     time: 5, xp: 10, cat: 'food' },       // fish, 0.805
   { in: ITEM.SALMON,        out: ITEM.COOKED_SALMON,  time: 5, xp: 10, cat: 'food' },
   { in: ITEM.PIKE,          out: ITEM.COOKED_PIKE,    time: 6, xp: 10, cat: 'food' },
   { in: ITEM.CATFISH,       out: ITEM.COOKED_CATFISH, time: 6, xp: 10, cat: 'food' },
   { in: ITEM.PUMPKIN_PIE,   out: ITEM.COOKED_PUMPKIN_PIE, time: 15, xp: 30, cat: 'food' },   // bake the raw pie
+  { in: ITEM.RAW_COOKIE,    out: ITEM.COOKIE,        time: 4, xp: 3, cat: 'food' },
   // grilled mushrooms: every kind but the lava one
   { in: B.RED_MUSHROOM,        out: B.GRILLED_RED_MUSHROOM,    time: 4, xp: 5, cat: 'food' },
   { in: B.BROWN_MUSHROOM,      out: B.GRILLED_BROWN_MUSHROOM,  time: 4, xp: 5, cat: 'food' },

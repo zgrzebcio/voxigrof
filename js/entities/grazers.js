@@ -34,7 +34,7 @@ function _updateGrazer(e, dt, pdx, pdz, distXZ, i, tp = null) {
     if (e.aggroT > 0) e.aggroT -= dt;
     if (e.atkAnimT > 0) e.atkAnimT -= dt;
     const inReach = hunting && Math.abs(tp.pos.y - e.y) < 10
-                 && (distXZ <= POLAR_BEAR_SEES || (e.aggroT > 0 && distXZ <= POLAR_BEAR_GIVES_UP));
+                 && (distXZ <= POLAR_BEAR_SEES * hideSightMul(tp) || (e.aggroT > 0 && distXZ <= POLAR_BEAR_GIVES_UP));   // a parrot hides you
     if (inReach) {
       if (e.state !== 'chase' && e.state !== 'return') { e.retX = e.x; e.retZ = e.z; }   // where it was
       e.state = 'chase';

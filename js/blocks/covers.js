@@ -72,12 +72,14 @@ function coverBoxesAt(x, y, z) {
 /* ---- what lies in another block's cell, a plate, a cover or a block fallen into a doorway (DOOR_FILL, blocks/doors.js),
    by the `bi` a ray gave it ---- */
 function overValAt(x, y, z, bi) {
+  if (bi === CARPET_OVER_BI) return carpetOverVal(x, y, z);       // a falling carpet among a plant (chunks/layer-stacks.js)
   if (bi === DOOR_FILL_BI) return doorFillAt(x, y, z);
   if (bi === RAIL_OVER_BI) return railOverAt(x, y, z);           // a fence or wall (blocks/rails.js)
   const s = coverOverSide(bi);
   return s >= 0 ? coverAt(x, y, z, s) : bi === PLATE_OVER_BI ? plateOverAt(x, y, z) : 0;
 }
 function overBoxesAt(x, y, z, bi) {
+  if (bi === CARPET_OVER_BI) return carpetOverBoxes(x, y, z);
   if (bi === DOOR_FILL_BI) return doorFillBoxesAt(x, y, z);
   if (bi === RAIL_OVER_BI) return railBoxesAt(x, y, z);
   const s = coverOverSide(bi);
@@ -87,6 +89,7 @@ function overBoxesAt(x, y, z, bi) {
 }
 // broken by a player or a blast: `drops` its block back; `quiet` when the caller made the sound
 function breakOverAt(x, y, z, bi, drops, quiet) {
+  if (bi === CARPET_OVER_BI) { breakCarpetOver(x, y, z, drops, quiet); return; }
   if (bi === DOOR_FILL_BI) { breakDoorFill(x, y, z, drops, quiet); return; }
   if (bi === RAIL_OVER_BI) { breakRail(x, y, z, drops, quiet); return; }
   const s = coverOverSide(bi);

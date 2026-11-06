@@ -34,6 +34,7 @@ BUSH_NAME[B.CARROT] = 'carrot';
 BUSH_NAME[B.DRY_GRASS] = 'dry grass';                                          // the desert's dry plants
 BUSH_NAME[B.DRY_TALL_LOWER] = BUSH_NAME[B.DRY_TALL_UPPER] = 'tall dry grass';
 BUSH_NAME[B.DRY_BUSH] = 'dry bush';
+for (const id of WILD_PLANTS) BUSH_NAME[id] = PROPS[id].name.toLowerCase();    // the wild plants (blocks/wild-plants.js)
 const DRY_FIBER_CHANCE = 0.1;                                                 // dry grass is a poor fiber: 10% a pick
 BUSH_NAME[B.REDBERRY_BUSH] = 'red berry bush';
 BUSH_NAME[B.BLUEBERRY_BUSH] = 'blue berry bush';
@@ -43,6 +44,7 @@ BUSH_NAME[B.WHITEBERRY_BUSH] = 'white berry bush';
 BUSH_NAME[B.FLINT_ROCK] = 'flint pebble';
 BUSH_NAME[B.STONE_PEBBLE] = 'stone pebble';   // 0.8095
 BUSH_NAME[B.SEASHELL] = 'seashell';
+BUSH_NAME[B.EGG] = 'egg';
 const PEBBLE_SPIDER_CHANCE = 0.2;                    // a stone or flint picked up: a spider was under it
 BUSH_NAME[B.MELON] = 'watermelon';
 BUSH_NAME[B.PUMPKIN] = 'pumpkin';
@@ -92,6 +94,18 @@ function _harvestFiber(x, y, z, rolls, chance = HARVEST_FIBER_CHANCE) {
   for (let i = 0; i < rolls; i++)
     if (Math.random() < fiberChance(chance)) _giveFiber(x, y, z);
 }
+/* What a wild plant (blocks/wild-plants.js) gives when picked: `fiber` a roll's chance (before FIBER_BONUS), `sticks` its list in LOOT. It comes up
+   whole; a tall fern is cut down to a fern first, as the tall grass to grass, with the fern's roll. */
+const WILD_PICK = {
+  [B.DESERT_SCRUB]:    { sticks: 'dryBush' },
+  [B.BUSH]:            { sticks: 'bushSticks', fiber: 0.1 },
+  [B.FERN]:            { fiber: GRASS_FIBER_PICK - FIBER_BONUS },
+  [B.TALL_FERN_LOWER]: { fiber: GRASS_FIBER_PICK - FIBER_BONUS, cutTo: B.FERN },
+  [B.TALL_FERN_UPPER]: { fiber: GRASS_FIBER_PICK - FIBER_BONUS, cutTo: B.FERN },
+  [B.CLOVER]:          { fiber: SHORT_GRASS_FIBER_PICK - FIBER_BONUS },
+  [B.THORNWEED]:       { sticks: 'thornSticks', fiber: 0.1 },
+  [B.FROST_GRASS]:     { fiber: DRY_FIBER_CHANCE },
+};
 /* The single source of truth for both the prompt and the action: what would a pickup take right
    now? Returns {x, y, z, id, name} or null. Pure — it never changes the world.
    readyOnly (a HELD E past its first tap): only what is ready comes — a berry bush with ripe fruit, ripe wheat,
@@ -221,6 +235,13 @@ function harvestAtPlayer(readyOnly = false) {
     addXP(n * XP_FORAGE_ITEM);                            // one more a flint or pebble
     return BUSH_REPEAT;
   }
+  // an egg, whole: no Lucky Hands and no XP (one put down and picked up again would pay for ever)
+  if (id === B.EGG) {
+    setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.GRASS, 'break', x, t.y, z);
+    bushGive(ITEM.EGG, x, t.y, z);
+    return BUSH_REPEAT;
+  }
   /* Gourds: picked up whole, and they hand over exactly what breaking them used to —
      a melon comes apart into slices, a pumpkin comes away as itself. */
   if (id === B.MELON || id === B.PUMPKIN || id === B.CANTALOUPE || id === B.CARVED_PUMPKIN || id === B.JACK_O_LANTERN) {   // cantaloupe 0.8091, carved 0.824
@@ -305,6 +326,22 @@ function harvestAtPlayer(readyOnly = false) {
     playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
     if (!player.canFly) {
       const n = rollLoot(LOOT.dryBush);
+      for (let i = 0; i < n; i++) bushGive(ITEM.STICK, x, t.y, z);
+      addXP(n * XP_FORAGE_ITEM);
+    }
+    return BUSH_REPEAT;
+  }
+  if (WILD_PICK[id]) {
+    const w = WILD_PICK[id];
+    if (w.cutTo != null) {
+      const fy = TALL_LOWER_OF[id] ? t.y - 1 : t.y;
+      setBlock(x, fy, z, w.cutTo);
+      setBlock(x, fy + 1, z, B.AIR);
+    } else setBlock(x, t.y, z, B.AIR);
+    playBlockSound(B.TALLGRASS, 'break', x, t.y, z);
+    if (w.fiber != null) _harvestFiber(x, t.y, z, 1, w.fiber);
+    if (w.sticks && !player.canFly) {
+      const n = rollLoot(LOOT[w.sticks]);
       for (let i = 0; i < n; i++) bushGive(ITEM.STICK, x, t.y, z);
       addXP(n * XP_FORAGE_ITEM);
     }

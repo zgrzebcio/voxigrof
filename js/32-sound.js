@@ -97,6 +97,25 @@ const SOUND_FILES = {
   meerkatEat:  'Sound/Mobs/Meerkat/meerkat_eat.ogg',
   tigerSay:    'Sound/Mobs/Tiger/tiger_say.ogg',
   tigerHurt:   'Sound/Mobs/Tiger/tiger_hurt.ogg',
+  parrotSay:   'Sound/Mobs/Parrot/parrot_say.ogg',
+  parrotHurt:  'Sound/Mobs/Parrot/parrot_hurt.ogg',
+  parrotEat:   'Sound/Mobs/Parrot/parrot_eat.ogg',
+  parrotFly:   'Sound/Mobs/Parrot/parrot_fly.ogg',
+  owlSay:      'Sound/Mobs/Owl/owl_say.ogg',
+  owlHurt:     'Sound/Mobs/Owl/owl_hurt.ogg',
+  owlEat:      'Sound/Mobs/Owl/owl_eat.ogg',
+  owlWalk:     'Sound/Mobs/Owl/owl_walk.ogg',
+  crowSay:     'Sound/Mobs/Crow/crow_say.ogg',
+  crowHurt:    'Sound/Mobs/Crow/crow_hurt.ogg',
+  crowEat:     'Sound/Mobs/Crow/crow_eat.ogg',
+  crowFly:     'Sound/Mobs/Crow/crow_fly.ogg',
+  chickenSayF: 'Sound/Mobs/Chicken/Chicken_sayFemale.ogg',
+  chickenSayM: 'Sound/Mobs/Chicken/Chicken_sayMale.ogg',
+  chickenHurt: 'Sound/Mobs/Chicken/chicken_hurt.ogg',
+  chickenWalk: 'Sound/Mobs/Chicken/Chicken_walk.ogg',
+  // a parrot on the shoulder mimicking the monster it hears (entities/parrot.js, its danger sense)
+  parrotMimicZombie:   'Sound/Mobs/Parrot/parrot_mimic_zombie.ogg',
+  parrotMimicSkeleton: 'Sound/Mobs/Parrot/parrot_mimic_skeleton.ogg',
 };
 
 /* PROPS.type -> sound key. Anything unmapped (or a block with no type) falls back to stone. */

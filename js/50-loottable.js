@@ -46,9 +46,12 @@ const LOOT = {
   stick:       [[1, 0.21], [1, 0.105], [1, 0.021], [1, 0.0035]],   // 30% rarer since 0.826 (0.3, 0.15, 0.03, 0.005)
   apple:       [[1, 0.01]],
   sapling:     [[1, 0.05]],
-  dryBush:     [[1, 0.7], [1, 0.2]],                          // sticks from a dry bush picked
+  dryBush:     [[1, 0.7], [1, 0.2]],                          // sticks from a dry bush picked, a desert scrub too
+  bushSticks:  [[1, 0.6], [1, 0.2]],                          // ...from a bush
+  thornSticks: [[1, 0.3]],                                    // ...and now and then from a thornweed
   // half as likely each since 0.8442 (1, 0.6, 0.3 and 0.9, 0.5, 0.1 before): a bone block may give nothing now
   // ...and a tenth of that since 0.8444 (0.5, 0.3, 0.15 and 0.45, 0.25, 0.05): most bone blocks give nothing
+  hayWheat:    [[1, 1], [1, 0.5], [1, 0.2]],                  // a hay bale broken, whole or as a layer: its wheat
   boneBlock:   [[1, 0.05], [1, 0.03], [1, 0.015]],            // a bone block broken: bones...
   boneBlockAsh:[[1, 0.045], [1, 0.025], [1, 0.005]],          // ...and bone ash
   // animals
@@ -64,6 +67,11 @@ const LOOT = {
   tigerBone:   [[1, 0.6], [1, 0.25]],                     // ...and a bone or two
   fireKill:    [[1, 1]],                                  // what a hound killed, or a player killed with fire, leaves: 1 fire
   otterFur:    [[1, 0.4], [1, 0.05]],                     // an otter: fur, 40% one and 5% a second
+  parrotFeather: [[1, 1], [1, 0.5]],                      // a parrot: a feather, and half the time a second
+  owlFeather:  [[1, 1], [1, 0.6]],                        // an owl: a feather, 60% a second
+  crowFeather: [[1, 0.8], [1, 0.3]],                      // a crow: 80% a feather, 30% a second
+  chicken:     [[1, 1], [1, 0.5]],                        // a grown chicken: one, and half the time a second (Butcher adds)
+  chickenFeather: [[1, 0.5]],                             // ...and a feather half the time (Butcher adds)
   woolString:  [[1, 0.7], [1, 0.2]],                      // a woolly sheep killed
   shearWool:   [[1, 1], [1, 0.6], [1, 0.25]],             // shearing
   // monsters
@@ -131,6 +139,7 @@ function _blockDropOwn(blockVal, isNatural) {
   if (blockId === B.FLINT_ROCK) return [{ id: ITEM.FLINT, count: 1 }];
   if (blockId === B.STONE_PEBBLE) return [{ id: ITEM.STONE_PEBBLE, count: 1 }];   // 0.8095
   if (blockId === B.SEASHELL) return [{ id: ITEM.SEASHELL, count: 1 }];
+  if (blockId === B.EGG) return [{ id: ITEM.EGG, count: 1 }];
   // a coconut: whole when ripe, nothing while it is green (its stage, variant bits 0-2: woods/coconuts.js)
   if (blockId === B.COCONUT) return ((blockVal >> 8) & 7) >= PROPS[B.COCONUT].ripeStage ? [{ id: ITEM.COCONUT, count: 1 }] : [];
   // a cocoa pod: beans and now and then fat when ripe, nothing while it is green (its stage: COCOA_BITS, woods/cocoa.js)
@@ -199,6 +208,8 @@ function _blockDropOwn(blockVal, isNatural) {
     return out;
   }
   if (blockId === B.WHEAT) return _drop(ITEM.WHEAT, rollLoot(LOOT.wheat));
+  // a hay bale comes apart into some of its wheat, never itself
+  if (blockId === B.HAY) return _drop(ITEM.WHEAT, rollLoot(LOOT.hayWheat));
   // a carrot: one when ripe (variant 0), nothing while it grows
   if (blockId === B.CARROT) return ((blockVal >> 8) & 7) ? [] : _drop(ITEM.CARROT, rollLoot(LOOT.carrot));
   // grass and berry bushes drop nothing when destroyed — bush pickup is the only way to work them
@@ -206,6 +217,8 @@ function _blockDropOwn(blockVal, isNatural) {
       isBerryBush(blockId)) return [];
   // ...nor do the dry plants
   if (blockId === B.DRY_GRASS || blockId === B.DRY_TALL_LOWER || blockId === B.DRY_TALL_UPPER || blockId === B.DRY_BUSH) return [];
+  // ...nor the wild plants: picked with E they give what WILD_PICK says (player/foraging.js)
+  if (WILD_PLANTS.includes(blockId)) return [];
   // a bone block breaks into bones and bone ash, never itself (0.84; ten bones still press into one)
   if (blockId === B.BONE_BLOCK) return [..._drop(ITEM.BONE, rollLoot(LOOT.boneBlock)), ..._drop(ITEM.BONE_ASH, rollLoot(LOOT.boneBlockAsh))];
   if (blockId === B.GLASS) return _drop(ITEM.GLASS_SHARD, rollLoot(LOOT.glassShard));

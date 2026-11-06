@@ -388,13 +388,13 @@ function updateGrassGrow(dt) {
 // by VALUE since 0.785: a leaf block is passable to a falling leaf, but litter (a leaf layer) is a floor
 const fallPassable = (v) => {
   const id = v & 255;
-  return id === B.AIR || id === B.WATER || (isLeaf(id) && !CORE.layerCount(v)) || PROPS[id]?.model === 'cross';
+  return id === B.AIR || id === B.WATER || (isLeaf(id) && !CORE.layerCount(v)) || PROPS[id]?.model === 'cross' || CORE.carpetHost(v);
 };
 
 /* Crush whatever billboard is in the cell, dropping it so nothing is silently destroyed. */
 function crushBillboard(x, y, z) {
-  const id = getBlock(x, y, z) & 255;
-  if (id === B.AIR || PROPS[id]?.model !== 'cross') return;
+  const v = getBlock(x, y, z), id = v & 255;
+  if (id === B.AIR || (PROPS[id]?.model !== 'cross' && !CORE.carpetHost(v))) return;
   setBlock(x, y, z, B.AIR);
   if (!player.canFly)
     for (const d of blockDrop(id)) for (let n = 0; n < d.count; n++) spawnDrop(d.id, x, y, z);
@@ -403,7 +403,7 @@ function crushBillboard(x, y, z) {
 /* Deepen the pile already in a cell. Since 0.69 the pile does NOT have to be the same material —
    an oak leaf settles onto a snow drift or a spruce pile just as happily, as its own layer. */
 function _deepenLitter(x, y, z, mat) {
-  if (!CORE.layerCount(getBlock(x, y, z))) return false;
+  if (!layerIdsAt(x, y, z)) return false;              // (a carpet among a plant deepens too)
   if (!addLayer(x, y, z, mat)) return false;
   queueLitterRot(x, y, z);
   return true;
@@ -413,12 +413,16 @@ function _deepenLitter(x, y, z, mat) {
    full depth still has to count as support for the cell above it — the plain solid test would
    reject it and the leaf would fall through its own drift. */
 function _layLitter(x, y, z, mat) {
-  const here = getBlock(x, y, z) & 255;
-  if (here !== B.AIR && PROPS[here]?.model !== 'cross') return false;
+  const v = getBlock(x, y, z), here = v & 255;
+  if ((here !== B.AIR && PROPS[here]?.model !== 'cross' && !CORE.carpetHost(v)) || CORE.carpetCount(v)) return false;
   const below = getBlock(x, y - 1, z);
   if (!CORE.solidVal(below) && !CORE.layerCount(below)) return false;
-  crushBillboard(x, y, z);
-  setBlock(x, y, z, CORE.layerVal(mat, 1));
+  // over what it can cover it lies in that cell (chunks/layer-stacks.js)
+  if (carpetFits(x, y, z, v)) setLayerStack(x, y, z, [mat]);
+  else {
+    crushBillboard(x, y, z);
+    setBlock(x, y, z, CORE.layerVal(mat, 1));
+  }
   queueLitterRot(x, y, z);
   return true;
 }
@@ -625,12 +629,13 @@ function _chopQuad(x, y, z, val) {
 }
 
 /* ---------------------------------- stripping by hand ----------------------------------
-   The right button held STRIP_HOLD_S with a hatchet on a log that has its bark, a tree's or a placed one, takes the bark
-   off: the log stays where it is, stripped (every other bit of the cell kept), and gives LOOT.barkStrip (one bark, a
-   fifth of the time two). A quarter of a 2x2 trunk strips its four at that height, a roll for each. The hatchet wears
-   one. Started on the press by tryStripLog (_doPlace, player/place-block.js), carried by updateStripHold (tickPlayer),
-   shown on the progress ring (interactProgress, ui/hud.js). An offhand shield raised takes the button instead. */
-const STRIP_HOLD_S = 0.8, STRIP_SCRAPE_S = 0.28;
+   The right button held with a hatchet on a log that has its bark, a tree's or a placed one, for as long as that hatchet
+   takes (its `stripS`, items/tools.js: flint 2 s, iron 1 s, steel 0.3 s), takes the bark off: the log stays where it is,
+   stripped (every other bit of the cell kept), and gives LOOT.barkStrip (one bark, a fifth of the time two). A quarter of a
+   2x2 trunk strips its four at that height, a roll for each. The hatchet wears one. Started on the press by tryStripLog
+   (_doPlace, player/place-block.js), carried by updateStripHold (tickPlayer), shown on the progress ring
+   (interactProgress, ui/hud.js). An offhand shield raised takes the button instead. */
+const STRIP_SCRAPE_S = 0.28;
 function tryStripLog(hit) {
   if (!hit || hit.over || !_holdingAxe() || player.riding) return false;
   if (typeof _activeShield === 'function' && _activeShield()) return false;   // blocking with the offhand shield
@@ -650,7 +655,8 @@ function updateStripHold(dt, held) {
   player._milkLatch = true;                          // the held button is the hold's, nothing else's (tickPlayer)
   h.t += dt;
   if ((h.scrape -= dt) <= 0) { h.scrape = STRIP_SCRAPE_S; playBlockSound(v & 255, 'hit', h.x, h.y, h.z); handPlaceSwing = true; }
-  if (h.t < STRIP_HOLD_S) return h.t / STRIP_HOLD_S;
+  const need = ITEM_PROPS[heldUseId()].stripS;       // _holdingAxe above: it is a hatchet
+  if (h.t < need) return h.t / need;
   player._stripHold = null;
   const cells = CORE.isQuadW(logWidthOf((v >> 8) & 255)) ? _quadParts(h.x, h.y, h.z, v).parts : [[[h.x, h.y, h.z], v]];
   let bark = 0;

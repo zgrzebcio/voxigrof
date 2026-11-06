@@ -36,7 +36,7 @@ const TIGER = {
 };
 const TIGER_BIOMES = { 'Jungle': 1, 'Deep Jungle': 1, 'Jungle Hills': 0.6 };
 // the raw meat it eats and takes from the hand
-const TIGER_MEAT = new Set([ITEM.MUTTON, ITEM.BEEF, ITEM.PORK]);
+const TIGER_MEAT = new Set([ITEM.MUTTON, ITEM.BEEF, ITEM.PORK, ITEM.CHICKEN]);
 
 /* ---------------------------------- its effects on the one who fed it ---------------------------------- */
 EFFECT_DEFS.tigerFury = { name: 'Tiger fury', time: TIGER.furyS, good: true, atkSpeed: 0.3, img: 'Animals/tiger_fury.png',
@@ -119,7 +119,7 @@ const tigerBaited = (p) => TIGER_MEAT.has(_tgHeld(p));
 const _tgLive = (p) => !!p && p.spawned && !p.dead && !p.canFly && PLAYERS.includes(p);
 // a creature it hunts
 const _tgPrey = (o, e) => o !== e && o.hp > 0 && !o._killedByMob && o.active !== false && o.kind !== 'tiger' && !o.boss
-  && !isFish(o) && mobOf(o).body !== 'insect' && mobOf(o).xp !== 0 && !(o.riseT > 0);
+  && !isFish(o) && mobOf(o).body !== 'insect' && mobOf(o).xp !== 0 && !(o.riseT > 0) && !o.flying;   // a bird on the wing (entities/parrot.js) cannot be caught
 function updateTiger(e, dt, tp, i) {
   const m = e.model;
   if (!_tgDress(m)) { m.root.position.set(e.x, e.y, e.z); return false; }
@@ -244,7 +244,7 @@ function _tgChoose(e, fromHome) {
   for (const p of PLAYERS) {
     if (!_tgLive(p) || e._peace.has(_tgKey(p))) continue;
     const d = Math.hypot(p.pos.x - e.x, p.pos.z - e.z);
-    if (d > (p.sneaking ? TIGER.seeSneakR : TIGER.seeR) || Math.abs(p.pos.y - e.y) > 8 || d >= bd) continue;
+    if (d > (p.sneaking ? TIGER.seeSneakR : TIGER.seeR) * hideSightMul(p) || Math.abs(p.pos.y - e.y) > 8 || d >= bd) continue;   // a parrot hides you
     bd = d; best = p;
   }
   if (best) { e._target = { player: best, bait: tigerBaited(best) }; return; }

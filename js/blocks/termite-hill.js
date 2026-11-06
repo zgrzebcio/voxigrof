@@ -13,7 +13,9 @@
    let go is forgotten, its termites with it, and found again when the chunk comes back.
 
    ITS TERMITES (entities/termite.js) are never saved: a hill in the simulated land keeps HILL_KEEP of them (small 2,
-   big 4), a new one out of it every HILL_SPAWN_S while it has fewer. Broken, it lets out 1-3 (small) or 3-6 (big)
+   big 4), a new one out of it every HILL_SPAWN_S while it has fewer. Workers resting inside count among those, so a hill
+   near trees could stand empty for minutes: with fewer than HILL_FEW of any hill's termites within HILL_FEW_R of it, it
+   lets one out all the same. Broken, it lets out 1-3 (small) or 3-6 (big)
    at once, angry, and its own go angry too: a hit termite angers its hill (`angryT`), and its soldiers come for
    the player. What a broken hill gives is its block drop (50-loottable.js), once for the whole hill. */
 const HILL_MODELS = {
@@ -21,6 +23,8 @@ const HILL_MODELS = {
   big:   { json: 'termite_hill',       png: 'textures/Blocks/Models/termite_hill/termite_hill.png',       top: 3 },
 };
 const HILL_KEEP = { small: 2, big: 4 };        // termites a hill keeps about it
+const HILL_FEW = { small: 1, big: 2 };         // ...and with fewer than this out near it, one comes out even with others resting inside
+const HILL_FEW_R = 16;                         // "near it": blocks from its foot cell
 const HILL_BURST = { small: [1, 3], big: [3, 6] };   // how many come out when it is broken
 const HILL_SPAWN_S = [25, 45];                 // seconds between new termites while a hill has fewer than it keeps
 const HILL_SOLDIERS = 0.2;                     // the share of soldiers among them (workers four to one)
@@ -156,6 +160,7 @@ function _hillExit(fx, fy, fz, big) {
   return null;
 }
 // a worker that has eaten its fill goes into its hill and stays TERMITE.restS before the hill lets one out in its place
+// (sooner when too few are left about it: HILL_FEW)
 function termiteHillRest(h) {
   (h.rest || (h.rest = [])).push(performance.now() / 1000 + TERMITE.restS);
 }
@@ -182,6 +187,7 @@ function updateTermiteHills(dt) {
       if (!e.hillKey && e.active === false) { _removeEntity(i); continue; }      // a homeless one out of the simulated land
       if (e.hillKey) count.set(e.hillKey, (count.get(e.hillKey) || 0) + 1);
     }
+    const out = ENTITIES.filter(e => e.termite && e.active !== false);
     for (const [k, h] of HILLS) {
       const c = getChunk(Math.floor(h.x / 16), Math.floor(h.z / 16));
       if (!c || !c.data || (getBlock(h.x, h.y, h.z) & 255) !== B.TERMITE_HILL) { HILLS.delete(k); _hillDirty = true; continue; }
@@ -189,6 +195,8 @@ function updateTermiteHills(dt) {
       const now = performance.now() / 1000;
       if (h.rest) h.rest = h.rest.filter(t => t > now);
       h._n = (count.get(k) || 0) + (h.rest ? h.rest.length : 0);
+      h._near = 0;
+      for (const e of out) if ((e.x - h.x) ** 2 + (e.y - h.y) ** 2 + (e.z - h.z) ** 2 <= HILL_FEW_R * HILL_FEW_R) h._near++;
     }
     _hillDirty = true;                         // and which are drawn, the players having moved
   }
@@ -197,7 +205,7 @@ function updateTermiteHills(dt) {
   if (!worldHeld() && !streamBehind && worldHasAnimals()) {
     for (const [k, h] of HILLS) {
       if (h.angryT > 0) h.angryT -= dt;
-      if (h._n == null || h._n >= HILL_KEEP[h.kind]) continue;
+      if (h._n == null || (h._n >= HILL_KEEP[h.kind] && h._near >= HILL_FEW[h.kind])) continue;
       if (!inSimRangeChunk(Math.floor(h.x / 16), Math.floor(h.z / 16))) continue;
       h.spawnT -= dt;
       if (h.spawnT > 0) continue;
@@ -206,7 +214,7 @@ function updateTermiteHills(dt) {
       if (!p) continue;
       const cx = h.x + (h.kind === 'big' ? 1 : 0.5), cz = h.z + (h.kind === 'big' ? 1 : 0.5);
       summon(Math.random() < HILL_SOLDIERS ? 'termite_soldier' : 'termite_worker', p[0], p[1], p[2], { hill: k, hx: cx, hz: cz });
-      h._n++;
+      h._n++; h._near++;
     }
   }
   _hillLightT -= dt;

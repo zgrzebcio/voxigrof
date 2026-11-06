@@ -42,6 +42,10 @@ corePart('gen.make', function () {
        taken by the cane, which stood sunk in a hole beside the water (worldgen/desert-and-shore-plants.js, the oasis's in
        worldgen/ground-plants.js) */
     const CANE2 = biomeRev >= 47;
+    // rev 48: grass and pebbles in the snow biomes too, standing in the snow carpet or in a bare spot of it (worldgen/ground-plants.js)
+    const SNOWPLANTS = biomeRev >= 48;
+    // rev 49: the wild plants: desert scrub, bush, ferns, clover, thornweed, frost grass (worldgen/ground-plants.js)
+    const WILDPLANTS = biomeRev >= 49;
     const TALL_SPRUCE = biomeRev >= 6;                // spruce forest trees on a bare stem
     const LADDER = biomeRev >= 7;                     // the climate ladder (biomes/biomes.js)
     const SPIKES = biomeRev >= 9;                     // the Ice Spikes biome and the snow's icebergs

@@ -50,7 +50,7 @@ function buildEquipPanel() {
   const dep = typeof playerDepletionMul === 'function' ? playerDepletionMul() : 1;   // one line for every bar since 0.828
   const hazard = 1 - (typeof skillHazardMul === 'function' ? skillHazardMul() : 1);
   const hs = typeof playerHeatstrokeResist === 'function' ? playerHeatstrokeResist() : 0;
-  const sight = 1 - (typeof playerSightMul === 'function' ? playerSightMul() : 1);   // Clear Eyes; vegetable sickness
+  const sight = 1 - (typeof playerSightMul === 'function' ? playerSightMul() : 1);   // Clear Eyes; veggie sickness
   const mine = typeof playerMiningSpeedMul === 'function' ? playerMiningSpeedMul() : 1;   // 0.8323
   // regen (Rapid regen, tiredness), how fast carried food spoils (Preserver, salt), how long effects last (Lingering)
   const regen = typeof playerRegenMul === 'function' ? playerRegenMul() : 1;

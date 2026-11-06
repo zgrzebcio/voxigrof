@@ -304,6 +304,7 @@ function saveWorld(syncToLS = false) {
     cells: 4,                             // looks in a cell's bits 16-23 (blocks/looks.js), berry bushes in seven stages: nothing to convert on load
     edits, drops, furnaces, entities: serializeEntities(), chests: serializeChests(), seasons: serializeSeasons(), benches: serializeBenches(),
     clams: serializeClams(),              // what players put in clams, by place (blocks/clam.js)
+    eggs: serializeEggs(),                // how long each egg has been sat on, by place (blocks/egg.js)
     meerkatStash: serializeMeerkatStash(),   // what wild meerkats buried under sand, by place (entities/meerkat.js)
     saplings: serializeSaplings(),        // each planted sapling's growing clock (woods/saplings.js)
     plates: serializePlates(),            // the pressure plates held down, and what they hold (blocks/pressure-plates.js)
@@ -420,7 +421,7 @@ async function loadWorld(w) {
   player._feats = null; player._night = null;   // ...nor what they found there
   player._chiselRad = null;
   // ...nor a fish in their hands or an otter round their neck: those are the world's, saved with its creatures (entities/save.js)
-  player._heldFish = null; player._fishGrab = null; player._wornOtter = null; player._wornMeerkat = null; player._clamHold = null;
+  player._heldFish = null; player._fishGrab = null; player._wornOtter = null; player._wornMeerkat = null; player._wornParrot = null; player._clamHold = null;
   resetWorld(w.seed, w.terrain, w.biomeRev || 1, w.id);   // worlds saved before 0.665 have no `terrain` -> 'default'; biomes 0.819
   LAYER_STACKS.clear();                      // mixed layer stacks belong to the world
   /* a save without the stamp 3 holds looks as block ids of their own (blocks/legacy.js migrateLookVal): converted here,
@@ -488,6 +489,8 @@ async function loadWorld(w) {
   clearTermiteHills();                       // the hills are found again as their chunks come in (blocks/termite-hill.js)
   clearClams();                              // ...and the clams; what was put in them comes back by place (blocks/clam.js)
   restoreClams(data && data.clams);
+  clearEggs();                               // the eggs are found again as their chunks come in; how long each was sat on comes back by place (blocks/egg.js)
+  restoreEggs(data && data.eggs);
   restoreMeerkatStash(data && data.meerkatStash);
   restoreSaplings(data && data.saplings);    // their clocks are in the world clock's days, saved beside it
   restorePlates(data && data.plates);        // pressure plates held down come up when nothing is on them

@@ -139,131 +139,134 @@ legends: B = big update, M= medium update, S = small update
 137. S: ~~all mossy decorative block to ad~~d 0.8525
 138. M: ~~ladder shape, slope shape, better climbing~~ (as human build jungle dungeon) v0.853
 139. S: ~~tiger, new effect icons~~ v0.8535
-140. M: parrot(tamable, pickable give hidden after and alert you about monsters), eagle(tamable pickup stone pebble and attack mobs), owl(break leaf for stick when feed) birds v0.854
-141. S: chicken, eggs, chicken egg hatching 0.8545
-142. B: falling carpet cover grass or non-full block v0.855 — carpets too lie IN the cell of a non-solid block (a plant, a billboard) or on a non-full one (bottom slab, stair step), kept beside the cell as the pressure plate is since 0.848793 (PLATE\_OVER, blocks/pressure-plates.js; plateOverBoxes, shapes/boxes.js)
-143. S: add more plants to cold and warm biomes v0.8555
-144. M: milk fluid, drinks rework. 0.856
-145. S: campfire, cake 0.8565
-146. M: food rework: cauldron and spoon, cheese, and food making v0.857
-147. S: more food adding, cake, stews, chocolate etc. v0.8575
-148. S: adding jungle dungeon, v0.858
-149. S: more jungle structure v0.8585
-150. S: spring boss with wildness curse v0.859
-151. S: more id blocks v0.8595
-152. B: bamboo biome with bamboo trees v0.86
-153. S: panda bear version but neutral, give bamboo panda give panda love effect.  v0.8605
-154. M: connecting block system 0.861
-155. S: more connecting block 0.8615
-156. M: leaf litter, drop leaf better visual with function 0.862
-157. S: clover carpet 0.8625
-158. M: animal stats leveling 0.863
-159. S: animal require feed or drinking 0.8635
-160. M: tamable level up, spend to give better stats 0.864
-161. S: better taming and riding 0.8645
-162. B: ebony trees with biome dark forest 0.865
-163. S: deer mob, boar, with new meat 0.8655
-164. M: frost mushroom,  tamable elk drop frost shard(place cold fire), aggressive, shot cold fire 0.866
-165. S: penguin(tamable as baby from eggs, use for sliding), 0.8665
-166. M: cold fire 0.867
-167. S: torches and frost block 0.8675
-168. M: cactus fruit, tamable camel storage desert biome 0.868
-169. S: scorpion, poison and antidotum  0.8685
-170. M: crossbow, with metal arrow 0.869
-171. S: fire and frost arrow, poison arrow  0.8695
-172. B: swamp biome with mangrove trees, mud, cattail and cork block and item v0.87
-173. S: frog, ogre, lily pad v0.8705
-174. M: belt system chisel and hammer, lantern block and equipment 0.871
-175. S: more belts variant 0.8715
-176. M: second part belt system with compass, map, spyglass with them functions  v0.872
-177. S: third part belt system hourglass, rain gauge, backpack variants v0.8725
-178. M: boat and fishing rod system 0.873
-179. S: kelp underwater sea grass 0.8735
-180. M: sea turtle with egg, coral biome, dolphin, jellyfish, ship wrecks, treasure maps 0.874
-181. S: kraken, shark, 0.8745
-182. B: autumn biome with maple trees, maple sap v0.875
-183. S: maple fluid and maple syrup 0.8755
-184. M: leaf aging 0.876
-185. S: hedgehog (collects leaf litter into one 4 litter to hide it) 0.8765
-186. M: squirrel(feed with sapling(future pines, nut etc. ) to collect future resin, maple sap), fox(tamable collect berries),  0.877
-187. S: bear territorial with bear defense effect 0.8775
-188. M: beaver, crow, crocodile 0.878
-189. S: gravestone, more cobweb, small Halloween update, more carved pumpkin shapes 0.8785
-190. M: adding autumn mansion, autumn boss 0.879
-191. S: fully check and Qol and balance 0.8795
-192. B: cherry biome with cherry tree, flower litter. v0.88
-193. S: koi fish pond in cherry biome 0.8805
-194. M: trapdoors, crawling system v0.881
-195. S: red panda, rabbits animals v0.8815
-196. M: player texture and model update 0.882
-197. S: player skin coloring  0.8825
-198. M: NPC textures and models, with function to hire using gems 0.883
-199. S: spawning in village with different color 0.8835
-200. M: humanoid entities inventory system 0.884
-201. S: zombie texture update 0.8845
-202. B: cave biome, 0.885
-203. S: bat, ore sense temporary effect, bone in stones 0.8855
-204. M: deep cave biome 0.886
-205. S: ore beetle, ore drop from mob, stone lizard drop stone types. 0.8865
-206. M: hot and cold cave biome 0.887
-207. S: fluorite ore 0.8875
-208. M: dripstone biome, glowing mushroom biome 0.888
-209. S: glow moth(glowing shoulder pet), glowing arrow 0.8885
-210. M: cave structures, and accessories for it 0.889
-211. S: mimic chest, wisp 0.8895
-212. B: volcano biome with a lot new block like Blackstone ember wood tree, quartz ore 0.89
-213. S: tamable ember salamander, black quartz 0.8905 (as human i must dark castle)
-214. M: phoenix, more quartz item and block 0.891
-215. S: rest decorations block 0.8915
-216. M: saplings growing with they pods 0.892
-217. S: sugar cane growing 0.8925
-218. M: adding more flower like sunflower and dyes and paint system 0.893
-219. S: loom, banners 0.8935
-220. M: lever and button shapes 0.894
-221. S: bars shape 0.8945
-222. B: animal and player carcass 0.895
-223. S: animal bone carcass 0.8955
-224. M: mountain update 0.896
-225. S: mountains plants 0.8965
-226. M: goat, griffins 0.897
-227. S: chains, pot, shape 0.8975
-228. M: goblin, golem, wraith 0.898
-229. S: ash lye, candles 0.8985
-230. M: dark castle, world boss 0.899
-231. S: Qol and balance and bug fix 0.8995
-232. B: electric update add new ore and generator with full electric system v0.9
-233. M: steel with alloy smelter machine v0.903
-234. M: fabricator with electric crafting system v0.905
-235. M: farming system with seed and more food: potato, tomato 0.91
-236. S: growing visual system v0.913
-237. S: scarecrow, sprinkler v0.915
-238. S: update greenhouse glass be separate block and increase grow speed and allow grow in 3 season v0.917
-239. M: resin, rubber, extractor tool and extractor machine v0.92
-240. S: electric cables and batteries v0.923
-241. S: electric furnace, polymer and carbon fiber items v0.925
-242. M: bio fuel with bio generator and solar generator and wind generator v0.93
-243. S: compressor and press shapes item 0.933
-244. S: big block as pressure chamber to press shapes 0.935
-245. M: crusher, skill part 2 v0.94
-246. S: electric mortal and pestle v0.945
-247. M: Pipe for fluid and item transfer v0.95
-248. S: fluid tank and item barrel v0.955
-249. M: oil fluid and fluid pump v0.96
-250. S: machine upgrades v0.965
-251. M: potion system update brewing in cauldron v0.97
-252. M: tool upgrades station v0.975
-253. M: gas system with air, hydrogen v0.977
-254. M: scuba set v0.98
-255. S: adding missing items and blocks v0.985
-256. M: multiplayer 0.99
-257. S: more visual update like grass, water blending between biome etc. v0.995
-258. B: sound effect with polishing fully performance and textures 1.0 beta version
-259. B: Achievements/quest update 1.1
-260. B: farming update better farm system with bee animal 1.2
-261. B: sky and moon update: add moon as own shape no flat plain, meteors shower and structure v1.3
-262. B: traveling update: like parachute, multiple people boat support v1.4
-263. B: animal update — breeding, growing sizes, boosting stats. v1.5
-264. 
+140. S: ~~parrot(tamable, pickable give hidden after and alert you about monsters) with cookies~~ 0.854
+141. S: ~~owl(break leaf for stick when feed)~~, 0.8541
+142. S: ~~crow birds~~ v0.8543
+143. S: ~~small qol fixes~~ 0.8544
+144. S: ~~chicken, eggs, chicken egg hatching~~ 0.8545
+145. B: ~~falling carpet cover grass or non-full block~~ v0.855 
+146. S: ~~add more plants to cold and warm biomes~~ v0.8555
+147. M: milk fluid, drinks rework. 0.856
+148. S: campfire, cake 0.8565
+149. M: food rework: cauldron and spoon, cheese, and food making v0.857
+150. S: more food adding, cake, stews, chocolate etc. v0.8575
+151. S: adding jungle dungeon, v0.858
+152. S: more jungle structure v0.8585
+153. S: spring boss with wildness curse v0.859
+154. S: more id blocks v0.8595
+155. B: bamboo biome with bamboo trees v0.86
+156. S: panda bear version but neutral, give bamboo panda give panda love effect.  v0.8605
+157. M: connecting block system 0.861
+158. S: more connecting block 0.8615
+159. M: leaf litter, drop leaf better visual with function 0.862
+160. S: clover carpet 0.8625
+161. M: animal stats leveling 0.863
+162. S: animal require feed or drinking 0.8635
+163. M: tamable level up, spend to give better stats 0.864
+164. S: better taming and riding 0.8645
+165. B: ebony trees with biome dark forest 0.865
+166. S: deer mob, boar, with new meat 0.8655
+167. M: frost mushroom,  tamable elk drop frost shard(place cold fire), aggressive, shot cold fire 0.866
+168. S: penguin(tamable as baby from eggs, use for sliding), 0.8665
+169. M: cold fire 0.867
+170. S: torches and frost block 0.8675
+171. M: cactus fruit, tamable camel storage desert biome 0.868
+172. S: scorpion, poison and antidotum  0.8685
+173. M: crossbow, with metal arrow 0.869
+174. S: fire and frost arrow, poison arrow  0.8695
+175. B: swamp biome with mangrove trees, mud, cattail and cork block and item v0.87
+176. S: frog, ogre, lily pad v0.8705
+177. M: belt system chisel and hammer, lantern block and equipment 0.871
+178. S: more belts variant 0.8715
+179. M: second part belt system with compass, map, spyglass with them functions  v0.872
+180. S: third part belt system hourglass, rain gauge, backpack variants v0.8725
+181. M: boat and fishing rod system 0.873
+182. S: kelp underwater sea grass 0.8735
+183. M: sea turtle with egg, coral biome, dolphin, jellyfish, ship wrecks, treasure maps 0.874
+184. S: kraken, shark, 0.8745
+185. B: autumn biome with maple trees, maple sap v0.875
+186. S: maple fluid and maple syrup 0.8755
+187. M: leaf aging 0.876
+188. S: hedgehog (collects leaf litter into one 4 litter to hide it) 0.8765
+189. M: squirrel(feed with sapling(future pines, nut etc. ) to collect future resin, maple sap), fox(tamable collect berries),  0.877
+190. S: bear territorial with bear defense effect 0.8775
+191. M: beaver, crow, crocodile 0.878
+192. S: gravestone, more cobweb, small Halloween update, more carved pumpkin shapes 0.8785
+193. M: adding autumn mansion, autumn boss 0.879
+194. S: fully check and Qol and balance 0.8795
+195. B: cherry biome with cherry tree, flower litter. v0.88
+196. S: koi fish pond in cherry biome 0.8805
+197. M: trapdoors, crawling system v0.881
+198. S: red panda, rabbits animals v0.8815
+199. M: player texture and model update 0.882
+200. S: player skin coloring  0.8825
+201. M: NPC textures and models, with function to hire using gems 0.883
+202. S: spawning in village with different color 0.8835
+203. M: humanoid entities inventory system 0.884
+204. S: zombie texture update 0.8845
+205. B: cave biome, 0.885
+206. S: bat, ore sense temporary effect, bone in stones 0.8855
+207. M: deep cave biome 0.886
+208. S: ore beetle, ore drop from mob, stone lizard drop stone types. 0.8865
+209. M: hot and cold cave biome 0.887
+210. S: fluorite ore 0.8875
+211. M: dripstone biome, glowing mushroom biome 0.888
+212. S: glow moth(glowing shoulder pet), glowing arrow 0.8885
+213. M: cave structures, and accessories for it 0.889
+214. S: mimic chest, wisp 0.8895
+215. B: volcano biome with a lot new block like Blackstone ember wood tree, quartz ore 0.89
+216. S: tamable ember salamander, black quartz 0.8905 (as human i must dark castle)
+217. M: phoenix, more quartz item and block 0.891
+218. S: rest decorations block 0.8915
+219. M: saplings growing with they pods 0.892
+220. S: sugar cane growing 0.8925
+221. M: adding more flower like sunflower and dyes and paint system 0.893
+222. S: loom, banners 0.8935
+223. M: lever and button shapes 0.894
+224. S: bars shape 0.8945
+225. B: animal and player carcass 0.895
+226. S: animal bone carcass 0.8955
+227. M: mountain update 0.896
+228. S: mountains plants 0.8965
+229. M: goat, griffins 0.897
+230. S: chains, pot, shape 0.8975
+231. M: goblin, golem, wraith 0.898
+232. S: ash lye, candles 0.8985
+233. M: dark castle, world boss 0.899
+234. S: Qol and balance and bug fix 0.8995
+235. B: electric update add new ore and generator with full electric system v0.9
+236. M: steel with alloy smelter machine v0.903
+237. M: fabricator with electric crafting system v0.905
+238. M: farming system with seed and more food: potato, tomato 0.91
+239. S: growing visual system v0.913
+240. S: scarecrow, sprinkler v0.915
+241. S: update greenhouse glass be separate block and increase grow speed and allow grow in 3 season v0.917
+242. M: resin, rubber, extractor tool and extractor machine v0.92
+243. S: electric cables and batteries v0.923
+244. S: electric furnace, polymer and carbon fiber items v0.925
+245. M: bio fuel with bio generator and solar generator and wind generator v0.93
+246. S: compressor and press shapes item 0.933
+247. S: big block as pressure chamber to press shapes 0.935
+248. M: crusher, skill part 2 v0.94
+249. S: electric mortal and pestle v0.945
+250. M: Pipe for fluid and item transfer v0.95
+251. S: fluid tank and item barrel v0.955
+252. M: oil fluid and fluid pump v0.96
+253. S: machine upgrades v0.965
+254. M: potion system update brewing in cauldron v0.97
+255. M: tool upgrades station v0.975
+256. M: gas system with air, hydrogen v0.977
+257. M: scuba set v0.98
+258. S: adding missing items and blocks v0.985
+259. M: multiplayer 0.99
+260. S: more visual update like grass, water blending between biome etc. v0.995
+261. B: sound effect with polishing fully performance and textures 1.0 beta version
+262. B: Achievements/quest update 1.1
+263. B: farming update better farm system with bee animal 1.2
+264. B: sky and moon update: add moon as own shape no flat plain, meteors shower and structure v1.3
+265. B: traveling update: like parachute, multiple people boat support v1.4
+266. B: animal update — breeding, growing sizes, boosting stats. v1.5
+267. 
 
 *more textures per animal, male/female, babies that grow, and stats that differ per*
 

@@ -559,7 +559,8 @@ function captureStructure(bx, by, bz, size, name) {
         if (ov) plates.push(lookOf(ov) ? [dx, dy, dz, ov & 255, ((ov >> 8) & 255) & ~PLATE_PRESSED, lookOf(ov)]
                                        : [dx, dy, dz, ov & 255, ((ov >> 8) & 255) & ~PLATE_PRESSED]);
         const look = lookOf(val);                           // a look rides as a sixth number (blocks/looks.js)
-        const hi = (val >>> 25) & 63;                       // ...and the cell's bits 25-30 as a seventh (shapes/shapes.js: joins set by hand)
+        // ...and the cell's bits 25-30 as a seventh (shapes/shapes.js: joins set by hand), 25-31 on what can lie under a carpet (shapes/chimney-mixed.js)
+        const hi = (val >>> 25) & (CORE.carpetHost(val) ? 127 : 63);
         blocks.push(hi ? [dx, dy, dz, id, (val >> 8) & 255, look, hi] : look ? [dx, dy, dz, id, (val >> 8) & 255, look] : [dx, dy, dz, id, (val >> 8) & 255]);
         // every captured container is wired to the default table; edit the JSON to retarget it
         if (isChestId(id)) loot[dx + ',' + dy + ',' + dz] = '1';   // a metal chest too
@@ -620,7 +621,7 @@ function stampStructureSlice(prefab, ox, oy, oz, from, budget, swap = null) {
     if (!PROPS[id]) continue;                       // prefab references a block this build lacks
     const x = ox + dx, y = oy + dy, z = oz + dz;
     if (y < 1 || y > WORLD_TOP - 1) continue;
-    setBlock(x, y, z, (id | ((variant & 255) << 8) | ((look & 255) << 16) | ((hi & 63) << 25)) >>> 0);
+    setBlockBare(x, y, z, (id | ((variant & 255) << 8) | ((look & 255) << 16) | ((hi & 127) << 25)) >>> 0);   // (a carpet there does not outlive what is laid over it)
     if (isChestId(id)) registerChest(x, y, z, variant & 3);   // either kind
     // a door's mesh comes up with its bottom half in setBlock (doors are shapes of their material)
     if (id === B.BED && !((variant >> 3) & 1)) registerBed(x, y, z, variant & 3, bedWoodOf(variant));   // wood 0.8342

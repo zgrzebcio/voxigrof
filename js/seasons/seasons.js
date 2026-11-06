@@ -22,7 +22,7 @@ function seasonDressChunk(c) {
       if (!(SEASON_LEAVES.has(id) || SEASON_PLANTS.has(id)) || CORE.layerCount(v)) continue;
       const x = wx0 + (i & 15), y = i >> 8, z = wz0 + ((i >> 4) & 15);
       if (sHash(x, y, z, SEASON_LEAVES.has(id) ? 1 : 2) >= level) continue;
-      data[i] = 0;
+      data[i] = CORE.carpetCount(v) ? CORE.layerVal(CORE.carpetId(v), CORE.carpetCount(v)) : 0;   // a carpet it stood in stays
       if (id === B.TALL_LOWER && i + 256 < data.length && (data[i + 256] & 255) === B.TALL_UPPER) data[i + 256] = 0;
     }
   }
@@ -53,7 +53,7 @@ function showTitleDate(on) {
 /* ================================== the seasons on the land ================================== */
 const SEASON_LEAVES = new Set(woodBlocks('leaves', w => w.seasonal));    // the woods marked `seasonal` (woods/woods.js): oak, birch; spruce keeps its needles
 // mushrooms left this list in 0.821: they have their own year now (mushroom growth, below)
-const SEASON_PLANTS = new Set([B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION,
+const SEASON_PLANTS = new Set([B.SHORT_GRASS, B.TALLGRASS, B.TALL_LOWER, B.POPPY, B.ORCHID, B.PINCUSHION, B.CLOVER,
   B.REDBERRY_BUSH, B.BLUEBERRY_BUSH, B.BLACKBERRY_BUSH, B.YELLOWBERRY_BUSH, B.WHITEBERRY_BUSH,   // yellow, white 0.827
   B.WHEAT, B.CARROT, B.MELON, B.PUMPKIN, B.CANTALOUPE]);
 // "cx,cz" -> Map(cell index -> the value that stood there): what autumn took and spring may give back. Saved.
@@ -76,10 +76,13 @@ function _seasonLeafFall(x, y, z, id) {
       if (litterRot.has(k)) litterRot.set(k, (LITTER_LIFE_NATURAL + Math.random() * LITTER_LIFE_NATURAL_JITTER) * _dayLen());
     }
 }
-// can a remembered plant stand here again: an empty cell on solid ground
-const _plantFits = (x, y, z) => (getBlock(x, y, z) & 255) === B.AIR && CORE.solidVal(getBlock(x, y - 1, z));
+// a thin stack of one falling carpet with no look: a plant can come up in it (chunks/layer-stacks.js)
+const _carpetToStandIn = (c) => { const n = CORE.layerCount(c); return n > 0 && n <= CORE.CARPET_MAX && !CORE.layerMixed(c) && !lookOf(c) && !!PROPS[c & 255]?.layerStack; };
+// can a remembered plant stand here again: an empty cell, or one with such a carpet, on solid ground
+const _plantFits = (x, y, z) => { const c = getBlock(x, y, z); return ((c & 255) === B.AIR || _carpetToStandIn(c)) && CORE.solidVal(getBlock(x, y - 1, z)); };
 function _placePlant(x, y, z, v) {
-  setBlock(x, y, z, v);
+  const c = getBlock(x, y, z);
+  setBlock(x, y, z, _carpetToStandIn(c) ? CORE.withCarpet(v, c & 255, CORE.layerCount(c)) : v);
   if ((v & 255) === B.TALL_LOWER && (getBlock(x, y + 1, z) & 255) === B.AIR) setBlock(x, y + 1, z, B.TALL_UPPER);
 }
 
@@ -104,7 +107,7 @@ function _seasonChunk(c) {
       if (sHash(x, y, z, SEASON_LEAVES.has(id) ? 1 : 2) >= level) continue;
       if (_seasonOps >= SEASON_OPS_PER_FRAME) { c._seasonScan = q; return false; }
       _seasonOps++;
-      _seasonMem(k).set(i, v);
+      _seasonMem(k).set(i, CORE.carpetCount(v) ? CORE.withCarpet(v, 0, 0) : v);   // the plant alone: a carpet over it stays where it is
       if (SEASON_LEAVES.has(id)) _seasonLeafFall(x, y, z, id);
       else {
         if (id === B.TALL_LOWER && (getBlock(x, y + 1, z) & 255) === B.TALL_UPPER) setBlock(x, y + 1, z, B.AIR);

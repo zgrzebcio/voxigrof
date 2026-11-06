@@ -488,6 +488,7 @@ function leavePlayer() {
     if (typeof releaseHeldFish === 'function') releaseHeldFish(false);
     if (typeof otterTakeOff === 'function') otterTakeOff(player, true);
     if (typeof meerkatTakeOff === 'function') meerkatTakeOff(player, true);   // ...and a meerkat on the shoulder (entities/meerkat.js)
+    if (typeof parrotTakeOff === 'function') parrotTakeOff(player, true);     // ...and a parrot (entities/parrot.js)
   });
   if (activeSlot === i) useSlot(0);
   // ...then drop everything they owned out of the scene and the DOM

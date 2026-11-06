@@ -664,7 +664,7 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   old rule (a column at WATER_LEVEL + 1, the cane taking its top block: the hole by the shore). Checked headless over 3 seeds
   (scratchpad test-0.85391.js): every rev 47 stand on soil with flush water, none sunk, rev 46 unchanged.
   0.85392: stripping by hand (woods/felling.js `tryStripLog` from _doPlace, `updateStripHold` from tickPlayer, `_stripProg` on the
-  ring): hatchet + right button held STRIP_HOLD_S 0.8 on a live log (placed ones too), `LOOT.barkStrip` [[1,1],[1,0.2]] a cell,
+  ring): hatchet + right button held its `stripS` (items/tools.js) on a live log (placed ones too), `LOOT.barkStrip` [[1,1],[1,0.2]] a cell,
   a 2x2 quarter strips its four (`_quadParts`, shared with _chopQuad), hatchet wear 1. An active shield takes the button; an
   offhand torch does not (`_aimsToStrip` in placing.js keeps the main hand).
   0.85393: the food numbers before the rework (plans/FoodBalance.md, its tables; items/food.js, FOOD_NUTRITION, blocks/mushrooms.js
@@ -685,6 +685,107 @@ loads about 200 ordinary scripts, so they all share one scope. THE ORDER OF THE 
   on the ring) writes after BOOK_HOLD_S 1 with the crosshair kept on it (`_bookWrite`). COW_BIOMES (0.85396): Plains, Warm
   Plains, Savanna, Forest 1 (Deep Forest and the hills through _biomeWeight), Cold Plains 0.2.
   0.85397: tigers `TIGER.chunkChance` 0.015, `TIGER.apart` 192 (entities/tiger.js).
+- **0.854, cookies and the parrot** (header of entities/parrot.js). `ITEM.RAW_COOKIE` 437 / `COOKIE` 438 (food.js, art
+  Consumables/Others; recipe appended `basic`, after the jam sandwich; furnace bakes one to one). entities/parrot.js (`PARROT`,
+  model js/models/parrot.js from textures/Entity/Tamable/parrot.json, sounds Sound/Mobs/Parrot): a `step` creature that FLIES
+  (`e.flying`; `_prFlyStep`, `_prLand`, `_prTakeOff`; its mind gives `plan.to` / `land` / `face`, a point reached is `done`),
+  perches found by `_prFindPerch`. Jungle flocks (`rollParrots`). A cookie in hand: wild ones come and hover in front of you.
+  Taming `parrotE` (tickPlayer, E): cookie -> phases 'circle' (PARROT.circleS, Gentle Hand circleGentle) -> 'wait' -> pet with an
+  empty hand -> 'window' (petWindow) -> cookie; a miss 'away' (missLoss) then 'circle'; need 1..`needMax` 3 by level.
+  `tryParrotInteract` (_doPlace): stances follow/stay, cookie feeds, sneak = `parrotPutOn` (`player._wornParrot`, LEFT shoulder,
+  `poseParrotShoulder`; ONE worn creature: otter/meerkat/parrot put-ons take the others off). Hiding: `parrotHide(p)` /
+  `hideSightMul(p)` multiply the sight ranges in update.js and combat.js (night mobs), tiger.js, grazers.js (polar bear),
+  meerkat.js, fish.js (splash), the parrot's own: a new sight range of a hostile or shy creature should read it too. Danger
+  sense `_prAlertTick` (parrotWorldTick): nearest zombie/skeleton within alertR as `p._prAlert`, mimic sounds. Effects
+  `parrotHide` / `parrotAlert` (stateEffects). A flying creature is no tiger prey (`_tgPrey` reads `o.flying`).
+  0.8541: BIRDS share entities/birds.js (header there): `birdStep(e, dt, plan, i, N)` (take off, fly, hover, land, sit; -1 =
+  died), `birdFlyStep`, `birdLand` (sets `_perchT` from N.perchEvery, sound 'land'), `birdTakeOff` (sound 'fly'),
+  `birdFindPerch(cx, cy, cz, r, { from, avoid, leaves: 'only', tries })`. Leaves are `solid:false` (bodies pass), but a
+  whole leaf block (`birdLeafVal`) holds a bird: the perched fall stops on a leaf top (`_birdLeafBetween`). A new bird: its
+  file, `step` calling birdStep with its numbers ({ turn, climb, perchEvery }). The OWL (entities/owl.js, `OWL`; model
+  js/models/owl.js from textures/Entity/Animals/owl.json, grey sheet x `OWL_TINTS` + untinted owl_overlay.png twins drawn
+  over every mesh, lit as `satMat`): wild only, one alone on a leaf `home` in OWL_BIOMES (level 0: Forest, Birch Forest,
+  Plains, Mountains); night = home (`isDarkTime`), day = trees within roamR; shy but not of night mobs; cocoa beans in hand
+  lure it. `owlGiveBean` (tickPlayer, crouch + E): `e.job` seek top leaves (`_owlFindLeaf`, `_isLeafVal`, workMin..workMax
+  from the spot) -> peck -> until a stick or leavesMax -> back, dropped at the spot (`_owlDeliver`); drops are
+  `blockDrop(v, true)` under `withPlayer(giver)` (Canopy Forager); the job is saved (`jb`), carried things drop on death.
+  Test headless: scratchpad test-birds.js (not in the repo).
+  0.8542: the CROW (entities/crow.js, `CROW`; model js/models/crow.js from textures/Entity/Animals/crow.json, sounds
+  Sound/Mobs/Crow say/hurt/eat): wild flocks (`rollCrows`, CROW_BIOMES levels -1 and 0), one home per flock. The flock
+  keeps together with no shared object: `_crowFlockPlan` hashes its home and the clock's epoch (CROW.epochS, performance.now)
+  into the same doing for all ('circle' ring over a place, 'ground' pecking, 'tree'; night 'tree' at home). Flees only a
+  player NOT sneaking within seeR (the user's rule), via `_entBolt` (fleeTogether). birdFindPerch `leaves: 'never'` = the
+  ground under trees.
+  0.85421, the crow omen (header of entities/crow.js). The blood moon's night is decided `BLOOD_SIGN_S` 90 s before it rises
+  (53-storms.js: `BLOOD_SIGN_EARLY`; it still rises at `BLOOD_RISE_EARLY`, told then, `_bloodTold`); `bloodMoonComing()` = that
+  window: flocks circle over home crying every `omenSay`; `omenCries` 3 cries within `omenR` 24 of a player (`_crowOmenCry`,
+  `p._omenCries`, once a moon) give effect `crowOmen` (`EFFECT_DEFS` from crow.js, 120 s, bad: milk lifts it). `crowOmenHitMul(p)`
+  10% off zombies' and skeletons' blows and arrows only (update.js, 38-ranged.js); effect field `deathHalf` read at death
+  (hazards.js, before the effects are cleared): `crowOmenKeep(id, count, dur)` = half of what stacks (`_dropStacks`), the
+  crafting queue's ingredients too. The user's own choice of idea: no XP in it. Test headless: scratchpad test-omen.js.
+- **0.8545, chickens and eggs** (headers of entities/chicken.js, blocks/egg.js). Kind `chicken`, a `step` creature (`updateChicken`, `CHICKEN`),
+  models js/models/chicken.js (`chicken_female`, `chicken_male`), a hen's grey sheet x `CHICKEN_TINTS` (above 1 for pale: its feathers average
+  0.29 linear) + the overlay's twin meshes, sounds Sound/Mobs/Chicken (`say`, `sayM`, `sayChick`). A chick (`growT` > 0): `size` itself grows
+  from `chickSize` of `sizeFull` over `growS`; `xp` may now be a function (`mobPaysKill`, entities/mobs.js), and its loot and burnt give nothing.
+  Hen (`_chickHen`): `layT`, eggs by `_eggsNear` (another hen's egg within `eggR` blocks laying, the user's rule), any free egg near is sat on,
+  `crowdMax` chickens near = no sitting, `eggsMax` free eggs near = no laying (mine, so a flock does not grow for ever). No rooster needed.
+  `B.EGG` 208 (a retired look's id; T 506-507; blocks/plants.js, `EGG_SMALL` 0.55 of the JSON's size so a sitting hen covers it): a carpet
+  model, no hardness, `washes`, `pageSeen` (`eggSeen`), `eggChanged` (setBlock's hook), popped off with its floor (setBlock's billboard rule). `EGGS`
+  by place, saved `eggs` (only those sat on). `ITEM.EGG` 441 is NOT placed (the user's rule): only a hen makes the block. `ITEM.CHICKEN` 439,
+  `COOKED_CHICKEN` 440: `foodReturn` bone at `foodReturnChance` 0.5. `LOOT.chicken` 1 + 50% a second (the user's), `LOOT.chickenFeather` 50%, both
+  through `first` (Butcher). Crow: `fly` sound at `rate` 1.2. Art not used yet: chicken_stew.png. Test headless: scratchpad test-chicken.js.
+  0.8546 (asked as "0.9546"): `ITEM.FRIED_EGG` 442 (food.js, FOOD_NUTRITION protein 12; furnace: egg, 4 s).
+- **0.855, falling carpets among plants and on water** (header above `CARPET_OVER_BI` in chunks/layer-stacks.js). A layerStack carpet lies IN a plant's cell:
+  the plant stays the cell's block, the carpet rides in its bits 25-28 (place in `LAYER_STACKING`: in the saves, append only, 16 at most and all 16 are taken)
+  and 29-31 (1 to `CARPET_MAX` 7), read ONLY through `carpetCount` / `carpetId` / `withCarpet` / `carpetHost` (shapes/chimney-mixed.js; those bits mean other
+  things on other blocks). Hosts: every `cross` plant but torches and `noCarpet` (cobweb, sulfur tips, tall upper halves). `layerIdsAt` / `setLayerStack` /
+  `addLayer` treat it as a stack, so melt, rot and rain just work; one kind, no looks: the 8th layer or a second kind buries the plant (crushBillboard), but
+  `addLayer` of another kind refuses (the world's own carpets bury nothing). ONE RULE in setBlock, `carpetValue` (before waterlogValue): plant to plant keeps it,
+  plant gone leaves a stack, anything else ends it; `setBlockBare` skips the rule (stampStructureSlice, a blast). `carpetFits`: no plate, cover or rail there, and
+  those take no cell holding one (boxes.js). Ray `over`, bi `CARPET_OVER_BI` 18 (overValAt / overBoxesAt / breakOverAt in covers.js, `breakCarpetOver`); mesher-models.js
+  draws the box; `_cellDrag`, `snowJumpMul`; placing `tryCarpetAmongPlant`; a stepping stack goes to a plant's foot (processFalling); `_laySnow`, `_layLitter`,
+  `_fluidWashed` (`layersBreak`). A prefab's 7th number keeps 7 bits on a plant. Falling into water: `_breakOnWater` (breaks, a hand's drops, snow nothing), hand
+  placing refused in or on water; `_sinks` = whole sand, red, pink sand, gravel and a full pile of one: open through plain water, rest whole on the bottom
+  (`_landBlocks`); other whole loose blocks land on the surface as a pile, which then breaks; hay lies on the surface. Water written under one wakes it (setBlock); a
+  stack over a plant is woken too (`_fallOpen`, it used to hang there). Carpets that do not fall already stood in water (canWaterlog since 0.8477): only checked.
+  Test headless: scratchpad test-carpets.js, not in the repo.
+  0.8551: `carpetHost` also takes torches and PROPS `takesCarpet` (flint and stone pebbles, seashell, egg, the gourds): "the plant" in that header means any of them. A
+  stack falls into their cells (`_fallOpenFor`, by what is falling: a whole block still stops on them, lands as a pile, and the pile steps down and buries them; never put a
+  full pile over one back into the air: it would land as a pile above again, for ever); `crushBillboard` crushes them; `fallPassable`; sim-wake's `openAt`. Moving a pebble
+  carries its carpet (`setBlockBare` in processFalling). The carpet is drawn before the far chunk's skip of small models (mesher-models.js).
+  0.85511: a carpet-model thing (pebble, shell, gourd) falls all the way: processFalling queues it again after each step (it moved one cell and hung until woken; a stack's write
+  wakes it, this one's does not). On water it breaks with its drop, like a carpet: `_breakOnWater` (was _carpetOnWater), `_breaksOnWater`. It still stops on top of a carpet. An egg
+  pops off with its floor instead. Mushrooms had been hosts since 0.855 (every kind in test-carpets.js).
+  0.8552: biomeRev 48 `SNOWPLANTS` (worldgen/gen-setup.js): a last pass in worldgen/ground-plants.js puts grass, flint and stone pebbles on SNO columns, in the cell's snow stack
+  (`withCarpet`, up to CARPET_MAX) or a bare spot (`BARE_PLANT`, `BARE_PEBBLE`), never in a whole snow block; short grass only under fewer than `SHORT_UNDER` layers. Rev 47 land
+  outside the snow is unchanged; measured over 30 snow chunks, about 10 things a chunk. Seasons: `seasonDressChunk` and `_seasonChunk` take the plant and leave its carpet, `_placePlant`
+  brings one back up into a thin stack (`_carpetToStandIn`). A CARPET AND A FENCE, WALL OR LADDER share a cell through RAIL_OVER (they use bits 25-30 themselves, so no carpet in
+  their bits): the carpet is the cell's block, `railHostOk` takes 'layer' for fences and walls, `railLift` 0 there, full height to collide (`railOverBoxes`). `tryCarpetUnderRail`
+  (blocks/rails.js, from _doPlace after tryCarpetAmongPlant): a side of it or the ground at its foot, not its top, not a corner pair; a falling carpet needs a dry floor. railChanged's emptied
+  path holds `_ladderDropping` so the ladders over a melted carpet stay. `_entBlocked` tests a rail's `solidVal` (the carpet under it is walked through). Falling carpets and laid snow
+  do not enter a fence's own cell; they stop on top. A gem cluster whose holder goes breaks with no drop (setBlock; mining it is the only way to its gems, and survival has no cluster item now).
+  Test headless: scratchpad test-snow-rails.js (rev 47 against 48, the carpet under each of the three), not in the repo.
+  0.8553: a hill counts `_n` (its own + resting, against HILL_KEEP) and `_near` (any termite out within `HILL_FEW_R` 16); under `HILL_FEW` near (small 1, big 2) it lets one out even at
+  its keep (blocks/termite-hill.js). Quest 'Make a bed' after Leather and cloth (`added: 5`, QUEST_SAVE_GEN 5). B.MORTAR in TOOL_BLOCKS.pick, still HAND_BREAK_BLOCKS. `V_SHELL_BONE`
+  (items/recipes.js: seashell or bone block): the mortar's recipe and bone ash, 1 to 1; no recipe grinds a bone (the user's choice). Hatchet field `stripS` (documented in items/items.js).
+  Feathers: arrows 1; golden tools as many as their old gold count (pickaxe 5, the user's number; the rest mine by that rule, the sword too). Gold x2 for tools and for armor under 10
+  (gauntlets 16). The iron chisel's and hammer's pictures are in Items/Equipments/Belts equipments (GAME_VERSION 0.8553).
+  Test headless: scratchpad test-hill-keep.js, test-0.8553-items.js, missing-art.js (every literal texture path against the disk), not in the repo.
+  0.8554: toolSpeed bronze 9, gold 12, steel 14 (the user's numbers), swords half of it; `stripS` gold 0.3, steel 0.25. Quest 'Make a piece of armor' before the bed (`added: 6`,
+  QUEST_SAVE_GEN 6; any item with `armor`). Golden tools + `[V_GEMS, 1]`, golden armor gold x2 (gauntlets stay 16). MINE_REQ[B.MORTAR] pick tier 1, out of HAND_BREAK_BLOCKS (no crack by hand,
+  as the furnace). `ITEM.DOUGH` 443 (materials.js; art Items/Materials/dough.png): 3 flour + salt + egg (appended, `basic`, before the cookies). One dough replaces the flour in the pie, the
+  cookies and bread (furnace). `LOOT.hayWheat`: _blockDropOwn and _dropLayer; there is no hay -> wheat recipe, 10 wheat -> hay stays. Words: "vegetables" reads "veggies" everywhere and the
+  art folders are Items/Consumables/Veggie and Gui/Vitals/Veggie (veggie.png...), but the code's key stays `veg` (`vegFull`, `vegSick`, VEG_*): it is in the saves. Backup `before-0.8554`.
+  Test headless: scratchpad test-0.8554-items.js, not in the repo.
+  0.8555, the wild plants (header of blocks/wild-plants.js). B.DESERT_SCRUB 206, BUSH 200, FERN 199, TALL_FERN_LOWER 195, TALL_FERN_UPPER 194, CLOVER 193, THORNWEED 192, FROST_GRASS 191 (retired looks' ids); T 508-525;
+  `WILD_PLANTS` (blocks/mining-rules.js) = every cell of them, `WILD_PICK` (player/foraging.js) what a pick gives, read by the hoe too. `TINTED_PLANT_TILES` (03-atlas.js: bush, fern, big_fern_bottom/top,
+  clover): each grey, tinted, with built _warm and _cold tiles, row 1 of TILE_LAYER and TINTED; a new tinted plant goes in that list. Not in `uDryPlants` (a vec4, full): they do not pale in the Dryland or
+  Savanna. setBlock's two-cell rule reads TALL_LOWER_OF, so a new tall plant only needs that map (and noCarpet on its upper half). Only the clover is in SEASON_PLANTS. biomeRev 49 `WILDPLANTS`: last pass of worldgen/ground-plants.js,
+  one roll a column, in the cells left empty, in or beside the snow carpet like the grass of rev 48; frost grass where `DSNO` (thickest where `RIM`). Flour 2 wheat, dough 2 flour. Backup `before-0.8555`. Test headless: scratchpad test-wild-plants.js (rev 48 against 49 by biome), not in the repo.
+  0.8556: `_thornweedTick` (player/hazards.js, from updateVitals): a body touching the plant's box is pricked every THORN_PRICK_S (3 health, a hit the armor soaks), and effect `thorns` (effects.js, `poisonDps`: no healing, never the last 5 health; art Debuff/thorns.png). Players only: creatures walk through it. Pale in warm land with no shader change: the wild plants' `_warm` tiles are `plantWarmTint` (03-atlas.js), so the climate mix (vClim) does it; a bush reads rgb 126,150,69 on the warm plains, 184,187,100 in the Savanna; the Jungle's climate is about 0, so green there. Frost grass: `DSNO` and turf only (the user: "the snow where grass can be"; the pass is still rev 49), not the Coldest Deep Snow or the Ice Spikes. Test headless: scratchpad test-thorns.js, boot-art.js (runs 01-textures-data.js and tests what the atlas really asks for; missing-art.js also counts entries that are deleted before loading), not in the repo.
+  0.85561: the block atlas is cached again: `_cacheAtlas` runs only when no TEXTURES picture failed, and six old berry paths with no file had stopped it, so every start fetched all the block art. They left TEXTURES; their tile names stay in ATLAS_TILES (`berry_bush_*`: a tile's place is its number, no block draws them, an empty layer). So a block picture changed by hand now shows only after a `GAME_VERSION` bump, and one new missing TEXTURES path turns the cache off again without a word but the console's warning.
+  0.8557: every tinted plant's `_cold` tile (the grass plants and TINTED_PLANT_TILES) is `plantColdTint` + `plantColdLift` (03-atlas.js: the tint list's optional third entry, a `screen` after the multiply: multiply alone cannot make mid-grey art pale). The grass block keeps `coldTint`. A plant's break bits follow it (`_fxPlantCol`, 49-particles.js).
+  0.85571: half the mix on the cold plains and in spruce forests (climate about -0.47) was too pale for the user, so the mesher gives plant tiles an eased value: `plantClim` (`PLANT_TILE`, PLANT_COLD_FROM 0.6, FULL 0.9, TOUCH 0.15; chunks/voxel-shared.js, pushClim in mesher-cubes.js, CORE.plantClim for the bits). A mesh-only change: no GAME_VERSION bump. A new tinted plant goes in PLANT_TILE too.
 - **0.8484.** `ITEM.LOCK_PICK` 430 (useables.js; blocks/chest.js: useChest starts `player._unseal` with `pick`, updateChestUnseal
   takes `PICK_TIME_MUL` x as long, `_pickDone` rolls `PICK_OPEN` and `PICK_BREAK_WOOD` / `PICK_BREAK_METAL`; a seal picked is
   removed, a player's lock stays). `ITEM.JAM_SANDWICH` 431 (food.js; FOOD_NUTRITION fruit + `stamina`, now one of

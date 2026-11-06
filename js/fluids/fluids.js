@@ -164,6 +164,8 @@ function _fluidTook(m) {
 function _fluidWashed(x, y, z, wid) {
   const p = PROPS[wid];
   if (!p) return;
+  const cell = getBlock(x, y, z);                        // a carpet over it goes too (chunks/layer-stacks.js)
+  if (CORE.carpetCount(cell)) layersBreak(layerIdsAt(x, y, z, cell), x, y, z);
   if (p.model === 'cross') {
     _breakBillboard(x, y, z, wid);                       // washed off, drops and all
     const oy = TALL_UPPER_OF[wid] ? y + 1 : TALL_LOWER_OF[wid] ? y - 1 : null;

@@ -140,9 +140,9 @@ function itemTooltipHTML(id, dur, fresh, wm, lock) {   // lock: a key's
     if (p.foodSatFull != null) rows.push(['over-food when full', _tipNum(p.foodSatFull * og)]);
     if (p.foodHeal) rows.push(['health', '+' + _tipNum(p.foodHeal)]);          // 0.758
     // what else it fills (0.82, FOOD_NUTRITION in player/stats.js)
-    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'vegetables'], ['protein', 'protein'], ['energy', 'energy'], ['stamina', 'stamina']]) {   // energy 0.832
+    for (const [k, label] of [['thirst', 'thirst'], ['fruit', 'fruit'], ['veg', 'veggies'], ['protein', 'protein'], ['energy', 'energy'], ['stamina', 'stamina']]) {   // energy 0.832
       if (p[k]) rows.push([label, (p[k] > 0 ? '+' : '') + _tipNum(p[k])]);   // white berries take thirst
-      if (p[k + 'Full'] != null) rows.push([label + ' when full', '+' + _tipNum(p[k + 'Full'])]);   // a carrot's vegetables, a coconut's water
+      if (p[k + 'Full'] != null) rows.push([label + ' when full', '+' + _tipNum(p[k + 'Full'])]);   // a carrot's veggies, a coconut's water
     }
     if (p.foodCleanse) rows.push(['bad effects', '-' + _tipNum(p.foodCleanse) + 's']);
     rows.push(['consume time', _tipNum(p.eatTime ?? EAT_TIME) + 's']);

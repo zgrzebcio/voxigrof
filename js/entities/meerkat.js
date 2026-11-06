@@ -22,8 +22,8 @@
    works from where the stance took hold (`spot`): it fetches anything lying within MEERKAT.findR of it, or searches a
    tumbleweed, brings what it got to the spot and leaves it there, then rests MEERKAT.findRest. Use with food in hand
    (MEERKAT_FOOD: chitin, any meat raw or cooked): it sits up and eats it. Sneak + use: it goes up
-   on your shoulder (meerkatPutOn; one creature worn at a time, an otter round the neck comes down for it and the other
-   way round): items are picked up and plants foraged from further, 10% + 0.3% a level + up to 5% by its taming
+   on your shoulder (meerkatPutOn; one creature worn at a time, an otter round the neck or a parrot on the left shoulder
+   comes down for it and the other way round): items are picked up and plants foraged from further, 10% + 0.3% a level + up to 5% by its taming
    (meerkatReachBonus; wornReachMul, read by 15-drops.js and player/foraging.js; a line of the effects list,
    player/effects.js). Sneak + use with an empty hand at nothing sets it down. E pets it.
 
@@ -63,7 +63,7 @@ const MEERKAT_BIOMES = { 'Desert': 1, 'Desert Hills': 1, 'Red Sand': 1, 'Red San
 // what a tamed one eats from the hand (the use button), and how much each fills (out of ENT_HUNGER_MAX): chitin, and any meat
 // raw or cooked; no fish
 const MEERKAT_FOOD = { [ITEM.CHITIN_PLATE]: 80, [ITEM.MUTTON]: 50, [ITEM.COOKED_MUTTON]: 50, [ITEM.BEEF]: 50, [ITEM.COOKED_BEEF]: 50,
-                       [ITEM.PORK]: 50, [ITEM.COOKED_PORK]: 50 };
+                       [ITEM.PORK]: 50, [ITEM.COOKED_PORK]: 50, [ITEM.CHICKEN]: 50, [ITEM.COOKED_CHICKEN]: 50 };
 const MEERKAT_STANCES = ['follow', 'stay', 'lie', 'find'];
 const MEERKAT_STANCE_TEXT = { follow: 'follow', stay: 'stay (standing up)', lie: 'lie down', find: 'find items' };
 const _mkStanceText = (s) => MEERKAT_STANCE_TEXT[s] || s;
@@ -307,12 +307,12 @@ function _mkGo(e, plan, x, z, speed, near = 0.9) {
 function _mkThreat(e) {
   for (const p of PLAYERS) {
     if (!p.spawned || p.dead || p.canFly) continue;
-    const d = Math.hypot(p.pos.x - e.x, p.pos.z - e.z);
+    const d = Math.hypot(p.pos.x - e.x, p.pos.z - e.z), see = hideSightMul(p);   // a parrot on the shoulder hides you
     if (e.taming && houndOwner(e) === p) continue;   // its tamer frightens it only by standing up (_mkTamingTick)
     if (p.sneaking) {
-      if (d < MEERKAT.seeSneakR && _mkHeldBy(p) !== ITEM.CHITIN_PLATE) return { x: p.pos.x, z: p.pos.z };
+      if (d < MEERKAT.seeSneakR * see && _mkHeldBy(p) !== ITEM.CHITIN_PLATE) return { x: p.pos.x, z: p.pos.z };
       if (d < MEERKAT.seeR) e._watch = p;            // seen crouching: it stands and watches
-    } else if (d < MEERKAT.seeR) return { x: p.pos.x, z: p.pos.z };
+    } else if (d < MEERKAT.seeR * see) return { x: p.pos.x, z: p.pos.z };
   }
   for (const o of ENTITIES) {
     if (o === e || !(isNightMob(o) || (o.kind === 'hellhound' && !o.tame) || o.kind === 'polar_bear')) continue;
@@ -638,11 +638,12 @@ function tryMeerkatInteract() {
 
 /* ---------------------------------- on the shoulder ----------------------------------
    Out of the world onto the player, kept whole, as the otter round the neck (entities/otter.js): one creature worn at a
-   time, so an otter worn comes down for it. */
+   time, so an otter or a parrot worn comes down for it. */
 function meerkatPutOn(p, e, quiet) {
   const i = ENTITIES.indexOf(e);
   if (i < 0 || p._wornMeerkat) return false;
   if (p._wornOtter && typeof otterTakeOff === 'function') otterTakeOff(p, false);
+  if (p._wornParrot && typeof parrotTakeOff === 'function') parrotTakeOff(p, false);   // ...and a parrot (entities/parrot.js)
   ENTITIES.splice(i, 1);
   scene.remove(e.model.root);
   _mkLetGo(e); _mkDropCarry(e);
@@ -719,7 +720,7 @@ function meerkatWorldTick(dt) {
     if (e.kind !== 'meerkat' || !e.tame) continue;
     const owner = houndOwner(e);
     if (!owner || !owner.spawned || owner.dead) continue;
-    if (e._wearOn) { if (!owner._wornMeerkat && !owner._wornOtter) meerkatPutOn(owner, e, true); e._wearOn = false; continue; }
+    if (e._wearOn) { if (!owner._wornMeerkat && !owner._wornOtter && !owner._wornParrot) meerkatPutOn(owner, e, true); e._wearOn = false; continue; }
     if (e.stance !== 'follow') continue;
     const dx = owner.pos.x - e.x, dz = owner.pos.z - e.z;
     if (e.active !== false && dx * dx + dz * dz < MEERKAT.teleport * MEERKAT.teleport && Math.abs(owner.pos.y - e.y) < 24) continue;

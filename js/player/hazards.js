@@ -1,6 +1,28 @@
 'use strict';
-/* player/hazards.js: updateVitals, each frame for a player in survival. Falls, cactus, lava and fire, the armor's
-   soak, and the moment of death. */
+/* player/hazards.js: updateVitals, each frame for a player in survival. Falls, cactus, thornweed, lava and fire, the
+   armor's soak, and the moment of death. */
+
+/* Thornweed (blocks/wild-plants.js): a body touching the plant in its cell is pricked every THORN_PRICK_S, a hit like any
+   other (the armor's soak counts it), and takes the Thorns effect (player/effects.js), whose drip goes on a moment after. */
+const THORN_PRICK_S = 1, THORN_PRICK = 0.6;                    // x VITAL_K: 3 health
+function _touchingThornweed(p) {
+  const [px0, , pz0, px1, py1, pz1] = PROPS[B.THORNWEED].boxes[0];
+  for (let yy = Math.floor(p.y); yy <= Math.floor(p.y + player.H); yy++)
+    for (let xx = Math.floor(p.x - player.R); xx <= Math.floor(p.x + player.R); xx++)
+      for (let zz = Math.floor(p.z - player.R); zz <= Math.floor(p.z + player.R); zz++)
+        if ((getBlock(xx, yy, zz) & 255) === B.THORNWEED && p.y < yy + py1 && p.x + player.R > xx + px0 && p.x - player.R < xx + px1
+            && p.z + player.R > zz + pz0 && p.z - player.R < zz + pz1) return true;
+  return false;
+}
+function _thornweedTick(dt) {
+  if (player.riding || !_touchingThornweed(player.pos)) { player._thornT = 0; return; }
+  player._thornT = (player._thornT || 0) - dt;
+  if (player._thornT > 0) return;
+  player._thornT = THORN_PRICK_S;
+  player.hp = Math.max(0, player.hp - THORN_PRICK * VITAL_K * skillHazardMul());   // Hazard Hide
+  player._dmgCause = 'was torn by thornweed';
+  addPlayerEffect('thorns');
+}
 
 /* Per frame, survival only. The bars themselves move in tickStats (player/stats.js); this runs the
    outside hazards, soaks the frame's damage with armor, and handles dying. Every hit is out of 100 health
@@ -91,6 +113,7 @@ function updateVitals(dt) {
       }
     } else updateVitals._cactusT = 0;
   }
+  if (!player.flying) _thornweedTick(dt);
   // lava: 10 health per 0.5s while feet or body are inside lava
   if (!player.flying) {
     const p = player.pos;
@@ -167,6 +190,7 @@ function updateVitals(dt) {
   // respawn happens when the player clicks Respawn (respawnPlayer below)
   if (player.hp <= 0 && !player.dead) {
     player.dead = true;
+    const halved = playerHasEffect('deathHalf');   // the crows' omen: half of what stacks is lost below (entities/crow.js)
     player.effects = [];                         // death ends every timed effect
     player._saltT = 0;                           // ...and the salt in use, so Salted goes with them
     // the feed is one strip for the whole screen: it clears once nobody is left alive to read it
@@ -177,6 +201,7 @@ function updateVitals(dt) {
     if (typeof releaseHeldFish === 'function') releaseHeldFish(true);
     if (typeof otterTakeOff === 'function') otterTakeOff(player, true);
     if (typeof meerkatTakeOff === 'function') meerkatTakeOff(player, true);   // ...and a meerkat on the shoulder
+    if (typeof parrotTakeOff === 'function') parrotTakeOff(player, true);     // ...and a parrot (entities/parrot.js)
     playSound('death', { gain: 1 });
     const dx0 = Math.floor(player.pos.x), dy0 = Math.floor(player.pos.y + 0.5), dz0 = Math.floor(player.pos.z);
     /* Everything carried — worn gear included, and everything the belt and the backpack hold: a
@@ -195,13 +220,15 @@ function updateVitals(dt) {
       for (let i = 0; i < len; i++) {
         const s = arr[i];
         if (!s) continue;
-        spawnDrop(s.id, dx0, dy0, dz0,
+        const left = halved ? crowOmenKeep(s.id, s.count, s.dur ?? null) : s.count;
+        if (left > 0) spawnDrop(s.id, dx0, dy0, dz0,
           { x: (Math.random() - 0.5) * 5, y: 2 + Math.random() * 3, z: (Math.random() - 0.5) * 5 }, 2,
-          s.dur ?? null, slotMeta(s), 0, s.count);   // falls as it was: wear and extras kept, no free repair by dying; one stack a slot
+          s.dur ?? null, slotMeta(s), 0, left);   // falls as it was: wear and extras kept, no free repair by dying; one stack a slot
         arr[i] = null;
       }
     // the crafting queue's ingredients were already taken from you, so they fall with the rest
-    if (typeof dropCraftQueueAt === 'function') dropCraftQueueAt(dx0, dy0, dz0);
+    if (typeof dropCraftQueueAt === 'function') dropCraftQueueAt(dx0, dy0, dz0, halved);
+    if (halved) feedWarn('The crow omen takes half of everything you carried that stacks');
     _dropLifeOverride = 0;
     saveAll(); buildHotbar();
     if (invOpen) toggleInventory(false);

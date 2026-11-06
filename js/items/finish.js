@@ -22,7 +22,7 @@ for (const p of Object.values(ITEM_PROPS))
   for (const p of Object.values(ITEM_PROPS)) if (p && p.armor && p.armorMat && chest[p.armorMat]) p.durability = chest[p.armorMat];
 }
 // every meat leaves rotten flesh behind when it turns, cooked or raw
-for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK,
+for (const id of [ITEM.MUTTON, ITEM.COOKED_MUTTON, ITEM.BEEF, ITEM.COOKED_BEEF, ITEM.PORK, ITEM.COOKED_PORK, ITEM.CHICKEN, ITEM.COOKED_CHICKEN,
                   ITEM.COD, ITEM.COOKED_COD, ITEM.SALMON, ITEM.COOKED_SALMON,          // fish too
                   ITEM.PIKE, ITEM.COOKED_PIKE, ITEM.CATFISH, ITEM.COOKED_CATFISH])
   if (ITEM_PROPS[id]) ITEM_PROPS[id].spoilInto = ITEM.ROTTEN_FLESH;

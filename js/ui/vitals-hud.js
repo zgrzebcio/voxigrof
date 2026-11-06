@@ -15,7 +15,7 @@
      right of the centre  food, thirst over it
      the centre           the temperature dial just over the level number, stamina over it, oxygen over
                           that — stamina and oxygen only while they are not full
-     far left and right   vegetables and energy, protein and fruit: only while the inventory is open
+     far left and right   veggies and energy, protein and fruit: only while the inventory is open
    With the inventory open every bar shows, and hovering one gives its numbers (vitalsTipAt).
    An icon is its dark silhouette (<bar>_bg), then its picture filled sideways from its row's outer end as far as
    that icon's fifth of the bar goes (up from the bottom before), then the white outline (<bar>_overlay)
@@ -207,7 +207,7 @@ let ensureVitalsSprites = () => {};
   };
   bar('hp', 'Heart', 'health'); bar('food', 'Food', 'food'); bar('thirst', 'Thirst', 'thirst');
   bar('stamina', 'Stamina', 'stamina'); bar('energy', 'Energy', 'energy'); bar('air', 'Oxygen', 'oxygen');
-  bar('fruit', 'Fruit', 'fruit'); bar('veg', 'Vegetables', 'vegetables'); bar('protein', 'Protein', 'protein');
+  bar('fruit', 'Fruit', 'fruit'); bar('veg', 'Veggie', 'veggie'); bar('protein', 'Protein', 'protein');
   _p.airBurst = ART + 'Oxygen/air_bursting.png';
   _p.armorBg = ART + 'Armor/armor_bg.png';
   for (const m of new Set(Object.values(ARMOR_HUD_ART))) {
