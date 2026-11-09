@@ -144,9 +144,9 @@ legends: B = big update, M= medium update, S = small update
 142. S: ~~crow birds~~ v0.8543
 143. S: ~~small qol fixes~~ 0.8544
 144. S: ~~chicken, eggs, chicken egg hatching~~ 0.8545
-145. B: ~~falling carpet cover grass or non-full block~~ v0.855 
+145. B: ~~falling carpet cover grass or non-full block~~ v0.855
 146. S: ~~add more plants to cold and warm biomes~~ v0.8555
-147. M: milk fluid, drinks rework. 0.856
+147. M: milk, fix fluid, drinks rework. 0.856
 148. S: campfire, cake 0.8565
 149. M: food rework: cauldron and spoon, cheese, and food making v0.857
 150. S: more food adding, cake, stews, chocolate etc. v0.8575

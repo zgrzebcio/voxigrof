@@ -26,11 +26,11 @@ defineItems('equipment', {
   [ITEM.IRON_GLOVES]:        { name: 'Iron gloves',        stack: 1, icon: 'iron_gloves',        equip: 'gloves',     armor: 5, tier: 3, durability: 150, armorMat: 'iron',    moveSpeed: -0.0025, strength: 3.75, desc: '' },
   /* Gold is the middle tier, between leather and iron: more armor than leather, less than iron, and no slow at all.
      Each piece but the crown is set with a gem, the crown with pearls (items/recipes.js). */
-  [ITEM.GOLDEN_HELMET]:      { name: 'Golden crown',       stack: 1, icon: 'golden_helmet',      equip: 'helmet',     armor: 8, tier: 2, durability: 120, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_CHESTPLATE]:  { name: 'Golden chestplate',  stack: 1, icon: 'golden_chestplate',  equip: 'chestplate', armor: 22, tier: 2, durability: 160, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_LEGGINGS]:    { name: 'Golden leggings',    stack: 1, icon: 'golden_leggings',    equip: 'leggings',   armor: 18, tier: 2, durability: 150, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_BOOTS]:       { name: 'Golden boots',       stack: 1, icon: 'golden_boots',       equip: 'boots',      armor: 8, tier: 2, durability: 130, armorMat: 'golden',  desc: '' },
-  [ITEM.GOLDEN_GLOVES]:      { name: 'Golden gauntlets',   stack: 1, icon: 'golden_gloves',      equip: 'gloves',     armor: 5, tier: 2, durability: 100, armorMat: 'golden',  strength: 2.5, desc: '' },
+  [ITEM.GOLDEN_HELMET]:      { name: 'Golden crown',       stack: 1, icon: 'golden_helmet',      equip: 'helmet',     armor: 8, tier: 2, durability: 200, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_CHESTPLATE]:  { name: 'Golden chestplate',  stack: 1, icon: 'golden_chestplate',  equip: 'chestplate', armor: 22, tier: 2, durability: 200, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_LEGGINGS]:    { name: 'Golden leggings',    stack: 1, icon: 'golden_leggings',    equip: 'leggings',   armor: 18, tier: 2, durability: 200, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_BOOTS]:       { name: 'Golden boots',       stack: 1, icon: 'golden_boots',       equip: 'boots',      armor: 8, tier: 2, durability: 200, armorMat: 'golden',  desc: '' },
+  [ITEM.GOLDEN_GLOVES]:      { name: 'Golden gauntlets',   stack: 1, icon: 'golden_gloves',      equip: 'gloves',     armor: 5, tier: 2, durability: 200, armorMat: 'golden',  strength: 2.5, desc: '' },
   /* Bronze armor: between iron and steel, made with leather, cloth and the termites' chitin (items/recipes.js). Half
      the slow of iron's, the gauntlets a harder blow. */
   [ITEM.BRONZE_HELMET]:      { name: 'Bronze helmet',      stack: 1, icon: 'bronze_helmet',      equip: 'helmet',     armor: 12, tier: 4, durability: 520, armorMat: 'bronze',  moveSpeed: -0.0025, desc: '' },
